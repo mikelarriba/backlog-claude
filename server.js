@@ -220,4 +220,64 @@ ${epicContent}`;
 
 app.listen(PORT, () => {
   console.log(`\n⚡ Backlog Claude running → http://localhost:${PORT}\n`);
+  watchInbox();
 });
+
+// ── Inbox watcher ─────────────────────────────────────────────────────────────
+// Automatically processes any .md file dropped into /inbox that doesn't yet
+// have a corresponding file in /backlog.
+
+function watchInbox() {
+  const inboxDir = path.join(__dirname, 'inbox');
+  ensureDir(inboxDir);
+
+  // Process any files already in inbox that have no backlog entry (e.g. on restart)
+  for (const f of fs.readdirSync(inboxDir).filter(isInboxFile)) {
+    const backlogPath = path.join(__dirname, 'backlog', f);
+    if (!fs.existsSync(backlogPath)) processInboxFile(f);
+  }
+
+  fs.watch(inboxDir, (event, filename) => {
+    if (event !== 'rename' || !filename || !isInboxFile(filename)) return;
+
+    const inboxPath = path.join(inboxDir, filename);
+    const backlogPath = path.join(__dirname, 'backlog', filename);
+
+    // Wait briefly for the write to complete, then check the file exists
+    // and hasn't already been processed
+    setTimeout(() => {
+      if (fs.existsSync(inboxPath) && !fs.existsSync(backlogPath)) {
+        processInboxFile(filename);
+      }
+    }, 500);
+  });
+
+  console.log(`👀 Watching /inbox for new files…`);
+}
+
+function isInboxFile(filename) {
+  return filename.endsWith('.md') && filename !== '.gitkeep';
+}
+
+async function processInboxFile(filename) {
+  const inboxPath = path.join(__dirname, 'inbox', filename);
+  const backlogPath = path.join(__dirname, 'backlog', filename);
+
+  console.log(`\n📥 New inbox file: ${filename}`);
+
+  try {
+    const inboxContent = fs.readFileSync(inboxPath, 'utf-8');
+
+    console.log(`   ✍️  Claude is writing the Epic…`);
+    const backlogContent = await callClaude(
+      `Process this new idea from the inbox. Generate a complete Epic following your instructions.\n\nFile: ${filename}\n\n${inboxContent}`
+    );
+
+    ensureDir(path.join(__dirname, 'backlog'));
+    fs.writeFileSync(backlogPath, backlogContent);
+
+    console.log(`   ✅ Epic saved → backlog/${filename}`);
+  } catch (err) {
+    console.error(`   ❌ Failed to process ${filename}:`, err.message);
+  }
+}
