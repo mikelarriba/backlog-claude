@@ -5,159 +5,138 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#6366f1" />
   <link rel="manifest" href="manifest.json" />
-  <title>Backlog Claude — Epic Generator</title>
+  <title>Backlog Claude</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
       --bg: #0f172a;
       --surface: #1e293b;
+      --surface2: #263044;
       --border: #334155;
       --accent: #6366f1;
       --accent-hover: #818cf8;
       --text: #f1f5f9;
       --muted: #94a3b8;
       --success: #22c55e;
-      --radius: 12px;
+      --warning: #f59e0b;
+      --radius: 10px;
     }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
+      height: 100vh;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
+      overflow: hidden;
     }
 
-    .card {
+    /* ── Layout ────────────────────────────────────────────────── */
+    .app {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Left Panel ─────────────────────────────────────────────── */
+    .left {
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 40px;
-      width: 100%;
-      max-width: 640px;
-      box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 28px 24px;
     }
 
     .logo {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .logo-icon {
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       background: var(--accent);
       border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 16px;
+      flex-shrink: 0;
     }
 
-    h1 {
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: var(--text);
-    }
+    .logo h1 { font-size: 1.1rem; font-weight: 700; }
 
     .subtitle {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: var(--muted);
-      margin-bottom: 32px;
+      margin-bottom: 28px;
     }
 
     label {
       display: block;
-      font-size: 0.8rem;
+      font-size: 0.72rem;
       font-weight: 600;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
-    textarea {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 0.95rem;
-      line-height: 1.6;
-      padding: 14px 16px;
-      resize: vertical;
-      min-height: 140px;
-      transition: border-color 0.2s;
-      font-family: inherit;
-    }
+    .field { margin-bottom: 16px; }
 
-    textarea::placeholder { color: var(--muted); }
-
-    textarea:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .meta-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-top: 16px;
-    }
-
-    .meta-row input, .meta-row select {
+    textarea, input, select {
       width: 100%;
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 8px;
       color: var(--text);
       font-size: 0.9rem;
-      padding: 10px 14px;
+      padding: 10px 12px;
       font-family: inherit;
-      transition: border-color 0.2s;
+      transition: border-color 0.15s;
     }
 
-    .meta-row input:focus, .meta-row select:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
+    textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
+    textarea::placeholder, input::placeholder { color: var(--muted); }
+    textarea:focus, input:focus, select:focus { outline: none; border-color: var(--accent); }
+    select option { background: var(--surface); }
 
-    .meta-row select option { background: var(--surface); }
+    .meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-    .actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 24px;
-    }
+    .actions { display: flex; gap: 10px; margin-top: 20px; }
 
     button {
       cursor: pointer;
       border: none;
       border-radius: 8px;
-      font-size: 0.9rem;
+      font-size: 0.875rem;
       font-weight: 600;
-      padding: 12px 20px;
-      transition: background 0.2s, transform 0.1s;
+      padding: 10px 16px;
+      transition: background 0.15s, opacity 0.15s, transform 0.1s;
       font-family: inherit;
     }
 
-    button:active { transform: scale(0.98); }
+    button:active:not(:disabled) { transform: scale(0.97); }
 
     .btn-primary {
       background: var(--accent);
       color: #fff;
       flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
 
-    .btn-primary:hover { background: var(--accent-hover); }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
 
     .btn-secondary {
       background: transparent;
@@ -167,197 +146,610 @@
 
     .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
 
-    .toast {
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
+
+    .btn-ghost:hover { color: var(--text); }
+
+    .btn-stories {
+      background: #0f4c3a;
+      color: #34d399;
+      border: 1px solid #065f46;
+      padding: 8px 14px;
+      font-size: 0.8rem;
+    }
+
+    .btn-stories:hover:not(:disabled) { background: #065f46; }
+    .btn-stories:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .status {
+      margin-top: 16px;
+      font-size: 0.82rem;
+      border-radius: 8px;
+      padding: 10px 14px;
       display: none;
+    }
+
+    .status.show { display: flex; align-items: center; gap: 8px; }
+
+    .status.loading {
+      background: rgba(99,102,241,0.1);
+      border: 1px solid rgba(99,102,241,0.3);
+      color: var(--accent-hover);
+    }
+
+    .status.success {
+      background: #052e16;
+      border: 1px solid #166534;
+      color: var(--success);
+    }
+
+    .status.error {
+      background: #1c0a0a;
+      border: 1px solid #7f1d1d;
+      color: #f87171;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(99,102,241,0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Right Panel ─────────────────────────────────────────────── */
+    .right {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── List View ───────────────────────────────────────────────── */
+    #list-view {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .list-header {
+      padding: 20px 24px 0;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .list-header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .list-title { font-size: 0.9rem; font-weight: 600; color: var(--muted); }
+    .epic-count { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 20px; }
+
+    .search-wrap { position: relative; padding-bottom: 16px; }
+
+    .search-wrap input {
+      padding-left: 34px;
+      font-size: 0.85rem;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-60%);
+      color: var(--muted);
+      font-size: 14px;
+      pointer-events: none;
+    }
+
+    .epic-list {
+      overflow-y: auto;
+      flex: 1;
+      padding: 8px 0;
+    }
+
+    .epic-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 24px;
+      cursor: pointer;
+      transition: background 0.1s;
+      border-bottom: 1px solid rgba(51,65,85,0.4);
+    }
+
+    .epic-item:hover { background: var(--surface2); }
+
+    .epic-date {
+      font-size: 0.72rem;
+      color: var(--muted);
+      white-space: nowrap;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .epic-title-text {
+      font-size: 0.875rem;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .epic-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    .empty-state {
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.7;
+    }
+
+    .empty-state .icon { font-size: 2rem; margin-bottom: 12px; }
+
+    /* ── Detail View ─────────────────────────────────────────────── */
+    #detail-view {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #detail-view.show { display: flex; }
+
+    .detail-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .detail-header-left { display: flex; align-items: center; gap: 10px; }
+
+    .detail-filename {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .detail-body {
+      overflow-y: auto;
+      flex: 1;
+      padding: 24px;
+    }
+
+    /* Markdown styles */
+    .markdown h1, .markdown h2, .markdown h3 {
+      color: var(--text);
+      margin: 20px 0 10px;
+      font-weight: 600;
+    }
+
+    .markdown h1 { font-size: 1.3rem; margin-top: 0; }
+    .markdown h2 { font-size: 1.05rem; }
+    .markdown h3 { font-size: 0.95rem; }
+
+    .markdown p { color: #cbd5e1; font-size: 0.875rem; line-height: 1.7; margin: 8px 0; }
+    .markdown ul, .markdown ol { padding-left: 20px; margin: 8px 0; }
+    .markdown li { color: #cbd5e1; font-size: 0.875rem; line-height: 1.7; margin: 3px 0; }
+
+    .markdown table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      margin: 12px 0;
+    }
+
+    .markdown th {
+      background: var(--surface2);
+      color: var(--muted);
+      font-weight: 600;
+      padding: 8px 12px;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+
+    .markdown td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      color: #cbd5e1;
+    }
+
+    .markdown code {
+      background: var(--surface2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-family: 'Fira Code', monospace;
+      color: #a5b4fc;
+    }
+
+    .markdown pre {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+
+    .markdown pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.8rem;
+      color: #e2e8f0;
+    }
+
+    .markdown strong { color: var(--text); }
+
+    .markdown hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* Stories section */
+    .stories-section {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .stories-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 14px;
+      display: flex;
       align-items: center;
       gap: 8px;
-      background: #14532d;
-      border: 1px solid var(--success);
-      color: var(--success);
-      border-radius: 8px;
-      padding: 12px 16px;
-      font-size: 0.85rem;
-      margin-top: 16px;
     }
 
-    .toast.show { display: flex; }
-
-    .hint {
-      margin-top: 24px;
-      padding: 14px 16px;
-      background: rgba(99,102,241,0.08);
-      border: 1px solid rgba(99,102,241,0.2);
+    .stories-content {
+      background: var(--surface2);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      font-size: 0.8rem;
-      color: var(--muted);
+      padding: 16px;
+      font-size: 0.82rem;
+      color: #cbd5e1;
       line-height: 1.6;
+      white-space: pre-wrap;
+      font-family: 'Fira Code', 'Courier New', monospace;
+      min-height: 60px;
     }
 
-    .hint strong { color: var(--accent-hover); }
-
-    footer {
-      margin-top: 24px;
-      font-size: 0.75rem;
-      color: var(--muted);
-      text-align: center;
+    .stories-success {
+      margin-top: 10px;
+      font-size: 0.78rem;
+      color: var(--success);
+      display: none;
     }
+
+    .stories-success.show { display: block; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   </style>
 </head>
 <body>
 
-<div class="card">
-  <div class="logo">
-    <div class="logo-icon">⚡</div>
-    <h1>Backlog Claude</h1>
-  </div>
-  <p class="subtitle">Drop a quick idea — get a polished Epic ready for your backlog.</p>
+<div class="app">
 
-  <label for="idea">Your Idea</label>
-  <textarea
-    id="idea"
-    placeholder="e.g. Users should be able to reset their password via email without contacting support..."
-  ></textarea>
-
-  <div class="meta-row">
-    <div>
-      <label for="epic-title">Epic Title (optional)</label>
-      <input id="epic-title" type="text" placeholder="e.g. Self-Service Auth" />
+  <!-- ── Left Panel: Form ──────────────────────────────────────── -->
+  <div class="left">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <h1>Backlog Claude</h1>
     </div>
-    <div>
-      <label for="priority">Priority</label>
-      <select id="priority">
-        <option value="Medium">Medium</option>
-        <option value="High">High</option>
-        <option value="Low">Low</option>
-        <option value="Critical">Critical</option>
-      </select>
+    <p class="subtitle">Turn a rough idea into a polished Epic.</p>
+
+    <div class="field">
+      <label for="idea">Your Idea *</label>
+      <textarea id="idea" placeholder="e.g. Users should be able to reset their password via email without contacting support..."></textarea>
     </div>
+
+    <div class="meta-row">
+      <div class="field">
+        <label for="epic-title">Epic Title</label>
+        <input id="epic-title" type="text" placeholder="e.g. Self-Service Auth" />
+      </div>
+      <div class="field">
+        <label for="priority">Priority</label>
+        <select id="priority">
+          <option value="Medium">Medium</option>
+          <option value="High">High</option>
+          <option value="Low">Low</option>
+          <option value="Critical">Critical</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-secondary" onclick="clearForm()">Clear</button>
+      <button class="btn-primary" id="generate-btn" onclick="generateEpic()">
+        <span id="btn-label">Generate Epic</span>
+      </button>
+    </div>
+
+    <div class="status" id="status"></div>
   </div>
 
-  <div class="actions">
-    <button class="btn-secondary" onclick="clearForm()">Clear</button>
-    <button class="btn-primary" id="generate-btn" onclick="generateEpic()">
-      Generate Epic &amp; Save to Inbox
-    </button>
-  </div>
+  <!-- ── Right Panel ───────────────────────────────────────────── -->
+  <div class="right">
 
-  <div class="toast" id="toast">
-    ✅ Epic saved — move the file to <code>/inbox</code> for Claude to process.
-  </div>
+    <!-- List View -->
+    <div id="list-view">
+      <div class="list-header">
+        <div class="list-header-top">
+          <span class="list-title">Your Epics</span>
+          <span class="epic-count" id="epic-count">0</span>
+        </div>
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input id="search" type="text" placeholder="Search epics..." oninput="filterEpics(this.value)" />
+        </div>
+      </div>
+      <div class="epic-list" id="epic-list">
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          No epics yet. Write your first idea on the left and click<br><strong>Generate Epic</strong>.
+        </div>
+      </div>
+    </div>
 
-  <div class="hint">
-    <strong>How it works:</strong> Fill in your idea, click Generate. A <code>.md</code> file
-    will download. Drop it into the <strong>/inbox</strong> folder of this project.
-    Claude (running as your PO Agent) will pick it up and write the full Epic + User Stories
-    in <strong>/backlog</strong>.
+    <!-- Detail View -->
+    <div id="detail-view">
+      <div class="detail-header">
+        <div class="detail-header-left">
+          <button class="btn-ghost" onclick="showList()">← Back</button>
+          <span class="detail-filename" id="detail-filename"></span>
+        </div>
+        <button class="btn-stories" id="stories-btn" onclick="generateStories()">
+          ✨ Generate User Stories
+        </button>
+      </div>
+      <div class="detail-body">
+        <div class="markdown" id="detail-content"></div>
+        <div class="stories-section" id="stories-section" style="display:none">
+          <div class="stories-label">
+            <span>🧩 Generated User Stories</span>
+            <span id="stories-spinner" class="spinner" style="display:none"></span>
+          </div>
+          <div class="stories-content" id="stories-content"></div>
+          <div class="stories-success" id="stories-success"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
-<footer>Backlog Claude · PWA · Open in Claude Code to process ideas</footer>
-
 <script>
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js');
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
-  function slugify(text) {
-    return text
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .trim()
-      .replace(/\s+/g, '-')
-      .slice(0, 50);
+  // ── State ──────────────────────────────────────────────────────
+  let allEpics = [];
+  let currentFilename = null;
+
+  // ── Init ───────────────────────────────────────────────────────
+  loadEpics();
+
+  // ── Epic list ──────────────────────────────────────────────────
+  async function loadEpics() {
+    try {
+      const res = await fetch('/api/epics');
+      allEpics = await res.json();
+      renderEpicList(allEpics);
+    } catch (e) {
+      console.warn('Could not load epics:', e.message);
+    }
   }
 
-  function pad(n) { return String(n).padStart(2, '0'); }
+  function renderEpicList(epics) {
+    const list = document.getElementById('epic-list');
+    const count = document.getElementById('epic-count');
+    count.textContent = epics.length;
 
-  function isoDate() {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  }
-
-  function isoDateTime() {
-    const d = new Date();
-    return `${isoDate()}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
-
-  function buildMarkdown(idea, title, priority) {
-    const displayTitle = title.trim() || 'Untitled Epic';
-
-    return `---
-JIRA_ID: TBD
-Story_Points: TBD
-Status: Inbox — Awaiting Refinement
-Priority: ${priority}
-Created: ${isoDateTime()}
----
-
-# ${displayTitle}
-
-## Raw Idea
-
-${idea.trim()}
-
----
-
-> This file was generated by the **Backlog Claude PWA**.
-> Place it in the \`/inbox\` folder and run Claude Code to have the PO Agent
-> transform it into a full Epic with COVE-structured User Stories and
-> Gherkin acceptance criteria in \`/backlog\`.
-`;
-  }
-
-  function generateEpic() {
-    const idea = document.getElementById('idea').value.trim();
-    if (!idea) {
-      document.getElementById('idea').focus();
+    if (!epics.length) {
+      list.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          No epics yet. Write your first idea on the left and click<br><strong>Generate Epic</strong>.
+        </div>`;
       return;
     }
 
-    const title = document.getElementById('epic-title').value.trim();
-    const priority = document.getElementById('priority').value;
-    const displayTitle = title || 'untitled-epic';
-    const filename = `${isoDate()}-${slugify(displayTitle) || 'epic'}.md`;
-    const content = buildMarkdown(idea, title, priority);
+    list.innerHTML = epics.map(e => `
+      <div class="epic-item" onclick="openEpic('${e.filename}')">
+        <div class="epic-dot"></div>
+        <div style="flex:1">
+          <div class="epic-title-text">${escHtml(e.title)}</div>
+        </div>
+        <div class="epic-date">${e.date}</div>
+      </div>`).join('');
+  }
 
-    // Try File System Access API first, fall back to download
-    if (window.showSaveFilePicker) {
-      window.showSaveFilePicker({
-        suggestedName: filename,
-        types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }]
-      }).then(async handle => {
-        const writable = await handle.createWritable();
-        await writable.write(content);
-        await writable.close();
-        showToast();
-      }).catch(() => downloadFile(filename, content));
-    } else {
-      downloadFile(filename, content);
+  function filterEpics(query) {
+    const q = query.toLowerCase();
+    const filtered = q ? allEpics.filter(e => e.title.toLowerCase().includes(q) || e.filename.toLowerCase().includes(q)) : allEpics;
+    renderEpicList(filtered);
+  }
+
+  // ── Detail view ────────────────────────────────────────────────
+  async function openEpic(filename) {
+    try {
+      const res = await fetch(`/api/epic/${encodeURIComponent(filename)}`);
+      const { content } = await res.json();
+      currentFilename = filename;
+
+      document.getElementById('detail-filename').textContent = filename;
+      document.getElementById('detail-content').innerHTML = marked.parse(content);
+      document.getElementById('stories-section').style.display = 'none';
+      document.getElementById('stories-content').textContent = '';
+      document.getElementById('stories-success').classList.remove('show');
+      document.getElementById('stories-btn').disabled = false;
+      document.getElementById('stories-btn').textContent = '✨ Generate User Stories';
+
+      document.getElementById('list-view').style.display = 'none';
+      document.getElementById('detail-view').classList.add('show');
+    } catch (e) {
+      console.error(e);
     }
   }
 
-  function downloadFile(filename, content) {
-    const blob = new Blob([content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast();
+  function showList() {
+    document.getElementById('detail-view').classList.remove('show');
+    document.getElementById('list-view').style.display = 'flex';
+    currentFilename = null;
   }
 
-  function showToast() {
-    const toast = document.getElementById('toast');
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 5000);
+  // ── Generate Epic ──────────────────────────────────────────────
+  async function generateEpic() {
+    const idea = document.getElementById('idea').value.trim();
+    if (!idea) { document.getElementById('idea').focus(); return; }
+
+    const title = document.getElementById('epic-title').value.trim();
+    const priority = document.getElementById('priority').value;
+
+    setStatus('loading', 'Claude is writing your Epic…');
+    setBtnState(true);
+
+    try {
+      const res = await fetch('/api/epic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea, title, priority })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+
+      clearForm();
+      setStatus('success', `✅ Epic created: ${data.filename}`);
+      await loadEpics();
+      openEpic(data.filename);
+    } catch (e) {
+      setStatus('error', `❌ ${e.message}`);
+    } finally {
+      setBtnState(false);
+    }
   }
 
+  // ── Generate User Stories ──────────────────────────────────────
+  async function generateStories() {
+    if (!currentFilename) return;
+
+    const btn = document.getElementById('stories-btn');
+    const section = document.getElementById('stories-section');
+    const content = document.getElementById('stories-content');
+    const spinner = document.getElementById('stories-spinner');
+    const success = document.getElementById('stories-success');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Generating…';
+    content.textContent = '';
+    success.classList.remove('show');
+    section.style.display = 'block';
+    spinner.style.display = 'inline-block';
+
+    // Scroll to stories section
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    try {
+      const res = await fetch(`/api/epic/${encodeURIComponent(currentFilename)}/stories`, { method: 'POST' });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.text) {
+              content.textContent += payload.text;
+            }
+            if (payload.done) {
+              spinner.style.display = 'none';
+              btn.textContent = '✅ Stories Generated';
+              success.textContent = `Saved to docs/stories/${payload.filename}`;
+              success.classList.add('show');
+            }
+            if (payload.error) {
+              throw new Error(payload.error);
+            }
+          } catch {}
+        }
+      }
+    } catch (e) {
+      spinner.style.display = 'none';
+      content.textContent += `\n\n❌ Error: ${e.message}`;
+      btn.disabled = false;
+      btn.textContent = '✨ Generate User Stories';
+    }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
   function clearForm() {
     document.getElementById('idea').value = '';
     document.getElementById('epic-title').value = '';
     document.getElementById('priority').value = 'Medium';
-    document.getElementById('toast').classList.remove('show');
+    setStatus('hidden');
+  }
+
+  function setStatus(type, message) {
+    const el = document.getElementById('status');
+    el.className = `status ${type === 'hidden' ? '' : type + ' show'}`;
+    if (type === 'loading') {
+      el.innerHTML = `<div class="spinner"></div><span>${message}</span>`;
+    } else {
+      el.textContent = message || '';
+    }
+  }
+
+  function setBtnState(loading) {
+    const btn = document.getElementById('generate-btn');
+    const label = document.getElementById('btn-label');
+    btn.disabled = loading;
+    label.textContent = loading ? 'Generating…' : 'Generate Epic';
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 </script>
 </body>
