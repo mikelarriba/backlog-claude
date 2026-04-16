@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Anthropic from '@anthropic-ai/sdk';
+import { spawn } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -10,8 +10,6 @@ const PORT = 3000;
 
 app.use(express.json());
 app.use(express.static(__dirname));
-
-const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -26,8 +24,31 @@ function isoDate() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function readSystemPrompt() {
-  return fs.readFileSync(path.join(__dirname, 'CLAUDE.md'), 'utf-8');
+// Run `claude -p <prompt>` and return the full text output.
+// The CLAUDE.md in __dirname is automatically used as the system prompt.
+function callClaude(prompt) {
+  return new Promise((resolve, reject) => {
+    let out = '', err = '';
+    const proc = spawn('claude', ['-p', prompt], { cwd: __dirname });
+    proc.stdout.on('data', d => out += d.toString());
+    proc.stderr.on('data', d => err += d.toString());
+    proc.on('close', code =>
+      code === 0 ? resolve(out.trim()) : reject(new Error(err.trim() || `claude exited ${code}`))
+    );
+  });
+}
+
+// Same as callClaude but streams stdout chunks into an SSE response.
+function streamClaude(prompt, onChunk) {
+  return new Promise((resolve, reject) => {
+    let err = '';
+    const proc = spawn('claude', ['-p', prompt], { cwd: __dirname });
+    proc.stdout.on('data', d => onChunk(d.toString()));
+    proc.stderr.on('data', d => err += d.toString());
+    proc.on('close', code =>
+      code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`))
+    );
+  });
 }
 
 function ensureDir(dir) {
@@ -70,22 +91,10 @@ ${idea.trim()}
     ensureDir(path.join(__dirname, 'inbox'));
     fs.writeFileSync(path.join(__dirname, 'inbox', filename), inboxContent);
 
-    // 2. Process with Claude (system prompt from CLAUDE.md, prompt-cached)
-    const systemPrompt = readSystemPrompt();
-
-    const response = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 4096,
-      system: [
-        { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }
-      ],
-      messages: [{
-        role: 'user',
-        content: `Process this new idea from the inbox. Generate a complete Epic following your instructions.\n\nFile: ${filename}\n\n${inboxContent}`
-      }]
-    });
-
-    const backlogContent = response.content[0].text;
+    // 2. Process with Claude Code CLI — uses CLAUDE.md as system prompt automatically
+    const backlogContent = await callClaude(
+      `Process this new idea from the inbox. Generate a complete Epic following your instructions.\n\nFile: ${filename}\n\n${inboxContent}`
+    );
 
     // 3. Save to backlog
     ensureDir(path.join(__dirname, 'backlog'));
@@ -154,71 +163,46 @@ app.post('/api/epic/:filename/stories', async (req, res) => {
   try {
     const epicContent = fs.readFileSync(filepath, 'utf-8');
 
-    const storiesSystemPrompt = `You are a Product Owner agent. Your task is to break down an Epic into detailed User Stories.
+    const storiesPrompt = `You are a Product Owner agent breaking down an Epic into User Stories.
 
-For each User Story follow the COVE Framework strictly:
-- **C - Context**: The background. Why are we building this now?
-- **O - Objective**: The specific, measurable goal of this ticket.
-- **V - Value**: The "So What?" — the benefit to the user or business.
-- **E - Execution**: High-level technical steps to implement.
+For each story follow the COVE Framework:
+- **C - Context**: Why are we building this now?
+- **O - Objective**: The specific, measurable goal.
+- **V - Value**: The benefit to the user or business.
+- **E - Execution**: High-level technical steps.
 
-Also write Acceptance Criteria in Gherkin format (Given / When / Then) for each story.
+Also write Acceptance Criteria in Gherkin (Given/When/Then) per story.
 
-## Output Format
-
-Start with YAML frontmatter, then list all stories:
-
-\`\`\`
+Start with YAML frontmatter:
 ---
 JIRA_ID: TBD
 Story_Points: TBD
 Status: Ready for Development
 Created: ${isoDate()}
 ---
-\`\`\`
 
 Then for each story:
-
 ## Story [N]: [Title]
-
-**Context:** ...
-**Objective:** ...
-**Value:** ...
-**Execution:** ...
-
+**Context:** ...  **Objective:** ...  **Value:** ...  **Execution:** ...
 ### Acceptance Criteria
-
 \`\`\`gherkin
-Feature: [Feature Name]
-
-  Scenario: [Scenario Name]
-    Given [initial context]
-    When [action taken]
-    Then [expected outcome]
+Given ... When ... Then ...
 \`\`\`
 
-Generate between 3 and 6 stories that fully cover the Epic scope.`;
+Generate 3–6 stories covering the full Epic scope.
+
+---
+
+Epic to break down:
+
+${epicContent}`;
 
     let fullContent = '';
 
-    const stream = client.messages.stream({
-      model: 'claude-opus-4-6',
-      max_tokens: 8000,
-      system: [
-        { type: 'text', text: storiesSystemPrompt, cache_control: { type: 'ephemeral' } }
-      ],
-      messages: [{
-        role: 'user',
-        content: `Generate comprehensive User Stories for this Epic:\n\n${epicContent}`
-      }]
+    await streamClaude(storiesPrompt, (chunk) => {
+      fullContent += chunk;
+      send({ text: chunk });
     });
-
-    stream.on('text', (text) => {
-      fullContent += text;
-      send({ text });
-    });
-
-    await stream.finalMessage();
 
     // Save stories file
     const storyFilename = filename.replace('.md', '-stories.md');
