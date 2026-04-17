@@ -295,6 +295,140 @@
       flex-shrink: 0;
     }
 
+    .type-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 7px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+
+    .type-badge.epic  { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    .type-badge.story { background: rgba(34,197,94,0.12);  color: #4ade80; }
+    .type-badge.spike { background: rgba(245,158,11,0.12); color: #fbbf24; }
+
+    .status-badge {
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+
+    .status-badge.Draft           { background: rgba(148,163,184,0.12); color: #94a3b8; }
+    .status-badge.Created-in-JIRA { background: rgba(99,102,241,0.12);  color: #a5b4fc; }
+    .status-badge.Archived        { background: rgba(100,116,139,0.12); color: #64748b; }
+
+    /* ── Filter row ──────────────────────────────────────────────── */
+    .filter-row {
+      padding: 10px 24px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .filter-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      width: 42px;
+      flex-shrink: 0;
+    }
+
+    .pill {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .pill:hover { border-color: var(--muted); color: var(--text); }
+
+    .pill.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .pill.epic.active   { background: #4338ca; border-color: #4338ca; }
+    .pill.story.active  { background: #15803d; border-color: #15803d; }
+    .pill.spike.active  { background: #b45309; border-color: #b45309; }
+
+    /* ── Delete button ───────────────────────────────────────────── */
+    .btn-delete {
+      background: transparent;
+      color: #f87171;
+      border: 1px solid rgba(248,113,113,0.3);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn-delete:hover { background: rgba(248,113,113,0.1); border-color: #f87171; }
+
+    /* ── Confirm dialog overlay ──────────────────────────────────── */
+    .dialog-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dialog-overlay.show { display: flex; }
+
+    .dialog {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 28px 24px;
+      width: 360px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    .dialog h3 { font-size: 1rem; margin-bottom: 8px; }
+    .dialog p  { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin-bottom: 20px; }
+
+    .dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Status selector in detail header ───────────────────────── */
+    .status-select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 5px 10px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .status-select:focus { outline: none; border-color: var(--accent); }
+
     .empty-state {
       padding: 48px 24px;
       text-align: center;
@@ -472,10 +606,19 @@
       <textarea id="idea" placeholder="e.g. Users should be able to reset their password via email without contacting support..."></textarea>
     </div>
 
+    <div class="field">
+      <label for="doc-title">Title</label>
+      <input id="doc-title" type="text" placeholder="e.g. Self-Service Auth" />
+    </div>
+
     <div class="meta-row">
       <div class="field">
-        <label for="epic-title">Epic Title</label>
-        <input id="epic-title" type="text" placeholder="e.g. Self-Service Auth" />
+        <label for="doc-type">Type</label>
+        <select id="doc-type">
+          <option value="epic">Epic</option>
+          <option value="story">Story</option>
+          <option value="spike">Spike</option>
+        </select>
       </div>
       <div class="field">
         <label for="priority">Priority</label>
@@ -490,8 +633,8 @@
 
     <div class="actions">
       <button class="btn-secondary" onclick="clearForm()">Clear</button>
-      <button class="btn-primary" id="generate-btn" onclick="generateEpic()">
-        <span id="btn-label">Generate Epic</span>
+      <button class="btn-primary" id="generate-btn" onclick="generateDoc()">
+        <span id="btn-label">Generate</span>
       </button>
     </div>
 
@@ -510,7 +653,23 @@
         </div>
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
-          <input id="search" type="text" placeholder="Search epics..." oninput="filterEpics(this.value)" />
+          <input id="search" type="text" placeholder="Search..." oninput="applyFilters()" />
+        </div>
+      </div>
+      <div class="filter-row">
+        <div class="filter-group">
+          <span class="filter-label">Type</span>
+          <button class="pill active" data-type="all"   onclick="setTypeFilter('all')">All</button>
+          <button class="pill epic"   data-type="epic"  onclick="setTypeFilter('epic')">Epic</button>
+          <button class="pill story"  data-type="story" onclick="setTypeFilter('story')">Story</button>
+          <button class="pill spike"  data-type="spike" onclick="setTypeFilter('spike')">Spike</button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Status</span>
+          <button class="pill active" data-status="all"              onclick="setStatusFilter('all')">All</button>
+          <button class="pill"        data-status="Draft"            onclick="setStatusFilter('Draft')">Draft</button>
+          <button class="pill"        data-status="Created in JIRA"  onclick="setStatusFilter('Created in JIRA')">In JIRA</button>
+          <button class="pill"        data-status="Archived"         onclick="setStatusFilter('Archived')">Archived</button>
         </div>
       </div>
       <div class="epic-list" id="epic-list">
@@ -528,9 +687,17 @@
           <button class="btn-ghost" onclick="showList()">← Back</button>
           <span class="detail-filename" id="detail-filename"></span>
         </div>
-        <button class="btn-stories" id="stories-btn" onclick="generateStories()">
-          ✨ Generate User Stories
-        </button>
+        <div style="display:flex;align-items:center;gap:10px">
+          <select class="status-select" id="status-select" onchange="updateDocStatus(this.value)">
+            <option value="Draft">Draft</option>
+            <option value="Created in JIRA">Created in JIRA</option>
+            <option value="Archived">Archived</option>
+          </select>
+          <button class="btn-stories" id="stories-btn" onclick="generateStories()">
+            ✨ Generate User Stories
+          </button>
+          <button class="btn-delete" onclick="confirmDelete()">🗑 Delete</button>
+        </div>
       </div>
       <div class="detail-body">
         <div class="markdown" id="detail-content"></div>
@@ -548,65 +715,121 @@
   </div>
 </div>
 
+<!-- ── Delete confirmation dialog ───────────────────────────── -->
+<div class="dialog-overlay" id="delete-overlay">
+  <div class="dialog">
+    <h3>Delete document?</h3>
+    <p id="delete-msg">This will permanently delete the file. This action cannot be undone.</p>
+    <div class="dialog-actions">
+      <button class="btn-secondary" onclick="closeDeleteDialog()">Cancel</button>
+      <button class="btn-delete" id="confirm-delete-btn" onclick="executeDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
   // ── State ──────────────────────────────────────────────────────
-  let allEpics = [];
+  let allDocs = [];
   let currentFilename = null;
+  let currentDocType = null;
+  let activeTypeFilter = 'all';
+  let activeStatusFilter = 'all';
+
+  const TYPE_LABEL   = { epic: 'Epic', story: 'Story', spike: 'Spike' };
+  const STATUS_LABEL = { Draft: 'Draft', 'Created in JIRA': 'In JIRA', Archived: 'Archived' };
 
   // ── Init ───────────────────────────────────────────────────────
-  loadEpics();
+  loadDocs();
 
-  // ── Epic list ──────────────────────────────────────────────────
-  async function loadEpics() {
+  // ── SSE: auto-refresh on doc changes ──────────────────────────
+  const evtSource = new EventSource('/api/events');
+  evtSource.onmessage = (e) => {
     try {
-      const res = await fetch('/api/epics');
-      allEpics = await res.json();
-      renderEpicList(allEpics);
+      const payload = JSON.parse(e.data);
+      if (['epic_created','story_created','spike_created','status_updated','doc_deleted'].includes(payload.type)) loadDocs();
+    } catch {}
+  };
+
+  // ── Doc list ───────────────────────────────────────────────────
+  async function loadDocs() {
+    try {
+      const res = await fetch('/api/docs');
+      allDocs = await res.json();
+      renderDocList(allDocs);
     } catch (e) {
-      console.warn('Could not load epics:', e.message);
+      console.warn('Could not load docs:', e.message);
     }
   }
 
-  function renderEpicList(epics) {
+  function renderDocList(docs) {
     const list = document.getElementById('epic-list');
     const count = document.getElementById('epic-count');
-    count.textContent = epics.length;
+    count.textContent = docs.length;
 
-    if (!epics.length) {
+    if (!docs.length) {
       list.innerHTML = `
         <div class="empty-state">
           <div class="icon">📋</div>
-          No epics yet. Write your first idea on the left and click<br><strong>Generate Epic</strong>.
+          Nothing matches the current filters.
         </div>`;
       return;
     }
 
-    list.innerHTML = epics.map(e => `
-      <div class="epic-item" onclick="openEpic('${e.filename}')">
+    list.innerHTML = docs.map(d => {
+      const statusClass = (d.status || 'Draft').replace(/\s+/g, '-');
+      return `
+      <div class="epic-item" onclick="openDoc('${escHtml(d.filename)}','${d.docType}')">
         <div class="epic-dot"></div>
         <div style="flex:1">
-          <div class="epic-title-text">${escHtml(e.title)}</div>
+          <div class="epic-title-text">${escHtml(d.title)}</div>
         </div>
-        <div class="epic-date">${e.date}</div>
-      </div>`).join('');
+        <span class="status-badge ${statusClass}">${STATUS_LABEL[d.status] || d.status || 'Draft'}</span>
+        <span class="type-badge ${d.docType}">${TYPE_LABEL[d.docType] || d.docType}</span>
+        <div class="epic-date">${d.date}</div>
+      </div>`;
+    }).join('');
   }
 
-  function filterEpics(query) {
-    const q = query.toLowerCase();
-    const filtered = q ? allEpics.filter(e => e.title.toLowerCase().includes(q) || e.filename.toLowerCase().includes(q)) : allEpics;
-    renderEpicList(filtered);
+  function setTypeFilter(type) {
+    activeTypeFilter = type;
+    document.querySelectorAll('[data-type]').forEach(el => {
+      el.classList.toggle('active', el.dataset.type === type);
+    });
+    applyFilters();
+  }
+
+  function setStatusFilter(status) {
+    activeStatusFilter = status;
+    document.querySelectorAll('[data-status]').forEach(el => {
+      el.classList.toggle('active', el.dataset.status === status);
+    });
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const q = document.getElementById('search').value.toLowerCase();
+    let filtered = allDocs;
+    if (activeTypeFilter !== 'all')   filtered = filtered.filter(d => d.docType === activeTypeFilter);
+    if (activeStatusFilter !== 'all') filtered = filtered.filter(d => (d.status || 'Draft') === activeStatusFilter);
+    if (q) filtered = filtered.filter(d => d.title.toLowerCase().includes(q) || d.filename.toLowerCase().includes(q));
+    renderDocList(filtered);
   }
 
   // ── Detail view ────────────────────────────────────────────────
-  async function openEpic(filename) {
+  async function openDoc(filename, docType) {
     try {
-      const res = await fetch(`/api/epic/${encodeURIComponent(filename)}`);
+      const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
       const { content } = await res.json();
       currentFilename = filename;
+      currentDocType = docType;
+
+      // Sync status dropdown with the doc's current status
+      const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+      document.getElementById('status-select').value = doc?.status || 'Draft';
 
       document.getElementById('detail-filename').textContent = filename;
       document.getElementById('detail-content').innerHTML = marked.parse(content);
@@ -623,38 +846,93 @@
     }
   }
 
+  // ── Update status ──────────────────────────────────────────────
+  async function updateDocStatus(status) {
+    if (!currentFilename || !currentDocType) return;
+    try {
+      await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      // Update local state immediately so filters stay consistent
+      const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
+      if (doc) doc.status = status;
+    } catch (e) {
+      console.error('Failed to update status:', e.message);
+    }
+  }
+
   function showList() {
     document.getElementById('detail-view').classList.remove('show');
     document.getElementById('list-view').style.display = 'flex';
     currentFilename = null;
   }
 
-  // ── Generate Epic ──────────────────────────────────────────────
-  async function generateEpic() {
+  // ── Delete ────────────────────────────────────────────────────
+  function confirmDelete() {
+    if (!currentFilename) return;
+    const type = TYPE_LABEL[currentDocType] || currentDocType;
+    document.getElementById('delete-msg').textContent =
+      `Delete "${currentFilename}"? This will permanently remove the file and cannot be undone.`;
+    document.getElementById('delete-overlay').classList.add('show');
+  }
+
+  function closeDeleteDialog() {
+    document.getElementById('delete-overlay').classList.remove('show');
+  }
+
+  async function executeDelete() {
+    if (!currentFilename || !currentDocType) return;
+    const btn = document.getElementById('confirm-delete-btn');
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+      const res = await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      closeDeleteDialog();
+      showList();
+      await loadDocs();
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+      alert(`Failed to delete: ${e.message}`);
+    }
+  }
+
+  // Close dialog on overlay click
+  document.getElementById('delete-overlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeDeleteDialog();
+  });
+
+  // ── Generate Doc ───────────────────────────────────────────────
+  async function generateDoc() {
     const idea = document.getElementById('idea').value.trim();
     if (!idea) { document.getElementById('idea').focus(); return; }
 
-    const title = document.getElementById('epic-title').value.trim();
+    const title = document.getElementById('doc-title').value.trim();
     const priority = document.getElementById('priority').value;
+    const type = document.getElementById('doc-type').value;
 
-    setStatus('loading', 'Claude is writing your Epic…');
+    setStatus('loading', `Claude is writing your ${TYPE_LABEL[type]}…`);
     setBtnState(true);
 
     try {
-      const res = await fetch('/api/epic', {
+      const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idea, title, priority })
+        body: JSON.stringify({ idea, title, priority, type })
       });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || 'Request failed');
 
       clearForm();
-      setStatus('success', `✅ Epic created: ${data.filename}`);
-      await loadEpics();
-      openEpic(data.filename);
+      setStatus('success', `✅ ${TYPE_LABEL[type]} created: ${data.filename}`);
+      await loadDocs();
+      openDoc(data.filename, data.docType);
     } catch (e) {
       setStatus('error', `❌ ${e.message}`);
     } finally {
@@ -726,7 +1004,8 @@
   // ── Helpers ────────────────────────────────────────────────────
   function clearForm() {
     document.getElementById('idea').value = '';
-    document.getElementById('epic-title').value = '';
+    document.getElementById('doc-title').value = '';
+    document.getElementById('doc-type').value = 'epic';
     document.getElementById('priority').value = 'Medium';
     setStatus('hidden');
   }

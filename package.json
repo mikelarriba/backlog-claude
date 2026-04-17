@@ -4,7 +4,7 @@
   "description": "Epic Generator PWA + Claude PO Agent",
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node --watch server.js"
   },
   "dependencies": {
     "express": "^4.19.2"
