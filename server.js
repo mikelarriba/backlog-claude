@@ -2,7 +2,11 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
+import { loadCommand as loadCommandService, callClaude as callClaudeService, streamClaude as streamClaudeService } from './src/services/claudeService.js';
+import { parseStorySections, serializeStoryFile, extractStoryTitle } from './src/services/storyService.js';
+import { createEventService } from './src/services/eventService.js';
+import { createJiraService, LOCAL_TO_JIRA_TYPE } from './src/services/jiraService.js';
+import { watchInbox } from './src/services/inboxWatcher.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -66,55 +70,12 @@ const TYPE_CONFIG = {
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// ── SSE broadcast (live updates to all open browser tabs) ────────────────────
-const sseClients = new Set();
+const { handleEvents, broadcast } = createEventService();
+app.get('/api/events', handleEvents);
 
-app.get('/api/events', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  res.write('data: {"type":"connected"}\n\n');
-  sseClients.add(res);
-
-  req.on('close', () => sseClients.delete(res));
-});
-
-function broadcast(payload) {
-  const data = `data: ${JSON.stringify(payload)}\n\n`;
-  for (const client of sseClients) client.write(data);
-}
-
-// ── Command loader ────────────────────────────────────────────────────────────
-// Reads a .claude/commands/<name>.md file and strips the YAML frontmatter,
-// returning just the prompt body. Falls back to null if the file doesn't exist.
-function loadCommand(name) {
-  const p = path.join(__dirname, '.claude', 'commands', `${name}.md`);
-  if (!fs.existsSync(p)) return null;
-  return fs.readFileSync(p, 'utf-8').replace(/^---[\s\S]*?---\n?/, '').trim();
-}
-
-// ── Story section helpers ─────────────────────────────────────────────────────
-
-function parseStorySections(content) {
-  const fmMatch = content.match(/^---[\s\S]*?---\n?/);
-  const frontmatter = fmMatch ? fmMatch[0] : '';
-  const body = content.slice(frontmatter.length).trim();
-  // Split on "## Story N" headings (keep delimiter with each section)
-  const sections = body.split(/(?=^## Story \d+[:\s])/m)
-    .map(s => s.trim()).filter(s => s.length > 0);
-  return { frontmatter, sections };
-}
-
-function serializeStoryFile(frontmatter, sections) {
-  return frontmatter + '\n' + sections.join('\n\n') + '\n';
-}
-
-function extractStoryTitle(section) {
-  const m = section.match(/^## (.+)$/m);
-  return m ? m[1].trim() : 'Untitled Story';
-}
+const loadCommand = name => loadCommandService(__dirname, name);
+const callClaude = prompt => callClaudeService(__dirname, prompt);
+const streamClaude = (prompt, onChunk) => streamClaudeService(__dirname, prompt, onChunk);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -218,102 +179,29 @@ function extractWorkflowStatus(content) {
   return 'Draft';
 }
 
-// ── JIRA config & helpers ─────────────────────────────────────────────────────
+// ── JIRA config ────────────────────────────────────────────────────────────────
 const JIRA_BASE  = (process.env.JIRA_BASE_URL  || 'https://devstack.vwgroup.com/jira').replace(/\/$/, '');
 const JIRA_TOKEN = process.env.JIRA_API_TOKEN  || '';
 const JIRA_PROJECT = 'EAMDM';
 const JIRA_LABEL   = 'MIDAS_Development';
 
-// Map between local type names and JIRA issue type names
-const LOCAL_TO_JIRA_TYPE = { epic: 'Epic', story: 'Story', spike: 'Task' };
-const JIRA_TO_LOCAL_TYPE = { Epic: 'epic', Story: 'story', Task: 'spike' };
-
 // Custom field IDs (discovered via /rest/api/2/field)
 const FIELD_EPIC_NAME = 'customfield_10002'; // Epic Name (required when creating Epics)
 const FIELD_EPIC_LINK = 'customfield_10000'; // Epic Link (set on Stories/Tasks to link to parent Epic)
-
-async function jiraRequest(method, urlPath, body) {
-  const url = `${JIRA_BASE}/rest/api/2${urlPath}`;
-  const opts = {
-    method,
-    headers: {
-      'Authorization': `Bearer ${JIRA_TOKEN}`,
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    },
-  };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`JIRA ${method} ${urlPath} → ${res.status}: ${text.slice(0, 300)}`);
-  }
-  return res.json();
-}
-
-// Scan all local docs for one whose JIRA_ID frontmatter field matches jiraId
-function findLocalFileByJiraId(jiraId) {
-  for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
-    const dir = cfg.dir();
-    if (!fs.existsSync(dir)) continue;
-    for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
-      const content = fs.readFileSync(path.join(dir, f), 'utf-8');
-      const m = content.match(/^JIRA_ID:\s*(.+)$/m);
-      if (m && m[1].trim() === jiraId) return { docType, filename: f };
-    }
-  }
-  return null;
-}
-
-// Convert a JIRA issue object into markdown content + metadata
-function jiraIssueToMarkdown(issue) {
-  const { key, fields } = issue;
-  const summary     = (fields.summary || '').trim();
-  const description = (fields.description || '').trim();
-  const epicName    = (fields[FIELD_EPIC_NAME] || summary).trim();
-  const issueType   = fields.issuetype?.name || 'Epic';
-  const priority    = fields.priority?.name || 'Medium';
-  const docType     = JIRA_TO_LOCAL_TYPE[issueType] || 'epic';
-
-  const content = `---
-JIRA_ID: ${key}
-Story_Points: TBD
-Status: Created in JIRA
-Priority: ${priority}
-Squad: TBD
-PI: TBD
-Sprint: TBD
-Created: ${isoDate()}
----
-
-## ${summary}
-
-${description || '_No description in JIRA._'}
-`;
-  return { docType, content, epicName };
-}
-
-// Extract a clean title from document content for use as JIRA Summary field
-function extractJiraSummary(content) {
-  // "## Story 1: Title" or "## Story 1: Title <!-- JIRA:KEY -->"
-  const storyHeader = content.match(/^## Story \d+:\s*(.+?)(?:\s*<!--.*?-->)?\s*$/m);
-  if (storyHeader) return storyHeader[1].trim();
-  // Named title section: "## Epic Title\n\nActual Title Text"
-  const namedSection = content.match(/^## (?:Epic|Spike) Title\s*\n+(.+)/m);
-  if (namedSection) return namedSection[1].trim();
-  // First ## heading
-  const h2 = content.match(/^## (.+)/m);
-  if (h2) return h2[1].replace(/<!--.*?-->/g, '').trim();
-  // First # heading
-  const h1 = content.match(/^# (.+)/m);
-  if (h1) return h1[1].trim();
-  return 'Untitled';
-}
-
-// Strip YAML frontmatter block — returns the body text for JIRA description
-function stripFrontmatter(content) {
-  return content.replace(/^---[\s\S]*?---\n?/, '').trim();
-}
+const {
+  jiraRequest,
+  findLocalFileByJiraId,
+  jiraIssueToMarkdown,
+  extractJiraSummary,
+  stripFrontmatter,
+} = createJiraService({
+  JIRA_BASE,
+  JIRA_TOKEN,
+  FIELD_EPIC_NAME,
+  TYPE_CONFIG,
+  isoDate,
+  slugify,
+});
 
 // ── Update or insert a field in the YAML frontmatter block.
 function setFrontmatterField(content, field, value) {
@@ -321,36 +209,6 @@ function setFrontmatterField(content, field, value) {
   if (re.test(content)) return content.replace(re, `$1${value}`);
   // Field missing — insert after opening ---
   return content.replace(/^---\n/, `---\n${field}: ${value}\n`);
-}
-
-// Runs `claude -p <prompt>` and returns full stdout.
-// CLAUDE.md in __dirname is automatically used as the system prompt.
-function callClaude(prompt) {
-  return new Promise((resolve, reject) => {
-    let out = '', err = '';
-    const proc = spawn('claude', ['-p', prompt], { cwd: __dirname });
-    proc.stdout.on('data', d => out += d.toString());
-    proc.stderr.on('data', d => err += d.toString());
-    proc.on('close', code => {
-      if (code !== 0) return reject(new Error(err.trim() || `claude exited ${code}`));
-      // Strip markdown code fences if Claude wrapped the output
-      const trimmed = out.trim().replace(/^```(?:markdown)?\n?/, '').replace(/\n?```$/, '');
-      resolve(trimmed);
-    });
-  });
-}
-
-// Same but streams stdout chunks via a callback (for SSE responses).
-function streamClaude(prompt, onChunk) {
-  return new Promise((resolve, reject) => {
-    let err = '';
-    const proc = spawn('claude', ['-p', prompt], { cwd: __dirname });
-    proc.stdout.on('data', d => onChunk(d.toString()));
-    proc.stderr.on('data', d => err += d.toString());
-    proc.on('close', code =>
-      code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`))
-    );
-  });
 }
 
 // ── POST /api/generate ── create epic / story / spike from web form ───────────
@@ -1021,57 +879,14 @@ app.post('/api/epic/:filename/stories', async (req, res) => {
 app.listen(PORT, () => {
   validateStartupConfig();
   logInfo('startup', `Backlog Claude running on http://localhost:${PORT}`);
-  watchInbox();
-});
-
-// ── Inbox watcher ─────────────────────────────────────────────────────────────
-// Picks up any .md file dropped into /inbox and saves the generated Epic to
-// docs/epics. Also notifies all open browser tabs via SSE.
-
-function watchInbox() {
-  ensureDir(INBOX_DIR);
-
-  // Process unmatched files already in inbox on startup
-  for (const f of fs.readdirSync(INBOX_DIR).filter(isInboxFile)) {
-    if (!fs.existsSync(path.join(EPICS_DIR, f))) processInboxFile(f);
-  }
-
-  fs.watch(INBOX_DIR, (event, filename) => {
-    if (event !== 'rename' || !filename || !isInboxFile(filename)) return;
-    setTimeout(() => {
-      const exists = fs.existsSync(path.join(INBOX_DIR, filename));
-      const already = fs.existsSync(path.join(EPICS_DIR, filename));
-      if (exists && !already) processInboxFile(filename);
-    }, 500);
+  watchInbox({
+    INBOX_DIR,
+    EPICS_DIR,
+    ensureDir,
+    loadCommand,
+    callClaude,
+    broadcast,
+    logInfo,
+    logError,
   });
-
-  console.log(`👀 Watching /inbox for new files…`);
-}
-
-function isInboxFile(f) {
-  return f.endsWith('.md') && f !== '.gitkeep';
-}
-
-async function processInboxFile(filename) {
-  console.log(`\n📥 New inbox file: ${filename}`);
-  try {
-    const inboxContent = fs.readFileSync(path.join(INBOX_DIR, filename), 'utf-8');
-
-    console.log(`   ✍️  Claude is writing the Epic…`);
-    const epicTemplate = loadCommand('create-epics');
-    const epicPrompt = epicTemplate
-      ? epicTemplate.replace('$ARGUMENTS', `File: ${filename}\n\n${inboxContent}`)
-      : `Generate a complete Epic using the COVE Framework. Output ONLY the markdown content.\n\nFile: ${filename}\n\n${inboxContent}`;
-    const epicContent = await callClaude(epicPrompt);
-
-    ensureDir(EPICS_DIR);
-    fs.writeFileSync(path.join(EPICS_DIR, filename), epicContent);
-
-    console.log(`   ✅ Epic saved → docs/epics/${filename}`);
-
-    // Push live update to all open browser tabs
-    broadcast({ type: 'epic_created', filename });
-  } catch (err) {
-    logError('watchInbox/processInboxFile', `Failed to process ${filename}`, { error: err.message });
-  }
-}
+});
