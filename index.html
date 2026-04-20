@@ -156,15 +156,17 @@
     .btn-ghost:hover { color: var(--text); }
 
     .btn-stories {
-      background: #0f4c3a;
-      color: #34d399;
-      border: 1px solid #065f46;
-      padding: 8px 14px;
-      font-size: 0.8rem;
+      background: rgba(99,102,241,0.12);
+      color: #a5b4fc;
+      border: 1px solid rgba(99,102,241,0.25);
+      padding: 0 12px;
+      height: 32px;
+      font-size: 0.78rem;
+      white-space: nowrap;
     }
 
-    .btn-stories:hover:not(:disabled) { background: #065f46; }
-    .btn-stories:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-stories:hover:not(:disabled) { background: rgba(99,102,241,0.22); border-color: rgba(99,102,241,0.5); }
+    .btn-stories:disabled { opacity: 0.45; cursor: not-allowed; }
 
     .status {
       margin-top: 16px;
@@ -375,17 +377,19 @@
     .btn-delete {
       background: transparent;
       color: #f87171;
-      border: 1px solid rgba(248,113,113,0.3);
+      border: 1px solid rgba(248,113,113,0.2);
       border-radius: 8px;
-      padding: 5px 10px;
+      padding: 0 12px;
+      height: 32px;
       font-size: 0.78rem;
       font-weight: 600;
       cursor: pointer;
       font-family: inherit;
+      white-space: nowrap;
       transition: background 0.15s, border-color 0.15s;
     }
 
-    .btn-delete:hover { background: rgba(248,113,113,0.1); border-color: #f87171; }
+    .btn-delete:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.5); }
 
     /* ── Confirm dialog overlay ──────────────────────────────────── */
     .dialog-overlay {
@@ -414,15 +418,240 @@
 
     .dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
+    /* ── Upgrade panel ───────────────────────────────────────────── */
+    #upgrade-panel {
+      border-bottom: 1px solid var(--border);
+      background: #0d1f1a;
+      flex-shrink: 0;
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.25s ease, padding 0.25s ease;
+      padding: 0 24px;
+    }
+
+    #upgrade-panel.open {
+      max-height: 500px;
+      padding: 20px 24px;
+    }
+
+    .upgrade-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #34d399;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 12px;
+    }
+
+    #upgrade-feedback {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid #065f46;
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.875rem;
+      padding: 10px 12px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 90px;
+      line-height: 1.6;
+      transition: border-color 0.15s;
+    }
+
+    #upgrade-feedback::placeholder { color: var(--muted); }
+    #upgrade-feedback:focus { outline: none; border-color: #34d399; }
+
+    .upgrade-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn-upgrade-run {
+      background: #0f4c3a;
+      color: #34d399;
+      border: 1px solid #065f46;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+
+    .btn-upgrade-run:hover:not(:disabled) { background: #065f46; }
+    .btn-upgrade-run:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    #upgrade-stream {
+      margin-top: 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-family: 'Fira Code', monospace;
+      max-height: 180px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .btn-upgrade {
+      background: rgba(52,211,153,0.08);
+      color: #34d399;
+      border: 1px solid rgba(52,211,153,0.2);
+      border-radius: 8px;
+      padding: 0 12px;
+      height: 32px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn-upgrade:hover { background: rgba(52,211,153,0.15); border-color: rgba(52,211,153,0.4); }
+
+    /* ── Create Story / Spike buttons (epic-only) ────────────────── */
+    .btn-create-story {
+      background: rgba(34,197,94,0.08);
+      color: #4ade80;
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 8px;
+      padding: 0 12px;
+      height: 32px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-create-story:hover { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.4); }
+
+    .btn-create-spike {
+      background: rgba(245,158,11,0.08);
+      color: #fbbf24;
+      border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 8px;
+      padding: 0 12px;
+      height: 32px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-create-spike:hover { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); }
+
+    /* ── Quick Create panel (Story / Spike from Epic) ────────────── */
+    #quick-create-panel {
+      border-bottom: 1px solid var(--border);
+      background: #0d1a12;
+      flex-shrink: 0;
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.25s ease, padding 0.25s ease;
+      padding: 0 24px;
+    }
+    #quick-create-panel.open { max-height: 460px; padding: 20px 24px; }
+    #quick-create-panel[data-type="spike"] { background: #1a160a; }
+
+    .quick-create-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 12px;
+    }
+    #quick-create-panel[data-type="story"] .quick-create-label { color: #4ade80; }
+    #quick-create-panel[data-type="spike"] .quick-create-label { color: #fbbf24; }
+
+    .quick-create-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.875rem;
+      padding: 8px 12px;
+      font-family: inherit;
+      margin-bottom: 8px;
+      transition: border-color 0.15s;
+    }
+    .quick-create-input::placeholder { color: var(--muted); }
+    .quick-create-input:focus { outline: none; }
+    #quick-create-panel[data-type="story"] .quick-create-input:focus { border-color: #4ade80; }
+    #quick-create-panel[data-type="spike"] .quick-create-input:focus { border-color: #fbbf24; }
+
+    .quick-create-textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.875rem;
+      padding: 10px 12px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 90px;
+      line-height: 1.6;
+      transition: border-color 0.15s;
+    }
+    .quick-create-textarea::placeholder { color: var(--muted); }
+    .quick-create-textarea:focus { outline: none; }
+    #quick-create-panel[data-type="story"] .quick-create-textarea:focus { border-color: #4ade80; }
+    #quick-create-panel[data-type="spike"] .quick-create-textarea:focus { border-color: #fbbf24; }
+
+    .quick-create-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+    .btn-quick-run {
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+      border: 1px solid;
+    }
+    #quick-create-panel[data-type="story"] .btn-quick-run { background: #0f4c3a; color: #4ade80; border-color: #065f46; }
+    #quick-create-panel[data-type="story"] .btn-quick-run:hover:not(:disabled) { background: #065f46; }
+    #quick-create-panel[data-type="spike"] .btn-quick-run { background: #3a2a0a; color: #fbbf24; border-color: #854d0e; }
+    #quick-create-panel[data-type="spike"] .btn-quick-run:hover:not(:disabled) { background: #4a3a10; }
+    .btn-quick-run:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    #quick-create-stream {
+      margin-top: 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-family: 'Fira Code', monospace;
+      max-height: 160px;
+      overflow-y: auto;
+      display: none;
+    }
+
     /* ── Status selector in detail header ───────────────────────── */
     .status-select {
       background: var(--surface2);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
+      border-radius: 8px;
+      color: var(--muted);
       font-size: 0.78rem;
       font-weight: 600;
-      padding: 5px 10px;
+      padding: 0 10px;
+      height: 32px;
       font-family: inherit;
       cursor: pointer;
     }
@@ -542,46 +771,484 @@
       margin: 20px 0;
     }
 
-    /* Stories section */
+    /* ── Stories section ─────────────────────────────────────────── */
     .stories-section {
       margin-top: 24px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
     }
 
+    .stories-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface2);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s;
+    }
+
+    .stories-section-header:hover { background: #2d3a50; }
+
     .stories-label {
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       font-weight: 600;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      margin-bottom: 14px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .stories-content {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      font-size: 0.82rem;
-      color: #cbd5e1;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      font-family: 'Fira Code', 'Courier New', monospace;
-      min-height: 60px;
+    .stories-chevron {
+      font-size: 0.7rem;
+      color: var(--muted);
+      transition: transform 0.2s;
     }
 
-    .stories-success {
-      margin-top: 10px;
+    .stories-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .stories-body.open { max-height: 9999px; }
+
+    /* Streaming preview during generation */
+    .stories-stream {
+      padding: 14px 16px;
       font-size: 0.78rem;
-      color: var(--success);
+      color: #94a3b8;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      font-family: 'Fira Code', monospace;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Story cards ─────────────────────────────────────────────── */
+    .story-card {
+      border-top: 1px solid var(--border);
+    }
+
+    .story-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 16px;
+      gap: 10px;
+      transition: background 0.12s;
+    }
+
+    .story-card-header:hover { background: rgba(255,255,255,0.02); }
+
+    .story-card-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .story-card-chevron {
+      font-size: 0.65rem;
+      color: var(--muted);
+      flex-shrink: 0;
+      transition: transform 0.18s;
+      width: 10px;
+    }
+
+    .story-card-title {
+      font-size: 0.82rem;
+      color: var(--text);
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .story-card-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .story-card-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.25s ease;
+    }
+
+    .story-card-body.open { max-height: 9999px; }
+
+    .story-card-content {
+      padding: 16px;
+      border-top: 1px solid rgba(51,65,85,0.5);
+    }
+
+    /* Per-story upgrade panel */
+    .story-upgrade-panel {
+      margin: 0 16px 14px;
+      background: rgba(52,211,153,0.04);
+      border: 1px solid rgba(52,211,153,0.15);
+      border-radius: 8px;
+      padding: 12px;
       display: none;
     }
 
-    .stories-success.show { display: block; }
+    .story-upgrade-panel.open { display: block; }
+
+    .story-upgrade-textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid rgba(52,211,153,0.2);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.82rem;
+      padding: 8px 10px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 70px;
+      line-height: 1.5;
+    }
+
+    .story-upgrade-textarea::placeholder { color: var(--muted); }
+    .story-upgrade-textarea:focus { outline: none; border-color: #34d399; }
+
+    .story-upgrade-actions { display: flex; gap: 6px; margin-top: 8px; }
+
+    .story-upgrade-stream {
+      margin-top: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      white-space: pre-wrap;
+      font-family: 'Fira Code', monospace;
+      max-height: 150px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    /* small button variants for story cards */
+    .btn-xs {
+      padding: 0 9px;
+      height: 26px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      transition: all 0.12s;
+    }
+
+    .btn-xs:hover { color: var(--text); border-color: var(--muted); }
+    .btn-xs:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-xs.green  { color: #34d399; border-color: rgba(52,211,153,0.25); }
+    .btn-xs.green:hover { background: rgba(52,211,153,0.08); border-color: rgba(52,211,153,0.5); }
+    .btn-xs.red    { color: #f87171; border-color: rgba(248,113,113,0.2); }
+    .btn-xs.red:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.4); }
+
+    /* ── Original text collapsible ──────────────────────────────── */
+    .original-section {
+      margin-top: 28px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .original-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      cursor: pointer;
+      user-select: none;
+      background: var(--surface2);
+      transition: background 0.12s;
+    }
+
+    .original-toggle:hover { background: #2d3a50; }
+
+    .original-toggle-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .original-chevron {
+      font-size: 0.7rem;
+      color: var(--muted);
+      transition: transform 0.2s;
+    }
+
+    .original-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.25s ease;
+    }
+
+    .original-body.open { max-height: 1000px; }
+
+    .original-content {
+      padding: 16px;
+      font-size: 0.82rem;
+      color: #94a3b8;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      border-top: 1px solid var(--border);
+    }
+
+    .original-empty {
+      padding: 16px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-style: italic;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Push to JIRA button ─────────────────────────────────── */
+    .btn-jira-push {
+      background: rgba(14,165,233,0.08);
+      color: #38bdf8;
+      border: 1px solid rgba(14,165,233,0.2);
+      border-radius: 8px;
+      padding: 0 12px;
+      height: 32px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn-jira-push:hover:not(:disabled) { background: rgba(14,165,233,0.15); border-color: rgba(14,165,233,0.4); }
+    .btn-jira-push:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Push toast ──────────────────────────────────────────── */
+    #jira-push-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      z-index: 200;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+    }
+
+    #jira-push-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    #jira-push-toast.success { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+    #jira-push-toast.error   { background: #1c0a0a; border: 1px solid #7f1d1d; color: #f87171; }
+
+    /* ── JIRA Import section ─────────────────────────────────── */
+    .jira-section {
+      margin-top: 24px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .jira-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 14px;
+      background: var(--surface2);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s;
+    }
+
+    .jira-section-header:hover { background: #2d3a50; }
+
+    .jira-section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .jira-chevron {
+      font-size: 0.7rem;
+      color: var(--muted);
+      transition: transform 0.2s;
+    }
+
+    .jira-section-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .jira-section-body.open { max-height: 900px; overflow-y: auto; }
+
+    .jira-section-inner { padding: 14px; }
+
+    .jira-search-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .jira-search-row .field { margin-bottom: 0; }
+
+    .btn-jira-search {
+      width: 100%;
+      background: rgba(99,102,241,0.1);
+      color: #a5b4fc;
+      border: 1px solid rgba(99,102,241,0.25);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+      margin-bottom: 10px;
+    }
+
+    .btn-jira-search:hover:not(:disabled) { background: rgba(99,102,241,0.2); }
+    .btn-jira-search:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .jira-results {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 260px;
+      overflow-y: auto;
+      margin-bottom: 8px;
+    }
+
+    .jira-result-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      cursor: pointer;
+      transition: border-color 0.12s;
+    }
+
+    .jira-result-item:hover { border-color: var(--accent); }
+    .jira-result-item.selected { border-color: var(--accent); background: rgba(99,102,241,0.06); }
+    .jira-result-item.local-exists { opacity: 0.65; }
+
+    .jira-result-item input[type=checkbox] {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .jira-result-body { flex: 1; min-width: 0; }
+
+    .jira-result-key {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #a5b4fc;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .jira-result-summary {
+      font-size: 0.78rem;
+      color: var(--text);
+      line-height: 1.4;
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .jira-result-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .jira-badge {
+      font-size: 0.62rem;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .jira-badge.type-Epic   { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    .jira-badge.type-Story  { background: rgba(34,197,94,0.12);  color: #4ade80; }
+    .jira-badge.type-Task   { background: rgba(245,158,11,0.12); color: #fbbf24; }
+    .jira-badge.local       { background: rgba(52,211,153,0.12); color: #34d399; }
+    .jira-badge.status      { background: var(--surface2); color: var(--muted); }
+
+    .jira-empty {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+      padding: 16px 0;
+      font-style: italic;
+    }
+
+    .btn-jira-download {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn-jira-download:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-jira-download:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .jira-status {
+      font-size: 0.75rem;
+      border-radius: 6px;
+      padding: 7px 10px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .jira-status.show { display: block; }
+    .jira-status.success { background: #052e16; border: 1px solid #166534; color: var(--success); }
+    .jira-status.error   { background: #1c0a0a; border: 1px solid #7f1d1d; color: #f87171; }
+    .jira-status.loading { background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); color: #a5b4fc; }
 
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
@@ -639,6 +1306,37 @@
     </div>
 
     <div class="status" id="status"></div>
+
+    <!-- JIRA Import -->
+    <div class="jira-section">
+      <div class="jira-section-header" onclick="toggleJiraSection()">
+        <span class="jira-section-title">🔗 Import from JIRA</span>
+        <span class="jira-chevron" id="jira-chevron">▶</span>
+      </div>
+      <div class="jira-section-body" id="jira-section-body">
+        <div class="jira-section-inner">
+          <div class="jira-search-row">
+            <div class="field">
+              <label for="jira-type">Type</label>
+              <select id="jira-type">
+                <option value="all">All Types</option>
+                <option value="epic">Epic</option>
+                <option value="story">Story</option>
+                <option value="spike">Task / Spike</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="jira-text">Keywords</label>
+              <input id="jira-text" type="text" placeholder="Search text…" onkeydown="if(event.key==='Enter') searchJira()" />
+            </div>
+          </div>
+          <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">Search JIRA</button>
+          <div class="jira-results" id="jira-results"></div>
+          <button class="btn-jira-download" id="jira-download-btn" style="display:none" onclick="downloadSelected()">⬇ Download Selected</button>
+          <div class="jira-status" id="jira-status"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ── Right Panel ───────────────────────────────────────────── -->
@@ -687,33 +1385,78 @@
           <button class="btn-ghost" onclick="showList()">← Back</button>
           <span class="detail-filename" id="detail-filename"></span>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
           <select class="status-select" id="status-select" onchange="updateDocStatus(this.value)">
             <option value="Draft">Draft</option>
             <option value="Created in JIRA">Created in JIRA</option>
             <option value="Archived">Archived</option>
           </select>
-          <button class="btn-stories" id="stories-btn" onclick="generateStories()">
-            ✨ Generate User Stories
-          </button>
-          <button class="btn-delete" onclick="confirmDelete()">🗑 Delete</button>
+          <button class="btn-upgrade" onclick="toggleUpgradePanel()">↑ Upgrade</button>
+          <button class="btn-create-story" id="create-story-btn" onclick="toggleQuickCreate('story')" style="display:none">＋ Story</button>
+          <button class="btn-create-spike" id="create-spike-btn" onclick="toggleQuickCreate('spike')" style="display:none">＋ Spike</button>
+          <button class="btn-stories" id="stories-btn" onclick="generateStories()">✨ Refine into Stories</button>
+          <button class="btn-jira-push" id="jira-push-btn" onclick="pushToJira()">↑ Push to JIRA</button>
+          <button class="btn-delete" onclick="confirmDelete()">Delete</button>
         </div>
       </div>
+      <!-- Upgrade panel -->
+      <div id="upgrade-panel">
+        <div class="upgrade-title">↑ Upgrade Issue</div>
+        <textarea id="upgrade-feedback" placeholder="Describe what you'd like to change or improve — e.g. 'Add more detail to the execution steps', 'Split into smaller stories', 'Focus on the Data Engineer persona', 'Add RabbitMQ async flow'…"></textarea>
+        <div class="upgrade-actions">
+          <button class="btn-upgrade-run" id="upgrade-run-btn" onclick="executeUpgrade()">Regenerate</button>
+          <button class="btn-secondary" onclick="toggleUpgradePanel()">Cancel</button>
+        </div>
+        <div id="upgrade-stream"></div>
+      </div>
+
+      <!-- Quick Create panel (Story / Spike from Epic) -->
+      <div id="quick-create-panel">
+        <div class="quick-create-label" id="quick-create-label">＋ Create Story</div>
+        <input class="quick-create-input" id="quick-create-title-input" type="text" placeholder="Title (optional)…" />
+        <textarea class="quick-create-textarea" id="quick-create-idea" placeholder="Describe the story…"></textarea>
+        <div class="quick-create-actions">
+          <button class="btn-quick-run" id="quick-run-btn" onclick="executeQuickCreate()">Generate</button>
+          <button class="btn-secondary" onclick="closeQuickCreate()">Cancel</button>
+        </div>
+        <div id="quick-create-stream"></div>
+      </div>
+
       <div class="detail-body">
         <div class="markdown" id="detail-content"></div>
-        <div class="stories-section" id="stories-section" style="display:none">
-          <div class="stories-label">
-            <span>🧩 Generated User Stories</span>
-            <span id="stories-spinner" class="spinner" style="display:none"></span>
+        <!-- Original idea + upgrade history -->
+        <div class="original-section" id="original-section" style="display:none">
+          <div class="original-toggle" onclick="toggleOriginal()">
+            <span class="original-toggle-label">📄 Original idea &amp; upgrade history</span>
+            <span class="original-chevron" id="original-chevron">▼</span>
           </div>
-          <div class="stories-content" id="stories-content"></div>
-          <div class="stories-success" id="stories-success"></div>
+          <div class="original-body" id="original-body">
+            <div id="original-content"></div>
+          </div>
+        </div>
+
+        <div class="stories-section" id="stories-section" style="display:none">
+          <div class="stories-section-header" onclick="toggleStoriesSection()">
+            <div class="stories-label">
+              <span>🧩 User Stories</span>
+              <span id="stories-spinner" class="spinner" style="display:none"></span>
+              <span id="stories-count" class="epic-count" style="display:none"></span>
+            </div>
+            <span class="stories-chevron" id="stories-chevron">▼</span>
+          </div>
+          <div class="stories-body open" id="stories-body">
+            <div class="stories-stream" id="stories-stream" style="display:none"></div>
+            <div id="stories-cards"></div>
+          </div>
         </div>
       </div>
     </div>
 
   </div>
 </div>
+
+<!-- ── JIRA push toast ──────────────────────────────────────── -->
+<div id="jira-push-toast"></div>
 
 <!-- ── Delete confirmation dialog ───────────────────────────── -->
 <div class="dialog-overlay" id="delete-overlay">
@@ -738,6 +1481,8 @@
   let currentDocType = null;
   let activeTypeFilter = 'all';
   let activeStatusFilter = 'all';
+  let currentStoriesFilename = null;
+  let currentJiraId = null;
 
   const TYPE_LABEL   = { epic: 'Epic', story: 'Story', spike: 'Spike' };
   const STATUS_LABEL = { Draft: 'Draft', 'Created in JIRA': 'In JIRA', Archived: 'Archived' };
@@ -833,17 +1578,57 @@
 
       document.getElementById('detail-filename').textContent = filename;
       document.getElementById('detail-content').innerHTML = marked.parse(content);
-      document.getElementById('stories-section').style.display = 'none';
-      document.getElementById('stories-content').textContent = '';
-      document.getElementById('stories-success').classList.remove('show');
+      resetStoriesSection();
+      closeQuickCreate();
+
+      // Epic-only buttons visibility
+      const isEpic = docType === 'epic';
+      document.getElementById('create-story-btn').style.display = isEpic ? '' : 'none';
+      document.getElementById('create-spike-btn').style.display = isEpic ? '' : 'none';
+      document.getElementById('stories-btn').style.display = isEpic ? '' : 'none';
       document.getElementById('stories-btn').disabled = false;
-      document.getElementById('stories-btn').textContent = '✨ Generate User Stories';
+      document.getElementById('stories-btn').textContent = '✨ Refine into Stories';
+
+      // Extract JIRA_ID from frontmatter and update push button label
+      const jiraMatch = content.match(/^JIRA_ID:\s*(.+)$/m);
+      currentJiraId = jiraMatch ? jiraMatch[1].trim() : 'TBD';
+      updateJiraPushBtn();
 
       document.getElementById('list-view').style.display = 'none';
       document.getElementById('detail-view').classList.add('show');
+
+      // Load stories + original inbox in background
+      if (docType === 'epic') loadStoriesForEpic(filename);
+      loadOriginal(filename);
     } catch (e) {
       console.error(e);
     }
+  }
+
+  async function loadOriginal(filename) {
+    const section = document.getElementById('original-section');
+    const container = document.getElementById('original-content');
+
+    // Reset collapsed state
+    document.getElementById('original-body').classList.remove('open');
+    document.getElementById('original-chevron').style.transform = '';
+
+    try {
+      const res = await fetch(`/api/inbox/${encodeURIComponent(filename)}`);
+      if (!res.ok) { section.style.display = 'none'; return; }
+      const { content } = await res.json();
+      container.innerHTML = `<div class="original-content">${escHtml(content)}</div>`;
+      section.style.display = 'block';
+    } catch {
+      section.style.display = 'none';
+    }
+  }
+
+  function toggleOriginal() {
+    const body    = document.getElementById('original-body');
+    const chevron = document.getElementById('original-chevron');
+    const isOpen  = body.classList.toggle('open');
+    chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
   }
 
   // ── Update status ──────────────────────────────────────────────
@@ -866,7 +1651,97 @@
   function showList() {
     document.getElementById('detail-view').classList.remove('show');
     document.getElementById('list-view').style.display = 'flex';
+    document.getElementById('upgrade-panel').classList.remove('open');
+    document.getElementById('original-section').style.display = 'none';
+    resetUpgradePanel();
+    closeQuickCreate();
+    resetStoriesSection();
     currentFilename = null;
+    currentDocType = null;
+    currentStoriesFilename = null;
+    currentJiraId = null;
+  }
+
+  // ── Upgrade panel ────────────────────────────────────────────
+  function toggleUpgradePanel() {
+    const panel = document.getElementById('upgrade-panel');
+    const isOpen = panel.classList.toggle('open');
+    if (isOpen) {
+      document.getElementById('upgrade-feedback').focus();
+    } else {
+      resetUpgradePanel();
+    }
+  }
+
+  function resetUpgradePanel() {
+    document.getElementById('upgrade-feedback').value = '';
+    document.getElementById('upgrade-stream').style.display = 'none';
+    document.getElementById('upgrade-stream').textContent = '';
+    const btn = document.getElementById('upgrade-run-btn');
+    btn.disabled = false;
+    btn.textContent = 'Regenerate';
+  }
+
+  async function executeUpgrade() {
+    if (!currentFilename || !currentDocType) return;
+    const feedback = document.getElementById('upgrade-feedback').value.trim();
+    if (!feedback) { document.getElementById('upgrade-feedback').focus(); return; }
+
+    const btn = document.getElementById('upgrade-run-btn');
+    const stream = document.getElementById('upgrade-stream');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Regenerating…';
+    stream.textContent = '';
+    stream.style.display = 'block';
+
+    try {
+      const res = await fetch(
+        `/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}/upgrade`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feedback }) }
+      );
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalContent = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.text)    stream.textContent += payload.text;
+            if (payload.error)   throw new Error(getErrorMessage(payload.error, 'Upgrade failed'));
+            if (payload.done)    finalContent = payload.content;
+          } catch (parseErr) {
+            if (parseErr.message !== 'Unexpected token') throw parseErr;
+          }
+        }
+      }
+
+      // Update the detail view with the new content and close the panel
+      if (finalContent) {
+        document.getElementById('detail-content').innerHTML = marked.parse(finalContent);
+      }
+      document.getElementById('upgrade-panel').classList.remove('open');
+      resetUpgradePanel();
+      btn.textContent = 'Regenerate';
+
+      // Refresh list so any title changes are reflected
+      await loadDocs();
+
+    } catch (e) {
+      stream.textContent += `\n\n❌ Error: ${e.message}`;
+      btn.disabled = false;
+      btn.textContent = 'Regenerate';
+    }
   }
 
   // ── Delete ────────────────────────────────────────────────────
@@ -891,7 +1766,7 @@
       const res = await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
         method: 'DELETE'
       });
-      if (!res.ok) throw new Error((await res.json()).error);
+      if (!res.ok) throw new Error(getErrorMessage((await res.json()).error, 'Delete failed'));
       closeDeleteDialog();
       showList();
       await loadDocs();
@@ -927,7 +1802,7 @@
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Request failed');
+      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Request failed'));
 
       clearForm();
       setStatus('success', `✅ ${TYPE_LABEL[type]} created: ${data.filename}`);
@@ -940,64 +1815,219 @@
     }
   }
 
-  // ── Generate User Stories ──────────────────────────────────────
+  // ── Stories: load, render, toggle ─────────────────────────────
+  function resetStoriesSection() {
+    currentStoriesFilename = null;
+    document.getElementById('stories-section').style.display = 'none';
+    document.getElementById('stories-cards').innerHTML = '';
+    document.getElementById('stories-stream').style.display = 'none';
+    document.getElementById('stories-stream').textContent = '';
+    document.getElementById('stories-spinner').style.display = 'none';
+    document.getElementById('stories-count').style.display = 'none';
+    document.getElementById('stories-body').classList.add('open');
+    document.getElementById('stories-chevron').style.transform = '';
+  }
+
+  async function loadStoriesForEpic(epicFilename) {
+    const storiesFilename = epicFilename.replace('.md', '-stories.md');
+    try {
+      const res = await fetch(`/api/stories/${encodeURIComponent(storiesFilename)}`);
+      if (!res.ok) return;
+      const { sections } = await res.json();
+      if (!sections.length) return;
+      renderStoryCards(sections, storiesFilename);
+    } catch {}
+  }
+
+  function renderStoryCards(sections, storiesFilename) {
+    currentStoriesFilename = storiesFilename;
+    const container = document.getElementById('stories-cards');
+    const countEl   = document.getElementById('stories-count');
+    const btn       = document.getElementById('stories-btn');
+
+    countEl.textContent = sections.length;
+    countEl.style.display = 'inline';
+    btn.textContent = '↺ Regenerate';
+
+    container.innerHTML = sections.map((s, i) => `
+      <div class="story-card" id="story-card-${i}">
+        <div class="story-card-header">
+          <div class="story-card-toggle" onclick="toggleStoryCard(${i})">
+            <span class="story-card-chevron" id="story-chevron-${i}">▶</span>
+            <span class="story-card-title">${escHtml(s.title)}</span>
+          </div>
+          <div class="story-card-actions">
+            <button class="btn-xs green" onclick="openStoryUpgrade(${i}, event)">↑ Upgrade</button>
+            <button class="btn-xs red"   onclick="deleteStory(${i}, event)">Delete</button>
+          </div>
+        </div>
+        <div class="story-card-body" id="story-body-${i}">
+          <div class="story-upgrade-panel" id="story-upgrade-${i}">
+            <textarea class="story-upgrade-textarea" id="story-feedback-${i}" placeholder="What to change or improve in this story…"></textarea>
+            <div class="story-upgrade-actions">
+              <button class="btn-xs green" id="story-upgrade-btn-${i}" onclick="executeStoryUpgrade(${i})">Regenerate</button>
+              <button class="btn-xs" onclick="closeStoryUpgrade(${i})">Cancel</button>
+            </div>
+            <div class="story-upgrade-stream" id="story-stream-${i}"></div>
+          </div>
+          <div class="story-card-content markdown" id="story-content-${i}">${marked.parse(s.content)}</div>
+        </div>
+      </div>`).join('');
+
+    document.getElementById('stories-section').style.display = 'block';
+    document.getElementById('stories-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function toggleStoriesSection() {
+    const body    = document.getElementById('stories-body');
+    const chevron = document.getElementById('stories-chevron');
+    const isOpen  = body.classList.toggle('open');
+    chevron.style.transform = isOpen ? '' : 'rotate(-90deg)';
+  }
+
+  function toggleStoryCard(index) {
+    const body    = document.getElementById(`story-body-${index}`);
+    const chevron = document.getElementById(`story-chevron-${index}`);
+    const isOpen  = body.classList.toggle('open');
+    chevron.style.transform = isOpen ? 'rotate(90deg)' : '';
+  }
+
+  // ── Per-story upgrade ──────────────────────────────────────────
+  function openStoryUpgrade(index, event) {
+    event.stopPropagation();
+    // Open card if collapsed
+    const body = document.getElementById(`story-body-${index}`);
+    if (!body.classList.contains('open')) toggleStoryCard(index);
+    document.getElementById(`story-upgrade-${index}`).classList.add('open');
+    document.getElementById(`story-feedback-${index}`).focus();
+  }
+
+  function closeStoryUpgrade(index) {
+    document.getElementById(`story-upgrade-${index}`).classList.remove('open');
+    document.getElementById(`story-feedback-${index}`).value = '';
+    document.getElementById(`story-stream-${index}`).style.display = 'none';
+    document.getElementById(`story-stream-${index}`).textContent = '';
+    const btn = document.getElementById(`story-upgrade-btn-${index}`);
+    btn.disabled = false; btn.textContent = 'Regenerate';
+  }
+
+  async function executeStoryUpgrade(index) {
+    if (!currentStoriesFilename) return;
+    const feedback = document.getElementById(`story-feedback-${index}`).value.trim();
+    if (!feedback) { document.getElementById(`story-feedback-${index}`).focus(); return; }
+
+    const btn    = document.getElementById(`story-upgrade-btn-${index}`);
+    const stream = document.getElementById(`story-stream-${index}`);
+    btn.disabled = true; btn.textContent = '⏳ Regenerating…';
+    stream.textContent = ''; stream.style.display = 'block';
+
+    try {
+      const res = await fetch(
+        `/api/stories/${encodeURIComponent(currentStoriesFilename)}/upgrade-story`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storyIndex: index, feedback }) }
+      );
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '', result = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n'); buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const p = JSON.parse(line.slice(6));
+            if (p.text)  stream.textContent += p.text;
+            if (p.error) throw new Error(getErrorMessage(p.error, 'Story upgrade failed'));
+            if (p.done)  result = p;
+          } catch (e) { if (e.message !== 'Unexpected token') throw e; }
+        }
+      }
+
+      if (result) {
+        document.getElementById(`story-content-${index}`).innerHTML = marked.parse(result.content);
+        document.querySelector(`#story-card-${index} .story-card-title`).textContent = result.title;
+      }
+      closeStoryUpgrade(index);
+    } catch (e) {
+      stream.textContent += `\n\n❌ ${e.message}`;
+      btn.disabled = false; btn.textContent = 'Regenerate';
+    }
+  }
+
+  // ── Per-story delete ───────────────────────────────────────────
+  async function deleteStory(index, event) {
+    event.stopPropagation();
+    if (!currentStoriesFilename) return;
+    if (!confirm(`Delete Story ${index + 1}? This cannot be undone.`)) return;
+
+    try {
+      const res = await fetch(
+        `/api/stories/${encodeURIComponent(currentStoriesFilename)}/story`,
+        { method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storyIndex: index }) }
+      );
+      if (!res.ok) throw new Error(getErrorMessage((await res.json()).error, 'Delete failed'));
+      // Reload cards from server (re-indexes remaining stories)
+      await loadStoriesForEpic(currentFilename);
+    } catch (e) {
+      alert(`Failed to delete story: ${e.message}`);
+    }
+  }
+
+  // ── Generate / Regenerate Stories ─────────────────────────────
   async function generateStories() {
     if (!currentFilename) return;
 
-    const btn = document.getElementById('stories-btn');
+    const btn     = document.getElementById('stories-btn');
     const section = document.getElementById('stories-section');
-    const content = document.getElementById('stories-content');
+    const stream  = document.getElementById('stories-stream');
     const spinner = document.getElementById('stories-spinner');
-    const success = document.getElementById('stories-success');
 
     btn.disabled = true;
     btn.textContent = '⏳ Generating…';
-    content.textContent = '';
-    success.classList.remove('show');
+    document.getElementById('stories-cards').innerHTML = '';
+    stream.textContent = '';
+    stream.style.display = 'block';
     section.style.display = 'block';
     spinner.style.display = 'inline-block';
-
-    // Scroll to stories section
-    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('stories-body').classList.add('open');
+    section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     try {
       const res = await fetch(`/api/epic/${encodeURIComponent(currentFilename)}/stories`, { method: 'POST' });
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+      let buffer = '', donePayload = null;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-
+        const lines = buffer.split('\n'); buffer = lines.pop();
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           try {
-            const payload = JSON.parse(line.slice(6));
-            if (payload.text) {
-              content.textContent += payload.text;
-            }
-            if (payload.done) {
-              spinner.style.display = 'none';
-              btn.textContent = '✅ Stories Generated';
-              success.textContent = `Saved to docs/stories/${payload.filename}`;
-              success.classList.add('show');
-            }
-            if (payload.error) {
-              throw new Error(payload.error);
-            }
+            const p = JSON.parse(line.slice(6));
+            if (p.text)  stream.textContent += p.text;
+            if (p.error) throw new Error(getErrorMessage(p.error, 'Story generation failed'));
+            if (p.done)  donePayload = p;
           } catch {}
         }
       }
+
+      spinner.style.display = 'none';
+      stream.style.display = 'none';
+      if (donePayload) await loadStoriesForEpic(currentFilename);
+
     } catch (e) {
       spinner.style.display = 'none';
-      content.textContent += `\n\n❌ Error: ${e.message}`;
+      stream.textContent += `\n\n❌ Error: ${e.message}`;
       btn.disabled = false;
-      btn.textContent = '✨ Generate User Stories';
+      btn.textContent = '✨ Refine into Stories';
     }
   }
 
@@ -1029,6 +2059,294 @@
 
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function getErrorMessage(errorValue, fallback = 'Request failed') {
+    if (!errorValue) return fallback;
+    if (typeof errorValue === 'string') return errorValue;
+    if (typeof errorValue === 'object' && errorValue.message) return errorValue.message;
+    return fallback;
+  }
+
+  // ── Quick Create (Story / Spike from Epic) ────────────────────
+  let _quickCreateType = null;
+
+  function toggleQuickCreate(type) {
+    const panel = document.getElementById('quick-create-panel');
+    if (panel.classList.contains('open') && _quickCreateType === type) {
+      closeQuickCreate();
+      return;
+    }
+    _quickCreateType = type;
+    panel.setAttribute('data-type', type);
+    document.getElementById('quick-create-label').textContent =
+      type === 'story' ? '＋ Create Story' : '＋ Create Spike';
+    document.getElementById('quick-create-idea').placeholder =
+      type === 'story'
+        ? 'Describe the story — what should the user be able to do?…'
+        : 'Describe the research question or technical unknown to investigate…';
+    panel.classList.add('open');
+    document.getElementById('quick-create-title-input').focus();
+  }
+
+  function closeQuickCreate() {
+    const panel = document.getElementById('quick-create-panel');
+    if (panel) panel.classList.remove('open');
+    const titleInput = document.getElementById('quick-create-title-input');
+    const ideaInput  = document.getElementById('quick-create-idea');
+    const stream     = document.getElementById('quick-create-stream');
+    const btn        = document.getElementById('quick-run-btn');
+    if (titleInput) titleInput.value = '';
+    if (ideaInput)  ideaInput.value = '';
+    if (stream)     { stream.style.display = 'none'; stream.textContent = ''; }
+    if (btn)        { btn.disabled = false; btn.textContent = 'Generate'; }
+    _quickCreateType = null;
+  }
+
+  async function executeQuickCreate() {
+    if (!_quickCreateType) return;
+    const idea = document.getElementById('quick-create-idea').value.trim();
+    if (!idea) { document.getElementById('quick-create-idea').focus(); return; }
+
+    const title  = document.getElementById('quick-create-title-input').value.trim();
+    const type   = _quickCreateType;
+    const btn    = document.getElementById('quick-run-btn');
+    const stream = document.getElementById('quick-create-stream');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Generating…';
+    stream.textContent = '';
+    stream.style.display = 'block';
+
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea, title, type, priority: 'Medium' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Generation failed'));
+
+      closeQuickCreate();
+      await loadDocs();
+      showJiraToast('success', `✅ ${TYPE_LABEL[type]} created: ${data.filename}`);
+    } catch (e) {
+      stream.textContent += `\n\n❌ ${e.message}`;
+      btn.disabled = false;
+      btn.textContent = 'Generate';
+    }
+  }
+
+  // ── Push to JIRA ─────────────────────────────────────────────
+  function updateJiraPushBtn() {
+    const btn = document.getElementById('jira-push-btn');
+    if (!btn) return;
+    const isMultiStory = currentDocType === 'story' && currentFilename?.endsWith('-stories.md');
+    if (isMultiStory) {
+      btn.textContent = '↑ Push Stories';
+    } else if (currentJiraId && currentJiraId !== 'TBD') {
+      btn.textContent = '↑ Sync to JIRA';
+    } else {
+      btn.textContent = '↑ Push to JIRA';
+    }
+    btn.disabled = false;
+  }
+
+  async function pushToJira() {
+    if (!currentFilename || !currentDocType) return;
+    const btn = document.getElementById('jira-push-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Pushing…';
+
+    try {
+      const res = await fetch(
+        `/api/jira/push/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+        { method: 'POST' }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Push failed'));
+
+      if (data.type === 'multi-story') {
+        const created = data.results.filter(r => r.action === 'created').length;
+        const updated = data.results.filter(r => r.action === 'updated').length;
+        const parts = [];
+        if (created) parts.push(`${created} created`);
+        if (updated) parts.push(`${updated} synced`);
+        showJiraToast('success', `✅ Stories pushed: ${parts.join(', ')}`);
+        // Reload story cards to show embedded JIRA keys in content
+        if (currentFilename) await loadStoriesForEpic(currentFilename);
+      } else {
+        showJiraToast('success', `✅ ${data.action === 'created' ? 'Created' : 'Synced'} ${data.key} in JIRA`);
+        if (data.action === 'created') {
+          // Update local state — JIRA_ID written to file, status set to "Created in JIRA"
+          currentJiraId = data.key;
+          document.getElementById('status-select').value = 'Created in JIRA';
+          const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
+          if (doc) { doc.status = 'Created in JIRA'; doc.jiraId = data.key; }
+        }
+      }
+      updateJiraPushBtn();
+    } catch (e) {
+      showJiraToast('error', `❌ ${e.message}`);
+      btn.disabled = false;
+      updateJiraPushBtn();
+    }
+  }
+
+  let _toastTimer = null;
+  function showJiraToast(type, message) {
+    const el = document.getElementById('jira-push-toast');
+    el.className = `show ${type}`;
+    el.textContent = message;
+    if (_toastTimer) clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { el.className = ''; }, 4000);
+  }
+
+  // ── JIRA Import ───────────────────────────────────────────────
+  let jiraSearchResults = [];
+
+  function toggleJiraSection() {
+    const body    = document.getElementById('jira-section-body');
+    const chevron = document.getElementById('jira-chevron');
+    const isOpen  = body.classList.toggle('open');
+    chevron.style.transform = isOpen ? 'rotate(90deg)' : '';
+  }
+
+  async function searchJira() {
+    const type = document.getElementById('jira-type').value;
+    const text = document.getElementById('jira-text').value.trim();
+    const btn  = document.getElementById('jira-search-btn');
+    const resultsEl = document.getElementById('jira-results');
+
+    btn.disabled = true;
+    btn.textContent = 'Searching…';
+    setJiraStatus('loading', 'Querying JIRA…');
+    resultsEl.innerHTML = '';
+    document.getElementById('jira-download-btn').style.display = 'none';
+
+    try {
+      const params = new URLSearchParams({ type });
+      if (text) params.set('text', text);
+      const res  = await fetch(`/api/jira/search?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Search failed'));
+
+      jiraSearchResults = data.issues || [];
+      renderJiraResults(jiraSearchResults);
+      setJiraStatus(jiraSearchResults.length ? 'hidden' : 'success',
+        jiraSearchResults.length ? '' : 'No issues found.');
+    } catch (e) {
+      setJiraStatus('error', e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Search JIRA';
+    }
+  }
+
+  function renderJiraResults(issues) {
+    const el = document.getElementById('jira-results');
+    if (!issues.length) {
+      el.innerHTML = '<div class="jira-empty">No results</div>';
+      document.getElementById('jira-download-btn').style.display = 'none';
+      return;
+    }
+
+    el.innerHTML = issues.map((issue, i) => `
+      <div class="jira-result-item ${issue.localExists ? 'local-exists' : ''}" onclick="toggleJiraItem(${i})">
+        <input type="checkbox" id="jira-cb-${i}" onclick="event.stopPropagation(); toggleJiraItem(${i})" />
+        <div class="jira-result-body">
+          <div class="jira-result-key">${escHtml(issue.key)}</div>
+          <div class="jira-result-summary" title="${escHtml(issue.summary)}">${escHtml(issue.summary)}</div>
+          <div class="jira-result-meta">
+            <span class="jira-badge type-${escHtml(issue.issuetype)}">${escHtml(issue.issuetype)}</span>
+            <span class="jira-badge status">${escHtml(issue.status)}</span>
+            ${issue.localExists ? `<span class="jira-badge local" title="${escHtml(issue.localFilename)}">✓ Local</span>` : ''}
+          </div>
+        </div>
+      </div>`).join('');
+
+    updateDownloadBtn();
+  }
+
+  function toggleJiraItem(index) {
+    const cb   = document.getElementById(`jira-cb-${index}`);
+    const item = cb.closest('.jira-result-item');
+    cb.checked = !cb.checked;
+    item.classList.toggle('selected', cb.checked);
+    updateDownloadBtn();
+  }
+
+  function updateDownloadBtn() {
+    const count = document.querySelectorAll('#jira-results input[type=checkbox]:checked').length;
+    const btn   = document.getElementById('jira-download-btn');
+    btn.style.display = count > 0 ? 'block' : 'none';
+    btn.textContent   = `⬇ Download ${count} issue${count !== 1 ? 's' : ''}`;
+  }
+
+  async function downloadSelected() {
+    const checked = [...document.querySelectorAll('#jira-results input[type=checkbox]:checked')];
+    const indices = checked.map(cb => parseInt(cb.id.replace('jira-cb-', '')));
+    const keys    = indices.map(i => jiraSearchResults[i].key);
+    if (!keys.length) return;
+
+    await performJiraPull(keys, []);
+  }
+
+  async function performJiraPull(keys, overwriteKeys) {
+    const btn = document.getElementById('jira-download-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Downloading…';
+    setJiraStatus('loading', `Downloading ${keys.length} issue(s)…`);
+
+    try {
+      const res  = await fetch('/api/jira/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys, overwriteKeys })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Download failed'));
+
+      // Handle conflicts — ask user if they want to overwrite
+      let resolvedOverwrite = [...overwriteKeys];
+      if (data.conflicts?.length) {
+        const conflictList = data.conflicts.map(c => `${c.key} (${c.existingFilename})`).join('\n');
+        const confirm = window.confirm(
+          `${data.conflicts.length} issue(s) already exist locally:\n\n${conflictList}\n\nOverwrite?`
+        );
+        if (confirm) {
+          resolvedOverwrite = [...resolvedOverwrite, ...data.conflicts.map(c => c.key)];
+          btn.disabled = false;
+          return performJiraPull(keys, resolvedOverwrite);
+        }
+      }
+
+      const pullCount = data.pulled?.length || 0;
+      if (pullCount > 0) {
+        setJiraStatus('success', `✅ Downloaded ${pullCount} issue(s) successfully.`);
+        await loadDocs();
+        // Re-render results to show updated local exists state
+        const updatedRes = await fetch(`/api/jira/search?type=${document.getElementById('jira-type').value}&text=${encodeURIComponent(document.getElementById('jira-text').value)}`);
+        if (updatedRes.ok) {
+          const updatedData = await updatedRes.json();
+          jiraSearchResults = updatedData.issues || [];
+          renderJiraResults(jiraSearchResults);
+        }
+      } else {
+        setJiraStatus('success', 'No new issues downloaded.');
+      }
+    } catch (e) {
+      setJiraStatus('error', e.message);
+    } finally {
+      btn.disabled = false;
+      updateDownloadBtn();
+    }
+  }
+
+  function setJiraStatus(type, message) {
+    const el = document.getElementById('jira-status');
+    el.className = `jira-status${type !== 'hidden' ? ' show ' + type : ''}`;
+    el.textContent = message || '';
   }
 </script>
 </body>
