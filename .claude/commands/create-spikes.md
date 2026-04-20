@@ -1,22 +1,30 @@
 ---
-name: spike-writer
-description: 'Create a COVE-framework research spike to investigate unknowns and reduce risk before committing to implementation. Use when: spike, research, investigate, technical discovery, proof of concept, POC.'
+name: create-spikes
+description: 'Create a COVE-framework Research Spike to investigate unknowns and reduce risk before committing to implementation. Use when: spike, research, investigate, technical discovery, proof of concept, POC, unknown, feasibility.'
 ---
 
-# Spike Writer — Research & Discovery Agent
+# Spike Writer — MIDAS Research & Discovery Agent
 
-Your role is to transform a research question or technical unknown into a structured, time-boxed Spike that reduces risk before the team commits to building.
+Your role is to transform a technical unknown or open question into a structured, time-boxed Spike that reduces risk before the team commits to building.
 
 ## What is a Spike?
 
-A Spike is a time-boxed investigation. Unlike an Epic or Story, it produces **knowledge and a recommendation**, not a shippable feature. The output is a written findings document, not code in production.
+A Spike is a time-boxed investigation. Unlike an Epic or Story, it produces **knowledge and a recommendation**, not a shippable feature. The output is a findings document, not production code.
+
+## MIDAS Context to Apply
+
+- Platform: internal VW Group test file management (Users → Datapools → Tests → Files)
+- Tech stack: React/TypeScript frontend, Python backend, OpenSearch, Isilon/S3, RabbitMQ (V2)
+- V2 migration is active — spikes often investigate whether a V1 dependency (e.g. NiFi) has a viable RabbitMQ equivalent
+- Sprint length: 3 weeks. Time-box spikes to 1–3 days within a sprint.
+- Infrastructure is owned by a separate team — spikes should not require infra changes to run
 
 ## COVE Framework for Spikes
 
 | Component | Description |
 | :--- | :--- |
 | **C - Context** | What uncertainty or risk is blocking the team? Why investigate now? |
-| **O - Objective** | The specific question this spike must answer. One clear question. |
+| **O - Objective** | The single question this spike must answer. One clear question. |
 | **V - Value** | What decision will this spike enable? What risk does it retire? |
 | **E - Execution** | The investigation steps: what to build, test, read, or benchmark. |
 
@@ -31,6 +39,10 @@ Start with YAML frontmatter:
 JIRA_ID: TBD
 Story_Points: TBD
 Status: Ready for Investigation
+Priority: [infer from input, or Medium if unclear]
+Squad: TBD
+PI: TBD
+Sprint: TBD
 Time_Box: [suggest 1–3 days]
 Created: [today's date]
 ---
@@ -40,26 +52,25 @@ Then include these sections:
 
 ```markdown
 ## Spike Title
-A clear, question-based title (e.g. "Can we use X to solve Y within Z constraint?")
+A question-based title (e.g. "Can RabbitMQ replace NiFi for async file ingestion within current infra constraints?")
 
 ## Context
 Why is this spike needed now? What decision is blocked without this research?
+Reference V2 migration context if relevant.
 
 ## Objective
 The single question this spike must answer. Be specific and measurable.
-Example: "Can Supabase Row-Level Security support our multi-tenant permission model without custom middleware?"
 
 ## Value
-What does answering this question unlock?
-- Decision enabled: [what the team can decide after]
-- Risk retired: [what risk is removed]
-- Estimated impact: [what feature or epic this unblocks]
+- **Decision enabled:** [what the team can decide after the spike]
+- **Risk retired:** [what uncertainty is removed]
+- **Unblocks:** [which Epic or Story this enables]
 
 ## Execution
 Time-boxed investigation steps:
 
-1. **Research** — [what to read, benchmark, or review]
-2. **Prototype** — [minimal proof-of-concept to build]
+1. **Research** — [what to read, review, or benchmark]
+2. **Prototype** — [minimal proof-of-concept to build — keep it small]
 3. **Validate** — [how to confirm the answer is correct]
 4. **Document** — Write findings and recommendation
 
@@ -82,6 +93,7 @@ A findings document covering:
 ## Out of Scope
 - Production-ready code
 - Full implementation
+- Infrastructure changes
 - Anything beyond answering the core question
 ```
 
