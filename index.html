@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#6366f1" />
+  <meta name="theme-color" content="#0096D6" />
   <link rel="manifest" href="manifest.json" />
   <title>Backlog Claude</title>
 
@@ -16,6 +16,9 @@
   <link rel="stylesheet" href="/public/css/stories.css" />
   <link rel="stylesheet" href="/public/css/jira.css" />
 
+  <!-- Theme (load before render to avoid flash) -->
+  <script src="/public/js/theme.js"></script>
+
   <!-- Markdown renderer -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -25,9 +28,16 @@
 
   <!-- ── Left Panel: Form ──────────────────────────────────────── -->
   <div class="left">
-    <div class="logo">
-      <div class="logo-icon">⚡</div>
-      <h1>Backlog Claude</h1>
+    <div class="app-header">
+      <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <h1>Backlog Claude</h1>
+      </div>
+      <div class="theme-toggle" role="group" aria-label="Theme">
+        <button class="theme-btn" data-theme="light"  onclick="setTheme('light')"  title="Light mode">☀</button>
+        <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="System default">◑</button>
+        <button class="theme-btn" data-theme="dark"   onclick="setTheme('dark')"   title="Dark mode">☾</button>
+      </div>
     </div>
     <p class="subtitle">Turn a rough idea into a polished Epic.</p>
 

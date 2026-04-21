@@ -19,14 +19,15 @@
   margin-bottom: 14px;
 }
 
-.list-title { font-size: 0.9rem; font-weight: 600; color: var(--muted); }
-.epic-count { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 20px; }
+.list-title { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+.epic-count { font-size: 0.72rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 20px; }
 
 .search-wrap { position: relative; padding-bottom: 16px; }
 
 .search-wrap input {
   padding-left: 34px;
   font-size: 0.85rem;
+  background: var(--surface2);
 }
 
 .search-icon {
@@ -42,7 +43,7 @@
 .epic-list {
   overflow-y: auto;
   flex: 1;
-  padding: 8px 0;
+  padding: 6px 0;
 }
 
 /* ── List items ──────────────────────────────────────────────── */
@@ -50,28 +51,28 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 14px 24px;
+  padding: 13px 20px;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.15s, box-shadow 0.15s;
-  border-bottom: 1px solid rgba(51,65,85,0.4);
-  border-left: 2px solid transparent;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
   user-select: none;
 }
 
-.epic-item:hover { background: var(--surface2); }
+.epic-item:hover { background: var(--surface2); border-left-color: var(--accent); }
 
 .epic-date {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--muted);
   white-space: nowrap;
-  margin-top: 2px;
+  margin-top: 3px;
   flex-shrink: 0;
 }
 
 .epic-title-text {
-  font-size: 0.875rem;
+  font-size: 0.855rem;
   color: var(--text);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .epic-dot {
@@ -85,7 +86,7 @@
 
 /* ── Type & Status badges ────────────────────────────────────── */
 .type-badge {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -94,27 +95,27 @@
   flex-shrink: 0;
 }
 
-.type-badge.feature { background: rgba(239,68,68,0.12);  color: #f87171; }
-.type-badge.epic    { background: rgba(99,102,241,0.15); color: #a5b4fc; }
-.type-badge.story   { background: rgba(34,197,94,0.12);  color: #4ade80; }
-.type-badge.spike   { background: rgba(245,158,11,0.12); color: #fbbf24; }
-.type-badge.bug     { background: rgba(239,68,68,0.15);  color: #fb923c; }
+.type-badge.feature { background: var(--type-feature-bg); color: var(--type-feature-color); }
+.type-badge.epic    { background: var(--type-epic-bg);    color: var(--type-epic-color); }
+.type-badge.story   { background: var(--type-story-bg);   color: var(--type-story-color); }
+.type-badge.spike   { background: var(--type-spike-bg);   color: var(--type-spike-color); }
+.type-badge.bug     { background: var(--type-bug-bg);     color: var(--type-bug-color); }
 
 .status-badge {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 20px;
   flex-shrink: 0;
 }
 
-.status-badge.Draft           { background: rgba(148,163,184,0.12); color: #94a3b8; }
-.status-badge.Created-in-JIRA { background: rgba(99,102,241,0.12);  color: #a5b4fc; }
-.status-badge.Archived        { background: rgba(100,116,139,0.12); color: #64748b; }
+.status-badge.Draft           { background: var(--surface2); color: var(--muted); }
+.status-badge.Created-in-JIRA { background: var(--type-epic-bg); color: var(--type-epic-color); }
+.status-badge.Archived        { background: var(--surface2); color: var(--muted); opacity: 0.7; }
 
 /* ── Filter row & Pills ──────────────────────────────────────── */
 .filter-row {
-  padding: 10px 24px 12px;
+  padding: 10px 20px 12px;
   border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -124,24 +125,24 @@
 .filter-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 
 .filter-label {
-  font-size: 0.68rem;
-  font-weight: 600;
+  font-size: 0.66rem;
+  font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   width: 42px;
   flex-shrink: 0;
 }
 
 .pill {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  padding: 3px 10px;
+  padding: 3px 9px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: transparent;
@@ -158,15 +159,15 @@
   color: #fff;
 }
 
-.pill.feature.active { background: #b91c1c; border-color: #b91c1c; }
-.pill.epic.active    { background: #4338ca; border-color: #4338ca; }
-.pill.story.active   { background: #15803d; border-color: #15803d; }
-.pill.spike.active   { background: #b45309; border-color: #b45309; }
-.pill.bug.active     { background: #c2410c; border-color: #c2410c; }
+.pill.feature.active { background: var(--pill-feature-active); border-color: var(--pill-feature-active); color: #fff; }
+.pill.epic.active    { background: var(--pill-epic-active);    border-color: var(--pill-epic-active);    color: #fff; }
+.pill.story.active   { background: var(--pill-story-active);   border-color: var(--pill-story-active);   color: #fff; }
+.pill.spike.active   { background: var(--pill-spike-active);   border-color: var(--pill-spike-active);   color: #fff; }
+.pill.bug.active     { background: var(--pill-bug-active);     border-color: var(--pill-bug-active);     color: #fff; }
 
 /* ── Empty state ─────────────────────────────────────────────── */
 .empty-state {
-  padding: 48px 24px;
+  padding: 56px 24px;
   text-align: center;
   color: var(--muted);
   font-size: 0.85rem;
@@ -197,27 +198,29 @@
 .epic-item:hover .drag-handle { opacity: 1; }
 
 /* ── Drag states ─────────────────────────────────────────────── */
-.epic-item.drag-source { opacity: 0.35; }
+.epic-item.drag-source { opacity: 0.3; }
 .epic-item.drag-target-valid {
-  background: rgba(34,197,94,0.08);
-  border-left-color: #4ade80;
-  box-shadow: inset 3px 0 0 #4ade80;
+  background: var(--type-story-bg);
+  border-left-color: var(--type-story-color);
 }
 .epic-list.dragging-active .epic-item:not(.drag-source):not(.drag-target-valid) {
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 /* ── Hierarchy indentation in list ───────────────────────────── */
 .epic-item[data-indent="1"] {
-  padding-left: 40px;
-  box-shadow: inset 3px 0 0 rgba(99,102,241,0.35);
+  padding-left: 36px;
+  border-left-color: transparent;
+  border-left-width: 3px;
 }
+.epic-item[data-indent="1"]:hover { border-left-color: var(--accent); }
+
 .epic-item[data-indent="2"] {
-  padding-left: 56px;
-  box-shadow: inset 3px 0 0 rgba(34,197,94,0.35);
+  padding-left: 52px;
 }
+
 .epic-item[data-indent="1"] .epic-dot,
-.epic-item[data-indent="2"] .epic-dot { opacity: 0.5; }
+.epic-item[data-indent="2"] .epic-dot { opacity: 0.45; }
 
 .tree-connector {
   font-size: 0.72rem;
@@ -233,15 +236,15 @@
   position: fixed;
   pointer-events: none;
   z-index: 9999;
-  background: #1e293b;
-  border: 1px solid #4ade80;
+  background: var(--surface);
+  border: 1px solid var(--accent);
   border-radius: 8px;
   padding: 6px 14px;
   font-size: 0.78rem;
-  color: #e2e8f0;
+  color: var(--text);
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: 0 8px 24px var(--shadow);
   white-space: nowrap;
 }
