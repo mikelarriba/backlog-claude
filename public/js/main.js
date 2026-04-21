@@ -14,7 +14,7 @@ const evtSource = new EventSource('/api/events');
 evtSource.onmessage = (e) => {
   try {
     const payload = JSON.parse(e.data);
-    if (['feature_created','epic_created','story_created','spike_created','bug_created','status_updated','doc_deleted'].includes(payload.type)) {
+    if (['feature_created','epic_created','story_created','spike_created','bug_created','status_updated','title_updated','doc_deleted'].includes(payload.type)) {
       loadDocs();
     }
   } catch {}

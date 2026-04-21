@@ -303,7 +303,7 @@ app.get('/api/doc/:type/:filename', (req, res) => {
   }
 });
 
-// ── PATCH /api/doc/:type/:filename ── update workflow status ─────────────────
+// ── PATCH /api/doc/:type/:filename ── update status and/or title ─────────────
 app.patch('/api/doc/:type/:filename', (req, res) => {
   try {
     const docType = assertDocType(req.params.type);
@@ -312,20 +312,38 @@ app.patch('/api/doc/:type/:filename', (req, res) => {
     const filepath = path.join(cfg.dir(), filename);
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-    const { status } = req.body;
-    assertStatus(status);
-
+    const { status, title } = req.body;
     let content = fs.readFileSync(filepath, 'utf-8');
-    content = setFrontmatterField(content, 'Status', status);
-    fs.writeFileSync(filepath, content);
 
-    broadcast({ type: 'status_updated', filename, docType, status });
-    res.json({ success: true, status });
+    if (status !== undefined) {
+      assertStatus(status);
+      content = setFrontmatterField(content, 'Status', status);
+    }
+
+    if (title !== undefined) {
+      const trimmed = title.trim();
+      if (!trimmed) return sendError(res, 400, 'INVALID_TITLE', 'Title cannot be empty');
+      // Replace the first ## heading after the frontmatter
+      const hasFrontmatter = content.startsWith('---');
+      if (hasFrontmatter) {
+        const end = content.indexOf('\n---', 3);
+        const afterFm = end !== -1 ? content.slice(end + 4) : content;
+        const beforeFm = end !== -1 ? content.slice(0, end + 4) : '';
+        const updated = afterFm.replace(/^(##\s+).+$/m, `$1${trimmed}`);
+        content = beforeFm + updated;
+      } else {
+        content = content.replace(/^(##\s+).+$/m, `$1${trimmed}`);
+      }
+    }
+
+    fs.writeFileSync(filepath, content);
+    broadcast({ type: 'title_updated', filename, docType });
+    res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }) });
   } catch (err) {
     const apiErr = parseApiError(err);
     sendError(
       res,
-      ['INVALID_TYPE', 'INVALID_FILENAME', 'INVALID_STATUS'].includes(apiErr.code) ? 400 : 500,
+      ['INVALID_TYPE', 'INVALID_FILENAME', 'INVALID_STATUS', 'INVALID_TITLE'].includes(apiErr.code) ? 400 : 500,
       apiErr.code,
       apiErr.message,
       apiErr.details

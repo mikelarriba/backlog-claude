@@ -10,13 +10,16 @@ async function loadDocs() {
 }
 
 function buildTreeOrder(docs) {
+  // Use composite key (docType:filename) to avoid collisions when an epic and a
+  // spike/story share the same filename (they live in different directories).
+  const key        = d => `${d.docType}:${d.filename}`;
   const byFilename = new Map(docs.map(d => [d.filename, d]));
-  const ordered = [];
-  const placed  = new Set();
+  const ordered    = [];
+  const placed     = new Set();
 
   function place(doc, indent) {
-    if (placed.has(doc.filename)) return;
-    placed.add(doc.filename);
+    if (placed.has(key(doc))) return;
+    placed.add(key(doc));
     ordered.push({ doc, indent });
     docs.filter(c => c.parentFilename === doc.filename)
         .forEach(child => place(child, indent + 1));
@@ -27,7 +30,7 @@ function buildTreeOrder(docs) {
     if (!d.parentFilename || !byFilename.has(d.parentFilename)) place(d, 0);
   });
   // Catch orphans
-  docs.forEach(d => { if (!placed.has(d.filename)) place(d, 0); });
+  docs.forEach(d => { if (!placed.has(key(d))) place(d, 0); });
 
   return ordered;
 }

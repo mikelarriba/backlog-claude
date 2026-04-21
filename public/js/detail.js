@@ -12,20 +12,27 @@ async function openDoc(filename, docType) {
     document.getElementById('status-select').value = doc?.status || 'Draft';
 
     document.getElementById('detail-filename').textContent = filename;
-    document.getElementById('detail-content').innerHTML = marked.parse(stripFrontmatter(content));
+    const titleInput = document.getElementById('detail-title-input');
+    const stripped = stripFrontmatter(content);
+    const h2Match  = stripped.match(/^##\s+(.+)$/m);
+    const docTitle = doc?.title || (h2Match ? h2Match[1].trim() : '');
+    titleInput.value = docTitle;
+    titleInput.dataset.original = docTitle;
+    document.getElementById('detail-content').innerHTML = marked.parse(stripped);
     resetStoriesSection();
     closeQuickCreate();
 
     // Button visibility per type
     const isEpic    = docType === 'epic';
     const isFeature = docType === 'feature';
+    document.getElementById('create-dropdown-wrap').style.display = (isEpic || isFeature) ? '' : 'none';
     document.getElementById('create-epic-btn').style.display  = isFeature ? '' : 'none';
     document.getElementById('create-story-btn').style.display = isEpic    ? '' : 'none';
     document.getElementById('create-spike-btn').style.display = isEpic    ? '' : 'none';
     document.getElementById('create-bug-btn').style.display   = isEpic    ? '' : 'none';
     document.getElementById('stories-btn').style.display      = isEpic    ? '' : 'none';
     document.getElementById('stories-btn').disabled = false;
-    document.getElementById('stories-btn').textContent = '✨ Refine into Stories';
+    document.getElementById('stories-btn').textContent = '✨ Refine';
 
     // Extract JIRA_ID from frontmatter and update push button label
     const jiraMatch = content.match(/^JIRA_ID:\s*(.+)$/m);
@@ -62,6 +69,52 @@ async function loadOriginal(filename) {
   } catch {
     section.style.display = 'none';
   }
+}
+
+// ── Toolbar dropdowns ──────────────────────────────────────────
+function toggleDropdown(id) {
+  const menu = document.getElementById(id);
+  const isOpen = menu.classList.contains('open');
+  closeAllDropdowns();
+  if (!isOpen) menu.classList.add('open');
+}
+function closeDropdown(id) {
+  document.getElementById(id)?.classList.remove('open');
+}
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dropdown-wrap')) closeAllDropdowns();
+});
+
+// ── Inline title editing ───────────────────────────────────────
+async function saveTitle() {
+  const input = document.getElementById('detail-title-input');
+  const newTitle = input.value.trim();
+  if (!newTitle || newTitle === input.dataset.original || !currentFilename || !currentDocType) return;
+  try {
+    const res = await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: newTitle })
+    });
+    if (!res.ok) { input.value = input.dataset.original; return; }
+    input.dataset.original = newTitle;
+    // Re-render the heading inside the detail content without a full reload
+    const contentEl = document.getElementById('detail-content');
+    const h2 = contentEl.querySelector('h2');
+    if (h2) h2.textContent = newTitle;
+    await loadDocs();
+  } catch (e) {
+    input.value = input.dataset.original;
+  }
+}
+
+function cancelTitleEdit() {
+  const input = document.getElementById('detail-title-input');
+  input.value = input.dataset.original || '';
+  input.blur();
 }
 
 // ── Hierarchy panel ────────────────────────────────────────────

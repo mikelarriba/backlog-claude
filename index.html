@@ -112,7 +112,7 @@
     <div id="list-view">
       <div class="list-header">
         <div class="list-header-top">
-          <span class="list-title">Your Epics</span>
+          <span class="list-title">Your Issues</span>
           <span class="epic-count" id="epic-count">0</span>
         </div>
         <div class="search-wrap">
@@ -151,22 +151,50 @@
       <div class="detail-header">
         <div class="detail-header-left">
           <button class="btn-ghost" onclick="showList()">← Back</button>
-          <span class="detail-filename" id="detail-filename"></span>
+          <div class="detail-title-wrap">
+            <input class="detail-title-input" id="detail-title-input"
+                   type="text" placeholder="Title…"
+                   onblur="saveTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelTitleEdit()}">
+            <span class="detail-filename" id="detail-filename"></span>
+          </div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div class="detail-toolbar">
           <select class="status-select" id="status-select" onchange="updateDocStatus(this.value)">
             <option value="Draft">Draft</option>
             <option value="Created in JIRA">Created in JIRA</option>
             <option value="Archived">Archived</option>
           </select>
-          <button class="btn-upgrade" onclick="toggleUpgradePanel()">↑ Upgrade</button>
-          <button class="btn-create-epic"  id="create-epic-btn"  onclick="toggleQuickCreate('epic')"  style="display:none">＋ Epic</button>
-          <button class="btn-create-story" id="create-story-btn" onclick="toggleQuickCreate('story')" style="display:none">＋ Story</button>
-          <button class="btn-create-spike" id="create-spike-btn" onclick="toggleQuickCreate('spike')" style="display:none">＋ Spike</button>
-          <button class="btn-create-bug"   id="create-bug-btn"   onclick="toggleQuickCreate('bug')"   style="display:none">＋ Bug</button>
-          <button class="btn-stories" id="stories-btn" onclick="generateStories()">✨ Refine into Stories</button>
-          <button class="btn-jira-push" id="jira-push-btn" onclick="pushToJira()">↑ Push to JIRA</button>
-          <button class="btn-delete" onclick="confirmDelete()">Delete</button>
+
+          <div class="toolbar-sep"></div>
+
+          <!-- ＋ Create dropdown (shown for epics and features) -->
+          <div class="dropdown-wrap" id="create-dropdown-wrap" style="display:none">
+            <button class="btn-toolbar btn-toolbar-create" onclick="toggleDropdown('create-dropdown-menu')">
+              ＋ Create <span class="toolbar-caret">▾</span>
+            </button>
+            <div class="dropdown-menu" id="create-dropdown-menu">
+              <button id="create-story-btn" class="dropdown-item" onclick="toggleQuickCreate('story');closeDropdown('create-dropdown-menu')" style="display:none">
+                <span class="di-badge story">Story</span>User Story
+              </button>
+              <button id="create-spike-btn" class="dropdown-item" onclick="toggleQuickCreate('spike');closeDropdown('create-dropdown-menu')" style="display:none">
+                <span class="di-badge spike">Spike</span>Research Spike
+              </button>
+              <button id="create-bug-btn" class="dropdown-item" onclick="toggleQuickCreate('bug');closeDropdown('create-dropdown-menu')" style="display:none">
+                <span class="di-badge bug">Bug</span>Bug Report
+              </button>
+              <button id="create-epic-btn" class="dropdown-item" onclick="toggleQuickCreate('epic');closeDropdown('create-dropdown-menu')" style="display:none">
+                <span class="di-badge epic">Epic</span>Epic
+              </button>
+            </div>
+          </div>
+
+          <button class="btn-toolbar" onclick="toggleUpgradePanel()">↑ Upgrade</button>
+          <button class="btn-toolbar" id="stories-btn" onclick="generateStories()" style="display:none">✨ Refine</button>
+
+          <div class="toolbar-sep"></div>
+
+          <button class="btn-toolbar btn-toolbar-jira" id="jira-push-btn" onclick="pushToJira()">↑ JIRA</button>
+          <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">Delete</button>
         </div>
       </div>
 
