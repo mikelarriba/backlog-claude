@@ -26,7 +26,7 @@ A Spike is a time-boxed investigation. Unlike an Epic or Story, it produces **kn
 | **C - Context** | What uncertainty or risk is blocking the team? Why investigate now? |
 | **O - Objective** | The single question this spike must answer. One clear question. |
 | **V - Value** | What decision will this spike enable? What risk does it retire? |
-| **E - Execution** | The investigation steps: what to build, test, read, or benchmark. |
+| **E - Example** | What the investigation should show up as a result |
 
 ## Output Format
 
@@ -66,22 +66,16 @@ The single question this spike must answer. Be specific and measurable.
 - **Risk retired:** [what uncertainty is removed]
 - **Unblocks:** [which Epic or Story this enables]
 
-## Execution
+## Example
 Time-boxed investigation steps:
 
 1. **Research** — [what to read, review, or benchmark]
-2. **Prototype** — [minimal proof-of-concept to build — keep it small]
-3. **Validate** — [how to confirm the answer is correct]
-4. **Document** — Write findings and recommendation
+2. **Validate** — [how to confirm the answer is correct]
+3. **Document** — Write findings and recommendation into Confluence, suggest to create a page
 
 ## Time Box
 Recommended: [1–3 days]. If the answer isn't clear within this time, escalate rather than expand scope.
 
-## Definition of Done
-- [ ] The core question is answered with evidence
-- [ ] A clear recommendation (Go / No-Go / More investigation needed) is documented
-- [ ] Findings are shared with the team
-- [ ] Any follow-on Epics or Stories are identified
 
 ## Expected Output
 A findings document covering:
