@@ -7,8 +7,13 @@ import { parseStorySections, serializeStoryFile, extractStoryTitle } from './src
 import { createEventService } from './src/services/eventService.js';
 import { createJiraService, LOCAL_TO_JIRA_TYPE } from './src/services/jiraService.js';
 import { watchInbox } from './src/services/inboxWatcher.js';
+import {
+  isoDate, slugify, WORKFLOW_STATUSES,
+  extractTitle, extractWorkflowStatus, setFrontmatterField, markdownToJira,
+} from './src/utils/transforms.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
 
 // ── Load .env ─────────────────────────────────────────────────────────────────
 const envPath = path.join(__dirname, '.env');
@@ -18,7 +23,8 @@ if (fs.existsSync(envPath)) {
     if (eq > 0) {
       const key = line.slice(0, eq).trim();
       const val = line.slice(eq + 1).trim();
-      if (key && !process.env[key]) process.env[key] = val;
+      // Only set if the key is truly absent (undefined); empty-string values are intentional.
+      if (key && process.env[key] === undefined) process.env[key] = val;
     }
   });
 }
@@ -55,11 +61,13 @@ function sendError(res, status, code, message, details = null) {
 }
 
 // ── Folder paths ──────────────────────────────────────────────────────────────
-const FEATURES_DIR = path.join(__dirname, 'docs', 'features');
-const EPICS_DIR    = path.join(__dirname, 'docs', 'epics');
-const STORIES_DIR  = path.join(__dirname, 'docs', 'stories');
-const SPIKES_DIR   = path.join(__dirname, 'docs', 'spikes');
-const INBOX_DIR    = path.join(__dirname, 'inbox');
+// TEST_DOCS_ROOT allows integration tests to redirect file I/O to a temp dir.
+const DOCS_ROOT    = process.env.TEST_DOCS_ROOT || path.join(__dirname, 'docs');
+const FEATURES_DIR = path.join(DOCS_ROOT, 'features');
+const EPICS_DIR    = path.join(DOCS_ROOT, 'epics');
+const STORIES_DIR  = path.join(DOCS_ROOT, 'stories');
+const SPIKES_DIR   = path.join(DOCS_ROOT, 'spikes');
+const INBOX_DIR    = process.env.TEST_INBOX_DIR || path.join(__dirname, 'inbox');
 
 // Maps type → { command, dir, broadcastType }
 const TYPE_CONFIG = {
@@ -81,29 +89,9 @@ const streamClaude = (prompt, onChunk) => streamClaudeService(__dirname, prompt,
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function slugify(text) {
-  return text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 50);
-}
-
-function pad(n) { return String(n).padStart(2, '0'); }
-
-function isoDate() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
-
-function extractTitle(content) {
-  const m = content.match(/^## Epic Title\s*\n+(.+)/m)
-    || content.match(/^# (.+)/m)
-    || content.match(/^## (.+)/m);
-  return m ? m[1].trim() : null;
-}
-
-const WORKFLOW_STATUSES = ['Draft', 'Created in JIRA', 'Archived'];
 
 function parseApiError(err, fallbackCode = 'INTERNAL_ERROR', fallbackMessage = 'Unexpected server error') {
   if (!err) return { code: fallbackCode, message: fallbackMessage };
@@ -172,15 +160,6 @@ function validateStartupConfig() {
   }
 }
 
-function extractWorkflowStatus(content) {
-  const m = content.match(/^Status:\s*(.+)$/m);
-  if (m) {
-    const val = m[1].trim();
-    return WORKFLOW_STATUSES.includes(val) ? val : 'Draft';
-  }
-  return 'Draft';
-}
-
 // ── JIRA config ────────────────────────────────────────────────────────────────
 const JIRA_BASE  = (process.env.JIRA_BASE_URL  || 'https://devstack.vwgroup.com/jira').replace(/\/$/, '');
 const JIRA_TOKEN = process.env.JIRA_API_TOKEN  || '';
@@ -204,39 +183,6 @@ const {
   isoDate,
   slugify,
 });
-
-// ── Convert Markdown to JIRA wiki markup ──────────────────────────────────────
-function markdownToJira(md) {
-  // Preserve code blocks first
-  const blocks = [];
-  let text = md.replace(/```[\w]*\n([\s\S]*?)```/gm, (_, code) => {
-    blocks.push(code);
-    return `\x00CODEBLOCK${blocks.length - 1}\x00`;
-  });
-
-  text = text
-    .replace(/^#### (.+)$/gm, 'h4. $1')
-    .replace(/^### (.+)$/gm,  'h3. $1')
-    .replace(/^## (.+)$/gm,   'h2. $1')
-    .replace(/^# (.+)$/gm,    'h1. $1')
-    .replace(/\*\*(.+?)\*\*/g, '*$1*')         // **bold** → *bold*
-    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '_$1_')  // *italic* → _italic_
-    .replace(/^\* (.+)$/gm, '- $1')             // bullet * → -
-    .replace(/`([^`]+)`/g, '{{$1}}')            // `inline code` → {{code}}
-    .replace(/^---+$/gm, '----')                // horizontal rule
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '[$1|$2]'); // [text](url) → [text|url]
-
-  // Restore code blocks
-  return text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => `{code}\n${blocks[i]}{code}`);
-}
-
-// ── Update or insert a field in the YAML frontmatter block.
-function setFrontmatterField(content, field, value) {
-  const re = new RegExp(`^(${field}:\\s*).*$`, 'm');
-  if (re.test(content)) return content.replace(re, `$1${value}`);
-  // Field missing — insert after opening ---
-  return content.replace(/^---\n/, `---\n${field}: ${value}\n`);
-}
 
 // ── POST /api/generate ── create epic / story / spike from web form ───────────
 app.post('/api/generate', async (req, res) => {
@@ -645,7 +591,7 @@ app.delete('/api/stories/:filename/story', (req, res) => {
 
 // ── POST /api/jira/push/:type/:filename ── push local doc to JIRA ────────────
 app.post('/api/jira/push/:type/:filename', async (req, res) => {
-  if (!JIRA_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+  if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
   const docType = assertDocType(req.params.type);
   const cfg = TYPE_CONFIG[docType];
@@ -808,7 +754,7 @@ app.post('/api/jira/push/:type/:filename', async (req, res) => {
 // ── GET /api/jira/search ── search JIRA issues ───────────────────────────────
 app.get('/api/jira/search', async (req, res) => {
   try {
-    if (!JIRA_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
     const { type = 'all', text = '' } = req.query;
     if (type !== 'all' && !TYPE_CONFIG[normalizeType(type)]) {
@@ -852,10 +798,12 @@ app.get('/api/jira/search', async (req, res) => {
 // ── POST /api/jira/pull ── download selected JIRA issues as local .md files ──
 app.post('/api/jira/pull', async (req, res) => {
   try {
-    if (!JIRA_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-
+    // Validate inputs before the token guard so callers get actionable 400s.
     const { keys = [], overwriteKeys = [] } = req.body;
+    if (!Array.isArray(keys)) return sendError(res, 400, 'VALIDATION_ERROR', 'keys must be an array');
     if (!keys.length) return sendError(res, 400, 'VALIDATION_ERROR', 'No keys provided');
+
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
     const pulled    = [];
     const conflicts = [];
@@ -1055,17 +1003,23 @@ app.post('/api/epic/:filename/stories', async (req, res) => {
 });
 
 // ── Server start ──────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  validateStartupConfig();
-  logInfo('startup', `Backlog Claude running on http://localhost:${PORT}`);
-  watchInbox({
-    INBOX_DIR,
-    EPICS_DIR,
-    ensureDir,
-    loadCommand,
-    callClaude,
-    broadcast,
-    logInfo,
-    logError,
+// Export app for integration tests (imported as a module).
+// Only bind to a port when run directly: `node server.js`
+export { app };
+
+if (process.argv[1] === __filename) {
+  app.listen(PORT, () => {
+    validateStartupConfig();
+    logInfo('startup', `Backlog Claude running on http://localhost:${PORT}`);
+    watchInbox({
+      INBOX_DIR,
+      EPICS_DIR,
+      ensureDir,
+      loadCommand,
+      callClaude,
+      broadcast,
+      logInfo,
+      logError,
+    });
   });
-});
+}
