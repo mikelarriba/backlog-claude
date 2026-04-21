@@ -76,18 +76,6 @@ button:active:not(:disabled) { transform: scale(0.97); }
 
 .btn-ghost:hover { color: var(--text); }
 
-.btn-stories {
-  background: rgba(99,102,241,0.12);
-  color: #a5b4fc;
-  border: 1px solid rgba(99,102,241,0.25);
-  padding: 0 12px;
-  height: 32px;
-  font-size: 0.78rem;
-  white-space: nowrap;
-}
-
-.btn-stories:hover:not(:disabled) { background: rgba(99,102,241,0.22); border-color: rgba(99,102,241,0.5); }
-.btn-stories:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Status indicator ────────────────────────────────────────── */
 .status {
