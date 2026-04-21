@@ -13,20 +13,20 @@ label {
 
 textarea, input, select {
   width: 100%;
-  background: var(--bg);
+  background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
   font-size: 0.9rem;
   padding: 10px 12px;
   font-family: inherit;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.2s;
 }
 
 textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
 textarea::placeholder, input::placeholder { color: var(--muted); }
 textarea:focus, input:focus, select:focus { outline: none; border-color: var(--accent); }
-select option { background: var(--surface); }
+select option { background: var(--surface); color: var(--text); }
 
 .meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
@@ -65,7 +65,7 @@ button:active:not(:disabled) { transform: scale(0.97); }
   border: 1px solid var(--border);
 }
 
-.btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+.btn-secondary:hover { border-color: var(--muted); color: var(--text); background: var(--surface2); }
 
 .btn-ghost {
   background: transparent;
@@ -75,7 +75,6 @@ button:active:not(:disabled) { transform: scale(0.97); }
 }
 
 .btn-ghost:hover { color: var(--text); }
-
 
 /* ── Status indicator ────────────────────────────────────────── */
 .status {
@@ -89,28 +88,28 @@ button:active:not(:disabled) { transform: scale(0.97); }
 .status.show { display: flex; align-items: center; gap: 8px; }
 
 .status.loading {
-  background: rgba(99,102,241,0.1);
-  border: 1px solid rgba(99,102,241,0.3);
+  background: var(--accent-subtle);
+  border: 1px solid rgba(0,150,214,0.3);
   color: var(--accent-hover);
 }
 
 .status.success {
-  background: #052e16;
-  border: 1px solid #166534;
-  color: var(--success);
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success-text);
 }
 
 .status.error {
-  background: #1c0a0a;
-  border: 1px solid #7f1d1d;
-  color: #f87171;
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  color: var(--error-text);
 }
 
 /* ── Spinner ─────────────────────────────────────────────────── */
 .spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(99,102,241,0.3);
+  border: 2px solid var(--accent-subtle);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
@@ -122,7 +121,7 @@ button:active:not(:disabled) { transform: scale(0.97); }
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.55);
   z-index: 100;
   align-items: center;
   justify-content: center;
@@ -136,7 +135,7 @@ button:active:not(:disabled) { transform: scale(0.97); }
   border-radius: 12px;
   padding: 28px 28px 24px;
   width: 360px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  box-shadow: 0 20px 60px var(--shadow);
 }
 
 .dialog h3 { font-size: 1rem; margin-bottom: 8px; }
@@ -160,13 +159,9 @@ button:active:not(:disabled) { transform: scale(0.97); }
   pointer-events: none;
 }
 
-#jira-push-toast.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-#jira-push-toast.success { background: #052e16; border: 1px solid #166534; color: #4ade80; }
-#jira-push-toast.error   { background: #1c0a0a; border: 1px solid #7f1d1d; color: #f87171; }
+#jira-push-toast.show { opacity: 1; transform: translateY(0); }
+#jira-push-toast.success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
+#jira-push-toast.error   { background: var(--error-bg);   border: 1px solid var(--error-border);   color: var(--error-text); }
 
 /* ── Status selector in detail header ───────────────────────── */
 .status-select {
@@ -177,32 +172,32 @@ button:active:not(:disabled) { transform: scale(0.97); }
   font-size: 0.78rem;
   font-weight: 600;
   padding: 0 10px;
-  height: 32px;
+  height: 30px;
   font-family: inherit;
   cursor: pointer;
+  transition: border-color 0.15s;
 }
 
 .status-select:focus { outline: none; border-color: var(--accent); }
 
-/* ── Delete button ───────────────────────────────────────────── */
+/* ── Delete button (dialog) ──────────────────────────────────── */
 .btn-delete {
-  background: transparent;
-  color: #f87171;
-  border: 1px solid rgba(248,113,113,0.2);
+  background: var(--error-bg);
+  color: var(--error-text);
+  border: 1px solid var(--error-border);
   border-radius: 8px;
-  padding: 0 12px;
-  height: 32px;
-  font-size: 0.78rem;
+  padding: 8px 18px;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  white-space: nowrap;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s;
 }
 
-.btn-delete:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.5); }
+.btn-delete:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-delete:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Scrollbar ───────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
