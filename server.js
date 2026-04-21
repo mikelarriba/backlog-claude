@@ -67,6 +67,7 @@ const FEATURES_DIR = path.join(DOCS_ROOT, 'features');
 const EPICS_DIR    = path.join(DOCS_ROOT, 'epics');
 const STORIES_DIR  = path.join(DOCS_ROOT, 'stories');
 const SPIKES_DIR   = path.join(DOCS_ROOT, 'spikes');
+const BUGS_DIR     = path.join(DOCS_ROOT, 'bugs');
 const INBOX_DIR    = process.env.TEST_INBOX_DIR || path.join(__dirname, 'inbox');
 
 // Maps type → { command, dir, broadcastType }
@@ -75,6 +76,7 @@ const TYPE_CONFIG = {
   epic:    { command: 'create-epics',    dir: () => EPICS_DIR,    event: 'epic_created' },
   story:   { command: 'create-stories',  dir: () => STORIES_DIR,  event: 'story_created' },
   spike:   { command: 'create-spikes',   dir: () => SPIKES_DIR,   event: 'spike_created' },
+  bug:     { command: 'create-bugs',     dir: () => BUGS_DIR,     event: 'bug_created'   },
 };
 
 app.use(express.json());
@@ -261,7 +263,7 @@ app.get('/api/docs', (req, res) => {
         if (docType === 'epic') {
           const m = content.match(/^Feature_ID:\s*(.+)$/m);
           if (m && m[1].trim() !== 'TBD') { parentFilename = m[1].trim(); parentType = 'feature'; }
-        } else if (docType === 'story' || docType === 'spike') {
+        } else if (docType === 'story' || docType === 'spike' || docType === 'bug') {
           const m = content.match(/^Epic_ID:\s*(.+)$/m);
           if (m && m[1].trim() !== 'TBD') { parentFilename = m[1].trim(); parentType = 'epic'; }
         }
@@ -380,8 +382,8 @@ app.get('/api/links/:type/:filename', (req, res) => {
         }
       }
 
-      // Find stories and spikes linked via Epic_ID
-      for (const [childType, childDir] of [['story', STORIES_DIR], ['spike', SPIKES_DIR]]) {
+      // Find stories, spikes, and bugs linked via Epic_ID
+      for (const [childType, childDir] of [['story', STORIES_DIR], ['spike', SPIKES_DIR], ['bug', BUGS_DIR]]) {
         if (!fs.existsSync(childDir)) continue;
         for (const f of fs.readdirSync(childDir).filter(f => f.endsWith('.md'))) {
           const c = fs.readFileSync(path.join(childDir, f), 'utf-8');

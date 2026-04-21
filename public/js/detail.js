@@ -22,6 +22,7 @@ async function openDoc(filename, docType) {
     document.getElementById('create-epic-btn').style.display  = isFeature ? '' : 'none';
     document.getElementById('create-story-btn').style.display = isEpic    ? '' : 'none';
     document.getElementById('create-spike-btn').style.display = isEpic    ? '' : 'none';
+    document.getElementById('create-bug-btn').style.display   = isEpic    ? '' : 'none';
     document.getElementById('stories-btn').style.display      = isEpic    ? '' : 'none';
     document.getElementById('stories-btn').disabled = false;
     document.getElementById('stories-btn').textContent = '✨ Refine into Stories';
@@ -159,6 +160,9 @@ function confirmDelete() {
 
 function closeDeleteDialog() {
   document.getElementById('delete-overlay').classList.remove('show');
+  const btn = document.getElementById('confirm-delete-btn');
+  btn.disabled = false;
+  btn.textContent = 'Delete';
 }
 
 async function executeDelete() {

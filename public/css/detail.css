@@ -249,6 +249,22 @@
 }
 .btn-create-spike:hover { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); }
 
+.btn-create-bug {
+  background: rgba(251,146,60,0.08);
+  color: #fb923c;
+  border: 1px solid rgba(251,146,60,0.2);
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-create-bug:hover { background: rgba(251,146,60,0.15); border-color: rgba(251,146,60,0.4); }
+
 /* ── Quick Create panel ──────────────────────────────────────── */
 #quick-create-panel {
   border-bottom: 1px solid var(--border);

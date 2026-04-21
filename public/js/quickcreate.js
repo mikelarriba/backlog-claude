@@ -48,11 +48,12 @@ function toggleQuickCreate(type) {
   }
   _quickCreateType = type;
   panel.setAttribute('data-type', type);
-  const labels = { epic: '＋ Create Epic', story: '＋ Create Story', spike: '＋ Create Spike' };
+  const labels = { epic: '＋ Create Epic', story: '＋ Create Story', spike: '＋ Create Spike', bug: '＋ Create Bug' };
   const placeholders = {
     epic:  'Describe the epic — what capability should this deliver?…',
     story: 'Describe the story — what should the user be able to do?…',
     spike: 'Describe the research question or technical unknown to investigate…',
+    bug:   'Describe the bug — what is broken, how to reproduce it, and what the expected behaviour is…',
   };
   document.getElementById('quick-create-label').textContent = labels[type] || `＋ Create ${type}`;
   document.getElementById('quick-create-idea').placeholder  = placeholders[type] || '';
