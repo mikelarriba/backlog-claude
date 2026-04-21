@@ -1,0 +1,245 @@
+/* ── List View ───────────────────────────────────────────────── */
+#list-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.list-header {
+  padding: 20px 24px 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.list-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.list-title { font-size: 0.9rem; font-weight: 600; color: var(--muted); }
+.epic-count { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 20px; }
+
+.search-wrap { position: relative; padding-bottom: 16px; }
+
+.search-wrap input {
+  padding-left: 34px;
+  font-size: 0.85rem;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-60%);
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.epic-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 8px 0;
+}
+
+/* ── List items ──────────────────────────────────────────────── */
+.epic-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 24px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.15s, box-shadow 0.15s;
+  border-bottom: 1px solid rgba(51,65,85,0.4);
+  border-left: 2px solid transparent;
+  user-select: none;
+}
+
+.epic-item:hover { background: var(--surface2); }
+
+.epic-date {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.epic-title-text {
+  font-size: 0.875rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.epic-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Type & Status badges ────────────────────────────────────── */
+.type-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.type-badge.feature { background: rgba(239,68,68,0.12);  color: #f87171; }
+.type-badge.epic    { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+.type-badge.story   { background: rgba(34,197,94,0.12);  color: #4ade80; }
+.type-badge.spike   { background: rgba(245,158,11,0.12); color: #fbbf24; }
+
+.status-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.status-badge.Draft           { background: rgba(148,163,184,0.12); color: #94a3b8; }
+.status-badge.Created-in-JIRA { background: rgba(99,102,241,0.12);  color: #a5b4fc; }
+.status-badge.Archived        { background: rgba(100,116,139,0.12); color: #64748b; }
+
+/* ── Filter row & Pills ──────────────────────────────────────── */
+.filter-row {
+  padding: 10px 24px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  width: 42px;
+  flex-shrink: 0;
+}
+
+.pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.pill:hover { border-color: var(--muted); color: var(--text); }
+
+.pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.pill.feature.active { background: #b91c1c; border-color: #b91c1c; }
+.pill.epic.active    { background: #4338ca; border-color: #4338ca; }
+.pill.story.active   { background: #15803d; border-color: #15803d; }
+.pill.spike.active   { background: #b45309; border-color: #b45309; }
+
+/* ── Empty state ─────────────────────────────────────────────── */
+.empty-state {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.empty-state .icon { font-size: 2rem; margin-bottom: 12px; }
+
+/* ── Drag handle ─────────────────────────────────────────────── */
+.drag-handle {
+  display: grid;
+  grid-template-columns: repeat(2, 4px);
+  gap: 3px;
+  padding-top: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  cursor: grab;
+  flex-shrink: 0;
+}
+.drag-handle:active { cursor: grabbing; }
+.drag-handle span {
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.epic-item:hover .drag-handle { opacity: 1; }
+
+/* ── Drag states ─────────────────────────────────────────────── */
+.epic-item.drag-source { opacity: 0.35; }
+.epic-item.drag-target-valid {
+  background: rgba(34,197,94,0.08);
+  border-left-color: #4ade80;
+  box-shadow: inset 3px 0 0 #4ade80;
+}
+.epic-list.dragging-active .epic-item:not(.drag-source):not(.drag-target-valid) {
+  opacity: 0.6;
+}
+
+/* ── Hierarchy indentation in list ───────────────────────────── */
+.epic-item[data-indent="1"] {
+  padding-left: 40px;
+  box-shadow: inset 3px 0 0 rgba(99,102,241,0.35);
+}
+.epic-item[data-indent="2"] {
+  padding-left: 56px;
+  box-shadow: inset 3px 0 0 rgba(34,197,94,0.35);
+}
+.epic-item[data-indent="1"] .epic-dot,
+.epic-item[data-indent="2"] .epic-dot { opacity: 0.5; }
+
+.tree-connector {
+  font-size: 0.72rem;
+  color: var(--muted);
+  flex-shrink: 0;
+  line-height: 1;
+  padding-top: 3px;
+  width: 12px;
+}
+
+/* ── Drag ghost ──────────────────────────────────────────────── */
+.drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  background: #1e293b;
+  border: 1px solid #4ade80;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  white-space: nowrap;
+}

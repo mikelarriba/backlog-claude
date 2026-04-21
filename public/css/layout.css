@@ -1,0 +1,51 @@
+/* ── App Layout ──────────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Left Panel ─────────────────────────────────────────────── */
+.left {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 28px 24px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.logo h1 { font-size: 1.1rem; font-weight: 700; }
+
+.subtitle {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+
+/* ── Right Panel ─────────────────────────────────────────────── */
+.right {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

@@ -1,0 +1,220 @@
+/* ── Forms ───────────────────────────────────────────────────── */
+label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.field { margin-bottom: 16px; }
+
+textarea, input, select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 10px 12px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
+textarea::placeholder, input::placeholder { color: var(--muted); }
+textarea:focus, input:focus, select:focus { outline: none; border-color: var(--accent); }
+select option { background: var(--surface); }
+
+.meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.actions { display: flex; gap: 10px; margin-top: 20px; }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 10px 16px;
+  transition: background 0.15s, opacity 0.15s, transform 0.1s;
+  font-family: inherit;
+}
+
+button:active:not(:disabled) { transform: scale(0.97); }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+.btn-ghost:hover { color: var(--text); }
+
+.btn-stories {
+  background: rgba(99,102,241,0.12);
+  color: #a5b4fc;
+  border: 1px solid rgba(99,102,241,0.25);
+  padding: 0 12px;
+  height: 32px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.btn-stories:hover:not(:disabled) { background: rgba(99,102,241,0.22); border-color: rgba(99,102,241,0.5); }
+.btn-stories:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Status indicator ────────────────────────────────────────── */
+.status {
+  margin-top: 16px;
+  font-size: 0.82rem;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: none;
+}
+
+.status.show { display: flex; align-items: center; gap: 8px; }
+
+.status.loading {
+  background: rgba(99,102,241,0.1);
+  border: 1px solid rgba(99,102,241,0.3);
+  color: var(--accent-hover);
+}
+
+.status.success {
+  background: #052e16;
+  border: 1px solid #166534;
+  color: var(--success);
+}
+
+.status.error {
+  background: #1c0a0a;
+  border: 1px solid #7f1d1d;
+  color: #f87171;
+}
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(99,102,241,0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── Confirm dialog overlay ──────────────────────────────────── */
+.dialog-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-overlay.show { display: flex; }
+
+.dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 28px 24px;
+  width: 360px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.dialog h3 { font-size: 1rem; margin-bottom: 8px; }
+.dialog p  { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin-bottom: 20px; }
+
+.dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ── Push toast ──────────────────────────────────────────────── */
+#jira-push-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  z-index: 200;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+}
+
+#jira-push-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#jira-push-toast.success { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+#jira-push-toast.error   { background: #1c0a0a; border: 1px solid #7f1d1d; color: #f87171; }
+
+/* ── Status selector in detail header ───────────────────────── */
+.status-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0 10px;
+  height: 32px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.status-select:focus { outline: none; border-color: var(--accent); }
+
+/* ── Delete button ───────────────────────────────────────────── */
+.btn-delete {
+  background: transparent;
+  color: #f87171;
+  border: 1px solid rgba(248,113,113,0.2);
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-delete:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.5); }
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
