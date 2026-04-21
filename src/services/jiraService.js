@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
-export const LOCAL_TO_JIRA_TYPE = { epic: 'Epic', story: 'Story', spike: 'Task' };
-export const JIRA_TO_LOCAL_TYPE = { Epic: 'epic', Story: 'story', Task: 'spike' };
+export const LOCAL_TO_JIRA_TYPE = { feature: 'New Feature', epic: 'Epic', story: 'Story', spike: 'Task' };
+export const JIRA_TO_LOCAL_TYPE = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Task: 'spike' };
 
 export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, TYPE_CONFIG, isoDate, slugify }) {
   async function jiraRequest(method, urlPath, body) {
@@ -66,7 +66,7 @@ ${description || '_No description in JIRA._'}
   function extractJiraSummary(content) {
     const storyHeader = content.match(/^## Story \d+:\s*(.+?)(?:\s*<!--.*?-->)?\s*$/m);
     if (storyHeader) return storyHeader[1].trim();
-    const namedSection = content.match(/^## (?:Epic|Spike) Title\s*\n+(.+)/m);
+    const namedSection = content.match(/^## (?:Feature|Epic|Spike) Title\s*\n+(.+)/m);
     if (namedSection) return namedSection[1].trim();
     const h2 = content.match(/^## (.+)/m);
     if (h2) return h2[1].replace(/<!--.*?-->/g, '').trim();

@@ -268,11 +268,84 @@
       gap: 12px;
       padding: 14px 24px;
       cursor: pointer;
-      transition: background 0.1s;
+      transition: background 0.1s, border-color 0.15s, box-shadow 0.15s;
       border-bottom: 1px solid rgba(51,65,85,0.4);
+      border-left: 2px solid transparent;
+      user-select: none;
     }
 
     .epic-item:hover { background: var(--surface2); }
+
+    /* ── Drag handle ─────────────────────────────────────────────── */
+    .drag-handle {
+      display: grid;
+      grid-template-columns: repeat(2, 4px);
+      gap: 3px;
+      padding-top: 4px;
+      opacity: 0;
+      transition: opacity 0.12s;
+      cursor: grab;
+      flex-shrink: 0;
+    }
+    .drag-handle:active { cursor: grabbing; }
+    .drag-handle span {
+      display: block;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .epic-item:hover .drag-handle { opacity: 1; }
+
+    /* ── Drag states ─────────────────────────────────────────────── */
+    .epic-item.drag-source { opacity: 0.35; }
+    .epic-item.drag-target-valid {
+      background: rgba(34,197,94,0.08);
+      border-left-color: #4ade80;
+      box-shadow: inset 3px 0 0 #4ade80;
+    }
+    .epic-list.dragging-active .epic-item:not(.drag-source):not(.drag-target-valid) {
+      opacity: 0.6;
+    }
+
+    /* ── Hierarchy indentation in list ───────────────────────────── */
+    .epic-item[data-indent="1"] {
+      padding-left: 40px;
+      box-shadow: inset 3px 0 0 rgba(99,102,241,0.35);
+    }
+    .epic-item[data-indent="2"] {
+      padding-left: 56px;
+      box-shadow: inset 3px 0 0 rgba(34,197,94,0.35);
+    }
+    .epic-item[data-indent="1"] .epic-dot,
+    .epic-item[data-indent="2"] .epic-dot { opacity: 0.5; }
+    /* connector tick before indented items */
+    .tree-connector {
+      font-size: 0.72rem;
+      color: var(--muted);
+      flex-shrink: 0;
+      line-height: 1;
+      padding-top: 3px;
+      width: 12px;
+    }
+
+    /* ── Drag ghost ──────────────────────────────────────────────── */
+    .drag-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      background: #1e293b;
+      border: 1px solid #4ade80;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      white-space: nowrap;
+    }
 
     .epic-date {
       font-size: 0.72rem;
@@ -307,9 +380,10 @@
       flex-shrink: 0;
     }
 
-    .type-badge.epic  { background: rgba(99,102,241,0.15); color: #a5b4fc; }
-    .type-badge.story { background: rgba(34,197,94,0.12);  color: #4ade80; }
-    .type-badge.spike { background: rgba(245,158,11,0.12); color: #fbbf24; }
+    .type-badge.feature { background: rgba(239,68,68,0.12);  color: #f87171; }
+    .type-badge.epic    { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    .type-badge.story   { background: rgba(34,197,94,0.12);  color: #4ade80; }
+    .type-badge.spike   { background: rgba(245,158,11,0.12); color: #fbbf24; }
 
     .status-badge {
       font-size: 0.65rem;
@@ -369,9 +443,10 @@
       color: #fff;
     }
 
-    .pill.epic.active   { background: #4338ca; border-color: #4338ca; }
-    .pill.story.active  { background: #15803d; border-color: #15803d; }
-    .pill.spike.active  { background: #b45309; border-color: #b45309; }
+    .pill.feature.active { background: #b91c1c; border-color: #b91c1c; }
+    .pill.epic.active    { background: #4338ca; border-color: #4338ca; }
+    .pill.story.active   { background: #15803d; border-color: #15803d; }
+    .pill.spike.active   { background: #b45309; border-color: #b45309; }
 
     /* ── Delete button ───────────────────────────────────────────── */
     .btn-delete {
@@ -516,6 +591,23 @@
 
     .btn-upgrade:hover { background: rgba(52,211,153,0.15); border-color: rgba(52,211,153,0.4); }
 
+    /* ── Create Epic button (feature-only) ───────────────────────── */
+    .btn-create-epic {
+      background: rgba(239,68,68,0.08);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 8px;
+      padding: 0 12px;
+      height: 32px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-create-epic:hover { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); }
+
     /* ── Create Story / Spike buttons (epic-only) ────────────────── */
     .btn-create-story {
       background: rgba(34,197,94,0.08);
@@ -569,6 +661,8 @@
       letter-spacing: 0.07em;
       margin-bottom: 12px;
     }
+    #quick-create-panel[data-type="epic"]  { background: #1a0c0c; }
+    #quick-create-panel[data-type="epic"]  .quick-create-label { color: #f87171; }
     #quick-create-panel[data-type="story"] .quick-create-label { color: #4ade80; }
     #quick-create-panel[data-type="spike"] .quick-create-label { color: #fbbf24; }
 
@@ -586,6 +680,7 @@
     }
     .quick-create-input::placeholder { color: var(--muted); }
     .quick-create-input:focus { outline: none; }
+    #quick-create-panel[data-type="epic"]  .quick-create-input:focus { border-color: #f87171; }
     #quick-create-panel[data-type="story"] .quick-create-input:focus { border-color: #4ade80; }
     #quick-create-panel[data-type="spike"] .quick-create-input:focus { border-color: #fbbf24; }
 
@@ -605,6 +700,7 @@
     }
     .quick-create-textarea::placeholder { color: var(--muted); }
     .quick-create-textarea:focus { outline: none; }
+    #quick-create-panel[data-type="epic"]  .quick-create-textarea:focus { border-color: #f87171; }
     #quick-create-panel[data-type="story"] .quick-create-textarea:focus { border-color: #4ade80; }
     #quick-create-panel[data-type="spike"] .quick-create-textarea:focus { border-color: #fbbf24; }
 
@@ -620,6 +716,8 @@
       transition: background 0.15s;
       border: 1px solid;
     }
+    #quick-create-panel[data-type="epic"]  .btn-quick-run { background: #3a0c0c; color: #f87171; border-color: #7f1d1d; }
+    #quick-create-panel[data-type="epic"]  .btn-quick-run:hover:not(:disabled) { background: #4a1010; }
     #quick-create-panel[data-type="story"] .btn-quick-run { background: #0f4c3a; color: #4ade80; border-color: #065f46; }
     #quick-create-panel[data-type="story"] .btn-quick-run:hover:not(:disabled) { background: #065f46; }
     #quick-create-panel[data-type="spike"] .btn-quick-run { background: #3a2a0a; color: #fbbf24; border-color: #854d0e; }
@@ -641,6 +739,40 @@
       overflow-y: auto;
       display: none;
     }
+
+    /* ── Hierarchy panel (linked Feature/Epics) ─────────────────── */
+    .hierarchy-section {
+      border-top: 1px solid var(--border);
+      margin-top: 0;
+    }
+    .hierarchy-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .hierarchy-header:hover { background: var(--surface2); }
+    .hierarchy-label { font-size: 0.82rem; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+    .hierarchy-chevron { font-size: 0.7rem; color: var(--muted); transition: transform 0.2s; }
+    .hierarchy-body { padding: 0 24px 16px; display: none; }
+    .hierarchy-body.open { display: block; }
+
+    .hierarchy-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.12s;
+      margin-bottom: 4px;
+    }
+    .hierarchy-row:hover { background: var(--surface2); }
+    .hierarchy-indent { width: 20px; flex-shrink: 0; color: var(--muted); font-size: 0.75rem; text-align: right; }
+    .hierarchy-title { flex: 1; font-size: 0.83rem; color: var(--text); }
+    .hierarchy-jira { font-size: 0.72rem; color: var(--muted); font-family: 'Fira Code', monospace; }
 
     /* ── Status selector in detail header ───────────────────────── */
     .status-select {
@@ -1282,6 +1414,7 @@
       <div class="field">
         <label for="doc-type">Type</label>
         <select id="doc-type">
+          <option value="feature">New Feature</option>
           <option value="epic">Epic</option>
           <option value="story">Story</option>
           <option value="spike">Spike</option>
@@ -1320,6 +1453,7 @@
               <label for="jira-type">Type</label>
               <select id="jira-type">
                 <option value="all">All Types</option>
+                <option value="feature">New Feature</option>
                 <option value="epic">Epic</option>
                 <option value="story">Story</option>
                 <option value="spike">Task / Spike</option>
@@ -1357,10 +1491,11 @@
       <div class="filter-row">
         <div class="filter-group">
           <span class="filter-label">Type</span>
-          <button class="pill active" data-type="all"   onclick="setTypeFilter('all')">All</button>
-          <button class="pill epic"   data-type="epic"  onclick="setTypeFilter('epic')">Epic</button>
-          <button class="pill story"  data-type="story" onclick="setTypeFilter('story')">Story</button>
-          <button class="pill spike"  data-type="spike" onclick="setTypeFilter('spike')">Spike</button>
+          <button class="pill active"   data-type="all"     onclick="setTypeFilter('all')">All</button>
+          <button class="pill feature"  data-type="feature" onclick="setTypeFilter('feature')">Feature</button>
+          <button class="pill epic"     data-type="epic"    onclick="setTypeFilter('epic')">Epic</button>
+          <button class="pill story"    data-type="story"   onclick="setTypeFilter('story')">Story</button>
+          <button class="pill spike"    data-type="spike"   onclick="setTypeFilter('spike')">Spike</button>
         </div>
         <div class="filter-group">
           <span class="filter-label">Status</span>
@@ -1392,6 +1527,7 @@
             <option value="Archived">Archived</option>
           </select>
           <button class="btn-upgrade" onclick="toggleUpgradePanel()">↑ Upgrade</button>
+          <button class="btn-create-epic"  id="create-epic-btn"  onclick="toggleQuickCreate('epic')"  style="display:none">＋ Epic</button>
           <button class="btn-create-story" id="create-story-btn" onclick="toggleQuickCreate('story')" style="display:none">＋ Story</button>
           <button class="btn-create-spike" id="create-spike-btn" onclick="toggleQuickCreate('spike')" style="display:none">＋ Spike</button>
           <button class="btn-stories" id="stories-btn" onclick="generateStories()">✨ Refine into Stories</button>
@@ -1449,6 +1585,15 @@
             <div id="stories-cards"></div>
           </div>
         </div>
+
+        <!-- Hierarchy panel: parent Feature or child Epics -->
+        <div class="hierarchy-section" id="hierarchy-section" style="display:none">
+          <div class="hierarchy-header" onclick="toggleHierarchy()">
+            <span class="hierarchy-label" id="hierarchy-label">🔗 Linked Issues</span>
+            <span class="hierarchy-chevron" id="hierarchy-chevron">▼</span>
+          </div>
+          <div class="hierarchy-body open" id="hierarchy-body"></div>
+        </div>
       </div>
     </div>
 
@@ -1484,18 +1629,23 @@
   let currentStoriesFilename = null;
   let currentJiraId = null;
 
-  const TYPE_LABEL   = { epic: 'Epic', story: 'Story', spike: 'Spike' };
+  const TYPE_LABEL   = { epic: 'Epic', story: 'Story', spike: 'Spike', feature: 'Feature' };
+
+  function stripFrontmatter(content) {
+    return content.replace(/^---[\s\S]*?---\n?/, '').trim();
+  }
   const STATUS_LABEL = { Draft: 'Draft', 'Created in JIRA': 'In JIRA', Archived: 'Archived' };
 
   // ── Init ───────────────────────────────────────────────────────
   loadDocs();
+  initDragDrop();
 
   // ── SSE: auto-refresh on doc changes ──────────────────────────
   const evtSource = new EventSource('/api/events');
   evtSource.onmessage = (e) => {
     try {
       const payload = JSON.parse(e.data);
-      if (['epic_created','story_created','spike_created','status_updated','doc_deleted'].includes(payload.type)) loadDocs();
+      if (['feature_created','epic_created','story_created','spike_created','status_updated','doc_deleted'].includes(payload.type)) loadDocs();
     } catch {}
   };
 
@@ -1510,8 +1660,32 @@
     }
   }
 
+  function buildTreeOrder(docs) {
+    const byFilename = new Map(docs.map(d => [d.filename, d]));
+    const ordered = [];
+    const placed  = new Set();
+
+    function place(doc, indent) {
+      if (placed.has(doc.filename)) return;
+      placed.add(doc.filename);
+      ordered.push({ doc, indent });
+      // Immediately place direct children (preserving their relative sort order)
+      docs.filter(c => c.parentFilename === doc.filename)
+          .forEach(child => place(child, indent + 1));
+    }
+
+    // Roots first: docs whose parent is absent from the filtered list
+    docs.forEach(d => {
+      if (!d.parentFilename || !byFilename.has(d.parentFilename)) place(d, 0);
+    });
+    // Catch orphans (parent exists but was already placed or missed)
+    docs.forEach(d => { if (!placed.has(d.filename)) place(d, 0); });
+
+    return ordered;
+  }
+
   function renderDocList(docs) {
-    const list = document.getElementById('epic-list');
+    const list  = document.getElementById('epic-list');
     const count = document.getElementById('epic-count');
     count.textContent = docs.length;
 
@@ -1524,10 +1698,19 @@
       return;
     }
 
-    list.innerHTML = docs.map(d => {
+    const ordered = buildTreeOrder(docs);
+
+    list.innerHTML = ordered.map(({ doc: d, indent }) => {
       const statusClass = (d.status || 'Draft').replace(/\s+/g, '-');
+      const connector   = indent > 0 ? `<span class="tree-connector">└</span>` : '';
       return `
-      <div class="epic-item" onclick="openDoc('${escHtml(d.filename)}','${d.docType}')">
+      <div class="epic-item"
+           data-filename="${escHtml(d.filename)}"
+           data-doctype="${d.docType}"
+           data-indent="${indent}"
+           onclick="openDoc('${escHtml(d.filename)}','${d.docType}')">
+        <div class="drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        ${connector}
         <div class="epic-dot"></div>
         <div style="flex:1">
           <div class="epic-title-text">${escHtml(d.title)}</div>
@@ -1566,6 +1749,7 @@
 
   // ── Detail view ────────────────────────────────────────────────
   async function openDoc(filename, docType) {
+    if (_justDragged) return; // swallow click fired by browser after dragend
     try {
       const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
       const { content } = await res.json();
@@ -1577,15 +1761,17 @@
       document.getElementById('status-select').value = doc?.status || 'Draft';
 
       document.getElementById('detail-filename').textContent = filename;
-      document.getElementById('detail-content').innerHTML = marked.parse(content);
+      document.getElementById('detail-content').innerHTML = marked.parse(stripFrontmatter(content));
       resetStoriesSection();
       closeQuickCreate();
 
-      // Epic-only buttons visibility
-      const isEpic = docType === 'epic';
-      document.getElementById('create-story-btn').style.display = isEpic ? '' : 'none';
-      document.getElementById('create-spike-btn').style.display = isEpic ? '' : 'none';
-      document.getElementById('stories-btn').style.display = isEpic ? '' : 'none';
+      // Button visibility per type
+      const isEpic    = docType === 'epic';
+      const isFeature = docType === 'feature';
+      document.getElementById('create-epic-btn').style.display  = isFeature ? '' : 'none';
+      document.getElementById('create-story-btn').style.display = isEpic    ? '' : 'none';
+      document.getElementById('create-spike-btn').style.display = isEpic    ? '' : 'none';
+      document.getElementById('stories-btn').style.display      = isEpic    ? '' : 'none';
       document.getElementById('stories-btn').disabled = false;
       document.getElementById('stories-btn').textContent = '✨ Refine into Stories';
 
@@ -1597,8 +1783,10 @@
       document.getElementById('list-view').style.display = 'none';
       document.getElementById('detail-view').classList.add('show');
 
-      // Load stories + original inbox in background
+      // Load stories + original inbox + hierarchy in background
       if (docType === 'epic') loadStoriesForEpic(filename);
+      if (docType === 'epic' || docType === 'feature') loadHierarchy(filename, docType);
+      else document.getElementById('hierarchy-section').style.display = 'none';
       loadOriginal(filename);
     } catch (e) {
       console.error(e);
@@ -1622,6 +1810,211 @@
     } catch {
       section.style.display = 'none';
     }
+  }
+
+  // ── Drag-and-drop linking ──────────────────────────────────────
+  // Valid: epic→feature, story→epic, spike→epic. Everything else is a no-op.
+  // Uses mouse events (not HTML5 DnD) for reliable cross-browser behaviour.
+  const DRAG_TARGETS = { epic: ['feature'], story: ['epic'], spike: ['epic'] };
+
+  let _justDragged = false;
+
+  function initDragDrop() {
+    const list = document.getElementById('epic-list');
+    let state = null; // { srcFilename, srcDocType, ghost, currentTarget, started }
+
+    const DRAG_THRESHOLD = 6; // px movement before drag begins
+
+    list.addEventListener('mousedown', e => {
+      const handle = e.target.closest('.drag-handle');
+      if (!handle) return;
+      e.preventDefault(); // prevent text selection
+
+      const item = handle.closest('.epic-item');
+      if (!item) return;
+
+      state = {
+        srcFilename: item.dataset.filename,
+        srcDocType:  item.dataset.doctype,
+        startX: e.clientX,
+        startY: e.clientY,
+        started: false,
+        ghost: null,
+        currentTarget: null,
+      };
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!state) return;
+
+      if (!state.started) {
+        const dx = Math.abs(e.clientX - state.startX);
+        const dy = Math.abs(e.clientY - state.startY);
+        if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) return;
+
+        // Threshold crossed — begin drag
+        state.started = true;
+        _justDragged = true;
+
+        // Build ghost
+        const ghost = document.createElement('div');
+        ghost.className = 'drag-ghost';
+        const badge = document.createElement('span');
+        badge.className = `type-badge ${state.srcDocType}`;
+        badge.textContent = TYPE_LABEL[state.srcDocType] || state.srcDocType;
+        ghost.appendChild(badge);
+        ghost.appendChild(document.createTextNode(
+          allDocs.find(d => d.filename === state.srcFilename)?.title || state.srcFilename
+        ));
+        document.body.appendChild(ghost);
+        state.ghost = ghost;
+
+        // Mark source dim
+        const srcItem = list.querySelector(`[data-filename="${CSS.escape(state.srcFilename)}"]`);
+        if (srcItem) srcItem.classList.add('drag-source');
+        list.classList.add('dragging-active');
+        document.body.style.userSelect = 'none';
+      }
+
+      // Move ghost
+      state.ghost.style.left = `${e.clientX + 14}px`;
+      state.ghost.style.top  = `${e.clientY + 10}px`;
+
+      // Find item under cursor (hide ghost so it doesn't block elementFromPoint)
+      state.ghost.style.visibility = 'hidden';
+      const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+      state.ghost.style.visibility = '';
+
+      const targetItem = elUnder?.closest('.epic-item');
+
+      // Clear old highlights
+      list.querySelectorAll('.drag-target-valid').forEach(el => el.classList.remove('drag-target-valid'));
+      state.currentTarget = null;
+
+      if (targetItem && targetItem.dataset.filename !== state.srcFilename) {
+        const validTargets = DRAG_TARGETS[state.srcDocType] || [];
+        if (validTargets.includes(targetItem.dataset.doctype)) {
+          targetItem.classList.add('drag-target-valid');
+          state.currentTarget = targetItem;
+        }
+      }
+    });
+
+    document.addEventListener('mouseup', async e => {
+      if (!state) return;
+      const snap = state;
+      state = null;
+
+      // ── Determine drop target at the exact moment of release ─────
+      // Hide ghost first so elementFromPoint sees what's underneath it.
+      let dropTarget = null;
+      if (snap.started && snap.ghost) {
+        snap.ghost.style.visibility = 'hidden';
+        const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+        snap.ghost.style.visibility = '';
+        const itemUnder = elUnder?.closest('.epic-item');
+        if (itemUnder && itemUnder.dataset.filename !== snap.srcFilename) {
+          const valid = DRAG_TARGETS[snap.srcDocType] || [];
+          if (valid.includes(itemUnder.dataset.doctype)) dropTarget = itemUnder;
+        }
+      }
+      // Fall back to last highlighted item from mousemove (if any)
+      if (!dropTarget) dropTarget = snap.currentTarget;
+
+      // ── Cleanup DOM ──────────────────────────────────────────────
+      if (snap.ghost) snap.ghost.remove();
+      list.classList.remove('dragging-active');
+      list.querySelectorAll('.drag-source, .drag-target-valid').forEach(el => {
+        el.classList.remove('drag-source', 'drag-target-valid');
+      });
+      document.body.style.userSelect = '';
+
+      setTimeout(() => { _justDragged = false; }, 150);
+
+      if (!snap.started || !dropTarget) return;
+
+      const tgtFilename = dropTarget.dataset.filename;
+      const tgtDocType  = dropTarget.dataset.doctype;
+      const tgtTitle    = dropTarget.querySelector('.epic-title-text')?.textContent || tgtFilename;
+
+      try {
+        const res = await fetch('/api/link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceType:     snap.srcDocType,
+            sourceFilename: snap.srcFilename,
+            targetType:     tgtDocType,
+            targetFilename: tgtFilename,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(getErrorMessage(data.error, 'Link failed'));
+
+        showJiraToast('success', `🔗 Linked to "${tgtTitle}"`);
+        await loadDocs(); // re-render list with new hierarchy indentation
+        if (currentFilename === snap.srcFilename || currentFilename === tgtFilename) {
+          loadHierarchy(currentFilename, currentDocType);
+        }
+      } catch (err) {
+        showJiraToast('error', `❌ ${err.message}`);
+      }
+    });
+  }
+
+  // ── Hierarchy panel ────────────────────────────────────────────
+  async function loadHierarchy(filename, docType) {
+    const section = document.getElementById('hierarchy-section');
+    const body    = document.getElementById('hierarchy-body');
+    const label   = document.getElementById('hierarchy-label');
+    section.style.display = 'none';
+    body.innerHTML = '';
+
+    try {
+      const res = await fetch(`/api/links/${docType}/${encodeURIComponent(filename)}`);
+      if (!res.ok) return;
+      const { parent, children } = await res.json();
+
+      const rows = [];
+
+      const makeRow = (node, indent) => `
+        <div class="hierarchy-row" onclick="openDoc('${escHtml(node.filename)}','${node.docType}')">
+          <span class="hierarchy-indent">${indent}</span>
+          <span class="type-badge ${node.docType}">${TYPE_LABEL[node.docType] || node.docType}</span>
+          <span class="hierarchy-title">${escHtml(node.title)}</span>
+          ${node.jiraId !== 'TBD' ? `<span class="hierarchy-jira">${escHtml(node.jiraId)}</span>` : ''}
+          <span class="status-badge ${(node.status || 'Draft').replace(/\s+/g,'-')}">${STATUS_LABEL[node.status] || node.status || 'Draft'}</span>
+        </div>`;
+
+      if (parent) {
+        rows.push(makeRow(parent, ''));
+      }
+
+      for (const child of children) {
+        rows.push(makeRow(child, '└'));
+      }
+
+      // Compose label
+      const parts = [];
+      if (parent)          parts.push(`↑ ${TYPE_LABEL[parent.docType]}`);
+      if (children.length) parts.push(`↓ ${children.length} linked`);
+      label.textContent = `🔗 ${parts.join('  ·  ') || 'Linked Issues'}`;
+
+      if (rows.length) {
+        body.innerHTML = rows.join('');
+        section.style.display = 'block';
+      }
+    } catch (e) {
+      console.warn('Could not load hierarchy:', e.message);
+    }
+  }
+
+  function toggleHierarchy() {
+    const body    = document.getElementById('hierarchy-body');
+    const chevron = document.getElementById('hierarchy-chevron');
+    const isOpen  = body.classList.toggle('open');
+    body.style.display  = isOpen ? 'block' : 'none';
+    chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
   }
 
   function toggleOriginal() {
@@ -1728,7 +2121,7 @@
 
       // Update the detail view with the new content and close the panel
       if (finalContent) {
-        document.getElementById('detail-content').innerHTML = marked.parse(finalContent);
+        document.getElementById('detail-content').innerHTML = marked.parse(stripFrontmatter(finalContent));
       }
       document.getElementById('upgrade-panel').classList.remove('open');
       resetUpgradePanel();
@@ -2079,12 +2472,14 @@
     }
     _quickCreateType = type;
     panel.setAttribute('data-type', type);
-    document.getElementById('quick-create-label').textContent =
-      type === 'story' ? '＋ Create Story' : '＋ Create Spike';
-    document.getElementById('quick-create-idea').placeholder =
-      type === 'story'
-        ? 'Describe the story — what should the user be able to do?…'
-        : 'Describe the research question or technical unknown to investigate…';
+    const labels = { epic: '＋ Create Epic', story: '＋ Create Story', spike: '＋ Create Spike' };
+    const placeholders = {
+      epic:  'Describe the epic — what capability should this deliver?…',
+      story: 'Describe the story — what should the user be able to do?…',
+      spike: 'Describe the research question or technical unknown to investigate…',
+    };
+    document.getElementById('quick-create-label').textContent = labels[type] || `＋ Create ${type}`;
+    document.getElementById('quick-create-idea').placeholder  = placeholders[type] || '';
     panel.classList.add('open');
     document.getElementById('quick-create-title-input').focus();
   }
@@ -2119,16 +2514,24 @@
     stream.style.display = 'block';
 
     try {
+      // Pass parentFeature when creating an Epic from within a Feature view
+      const body = { idea, title, type, priority: 'Medium' };
+      if (type === 'epic' && currentDocType === 'feature' && currentFilename) {
+        body.parentFeature = currentFilename;
+      }
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idea, title, type, priority: 'Medium' })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(getErrorMessage(data.error, 'Generation failed'));
 
       closeQuickCreate();
       await loadDocs();
+      if (type === 'epic' && currentDocType === 'feature' && currentFilename) {
+        loadHierarchy(currentFilename, 'feature');
+      }
       showJiraToast('success', `✅ ${TYPE_LABEL[type]} created: ${data.filename}`);
     } catch (e) {
       stream.textContent += `\n\n❌ ${e.message}`;

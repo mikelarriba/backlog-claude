@@ -55,16 +55,18 @@ function sendError(res, status, code, message, details = null) {
 }
 
 // ── Folder paths ──────────────────────────────────────────────────────────────
-const EPICS_DIR   = path.join(__dirname, 'docs', 'epics');
-const STORIES_DIR = path.join(__dirname, 'docs', 'stories');
-const SPIKES_DIR  = path.join(__dirname, 'docs', 'spikes');
-const INBOX_DIR   = path.join(__dirname, 'inbox');
+const FEATURES_DIR = path.join(__dirname, 'docs', 'features');
+const EPICS_DIR    = path.join(__dirname, 'docs', 'epics');
+const STORIES_DIR  = path.join(__dirname, 'docs', 'stories');
+const SPIKES_DIR   = path.join(__dirname, 'docs', 'spikes');
+const INBOX_DIR    = path.join(__dirname, 'inbox');
 
 // Maps type → { command, dir, broadcastType }
 const TYPE_CONFIG = {
-  epic:  { command: 'create-epics',  dir: () => EPICS_DIR,   event: 'epic_created' },
-  story: { command: 'create-stories', dir: () => STORIES_DIR, event: 'story_created' },
-  spike: { command: 'create-spikes', dir: () => SPIKES_DIR,  event: 'spike_created' },
+  feature: { command: 'create-features', dir: () => FEATURES_DIR, event: 'feature_created' },
+  epic:    { command: 'create-epics',    dir: () => EPICS_DIR,    event: 'epic_created' },
+  story:   { command: 'create-stories',  dir: () => STORIES_DIR,  event: 'story_created' },
+  spike:   { command: 'create-spikes',   dir: () => SPIKES_DIR,   event: 'spike_created' },
 };
 
 app.use(express.json());
@@ -203,6 +205,31 @@ const {
   slugify,
 });
 
+// ── Convert Markdown to JIRA wiki markup ──────────────────────────────────────
+function markdownToJira(md) {
+  // Preserve code blocks first
+  const blocks = [];
+  let text = md.replace(/```[\w]*\n([\s\S]*?)```/gm, (_, code) => {
+    blocks.push(code);
+    return `\x00CODEBLOCK${blocks.length - 1}\x00`;
+  });
+
+  text = text
+    .replace(/^#### (.+)$/gm, 'h4. $1')
+    .replace(/^### (.+)$/gm,  'h3. $1')
+    .replace(/^## (.+)$/gm,   'h2. $1')
+    .replace(/^# (.+)$/gm,    'h1. $1')
+    .replace(/\*\*(.+?)\*\*/g, '*$1*')         // **bold** → *bold*
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '_$1_')  // *italic* → _italic_
+    .replace(/^\* (.+)$/gm, '- $1')             // bullet * → -
+    .replace(/`([^`]+)`/g, '{{$1}}')            // `inline code` → {{code}}
+    .replace(/^---+$/gm, '----')                // horizontal rule
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '[$1|$2]'); // [text](url) → [text|url]
+
+  // Restore code blocks
+  return text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => `{code}\n${blocks[i]}{code}`);
+}
+
 // ── Update or insert a field in the YAML frontmatter block.
 function setFrontmatterField(content, field, value) {
   const re = new RegExp(`^(${field}:\\s*).*$`, 'm');
@@ -214,7 +241,7 @@ function setFrontmatterField(content, field, value) {
 // ── POST /api/generate ── create epic / story / spike from web form ───────────
 app.post('/api/generate', async (req, res) => {
   try {
-    const { title, idea, priority = 'Medium', type = 'epic' } = req.body;
+    const { title, idea, priority = 'Medium', type = 'epic', parentFeature } = req.body;
     if (!idea?.trim()) {
       return sendError(res, 400, 'VALIDATION_ERROR', 'Idea is required');
     }
@@ -255,7 +282,11 @@ ${idea.trim()}
     // 3. Save to the correct docs folder (always start as Draft)
     const destDir = cfg.dir();
     ensureDir(destDir);
-    const finalContent = setFrontmatterField(generatedContent, 'Status', 'Draft');
+    let finalContent = setFrontmatterField(generatedContent, 'Status', 'Draft');
+    // If this epic was created from a Feature, inject the parent link
+    if (normalizedType === 'epic' && parentFeature) {
+      finalContent = setFrontmatterField(finalContent, 'Feature_ID', parentFeature);
+    }
     fs.writeFileSync(path.join(destDir, filename), finalContent);
 
     // 4. Notify all open browser tabs
@@ -279,12 +310,24 @@ app.get('/api/docs', (req, res) => {
       for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md') && f !== '.gitkeep')) {
         const content = fs.readFileSync(path.join(dir, f), 'utf-8');
         const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/);
+        let parentFilename = null;
+        let parentType     = null;
+        if (docType === 'epic') {
+          const m = content.match(/^Feature_ID:\s*(.+)$/m);
+          if (m && m[1].trim() !== 'TBD') { parentFilename = m[1].trim(); parentType = 'feature'; }
+        } else if (docType === 'story' || docType === 'spike') {
+          const m = content.match(/^Epic_ID:\s*(.+)$/m);
+          if (m && m[1].trim() !== 'TBD') { parentFilename = m[1].trim(); parentType = 'epic'; }
+        }
+
         entries.push({
           filename: f,
           docType,
           title: extractTitle(content) || f.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''),
           date: dateMatch ? dateMatch[1] : '',
-          status: extractWorkflowStatus(content)
+          status: extractWorkflowStatus(content),
+          parentFilename,
+          parentType,
         });
       }
     }
@@ -357,6 +400,122 @@ app.delete('/api/doc/:type/:filename', (req, res) => {
   } catch (err) {
     const apiErr = parseApiError(err);
     sendError(res, ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+  }
+});
+
+// ── GET /api/links/:type/:filename ── get parent/child links for hierarchy ────
+app.get('/api/links/:type/:filename', (req, res) => {
+  try {
+    const docType  = assertDocType(req.params.type);
+    const filename = assertFilename(req.params.filename);
+
+    let parent   = null;
+    let children = [];
+
+    if (docType === 'epic') {
+      // Find parent feature via Feature_ID frontmatter
+      const filepath = path.join(EPICS_DIR, filename);
+      if (fs.existsSync(filepath)) {
+        const content = fs.readFileSync(filepath, 'utf-8');
+        const m = content.match(/^Feature_ID:\s*(.+)$/m);
+        const featureFilename = m ? m[1].trim() : '';
+        if (featureFilename && featureFilename !== 'TBD') {
+          const featurePath = path.join(FEATURES_DIR, featureFilename);
+          if (fs.existsSync(featurePath)) {
+            const fc = fs.readFileSync(featurePath, 'utf-8');
+            parent = {
+              docType: 'feature',
+              filename: featureFilename,
+              title: extractTitle(fc) || featureFilename,
+              jiraId: (fc.match(/^JIRA_ID:\s*(.+)$/m) || [])[1]?.trim() || 'TBD',
+              status: (fc.match(/^Status:\s*(.+)$/m)  || [])[1]?.trim() || 'Draft',
+            };
+          }
+        }
+      }
+
+      // Find stories and spikes linked via Epic_ID
+      for (const [childType, childDir] of [['story', STORIES_DIR], ['spike', SPIKES_DIR]]) {
+        if (!fs.existsSync(childDir)) continue;
+        for (const f of fs.readdirSync(childDir).filter(f => f.endsWith('.md'))) {
+          const c = fs.readFileSync(path.join(childDir, f), 'utf-8');
+          const m2 = c.match(/^Epic_ID:\s*(.+)$/m);
+          if (m2 && m2[1].trim() === filename) {
+            children.push({
+              docType: childType,
+              filename: f,
+              title:  extractTitle(c) || f,
+              jiraId: (c.match(/^JIRA_ID:\s*(.+)$/m) || [])[1]?.trim() || 'TBD',
+              status: (c.match(/^Status:\s*(.+)$/m)  || [])[1]?.trim() || 'Draft',
+            });
+          }
+        }
+      }
+    } else if (docType === 'feature') {
+      // Find all epics that reference this feature via Feature_ID
+      if (fs.existsSync(EPICS_DIR)) {
+        for (const f of fs.readdirSync(EPICS_DIR).filter(f => f.endsWith('.md'))) {
+          const c = fs.readFileSync(path.join(EPICS_DIR, f), 'utf-8');
+          const m = c.match(/^Feature_ID:\s*(.+)$/m);
+          if (m && m[1].trim() === filename) {
+            children.push({
+              docType: 'epic',
+              filename: f,
+              title:  extractTitle(c) || f,
+              jiraId: (c.match(/^JIRA_ID:\s*(.+)$/m) || [])[1]?.trim() || 'TBD',
+              status: (c.match(/^Status:\s*(.+)$/m)  || [])[1]?.trim() || 'Draft',
+            });
+          }
+        }
+      }
+    }
+
+    res.json({ parent, children });
+  } catch (err) {
+    const apiErr = parseApiError(err);
+    sendError(res, ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+  }
+});
+
+// ── POST /api/link ── create a local link between two documents ───────────────
+app.post('/api/link', (req, res) => {
+  // Defines which field gets written on the *source* document
+  const LINK_RULES = {
+    'epic→feature': { field: 'Feature_ID', sourceDir: () => EPICS_DIR },
+    'story→epic':   { field: 'Epic_ID',    sourceDir: () => STORIES_DIR },
+    'spike→epic':   { field: 'Epic_ID',    sourceDir: () => SPIKES_DIR },
+  };
+
+  try {
+    const { sourceType, sourceFilename, targetType, targetFilename } = req.body;
+    if (!sourceType || !sourceFilename || !targetType || !targetFilename) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'sourceType, sourceFilename, targetType and targetFilename are required');
+    }
+
+    const key  = `${normalizeType(sourceType)}→${normalizeType(targetType)}`;
+    const rule = LINK_RULES[key];
+    if (!rule) {
+      return sendError(res, 400, 'INVALID_LINK', `Cannot link ${sourceType} → ${targetType}`, {
+        allowed: Object.keys(LINK_RULES),
+      });
+    }
+
+    const srcFile = assertFilename(sourceFilename);
+    const tgtFile = assertFilename(targetFilename);
+    const srcPath = path.join(rule.sourceDir(), srcFile);
+
+    if (!fs.existsSync(srcPath)) return sendError(res, 404, 'NOT_FOUND', 'Source document not found');
+
+    const content = fs.readFileSync(srcPath, 'utf-8');
+    const updated = setFrontmatterField(content, rule.field, tgtFile);
+    fs.writeFileSync(srcPath, updated);
+
+    broadcast({ type: 'link_updated', sourceType, sourceFilename: srcFile, targetType, targetFilename: tgtFile });
+    logInfo('POST /api/link', `${srcFile} → ${tgtFile} (${rule.field})`);
+    res.json({ success: true, field: rule.field, targetFilename: tgtFile });
+  } catch (err) {
+    const apiErr = parseApiError(err);
+    sendError(res, apiErr.code === 'INVALID_FILENAME' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
   }
 });
 
@@ -532,7 +691,7 @@ app.post('/api/jira/push/:type/:filename', async (req, res) => {
         if (existingKey) {
           // Update description only
           await jiraRequest('PUT', `/issue/${existingKey}`, {
-            fields: { description: section }
+            fields: { description: markdownToJira(section) }
           });
           key = existingKey;
           results.push({ action: 'updated', key });
@@ -541,7 +700,7 @@ app.post('/api/jira/push/:type/:filename', async (req, res) => {
           const fields = {
             project:   { key: JIRA_PROJECT },
             summary:   storyTitle,
-            description: section,
+            description: markdownToJira(section),
             issuetype: { name: 'Story' },
             labels:    [JIRA_LABEL],
           };
@@ -572,7 +731,7 @@ app.post('/api/jira/push/:type/:filename', async (req, res) => {
     const jiraIdMatch = content.match(/^JIRA_ID:\s*(.+)$/m);
     const jiraId      = jiraIdMatch ? jiraIdMatch[1].trim() : 'TBD';
     const summary     = extractJiraSummary(content);
-    const description = stripFrontmatter(content);
+    const description = markdownToJira(stripFrontmatter(content));
     const jiraType    = LOCAL_TO_JIRA_TYPE[type] || 'Story';
 
     let key, action;
@@ -611,6 +770,26 @@ app.post('/api/jira/push/:type/:filename', async (req, res) => {
       key    = created.key;
       action = 'created';
 
+      // If this is an Epic with a parent Feature that has a JIRA_ID, create "Is Contained" link
+      if (type === 'epic') {
+        const featureIdMatch = content.match(/^Feature_ID:\s*(.+)$/m);
+        if (featureIdMatch && featureIdMatch[1].trim() !== 'TBD') {
+          const featurePath = path.join(FEATURES_DIR, featureIdMatch[1].trim());
+          if (fs.existsSync(featurePath)) {
+            const featureContent = fs.readFileSync(featurePath, 'utf-8');
+            const featureJiraM = featureContent.match(/^JIRA_ID:\s*(.+)$/m);
+            if (featureJiraM && featureJiraM[1].trim() !== 'TBD') {
+              // Epic "is contained in" Feature
+              await jiraRequest('POST', '/issueLink', {
+                type: { name: 'Is Contained' },
+                inwardIssue:  { key },
+                outwardIssue: { key: featureJiraM[1].trim() },
+              }).catch(e => logWarn('jira/push', `Could not create "Is Contained" link: ${e.message}`));
+            }
+          }
+        }
+      }
+
       // Write the returned JIRA key + new status back to the local file
       let updated = setFrontmatterField(content, 'JIRA_ID', key);
       updated     = setFrontmatterField(updated,  'Status',  'Created in JIRA');
@@ -637,7 +816,7 @@ app.get('/api/jira/search', async (req, res) => {
     }
 
     const typeClause = type === 'all'
-      ? `issuetype in (Epic, Story, Task)`
+      ? `issuetype in ("New Feature", Epic, Story, Task)`
       : `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
 
     const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
