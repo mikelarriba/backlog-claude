@@ -49,6 +49,7 @@
           <option value="epic">Epic</option>
           <option value="story">Story</option>
           <option value="spike">Spike</option>
+          <option value="bug">Bug</option>
         </select>
       </div>
       <div class="field">
@@ -127,6 +128,7 @@
           <button class="pill epic"     data-type="epic"    onclick="setTypeFilter('epic')">Epic</button>
           <button class="pill story"    data-type="story"   onclick="setTypeFilter('story')">Story</button>
           <button class="pill spike"    data-type="spike"   onclick="setTypeFilter('spike')">Spike</button>
+          <button class="pill bug"      data-type="bug"     onclick="setTypeFilter('bug')">Bug</button>
         </div>
         <div class="filter-group">
           <span class="filter-label">Status</span>
@@ -161,6 +163,7 @@
           <button class="btn-create-epic"  id="create-epic-btn"  onclick="toggleQuickCreate('epic')"  style="display:none">＋ Epic</button>
           <button class="btn-create-story" id="create-story-btn" onclick="toggleQuickCreate('story')" style="display:none">＋ Story</button>
           <button class="btn-create-spike" id="create-spike-btn" onclick="toggleQuickCreate('spike')" style="display:none">＋ Spike</button>
+          <button class="btn-create-bug"   id="create-bug-btn"   onclick="toggleQuickCreate('bug')"   style="display:none">＋ Bug</button>
           <button class="btn-stories" id="stories-btn" onclick="generateStories()">✨ Refine into Stories</button>
           <button class="btn-jira-push" id="jira-push-btn" onclick="pushToJira()">↑ Push to JIRA</button>
           <button class="btn-delete" onclick="confirmDelete()">Delete</button>

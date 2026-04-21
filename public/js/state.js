@@ -14,9 +14,9 @@ var _quickCreateType    = null;
 var _toastTimer         = null;
 var jiraSearchResults   = [];
 
-const TYPE_LABEL  = { epic: 'Epic', story: 'Story', spike: 'Spike', feature: 'Feature' };
+const TYPE_LABEL  = { epic: 'Epic', story: 'Story', spike: 'Spike', feature: 'Feature', bug: 'Bug' };
 const STATUS_LABEL = { Draft: 'Draft', 'Created in JIRA': 'In JIRA', Archived: 'Archived' };
-const DRAG_TARGETS = { epic: ['feature'], story: ['epic'], spike: ['epic'] };
+const DRAG_TARGETS = { epic: ['feature'], story: ['epic'], spike: ['epic'], bug: ['epic'] };
 
 // ── Shared Helpers ─────────────────────────────────────────────
 function escHtml(str) {
@@ -48,7 +48,7 @@ function setBtnState(loading) {
   const btn   = document.getElementById('generate-btn');
   const label = document.getElementById('btn-label');
   btn.disabled = loading;
-  label.textContent = loading ? 'Generating…' : 'Generate Epic';
+  label.textContent = loading ? 'Generating…' : 'Generate';
 }
 
 function showJiraToast(type, message) {
