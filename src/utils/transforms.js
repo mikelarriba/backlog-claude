@@ -17,7 +17,8 @@ export function slugify(text) {
 export const WORKFLOW_STATUSES = ['Draft', 'Created in JIRA', 'Archived'];
 
 export function extractTitle(content) {
-  const m = content.match(/^## Epic Title\s*\n+(.+)/m)
+  // Template placeholder headings ("## Epic Title", "## Story Title", etc.) → grab the next non-empty line
+  const m = content.match(/^## \w[\w ]* Title\s*\n+(.+)/m)
     || content.match(/^# (.+)/m)
     || content.match(/^## (.+)/m);
   return m ? m[1].trim() : null;

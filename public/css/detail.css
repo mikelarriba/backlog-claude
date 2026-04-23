@@ -470,9 +470,10 @@
 .hierarchy-header:hover { background: var(--surface2); }
 .hierarchy-label { font-size: 0.78rem; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
 .hierarchy-chevron { font-size: 0.68rem; color: var(--muted); transition: transform 0.2s; }
-.hierarchy-body { padding: 0 20px 14px; display: none; }
+.hierarchy-body { padding: 0 16px 14px; display: none; }
 .hierarchy-body.open { display: block; }
 
+/* Parent row: simple nav link */
 .hierarchy-row {
   display: flex;
   align-items: center;
@@ -481,12 +482,87 @@
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.12s;
-  margin-bottom: 3px;
+  margin-bottom: 6px;
 }
 .hierarchy-row:hover { background: var(--surface2); }
-.hierarchy-indent { width: 20px; flex-shrink: 0; color: var(--muted); font-size: 0.75rem; text-align: right; }
-.hierarchy-title { flex: 1; font-size: 0.82rem; color: var(--text); }
-.hierarchy-jira { font-size: 0.7rem; color: var(--muted); font-family: 'Fira Code', monospace; }
+.hierarchy-title { flex: 1; font-size: 0.82rem; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hierarchy-jira { font-size: 0.7rem; color: var(--muted); font-family: 'Fira Code', monospace; flex-shrink: 0; }
+
+/* Child rows: expandable accordion */
+.hierarchy-child {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.hierarchy-child-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+  user-select: none;
+}
+.hierarchy-child-header:hover { background: var(--surface2); }
+.hierarchy-child.open > .hierarchy-child-header { background: var(--surface2); }
+
+.hierarchy-child-chevron {
+  font-size: 0.6rem;
+  color: var(--muted);
+  flex-shrink: 0;
+  width: 10px;
+  transition: transform 0.18s;
+}
+
+.hierarchy-child-body {
+  display: none;
+  border-top: 1px solid var(--border);
+  padding: 20px;
+  background: var(--bg);
+}
+.hierarchy-child.open > .hierarchy-child-body { display: block; }
+
+.hierarchy-loading {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ── Stories: stream wrap (visible only during Refine) ───────── */
+.stories-stream-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 8px;
+  background: var(--surface);
+}
+
+.stories-stream-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stories-stream {
+  padding: 14px 16px;
+  font-size: 0.78rem;
+  color: var(--text-body);
+  white-space: pre-wrap;
+  line-height: 1.6;
+  font-family: 'Fira Code', monospace;
+  max-height: 320px;
+  overflow-y: auto;
+}
 
 /* ── Original section ────────────────────────────────────────── */
 .original-section {

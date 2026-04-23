@@ -66,7 +66,8 @@ ${description || '_No description in JIRA._'}
   function extractJiraSummary(content) {
     const storyHeader = content.match(/^## Story \d+:\s*(.+?)(?:\s*<!--.*?-->)?\s*$/m);
     if (storyHeader) return storyHeader[1].trim();
-    const namedSection = content.match(/^## (?:Feature|Epic|Spike) Title\s*\n+(.+)/m);
+    // Any "## <Type> Title" placeholder → real title is the next non-empty line
+    const namedSection = content.match(/^## \w[\w ]* Title\s*\n+(.+)/m);
     if (namedSection) return namedSection[1].trim();
     const h2 = content.match(/^## (.+)/m);
     if (h2) return h2[1].replace(/<!--.*?-->/g, '').trim();
