@@ -21,6 +21,12 @@
 
   <!-- Markdown renderer -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Graph: Cytoscape + dagre hierarchical layout -->
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <link rel="stylesheet" href="/public/css/refine.css" />
+  <link rel="stylesheet" href="/public/css/split.css" />
 </head>
 <body>
 
@@ -158,6 +164,11 @@
 
     <!-- Detail View -->
     <div id="detail-view">
+      <!-- Shown only in split mode when no issue is selected -->
+      <div id="split-placeholder">
+        <div class="split-placeholder-icon">←</div>
+        <span>Select an issue to preview it here</span>
+      </div>
       <div class="detail-header">
         <div class="detail-header-left">
           <button class="btn-ghost" onclick="showList()">← Back</button>
@@ -199,7 +210,20 @@
           </div>
 
           <button class="btn-toolbar" onclick="toggleUpgradePanel()">↑ Upgrade</button>
-          <button class="btn-toolbar" id="stories-btn" onclick="generateStories()" style="display:none">✨ Refine</button>
+          <!-- Refine dropdown: Auto (AI) or Manual (graph editor) -->
+          <div class="dropdown-wrap" id="refine-dropdown-wrap" style="display:none">
+            <button class="btn-toolbar" onclick="toggleDropdown('refine-dropdown-menu')">
+              ✨ Refine <span class="toolbar-caret">▾</span>
+            </button>
+            <div class="dropdown-menu" id="refine-dropdown-menu">
+              <button id="stories-btn" class="dropdown-item" onclick="generateStories();closeDropdown('refine-dropdown-menu')">
+                <span class="di-badge story">Auto</span>AI Story Generation
+              </button>
+              <button class="dropdown-item" onclick="openManualRefine(currentFilename,currentDocType);closeDropdown('refine-dropdown-menu')">
+                <span class="di-badge epic">Manual</span>Visual Refinement
+              </button>
+            </div>
+          </div>
 
           <div class="toolbar-sep"></div>
 
@@ -245,19 +269,13 @@
           </div>
         </div>
 
-        <div class="stories-section" id="stories-section" style="display:none">
-          <div class="stories-section-header" onclick="toggleStoriesSection()">
-            <div class="stories-label">
-              <span>🧩 User Stories</span>
-              <span id="stories-spinner" class="spinner" style="display:none"></span>
-              <span id="stories-count" class="epic-count" style="display:none"></span>
-            </div>
-            <span class="stories-chevron" id="stories-chevron">▼</span>
+        <!-- Streaming preview shown only during Refine generation -->
+        <div class="stories-stream-wrap" id="stories-stream-wrap" style="display:none">
+          <div class="stories-stream-header">
+            <span>🧩 Generating stories…</span>
+            <span id="stories-spinner" class="spinner" style="display:none"></span>
           </div>
-          <div class="stories-body open" id="stories-body">
-            <div class="stories-stream" id="stories-stream" style="display:none"></div>
-            <div id="stories-cards"></div>
-          </div>
+          <div class="stories-stream" id="stories-stream"></div>
         </div>
 
         <!-- Hierarchy panel: parent Feature or child Epics -->
@@ -268,6 +286,19 @@
           </div>
           <div class="hierarchy-body open" id="hierarchy-body"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- Manual Refine View: visual hierarchy editor -->
+    <div id="refine-view">
+      <div class="refine-header">
+        <button class="btn-ghost" onclick="closeRefineView()">← Back</button>
+        <span class="refine-title">✨ Refine: <span id="refine-epic-title"></span></span>
+        <div class="refine-add-btns" id="refine-add-btns"></div>
+      </div>
+      <div class="refine-body">
+        <div id="refine-canvas"></div>
+        <div class="refine-panel" id="refine-panel"></div>
       </div>
     </div>
 
@@ -297,6 +328,7 @@
 <script src="/public/js/quickcreate.js"></script>
 <script src="/public/js/stories.js"></script>
 <script src="/public/js/jira.js"></script>
+<script src="/public/js/refine.js"></script>
 <script src="/public/js/dragdrop.js"></script>
 <script src="/public/js/main.js"></script>
 

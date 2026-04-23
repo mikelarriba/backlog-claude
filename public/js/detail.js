@@ -14,8 +14,10 @@ async function openDoc(filename, docType) {
     document.getElementById('detail-filename').textContent = filename;
     const titleInput = document.getElementById('detail-title-input');
     const stripped = stripFrontmatter(content);
+    // Template headings ("## Story Title", "## Epic Title", …) → next non-empty line; otherwise use heading text
+    const tplMatch = stripped.match(/^## \w[\w ]* Title\s*\n+(.+)/m);
     const h2Match  = stripped.match(/^##\s+(.+)$/m);
-    const docTitle = doc?.title || (h2Match ? h2Match[1].trim() : '');
+    const docTitle = doc?.title || (tplMatch ? tplMatch[1].trim() : h2Match ? h2Match[1].trim() : '');
     titleInput.value = docTitle;
     titleInput.dataset.original = docTitle;
     document.getElementById('detail-content').innerHTML = marked.parse(stripped);
@@ -30,20 +32,25 @@ async function openDoc(filename, docType) {
     document.getElementById('create-story-btn').style.display = isEpic    ? '' : 'none';
     document.getElementById('create-spike-btn').style.display = isEpic    ? '' : 'none';
     document.getElementById('create-bug-btn').style.display   = isEpic    ? '' : 'none';
-    document.getElementById('stories-btn').style.display      = isEpic    ? '' : 'none';
-    document.getElementById('stories-btn').disabled = false;
-    document.getElementById('stories-btn').textContent = '✨ Refine';
+    document.getElementById('refine-dropdown-wrap').style.display = (isEpic || isFeature) ? '' : 'none';
+    const storiesBtn = document.getElementById('stories-btn');
+    if (storiesBtn) { storiesBtn.disabled = false; storiesBtn.textContent = 'AI Story Generation'; }
 
     // Extract JIRA_ID from frontmatter and update push button label
     const jiraMatch = content.match(/^JIRA_ID:\s*(.+)$/m);
     currentJiraId = jiraMatch ? jiraMatch[1].trim() : 'TBD';
     updateJiraPushBtn();
 
-    document.getElementById('list-view').style.display = 'none';
-    document.getElementById('detail-view').classList.add('show');
+    if (isSplitMode()) {
+      // Split mode: list stays visible — just reveal the detail panel and highlight
+      document.getElementById('detail-view').classList.add('show');
+      highlightSelectedItem(filename, docType);
+    } else {
+      document.getElementById('list-view').style.display = 'none';
+      document.getElementById('detail-view').classList.add('show');
+    }
 
-    // Load stories + original inbox + hierarchy in background
-    if (docType === 'epic') loadStoriesForEpic(filename);
+    // Load hierarchy + original inbox in background
     if (docType === 'epic' || docType === 'feature') loadHierarchy(filename, docType);
     else document.getElementById('hierarchy-section').style.display = 'none';
     loadOriginal(filename);
@@ -132,17 +139,32 @@ async function loadHierarchy(filename, docType) {
 
     const rows = [];
 
-    const makeRow = (node, indent) => `
+    // Parent: simple clickable row that navigates to the parent doc
+    const makeParentRow = (node) => `
       <div class="hierarchy-row" onclick="openDoc('${escHtml(node.filename)}','${node.docType}')">
-        <span class="hierarchy-indent">${indent}</span>
         <span class="type-badge ${node.docType}">${TYPE_LABEL[node.docType] || node.docType}</span>
         <span class="hierarchy-title">${escHtml(node.title)}</span>
         ${node.jiraId !== 'TBD' ? `<span class="hierarchy-jira">${escHtml(node.jiraId)}</span>` : ''}
         <span class="status-badge ${(node.status || 'Draft').replace(/\s+/g,'-')}">${STATUS_LABEL[node.status] || node.status || 'Draft'}</span>
       </div>`;
 
-    if (parent) rows.push(makeRow(parent, ''));
-    for (const child of children) rows.push(makeRow(child, '└'));
+    // Children: expandable panels that load and render doc content inline
+    const makeChildRow = (node) => `
+      <div class="hierarchy-child"
+           data-filename="${escHtml(node.filename)}"
+           data-doctype="${node.docType}">
+        <div class="hierarchy-child-header" onclick="toggleHierarchyChild(this.parentElement)">
+          <span class="hierarchy-child-chevron">▶</span>
+          <span class="type-badge ${node.docType}">${TYPE_LABEL[node.docType] || node.docType}</span>
+          <span class="hierarchy-title">${escHtml(node.title)}</span>
+          ${node.jiraId !== 'TBD' ? `<span class="hierarchy-jira">${escHtml(node.jiraId)}</span>` : ''}
+          <span class="status-badge ${(node.status || 'Draft').replace(/\s+/g,'-')}">${STATUS_LABEL[node.status] || node.status || 'Draft'}</span>
+        </div>
+        <div class="hierarchy-child-body"></div>
+      </div>`;
+
+    if (parent) rows.push(makeParentRow(parent));
+    for (const child of children) rows.push(makeChildRow(child));
 
     const parts = [];
     if (parent)          parts.push(`↑ ${TYPE_LABEL[parent.docType]}`);
@@ -155,6 +177,36 @@ async function loadHierarchy(filename, docType) {
     }
   } catch (e) {
     console.warn('Could not load hierarchy:', e.message);
+  }
+}
+
+async function toggleHierarchyChild(rowEl) {
+  const body    = rowEl.querySelector('.hierarchy-child-body');
+  const chevron = rowEl.querySelector('.hierarchy-child-chevron');
+  const isOpen  = rowEl.classList.contains('open');
+
+  if (isOpen) {
+    rowEl.classList.remove('open');
+    chevron.textContent = '▶';
+    return;
+  }
+
+  rowEl.classList.add('open');
+  chevron.textContent = '▼';
+
+  if (body.dataset.loaded) return;
+
+  const filename = rowEl.dataset.filename;
+  const docType  = rowEl.dataset.doctype;
+  body.innerHTML = '<div class="hierarchy-loading">Loading…</div>';
+
+  try {
+    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
+    const { content } = await res.json();
+    body.innerHTML = `<div class="markdown hierarchy-doc-content">${marked.parse(stripFrontmatter(content))}</div>`;
+    body.dataset.loaded = '1';
+  } catch {
+    body.innerHTML = '<div class="hierarchy-loading">Failed to load content.</div>';
   }
 }
 
@@ -191,7 +243,6 @@ async function updateDocStatus(status) {
 
 function showList() {
   document.getElementById('detail-view').classList.remove('show');
-  document.getElementById('list-view').style.display = 'flex';
   document.getElementById('upgrade-panel').classList.remove('open');
   document.getElementById('original-section').style.display = 'none';
   resetUpgradePanel();
@@ -201,6 +252,13 @@ function showList() {
   currentDocType  = null;
   currentStoriesFilename = null;
   currentJiraId   = null;
+
+  if (isSplitMode()) {
+    // List is already visible — just clear the selection highlight
+    highlightSelectedItem(null, null);
+  } else {
+    document.getElementById('list-view').style.display = 'flex';
+  }
 }
 
 // ── Delete ────────────────────────────────────────────────────

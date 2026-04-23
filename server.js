@@ -70,6 +70,10 @@ const SPIKES_DIR   = path.join(DOCS_ROOT, 'spikes');
 const BUGS_DIR     = path.join(DOCS_ROOT, 'bugs');
 const INBOX_DIR    = process.env.TEST_INBOX_DIR || path.join(__dirname, 'inbox');
 
+// Filenames the API is currently generating — inbox watcher skips these to
+// avoid creating a duplicate Epic before the real doc is written.
+const _apiInFlight = new Set();
+
 // Maps type → { command, dir, broadcastType }
 const TYPE_CONFIG = {
   feature: { command: 'create-features', dir: () => FEATURES_DIR, event: 'feature_created' },
@@ -216,28 +220,35 @@ Created: ${new Date().toISOString()}
 ${idea.trim()}
 `;
 
-    // 1. Save raw idea to inbox
-    ensureDir(INBOX_DIR);
-    fs.writeFileSync(path.join(INBOX_DIR, filename), rawContent);
+    // 1. Claim the filename so the inbox watcher ignores it during generation
+    _apiInFlight.add(filename);
 
-    // 2. Process with the appropriate command
-    const template = loadCommand(cfg.command);
-    const prompt = template
-      ? template.replace('$ARGUMENTS', `File: ${filename}\n\n${rawContent}`)
-      : `Generate a complete ${type} using the COVE Framework. Output ONLY the markdown content.\n\nFile: ${filename}\n\n${rawContent}`;
-    const generatedContent = await callClaude(prompt);
+    try {
+      // 2. Save raw idea to inbox (for upgrade history)
+      ensureDir(INBOX_DIR);
+      fs.writeFileSync(path.join(INBOX_DIR, filename), rawContent);
 
-    // 3. Save to the correct docs folder (always start as Draft)
-    const destDir = cfg.dir();
-    ensureDir(destDir);
-    let finalContent = setFrontmatterField(generatedContent, 'Status', 'Draft');
-    // If this epic was created from a Feature, inject the parent link
-    if (normalizedType === 'epic' && parentFeature) {
-      finalContent = setFrontmatterField(finalContent, 'Feature_ID', parentFeature);
+      // 3. Process with the appropriate command
+      const template = loadCommand(cfg.command);
+      const prompt = template
+        ? template.replace('$ARGUMENTS', `File: ${filename}\n\n${rawContent}`)
+        : `Generate a complete ${type} using the COVE Framework. Output ONLY the markdown content.\n\nFile: ${filename}\n\n${rawContent}`;
+      const generatedContent = await callClaude(prompt);
+
+      // 4. Save to the correct docs folder (always start as Draft)
+      const destDir = cfg.dir();
+      ensureDir(destDir);
+      let finalContent = setFrontmatterField(generatedContent, 'Status', 'Draft');
+      if (normalizedType === 'epic' && parentFeature) {
+        finalContent = setFrontmatterField(finalContent, 'Feature_ID', parentFeature);
+      }
+      fs.writeFileSync(path.join(destDir, filename), finalContent);
+    } finally {
+      // Always release the claim, even if generation failed
+      _apiInFlight.delete(filename);
     }
-    fs.writeFileSync(path.join(destDir, filename), finalContent);
 
-    // 4. Notify all open browser tabs
+    // 5. Notify all open browser tabs
     broadcast({ type: cfg.event, filename, docType: normalizedType });
 
     res.json({ success: true, filename, docType: normalizedType });
@@ -447,9 +458,10 @@ app.get('/api/links/:type/:filename', (req, res) => {
 app.post('/api/link', (req, res) => {
   // Defines which field gets written on the *source* document
   const LINK_RULES = {
-    'epic→feature': { field: 'Feature_ID', sourceDir: () => EPICS_DIR },
-    'story→epic':   { field: 'Epic_ID',    sourceDir: () => STORIES_DIR },
-    'spike→epic':   { field: 'Epic_ID',    sourceDir: () => SPIKES_DIR },
+    'epic→feature': { field: 'Feature_ID', sourceDir: () => EPICS_DIR    },
+    'story→epic':   { field: 'Epic_ID',    sourceDir: () => STORIES_DIR  },
+    'spike→epic':   { field: 'Epic_ID',    sourceDir: () => SPIKES_DIR   },
+    'bug→epic':     { field: 'Epic_ID',    sourceDir: () => BUGS_DIR     },
   };
 
   try {
@@ -722,13 +734,19 @@ app.post('/api/jira/push/:type/:filename', async (req, res) => {
         fields[FIELD_EPIC_NAME] = summary.slice(0, 60);
       }
 
-      if (type === 'story') {
-        // Link to parent epic via Epic Link field
-        const epicFilename = filename.replace('-stories.md', '.md');
-        const epicPath     = path.join(EPICS_DIR, epicFilename);
-        if (fs.existsSync(epicPath)) {
-          const m = fs.readFileSync(epicPath, 'utf-8').match(/^JIRA_ID:\s*(.+)$/m);
-          if (m && m[1].trim() !== 'TBD') fields[FIELD_EPIC_LINK] = m[1].trim();
+      if (type === 'story' || type === 'spike' || type === 'bug') {
+        // Read the linked epic's filename from frontmatter, then get its JIRA key
+        const epicIdMatch  = content.match(/^Epic_ID:\s*(.+)$/m);
+        const epicFilename = epicIdMatch ? epicIdMatch[1].trim() : null;
+        if (epicFilename && epicFilename !== 'TBD') {
+          const epicPath = path.join(EPICS_DIR, epicFilename);
+          if (fs.existsSync(epicPath)) {
+            const epicContent   = fs.readFileSync(epicPath, 'utf-8');
+            const epicJiraMatch = epicContent.match(/^JIRA_ID:\s*(.+)$/m);
+            if (epicJiraMatch && epicJiraMatch[1].trim() !== 'TBD') {
+              fields[FIELD_EPIC_LINK] = epicJiraMatch[1].trim();
+            }
+          }
         }
       }
 
@@ -1008,9 +1026,23 @@ app.post('/api/epic/:filename/stories', async (req, res) => {
       send({ text: chunk });
     });
 
+    // Strip code fences if Claude wrapped the output
+    fullContent = fullContent.trim().replace(/^```(?:markdown)?\n?/, '').replace(/\n?```$/, '');
+
+    // Ensure Epic_ID is set in frontmatter — this is the same field written by
+    // POST /api/link (drag-and-drop), so both linking paths are now identical.
+    if (!fullContent.startsWith('---')) {
+      fullContent = `---\nEpic_ID: ${filename}\n---\n\n${fullContent}`;
+    } else {
+      fullContent = setFrontmatterField(fullContent, 'Epic_ID', filename);
+    }
+
     const storyFilename = filename.replace('.md', '-stories.md');
     ensureDir(STORIES_DIR);
     fs.writeFileSync(path.join(STORIES_DIR, storyFilename), fullContent);
+
+    // Broadcast so all open tabs see the new story file in the list
+    broadcast({ type: 'story_created', filename: storyFilename, docType: 'story' });
 
     send({ done: true, filename: storyFilename });
     res.end();
@@ -1034,6 +1066,8 @@ if (process.argv[1] === __filename) {
     watchInbox({
       INBOX_DIR,
       EPICS_DIR,
+      DOC_DIRS:      [FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR],
+      isClaimedByApi: fn => _apiInFlight.has(fn),
       ensureDir,
       loadCommand,
       callClaude,

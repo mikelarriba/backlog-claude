@@ -115,34 +115,42 @@
 
 /* ── Filter row & Pills ──────────────────────────────────────── */
 .filter-row {
-  padding: 10px 20px 12px;
+  padding: 7px 16px;
   border-bottom: 1px solid var(--border);
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
 }
 
 .filter-group {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   flex-wrap: wrap;
+  padding: 2px 12px 2px 0;
+}
+
+.filter-group + .filter-group {
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
 }
 
 .filter-label {
-  font-size: 0.66rem;
+  font-size: 0.62rem;
   font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  width: 42px;
+  margin-right: 2px;
   flex-shrink: 0;
 }
 
 .pill {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  padding: 3px 9px;
+  padding: 2px 8px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: transparent;

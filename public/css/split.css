@@ -1,0 +1,77 @@
+/* ── Split Panel Mode ─────────────────────────────────────────
+   Active when the screen is ≥ 1280px AND the server marks the
+   .right element with the .split-mode class via JS.
+   The list occupies 60 % of the right column; the detail panel
+   takes the remaining 40 % and is always visible.
+   On narrower screens the original single-view navigation is kept.
+──────────────────────────────────────────────────────────────── */
+
+/* Layout: stack list + detail side by side */
+.right.split-mode {
+  flex-direction: row;
+}
+
+/* List panel — scrollable, fixed proportion */
+.right.split-mode #list-view {
+  flex: 0 0 60%;
+  width: 60%;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+  height: 100%;
+}
+
+/* Detail panel — always rendered, shows placeholder when empty */
+.right.split-mode #detail-view {
+  display: flex;          /* override default display:none */
+  flex: 1 1 40%;
+  min-width: 0;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* Hide the ← Back button; list is always visible */
+.right.split-mode .detail-header-left > .btn-ghost:first-child {
+  display: none;
+}
+
+/* Narrow the toolbar to fit the 40 % panel */
+.right.split-mode .detail-toolbar {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Highlight the active list item */
+.epic-item.selected,
+.epic-item.selected:hover {
+  background: var(--surface2);
+  border-left-color: var(--accent);
+}
+
+/* ── Empty-state placeholder (shown when no doc is selected) ── */
+#split-placeholder {
+  display: none;          /* hidden by default and in narrow mode */
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 1;
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-align: center;
+  padding: 32px;
+  background: var(--bg);
+}
+
+.right.split-mode #split-placeholder {
+  display: flex;          /* visible only in split mode */
+}
+
+/* Hide placeholder when a doc is open */
+.right.split-mode #detail-view.show #split-placeholder {
+  display: none;
+}
+
+.split-placeholder-icon {
+  font-size: 2.2rem;
+  opacity: 0.25;
+}

@@ -4,6 +4,8 @@ import path from 'path';
 export function watchInbox({
   INBOX_DIR,
   EPICS_DIR,
+  DOC_DIRS,        // all doc dirs to check — skip if file already exists in any of them
+  isClaimedByApi,  // fn(filename) → true while the API is mid-generation for this file
   ensureDir,
   loadCommand,
   callClaude,
@@ -12,17 +14,23 @@ export function watchInbox({
   logError,
 }) {
   ensureDir(INBOX_DIR);
+  const allDocDirs   = DOC_DIRS || [EPICS_DIR];
+  const _isClaimed   = isClaimedByApi || (() => false);
+
+  // Skip if already saved to any doc dir OR if the API is currently generating it
+  const shouldSkip = (filename) =>
+    _isClaimed(filename) ||
+    allDocDirs.some(dir => fs.existsSync(path.join(dir, filename)));
 
   for (const f of fs.readdirSync(INBOX_DIR).filter(isInboxFile)) {
-    if (!fs.existsSync(path.join(EPICS_DIR, f))) processInboxFile(f);
+    if (!shouldSkip(f)) processInboxFile(f);
   }
 
   fs.watch(INBOX_DIR, (event, filename) => {
     if (event !== 'rename' || !filename || !isInboxFile(filename)) return;
     setTimeout(() => {
       const exists = fs.existsSync(path.join(INBOX_DIR, filename));
-      const already = fs.existsSync(path.join(EPICS_DIR, filename));
-      if (exists && !already) processInboxFile(filename);
+      if (exists && !shouldSkip(filename)) processInboxFile(filename);
     }, 500);
   });
 
