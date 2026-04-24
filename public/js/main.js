@@ -43,8 +43,47 @@ function highlightSelectedItem(filename, docType) {
 
 window.addEventListener('resize', updateSplitMode);
 
-// Bootstrap
-loadDocs();
+// ── Model settings ────────────────────────────────────────────
+function toggleModelSection() {
+  const body    = document.getElementById('model-section-body');
+  const chevron = document.getElementById('model-chevron');
+  const isOpen  = body.classList.toggle('open');
+  chevron.style.transform = isOpen ? 'rotate(90deg)' : '';
+}
+
+async function loadModelSetting() {
+  try {
+    const res = await fetch('/api/settings/model');
+    const { model } = await res.json();
+    const sel = document.getElementById('model-select');
+    if (sel) sel.value = model || '';
+  } catch {}
+}
+
+async function updateModelSetting(model) {
+  const statusEl = document.getElementById('model-status');
+  try {
+    const res = await fetch('/api/settings/model', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: model || null }),
+    });
+    if (res.ok) {
+      statusEl.className = 'model-status show success';
+      statusEl.textContent = model ? `Using ${model}` : 'Using default model';
+      setTimeout(() => { statusEl.className = 'model-status'; }, 3000);
+    }
+  } catch (e) {
+    statusEl.className = 'model-status show error';
+    statusEl.textContent = 'Failed to save';
+  }
+}
+
+// Bootstrap — load PI settings, JIRA versions & model before docs so swimlanes render correctly
+(async () => {
+  await Promise.all([loadPiSettings(), loadJiraVersions(), loadModelSetting()]);
+  loadDocs();
+})();
 initDragDrop();
 updateSplitMode();
 
@@ -53,7 +92,11 @@ const evtSource = new EventSource('/api/events');
 evtSource.onmessage = (e) => {
   try {
     const payload = JSON.parse(e.data);
-    if (['feature_created','epic_created','story_created','spike_created','bug_created','status_updated','title_updated','doc_deleted'].includes(payload.type)) {
+    if (['feature_created','epic_created','story_created','spike_created','bug_created','status_updated','title_updated','doc_deleted','batch_fix_version_updated','link_updated'].includes(payload.type)) {
+      loadDocs();
+    }
+    if (payload.type === 'pi_settings_updated') {
+      piSettings = { currentPi: payload.currentPi, nextPi: payload.nextPi };
       loadDocs();
     }
   } catch {}

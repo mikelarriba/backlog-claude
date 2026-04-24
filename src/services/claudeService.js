@@ -37,15 +37,39 @@ Mock execution steps.
 N/A
 `;
 
+// Model override — read from settings file if present
+let _modelOverride = null;
+
+export function setModelOverride(model) {
+  _modelOverride = model || null;
+}
+
+export function getModelOverride() {
+  return _modelOverride;
+}
+
+function buildClaudeArgs(prompt) {
+  const args = ['-p', prompt];
+  if (_modelOverride) args.push('--model', _modelOverride);
+  return args;
+}
+
+const CLAUDE_TIMEOUT_MS = 120_000;
+
 export function callClaude(rootDir, prompt) {
   if (process.env.MOCK_CLAUDE) return Promise.resolve(MOCK_RESPONSE);
   return new Promise((resolve, reject) => {
     let out = '';
     let err = '';
-    const proc = spawn('claude', ['-p', prompt], { cwd: rootDir });
+    const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir });
+    const timer = setTimeout(() => {
+      proc.kill();
+      reject(new Error('Claude subprocess timed out after 120s'));
+    }, CLAUDE_TIMEOUT_MS);
     proc.stdout.on('data', d => (out += d.toString()));
     proc.stderr.on('data', d => (err += d.toString()));
     proc.on('close', code => {
+      clearTimeout(timer);
       if (code !== 0) return reject(new Error(err.trim() || `claude exited ${code}`));
       const trimmed = out.trim().replace(/^```(?:markdown)?\n?/, '').replace(/\n?```$/, '');
       resolve(trimmed);
@@ -60,9 +84,16 @@ export function streamClaude(rootDir, prompt, onChunk) {
   }
   return new Promise((resolve, reject) => {
     let err = '';
-    const proc = spawn('claude', ['-p', prompt], { cwd: rootDir });
+    const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir });
+    const timer = setTimeout(() => {
+      proc.kill();
+      reject(new Error('Claude subprocess timed out after 120s'));
+    }, CLAUDE_TIMEOUT_MS);
     proc.stdout.on('data', d => onChunk(d.toString()));
     proc.stderr.on('data', d => (err += d.toString()));
-    proc.on('close', code => (code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`))));
+    proc.on('close', code => {
+      clearTimeout(timer);
+      code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`));
+    });
   });
 }

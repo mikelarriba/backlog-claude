@@ -1,48 +1,50 @@
 // ── Detail view ────────────────────────────────────────────────
+function renderDocContent(doc, content) {
+  document.getElementById('status-select').value = doc?.status || 'Draft';
+  document.getElementById('detail-filename').textContent = doc?.filename || currentFilename;
+
+  const titleInput = document.getElementById('detail-title-input');
+  const stripped = stripFrontmatter(content);
+  const tplMatch = stripped.match(/^## \w[\w ]* Title\s*\n+(.+)/m);
+  const h2Match  = stripped.match(/^##\s+(.+)$/m);
+  const docTitle = doc?.title || (tplMatch ? tplMatch[1].trim() : h2Match ? h2Match[1].trim() : '');
+  titleInput.value = docTitle;
+  titleInput.dataset.original = docTitle;
+  document.getElementById('detail-content').innerHTML = marked.parse(stripped);
+}
+
+function updateDocButtons(docType) {
+  const isEpic    = docType === 'epic';
+  const isFeature = docType === 'feature';
+  document.getElementById('create-dropdown-wrap').style.display = (isEpic || isFeature) ? '' : 'none';
+  document.getElementById('create-epic-btn').style.display  = isFeature ? '' : 'none';
+  document.getElementById('create-story-btn').style.display = isEpic    ? '' : 'none';
+  document.getElementById('create-spike-btn').style.display = isEpic    ? '' : 'none';
+  document.getElementById('create-bug-btn').style.display   = isEpic    ? '' : 'none';
+  document.getElementById('refine-dropdown-wrap').style.display = (isEpic || isFeature) ? '' : 'none';
+  const storiesBtn = document.getElementById('stories-btn');
+  if (storiesBtn) { storiesBtn.disabled = false; storiesBtn.textContent = 'AI Story Generation'; }
+}
+
 async function openDoc(filename, docType) {
-  if (_justDragged) return; // swallow click fired by browser after dragend
+  if (_justDragged) return;
   try {
     const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     const { content } = await res.json();
     currentFilename = filename;
     currentDocType  = docType;
 
-    // Sync status dropdown with the doc's current status
     const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
-    document.getElementById('status-select').value = doc?.status || 'Draft';
-
-    document.getElementById('detail-filename').textContent = filename;
-    const titleInput = document.getElementById('detail-title-input');
-    const stripped = stripFrontmatter(content);
-    // Template headings ("## Story Title", "## Epic Title", …) → next non-empty line; otherwise use heading text
-    const tplMatch = stripped.match(/^## \w[\w ]* Title\s*\n+(.+)/m);
-    const h2Match  = stripped.match(/^##\s+(.+)$/m);
-    const docTitle = doc?.title || (tplMatch ? tplMatch[1].trim() : h2Match ? h2Match[1].trim() : '');
-    titleInput.value = docTitle;
-    titleInput.dataset.original = docTitle;
-    document.getElementById('detail-content').innerHTML = marked.parse(stripped);
+    renderDocContent(doc, content);
     resetStoriesSection();
     closeQuickCreate();
+    updateDocButtons(docType);
 
-    // Button visibility per type
-    const isEpic    = docType === 'epic';
-    const isFeature = docType === 'feature';
-    document.getElementById('create-dropdown-wrap').style.display = (isEpic || isFeature) ? '' : 'none';
-    document.getElementById('create-epic-btn').style.display  = isFeature ? '' : 'none';
-    document.getElementById('create-story-btn').style.display = isEpic    ? '' : 'none';
-    document.getElementById('create-spike-btn').style.display = isEpic    ? '' : 'none';
-    document.getElementById('create-bug-btn').style.display   = isEpic    ? '' : 'none';
-    document.getElementById('refine-dropdown-wrap').style.display = (isEpic || isFeature) ? '' : 'none';
-    const storiesBtn = document.getElementById('stories-btn');
-    if (storiesBtn) { storiesBtn.disabled = false; storiesBtn.textContent = 'AI Story Generation'; }
-
-    // Extract JIRA_ID from frontmatter and update push button label
     const jiraMatch = content.match(/^JIRA_ID:\s*(.+)$/m);
     currentJiraId = jiraMatch ? jiraMatch[1].trim() : 'TBD';
     updateJiraPushBtn();
 
     if (isSplitMode()) {
-      // Split mode: list stays visible — just reveal the detail panel and highlight
       document.getElementById('detail-view').classList.add('show');
       highlightSelectedItem(filename, docType);
     } else {
@@ -50,7 +52,6 @@ async function openDoc(filename, docType) {
       document.getElementById('detail-view').classList.add('show');
     }
 
-    // Load hierarchy + original inbox in background
     if (docType === 'epic' || docType === 'feature') loadHierarchy(filename, docType);
     else document.getElementById('hierarchy-section').style.display = 'none';
     loadOriginal(filename);
@@ -112,7 +113,6 @@ async function saveTitle() {
     const contentEl = document.getElementById('detail-content');
     const h2 = contentEl.querySelector('h2');
     if (h2) h2.textContent = newTitle;
-    await loadDocs();
   } catch (e) {
     input.value = input.dataset.original;
   }
@@ -288,7 +288,6 @@ async function executeDelete() {
     if (!res.ok) throw new Error(getErrorMessage((await res.json()).error, 'Delete failed'));
     closeDeleteDialog();
     showList();
-    await loadDocs();
   } catch (e) {
     btn.disabled = false;
     btn.textContent = 'Delete';

@@ -7,6 +7,7 @@ import {
   extractWorkflowStatus,
   setFrontmatterField,
   markdownToJira,
+  extractFrontmatterField,
 } from '../../src/utils/transforms.js';
 
 // ── slugify ───────────────────────────────────────────────────────────────────
@@ -141,5 +142,24 @@ describe('markdownToJira', () => {
 
   test('converts --- to ----', () => {
     assert.equal(markdownToJira('---'), '----');
+  });
+});
+
+// ── extractFrontmatterField ──────────────────────────────────────────────────
+describe('extractFrontmatterField', () => {
+  test('extracts a field value from frontmatter', () => {
+    const content = '---\nJIRA_ID: ABC-123\nStatus: Draft\n---\n\n# Title';
+    assert.equal(extractFrontmatterField(content, 'JIRA_ID'), 'ABC-123');
+    assert.equal(extractFrontmatterField(content, 'Status'), 'Draft');
+  });
+
+  test('returns null when field is missing', () => {
+    const content = '---\nStatus: Draft\n---\n\n# Title';
+    assert.equal(extractFrontmatterField(content, 'JIRA_ID'), null);
+  });
+
+  test('trims whitespace from extracted value', () => {
+    const content = '---\nFix_Version:   PI-2026.1  \n---\n';
+    assert.equal(extractFrontmatterField(content, 'Fix_Version'), 'PI-2026.1');
   });
 });

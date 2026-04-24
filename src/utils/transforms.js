@@ -39,6 +39,15 @@ export function setFrontmatterField(content, field, value) {
   return content.replace(/^---\n/, `---\n${field}: ${value}\n`);
 }
 
+export function extractFrontmatterField(content, field) {
+  const m = content.match(new RegExp(`^${field}:\\s*(.+)$`, 'm'));
+  return m ? m[1].trim() : null;
+}
+
+export function stripFrontmatter(content) {
+  return content.replace(/^---[\s\S]*?---\n?/, '').trim();
+}
+
 export function markdownToJira(md) {
   const blocks = [];
   let text = md.replace(/```[\w]*\n([\s\S]*?)```/gm, (_, code) => {

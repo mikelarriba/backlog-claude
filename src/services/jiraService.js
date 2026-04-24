@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { stripFrontmatter } from '../utils/transforms.js';
 
 export const LOCAL_TO_JIRA_TYPE = { feature: 'New Feature', epic: 'Epic', story: 'Story', spike: 'Task' };
 export const JIRA_TO_LOCAL_TYPE = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Task: 'spike' };
@@ -44,12 +45,14 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, TYPE
     const issueType = fields.issuetype?.name || 'Epic';
     const priority = fields.priority?.name || 'Medium';
     const docType = JIRA_TO_LOCAL_TYPE[issueType] || 'epic';
+    const fixVersion = fields.fixVersions?.[0]?.name || 'TBD';
 
     const content = `---
 JIRA_ID: ${key}
 Story_Points: TBD
 Status: Created in JIRA
 Priority: ${priority}
+Fix_Version: ${fixVersion}
 Squad: TBD
 PI: TBD
 Sprint: TBD
@@ -74,10 +77,6 @@ ${description || '_No description in JIRA._'}
     const h1 = content.match(/^# (.+)/m);
     if (h1) return h1[1].trim();
     return 'Untitled';
-  }
-
-  function stripFrontmatter(content) {
-    return content.replace(/^---[\s\S]*?---\n?/, '').trim();
   }
 
   return {

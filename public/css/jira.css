@@ -1,47 +1,5 @@
 /* ── JIRA Import section ─────────────────────────────────────── */
-.jira-section {
-  margin-top: 24px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.jira-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 11px 14px;
-  background: var(--surface2);
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.12s;
-}
-
-.jira-section-header:hover { background: var(--border); }
-
-.jira-section-title {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-}
-
-.jira-chevron {
-  font-size: 0.7rem;
-  color: var(--muted);
-  transition: transform 0.2s;
-}
-
-.jira-section-body {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease;
-}
-
-.jira-section-body.open { max-height: 900px; overflow-y: auto; }
-
-.jira-section-inner { padding: 14px; }
+.jira-section { margin-top: 24px; }
 
 .jira-search-row {
   display: grid;
@@ -188,3 +146,20 @@
 .jira-status.error   { background: var(--error-bg);   border: 1px solid var(--error-border);   color: var(--error-text); }
 .jira-status.loading { background: var(--accent-subtle); border: 1px solid rgba(0,150,214,0.25); color: var(--accent-hover); }
 [data-theme="light"] .jira-status.loading { color: var(--accent); }
+
+/* ── Model Settings section ─────────────────────────────────── */
+.model-section { margin-top: 12px; }
+.model-body.open { max-height: 200px; }
+.model-section .collapsible-inner .field { margin-bottom: 0; }
+
+.model-status {
+  font-size: 0.72rem;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-top: 8px;
+  display: none;
+}
+
+.model-status.show { display: block; }
+.model-status.success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
+.model-status.error   { background: var(--error-bg);   border: 1px solid var(--error-border);   color: var(--error-text); }

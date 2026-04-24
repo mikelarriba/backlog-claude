@@ -32,34 +32,16 @@ async function executeUpgrade() {
   stream.style.display = 'block';
 
   try {
-    const res = await fetch(
+    let finalContent = null;
+    await streamSSE(
       `/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}/upgrade`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feedback }) }
-    );
-
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '', finalContent = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const payload = JSON.parse(line.slice(6));
-          if (payload.text)  stream.textContent += payload.text;
-          if (payload.error) throw new Error(getErrorMessage(payload.error, 'Upgrade failed'));
-          if (payload.done)  finalContent = payload.content;
-        } catch (parseErr) {
-          if (parseErr.message !== 'Unexpected token') throw parseErr;
-        }
+      { feedback },
+      {
+        onText:  (text) => { stream.textContent += text; },
+        onDone:  (payload) => { finalContent = payload.content; },
+        onError: (e) => { throw e; },
       }
-    }
+    );
 
     if (finalContent) {
       document.getElementById('detail-content').innerHTML = marked.parse(stripFrontmatter(finalContent));
@@ -67,7 +49,6 @@ async function executeUpgrade() {
     document.getElementById('upgrade-panel').classList.remove('open');
     resetUpgradePanel();
     btn.textContent = 'Regenerate';
-    await loadDocs();
 
   } catch (e) {
     stream.textContent += `\n\n❌ Error: ${e.message}`;

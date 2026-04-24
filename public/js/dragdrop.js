@@ -1,29 +1,133 @@
-// ── Drag-and-drop linking ──────────────────────────────────────
-// Valid: epic→feature, story→epic, spike→epic. Everything else is a no-op.
+// ── Drag-and-drop: linking + swimlane moves ──────────────────
+// Two coexisting operations based on DOM drop target:
+//   - Drop on an .epic-item → LINK (epic→feature, story→epic, etc.)
+//   - Drop on a .swimlane-section header/body (not on an item) → MOVE to that PI
+//
 // Uses mouse events (not HTML5 DnD) for reliable cross-browser behaviour.
+
+function getSwimlaneSection(doc) {
+  if (!doc) return 'backlog';
+  if (doc.fixVersion && piSettings.currentPi && doc.fixVersion === piSettings.currentPi) return 'currentPi';
+  if (doc.fixVersion && piSettings.nextPi && doc.fixVersion === piSettings.nextPi) return 'nextPi';
+  return 'backlog';
+}
+
+function sectionToFixVersion(section) {
+  if (section === 'currentPi') return piSettings.currentPi;
+  if (section === 'nextPi')    return piSettings.nextPi;
+  return null; // backlog = clear version
+}
+
+const SECTION_LABELS = { currentPi: 'Current PI', nextPi: 'Next PI', backlog: 'Backlog' };
+
+async function executeLinkDrop(srcFilename, srcDocType, dropTarget) {
+  const tgtFilename = dropTarget.dataset.filename;
+  const tgtDocType  = dropTarget.dataset.doctype;
+  const tgtTitle    = dropTarget.querySelector('.epic-title-text')?.textContent || tgtFilename;
+
+  try {
+    const res = await fetch('/api/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceType: srcDocType, sourceFilename: srcFilename,
+        targetType: tgtDocType, targetFilename: tgtFilename,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Link failed'));
+
+    showJiraToast('success', `Linked to "${tgtTitle}"`);
+    if (currentFilename === srcFilename || currentFilename === tgtFilename) {
+      loadHierarchy(currentFilename, currentDocType);
+    }
+  } catch (err) {
+    showJiraToast('error', err.message);
+  }
+}
+
+async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
+  const targetSection = dropSwimlane.dataset.section;
+  const newFixVersion = sectionToFixVersion(targetSection);
+
+  if (targetSection !== 'backlog' && !newFixVersion) {
+    showJiraToast('error', `Set a version for ${SECTION_LABELS[targetSection]} first`);
+    return;
+  }
+
+  const childrenMap = buildChildrenMap(allDocs);
+  const srcDoc      = allDocs.find(d => d.filename === srcFilename && d.docType === srcDocType);
+  if (!srcDoc) return;
+
+  const descendants = getDescendants(srcFilename, childrenMap);
+  const docsToMove  = [srcDoc, ...descendants];
+
+  try {
+    const res = await fetch('/api/docs/batch-fix-version', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fixVersion: newFixVersion,
+        docs: docsToMove.map(d => ({ type: d.docType, filename: d.filename })),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Move failed'));
+
+    const label    = SECTION_LABELS[targetSection];
+    const countMsg = docsToMove.length > 1 ? ` (${docsToMove.length} items)` : '';
+    showJiraToast('success', `Moved to ${label}${countMsg}`);
+  } catch (err) {
+    showJiraToast('error', err.message);
+  }
+}
+
+function resolveDropTargets(snap, e) {
+  let dropTarget = null, dropSwimlane = null;
+
+  if (snap.started && snap.ghost) {
+    snap.ghost.style.visibility = 'hidden';
+    const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+    snap.ghost.style.visibility = '';
+
+    const itemUnder = elUnder?.closest('.epic-item');
+    if (itemUnder && itemUnder.dataset.filename !== snap.srcFilename) {
+      const valid = DRAG_TARGETS[snap.srcDocType] || [];
+      if (valid.includes(itemUnder.dataset.doctype)) dropTarget = itemUnder;
+    }
+
+    if (!dropTarget) {
+      const sectionUnder = elUnder?.closest('.swimlane-section');
+      if (sectionUnder) {
+        const srcDoc  = allDocs.find(d => d.filename === snap.srcFilename);
+        const srcLane = getSwimlaneSection(srcDoc);
+        if (sectionUnder.dataset.section !== srcLane) dropSwimlane = sectionUnder;
+      }
+    }
+  }
+
+  return {
+    dropTarget:   dropTarget   || snap.currentTarget,
+    dropSwimlane: dropSwimlane || snap.currentSwimlane,
+  };
+}
 
 function initDragDrop() {
   const list = document.getElementById('epic-list');
-  let state = null; // { srcFilename, srcDocType, ghost, currentTarget, started, startX, startY }
-
-  const DRAG_THRESHOLD = 6; // px movement before drag begins
+  let state = null;
+  const DRAG_THRESHOLD = 6;
 
   list.addEventListener('mousedown', e => {
     const handle = e.target.closest('.drag-handle');
     if (!handle) return;
     e.preventDefault();
-
     const item = handle.closest('.epic-item');
     if (!item) return;
 
     state = {
-      srcFilename: item.dataset.filename,
-      srcDocType:  item.dataset.doctype,
-      startX: e.clientX,
-      startY: e.clientY,
-      started: false,
-      ghost: null,
-      currentTarget: null,
+      srcFilename: item.dataset.filename, srcDocType: item.dataset.doctype,
+      startX: e.clientX, startY: e.clientY,
+      started: false, ghost: null, currentTarget: null, currentSwimlane: null,
     };
   });
 
@@ -35,11 +139,9 @@ function initDragDrop() {
       const dy = Math.abs(e.clientY - state.startY);
       if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) return;
 
-      // Threshold crossed — begin drag
       state.started = true;
       _justDragged = true;
 
-      // Build ghost
       const ghost = document.createElement('div');
       ghost.className = 'drag-ghost';
       const badge = document.createElement('span');
@@ -58,25 +160,35 @@ function initDragDrop() {
       document.body.style.userSelect = 'none';
     }
 
-    // Move ghost
     state.ghost.style.left = `${e.clientX + 14}px`;
     state.ghost.style.top  = `${e.clientY + 10}px`;
 
-    // Find item under cursor (hide ghost so it doesn't block elementFromPoint)
     state.ghost.style.visibility = 'hidden';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
     state.ghost.style.visibility = '';
 
-    const targetItem = elUnder?.closest('.epic-item');
-
     list.querySelectorAll('.drag-target-valid').forEach(el => el.classList.remove('drag-target-valid'));
-    state.currentTarget = null;
+    list.querySelectorAll('.swimlane-drop-target').forEach(el => el.classList.remove('swimlane-drop-target'));
+    state.currentTarget   = null;
+    state.currentSwimlane = null;
 
+    const targetItem = elUnder?.closest('.epic-item');
     if (targetItem && targetItem.dataset.filename !== state.srcFilename) {
       const validTargets = DRAG_TARGETS[state.srcDocType] || [];
       if (validTargets.includes(targetItem.dataset.doctype)) {
         targetItem.classList.add('drag-target-valid');
         state.currentTarget = targetItem;
+        return;
+      }
+    }
+
+    const swimlaneSection = elUnder?.closest('.swimlane-section');
+    if (swimlaneSection) {
+      const srcDoc  = allDocs.find(d => d.filename === state.srcFilename);
+      const srcLane = getSwimlaneSection(srcDoc);
+      if (swimlaneSection.dataset.section !== srcLane) {
+        swimlaneSection.classList.add('swimlane-drop-target');
+        state.currentSwimlane = swimlaneSection;
       }
     }
   });
@@ -86,59 +198,21 @@ function initDragDrop() {
     const snap = state;
     state = null;
 
-    // Determine drop target at the exact moment of release
-    // Hide ghost first so elementFromPoint sees what's underneath it.
-    let dropTarget = null;
-    if (snap.started && snap.ghost) {
-      snap.ghost.style.visibility = 'hidden';
-      const elUnder = document.elementFromPoint(e.clientX, e.clientY);
-      snap.ghost.style.visibility = '';
-      const itemUnder = elUnder?.closest('.epic-item');
-      if (itemUnder && itemUnder.dataset.filename !== snap.srcFilename) {
-        const valid = DRAG_TARGETS[snap.srcDocType] || [];
-        if (valid.includes(itemUnder.dataset.doctype)) dropTarget = itemUnder;
-      }
-    }
-    // Fall back to last highlighted item from mousemove
-    if (!dropTarget) dropTarget = snap.currentTarget;
+    const { dropTarget, dropSwimlane } = resolveDropTargets(snap, e);
 
-    // Cleanup DOM
     if (snap.ghost) snap.ghost.remove();
     list.classList.remove('dragging-active');
     list.querySelectorAll('.drag-source, .drag-target-valid').forEach(el => {
       el.classList.remove('drag-source', 'drag-target-valid');
     });
+    list.querySelectorAll('.swimlane-drop-target').forEach(el => el.classList.remove('swimlane-drop-target'));
     document.body.style.userSelect = '';
 
     setTimeout(() => { _justDragged = false; }, 150);
 
-    if (!snap.started || !dropTarget) return;
+    if (!snap.started) return;
 
-    const tgtFilename = dropTarget.dataset.filename;
-    const tgtDocType  = dropTarget.dataset.doctype;
-    const tgtTitle    = dropTarget.querySelector('.epic-title-text')?.textContent || tgtFilename;
-
-    try {
-      const res = await fetch('/api/link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceType:     snap.srcDocType,
-          sourceFilename: snap.srcFilename,
-          targetType:     tgtDocType,
-          targetFilename: tgtFilename,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Link failed'));
-
-      showJiraToast('success', `🔗 Linked to "${tgtTitle}"`);
-      await loadDocs();
-      if (currentFilename === snap.srcFilename || currentFilename === tgtFilename) {
-        loadHierarchy(currentFilename, currentDocType);
-      }
-    } catch (err) {
-      showJiraToast('error', `❌ ${err.message}`);
-    }
+    if (dropTarget) return executeLinkDrop(snap.srcFilename, snap.srcDocType, dropTarget);
+    if (dropSwimlane) return executeMoveDrop(snap.srcFilename, snap.srcDocType, dropSwimlane);
   });
 }
