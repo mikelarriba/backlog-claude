@@ -147,17 +147,20 @@ function makeNode(doc, isCurrent) {
 // do against a DOM surface, so we use solid surface colours for fills and
 // reserve the type accent colour for the border only — matching the app's
 // card/badge visual language.
-function buildCyStyle() {
+let _cachedCyColors = null;
+function getCyColors() {
+  if (_cachedCyColors) return _cachedCyColors;
   const cs = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-
-  // Solid type accent colours (always opaque — safe for canvas rendering)
-  const typeColor = {
-    feature: cs('--type-feature-color'),
-    epic:    cs('--type-epic-color'),
-    story:   cs('--type-story-color'),
-    spike:   cs('--type-spike-color'),
-    bug:     cs('--type-bug-color'),
+  _cachedCyColors = {
+    text: cs('--text'), surface: cs('--surface'), border: cs('--border'), accent: cs('--accent'),
+    feature: cs('--type-feature-color'), epic: cs('--type-epic-color'),
+    story: cs('--type-story-color'), spike: cs('--type-spike-color'), bug: cs('--type-bug-color'),
   };
+  return _cachedCyColors;
+}
+
+function buildCyStyle() {
+  const colors = getCyColors();
 
   return [
     // ── Default node ─────────────────────────────────────────────
@@ -177,31 +180,30 @@ function buildCyStyle() {
         'text-wrap':        'wrap',
         'text-max-width':   '180px',
         'line-height':      1.55,
-        // Solid fills so text is always readable on the canvas
-        'color':            cs('--text'),
-        'background-color': cs('--surface'),
+        'color':            colors.text,
+        'background-color': colors.surface,
         'border-width':     2,
-        'border-color':     cs('--border'),
+        'border-color':     colors.border,
       }
     },
     // ── Type-specific: accent border only (no background override) ─
-    { selector: 'node[type="feature"]', style: { 'border-color': typeColor.feature } },
-    { selector: 'node[type="epic"]',    style: { 'border-color': typeColor.epic    } },
-    { selector: 'node[type="story"]',   style: { 'border-color': typeColor.story   } },
-    { selector: 'node[type="spike"]',   style: { 'border-color': typeColor.spike   } },
-    { selector: 'node[type="bug"]',     style: { 'border-color': typeColor.bug     } },
+    { selector: 'node[type="feature"]', style: { 'border-color': colors.feature } },
+    { selector: 'node[type="epic"]',    style: { 'border-color': colors.epic    } },
+    { selector: 'node[type="story"]',   style: { 'border-color': colors.story   } },
+    { selector: 'node[type="spike"]',   style: { 'border-color': colors.spike   } },
+    { selector: 'node[type="bug"]',     style: { 'border-color': colors.bug     } },
     // ── Current epic: thicker accent border ───────────────────────
     {
       selector: 'node[current="yes"]',
-      style: { 'border-width': 3, 'border-color': cs('--accent') }
+      style: { 'border-width': 3, 'border-color': colors.accent }
     },
     // ── Selected ──────────────────────────────────────────────────
     {
       selector: 'node.cy-selected',
       style: {
         'border-width':    3,
-        'border-color':    cs('--accent'),
-        'overlay-color':   cs('--accent'),
+        'border-color':    colors.accent,
+        'overlay-color':   colors.accent,
         'overlay-opacity': 0.08,
         'overlay-padding': 6,
       }
@@ -211,8 +213,8 @@ function buildCyStyle() {
       selector: 'edge',
       style: {
         'width':              1.5,
-        'line-color':         cs('--border'),
-        'target-arrow-color': cs('--border'),
+        'line-color':         colors.border,
+        'target-arrow-color': colors.border,
         'target-arrow-shape': 'triangle',
         'curve-style':        'bezier',
         'arrow-scale':        1.1,
@@ -221,8 +223,8 @@ function buildCyStyle() {
     {
       selector: 'edge.cy-highlighted',
       style: {
-        'line-color':         cs('--accent'),
-        'target-arrow-color': cs('--accent'),
+        'line-color':         colors.accent,
+        'target-arrow-color': colors.accent,
       }
     }
   ];
@@ -304,31 +306,15 @@ async function executeRpUpgrade(filename, docType) {
   stream.style.display = 'block';
 
   try {
-    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}/upgrade`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ feedback }),
-    });
-
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '', result = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n'); buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const p = JSON.parse(line.slice(6));
-          if (p.text)  stream.textContent += p.text;
-          if (p.error) throw new Error(getErrorMessage(p.error, 'Upgrade failed'));
-          if (p.done)  result = p;
-        } catch {}
+    let result = null;
+    await streamSSE(
+      `/api/doc/${docType}/${encodeURIComponent(filename)}/upgrade`,
+      { feedback },
+      {
+        onText: (text) => { stream.textContent += text; },
+        onDone: (payload) => { result = payload; },
       }
-    }
+    );
 
     if (result) {
       document.getElementById('rp-content').innerHTML =
@@ -359,7 +345,6 @@ async function confirmRpDelete(filename, docType) {
     const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
     if (!res.ok) throw new Error((await res.json()).error?.message || 'Delete failed');
     closeRefinePanel();
-    await loadDocs();
     if (_cy) {
       _cy.getElementById(filename).remove();
     }

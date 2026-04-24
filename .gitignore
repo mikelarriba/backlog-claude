@@ -3,3 +3,5 @@ node_modules/
 CLAUDE.md
 inbox/
 .DS_Store
+.pi-settings.json
+.model-settings.json

@@ -25,33 +25,21 @@ async function generateStories() {
   wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   try {
-    const res = await fetch(`/api/epic/${encodeURIComponent(currentFilename)}/stories`, { method: 'POST' });
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '', donePayload = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n'); buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const p = JSON.parse(line.slice(6));
-          if (p.text)  stream.textContent += p.text;
-          if (p.error) throw new Error(getErrorMessage(p.error, 'Story generation failed'));
-          if (p.done)  donePayload = p;
-        } catch {}
+    let donePayload = null;
+    await streamSSE(
+      `/api/epic/${encodeURIComponent(currentFilename)}/stories`,
+      {},
+      {
+        onText: (text) => { stream.textContent += text; },
+        onDone: (payload) => { donePayload = payload; },
       }
-    }
+    );
 
     spinner.style.display = 'none';
     wrap.style.display = 'none';
     stream.textContent = '';
 
     if (donePayload) {
-      await loadDocs();
       loadHierarchy(currentFilename, currentDocType);
     }
 

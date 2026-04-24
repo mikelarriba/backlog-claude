@@ -189,3 +189,182 @@ describe('GET /api/links/:type/:filename', () => {
     assert.equal(status, 400);
   });
 });
+
+// ── POST /api/link ── create a local link between documents ─────────────────
+describe('POST /api/link', () => {
+  let epicFilename, storyFilename, featureFilename;
+
+  before(async () => {
+    const { data: epic } = await api('POST', '/api/generate', { idea: 'Link target epic', type: 'epic' });
+    epicFilename = epic.filename;
+    const { data: story } = await api('POST', '/api/generate', { idea: 'Link source story', type: 'story' });
+    storyFilename = story.filename;
+    const { data: feature } = await api('POST', '/api/generate', { idea: 'Link target feature', type: 'feature' });
+    featureFilename = feature.filename;
+  });
+
+  test('links a story to an epic and updates Epic_ID in frontmatter', async () => {
+    const { status, data } = await api('POST', '/api/link', {
+      sourceType: 'story', sourceFilename: storyFilename,
+      targetType: 'epic',  targetFilename: epicFilename,
+    });
+    assert.equal(status, 200);
+    assert.equal(data.success, true);
+    assert.equal(data.field, 'Epic_ID');
+    // Verify frontmatter was updated on disk
+    const { data: doc } = await api('GET', `/api/doc/story/${encodeURIComponent(storyFilename)}`);
+    assert.match(doc.content, new RegExp(`^Epic_ID: ${epicFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
+  });
+
+  test('links an epic to a feature and updates Feature_ID', async () => {
+    const { status, data } = await api('POST', '/api/link', {
+      sourceType: 'epic',    sourceFilename: epicFilename,
+      targetType: 'feature', targetFilename: featureFilename,
+    });
+    assert.equal(status, 200);
+    assert.equal(data.field, 'Feature_ID');
+  });
+
+  test('returns 400 for missing fields', async () => {
+    const { status, data } = await api('POST', '/api/link', { sourceType: 'story' });
+    assert.equal(status, 400);
+    assert.equal(data.error.code, 'VALIDATION_ERROR');
+  });
+
+  test('returns 400 for invalid link direction', async () => {
+    const { status, data } = await api('POST', '/api/link', {
+      sourceType: 'epic', sourceFilename: epicFilename,
+      targetType: 'story', targetFilename: storyFilename,
+    });
+    assert.equal(status, 400);
+    assert.equal(data.error.code, 'INVALID_LINK');
+  });
+
+  test('returns 404 when source document does not exist', async () => {
+    const { status } = await api('POST', '/api/link', {
+      sourceType: 'story', sourceFilename: 'nonexistent.md',
+      targetType: 'epic',  targetFilename: epicFilename,
+    });
+    assert.equal(status, 404);
+  });
+});
+
+// ── GET /api/links with linked documents ─────────────────────────────────────
+describe('GET /api/links — with linked documents', () => {
+  let epicFilename, storyFilename, featureFilename;
+
+  before(async () => {
+    const { data: feature } = await api('POST', '/api/generate', { idea: 'Feature for link test', type: 'feature' });
+    featureFilename = feature.filename;
+    const { data: epic } = await api('POST', '/api/generate', { idea: 'Epic for link test', type: 'epic' });
+    epicFilename = epic.filename;
+    const { data: story } = await api('POST', '/api/generate', { idea: 'Story for link test', type: 'story' });
+    storyFilename = story.filename;
+    // Link epic→feature and story→epic
+    await api('POST', '/api/link', { sourceType: 'epic', sourceFilename: epicFilename, targetType: 'feature', targetFilename: featureFilename });
+    await api('POST', '/api/link', { sourceType: 'story', sourceFilename: storyFilename, targetType: 'epic', targetFilename: epicFilename });
+  });
+
+  test('epic links show parent feature and child story', async () => {
+    const { status, data } = await api('GET', `/api/links/epic/${encodeURIComponent(epicFilename)}`);
+    assert.equal(status, 200);
+    assert.ok(data.parent, 'should have a parent');
+    assert.equal(data.parent.docType, 'feature');
+    assert.equal(data.parent.filename, featureFilename);
+    assert.ok(data.children.length >= 1);
+    assert.ok(data.children.some(c => c.filename === storyFilename));
+  });
+
+  test('feature links show child epics', async () => {
+    const { status, data } = await api('GET', `/api/links/feature/${encodeURIComponent(featureFilename)}`);
+    assert.equal(status, 200);
+    assert.equal(data.parent, null);
+    assert.ok(data.children.some(c => c.filename === epicFilename));
+  });
+});
+
+// ── POST /api/docs/batch-fix-version ─────────────────────────────────────────
+describe('POST /api/docs/batch-fix-version', () => {
+  let epicFilename, storyFilename;
+
+  before(async () => {
+    const { data: epic } = await api('POST', '/api/generate', { idea: 'Batch version epic', type: 'epic' });
+    epicFilename = epic.filename;
+    const { data: story } = await api('POST', '/api/generate', { idea: 'Batch version story', type: 'story' });
+    storyFilename = story.filename;
+  });
+
+  test('updates Fix_Version on multiple documents', async () => {
+    const { status, data } = await api('POST', '/api/docs/batch-fix-version', {
+      fixVersion: 'PI-2026.1',
+      docs: [
+        { type: 'epic', filename: epicFilename },
+        { type: 'story', filename: storyFilename },
+      ],
+    });
+    assert.equal(status, 200);
+    assert.equal(data.success, true);
+    assert.equal(data.updated, 2);
+    // Verify on disk
+    const { data: epicDoc } = await api('GET', `/api/doc/epic/${encodeURIComponent(epicFilename)}`);
+    assert.match(epicDoc.content, /^Fix_Version: PI-2026\.1$/m);
+    const { data: storyDoc } = await api('GET', `/api/doc/story/${encodeURIComponent(storyFilename)}`);
+    assert.match(storyDoc.content, /^Fix_Version: PI-2026\.1$/m);
+  });
+
+  test('skips nonexistent files and still updates valid ones', async () => {
+    const { status, data } = await api('POST', '/api/docs/batch-fix-version', {
+      fixVersion: 'PI-2026.2',
+      docs: [
+        { type: 'epic', filename: epicFilename },
+        { type: 'epic', filename: 'nonexistent.md' },
+      ],
+    });
+    assert.equal(status, 200);
+    assert.equal(data.updated, 1);
+    assert.equal(data.skipped.length, 1);
+    assert.equal(data.skipped[0].reason, 'not found');
+  });
+
+  test('clears Fix_Version to TBD when fixVersion is null', async () => {
+    const { status } = await api('POST', '/api/docs/batch-fix-version', {
+      fixVersion: null,
+      docs: [{ type: 'epic', filename: epicFilename }],
+    });
+    assert.equal(status, 200);
+    const { data: doc } = await api('GET', `/api/doc/epic/${encodeURIComponent(epicFilename)}`);
+    assert.match(doc.content, /^Fix_Version: TBD$/m);
+  });
+
+  test('returns 400 when docs array is missing', async () => {
+    const { status } = await api('POST', '/api/docs/batch-fix-version', { fixVersion: 'v1' });
+    assert.equal(status, 400);
+  });
+});
+
+// ── PATCH /api/doc — fixVersion update ───────────────────────────────────────
+describe('PATCH /api/doc/:type/:filename — fixVersion update', () => {
+  let filename;
+
+  before(async () => {
+    const { data } = await api('POST', '/api/generate', { idea: 'Fix version patch test', type: 'epic' });
+    filename = data.filename;
+  });
+
+  test('sets Fix_Version in frontmatter', async () => {
+    const { status, data } = await api('PATCH', `/api/doc/epic/${encodeURIComponent(filename)}`, {
+      fixVersion: 'PI-2026.3',
+    });
+    assert.equal(status, 200);
+    assert.equal(data.fixVersion, 'PI-2026.3');
+    const { data: doc } = await api('GET', `/api/doc/epic/${encodeURIComponent(filename)}`);
+    assert.match(doc.content, /^Fix_Version: PI-2026\.3$/m);
+  });
+
+  test('clears Fix_Version to TBD when empty string', async () => {
+    const { status } = await api('PATCH', `/api/doc/epic/${encodeURIComponent(filename)}`, { fixVersion: '' });
+    assert.equal(status, 200);
+    const { data: doc } = await api('GET', `/api/doc/epic/${encodeURIComponent(filename)}`);
+    assert.match(doc.content, /^Fix_Version: TBD$/m);
+  });
+});

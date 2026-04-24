@@ -64,3 +64,60 @@ function setJiraStatus(type, message) {
   el.className = `jira-status${type !== 'hidden' ? ' show ' + type : ''}`;
   el.textContent = message || '';
 }
+
+// ── Shared streaming SSE fetch helper ─────────────────────────
+// Replaces duplicated streaming logic in upgrade.js, stories.js,
+// refine.js, and quickcreate.js.
+async function streamSSE(url, body, { onText, onDone, onError }) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const payload = JSON.parse(line.slice(6));
+        if (payload.error) throw new Error(getErrorMessage(payload.error, 'Request failed'));
+        if (payload.text && onText) onText(payload.text);
+        if (payload.done && onDone) onDone(payload);
+      } catch (e) {
+        if (e.message.includes('Unexpected token')) continue;
+        if (onError) onError(e);
+        else throw e;
+      }
+    }
+  }
+}
+
+// ── Cascade helpers for swimlane drag-drop ────────────────────
+function buildChildrenMap(docs) {
+  const map = new Map();
+  for (const d of docs) {
+    if (d.parentFilename) {
+      if (!map.has(d.parentFilename)) map.set(d.parentFilename, []);
+      map.get(d.parentFilename).push(d);
+    }
+  }
+  return map;
+}
+
+function getDescendants(filename, childrenMap) {
+  const result = [];
+  const children = childrenMap.get(filename) || [];
+  for (const child of children) {
+    result.push(child);
+    result.push(...getDescendants(child.filename, childrenMap));
+  }
+  return result;
+}

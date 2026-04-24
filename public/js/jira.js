@@ -34,7 +34,7 @@ async function pushToJira() {
       if (created) parts.push(`${created} created`);
       if (updated) parts.push(`${updated} synced`);
       showJiraToast('success', `✅ Stories pushed: ${parts.join(', ')}`);
-      if (currentFilename) await loadStoriesForEpic(currentFilename);
+      if (currentFilename) openDoc(currentFilename, currentDocType);
     } else {
       showJiraToast('success', `✅ ${data.action === 'created' ? 'Created' : 'Synced'} ${data.key} in JIRA`);
       if (data.action === 'created') {
@@ -170,7 +170,6 @@ async function performJiraPull(keys, overwriteKeys) {
     const pullCount = data.pulled?.length || 0;
     if (pullCount > 0) {
       setJiraStatus('success', `✅ Downloaded ${pullCount} issue(s) successfully.`);
-      await loadDocs();
       const updatedRes = await fetch(`/api/jira/search?type=${document.getElementById('jira-type').value}&text=${encodeURIComponent(document.getElementById('jira-text').value)}`);
       if (updatedRes.ok) {
         const updatedData = await updatedRes.json();

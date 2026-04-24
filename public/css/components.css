@@ -197,6 +197,50 @@ button:active:not(:disabled) { transform: scale(0.97); }
 .btn-delete:hover:not(:disabled) { filter: brightness(1.1); }
 .btn-delete:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ── Collapsible section (shared) ────────────────────────────── */
+.collapsible {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: var(--surface2);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s;
+}
+
+.collapsible-header:hover { background: var(--border); }
+
+.collapsible-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.collapsible-chevron {
+  font-size: 0.7rem;
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+
+.collapsible-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.collapsible-body.open { max-height: 900px; overflow-y: auto; }
+
+.collapsible-inner { padding: 14px; }
+
 /* ── Scrollbar ───────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
