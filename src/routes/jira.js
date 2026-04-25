@@ -84,7 +84,7 @@ export default function jiraRoutes({
     } else {
       const fields = {
         project: { key: JIRA_PROJECT }, summary, description,
-        issuetype: { name: jiraType }, labels: [JIRA_LABEL],
+        issuetype: { name: jiraType }, labels: type === 'bug' ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues'] : [JIRA_LABEL],
       };
       if (localFixVersion && localFixVersion !== 'TBD') fields.fixVersions = [{ name: localFixVersion }];
       if (type === 'epic') fields[FIELD_EPIC_NAME] = summary.slice(0, 60);
