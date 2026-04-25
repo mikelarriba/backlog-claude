@@ -13,6 +13,7 @@ import linksRoutes from './src/routes/links.js';
 import storiesRoutes from './src/routes/stories.js';
 import jiraRoutes from './src/routes/jira.js';
 import settingsRoutes from './src/routes/settings.js';
+import bugRoutes from './src/routes/bugs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -66,7 +67,7 @@ const JIRA_LABEL   = 'MIDAS_Development';
 const FIELD_EPIC_NAME = 'customfield_10002';
 const FIELD_EPIC_LINK = 'customfield_10000';
 
-const { jiraRequest, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } =
+const { jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } =
   createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, TYPE_CONFIG, isoDate, slugify });
 
 // ── Middleware & SSE ─────────────────────────────────────────────────────────
@@ -86,8 +87,9 @@ const shared = { TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, 
 app.use(docsRoutes(shared));
 app.use(linksRoutes(shared));
 app.use(storiesRoutes(shared));
-app.use(jiraRoutes({ ...shared, JIRA_PROJECT, JIRA_LABEL, FIELD_EPIC_NAME, FIELD_EPIC_LINK, jiraRequest, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary }));
+app.use(jiraRoutes({ ...shared, JIRA_PROJECT, JIRA_LABEL, FIELD_EPIC_NAME, FIELD_EPIC_LINK, jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary }));
 app.use(settingsRoutes({ rootDir: __dirname, broadcast, logInfo }));
+app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError }));
 
 // ── Startup ──────────────────────────────────────────────────────────────────
 function validateStartupConfig() {

@@ -15,11 +15,32 @@ function updateJiraPushBtn() {
 
 async function pushToJira() {
   if (!currentFilename || !currentDocType) return;
+
+  // Check for local children before pushing (features/epics only)
+  let pushChildren = false;
+  let localChildren = [];
+  if (currentDocType === 'feature' || currentDocType === 'epic') {
+    try {
+      const linksRes = await fetch(`/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`);
+      if (linksRes.ok) {
+        const linksData = await linksRes.json();
+        localChildren = linksData.children || [];
+        if (localChildren.length > 0) {
+          const childList = localChildren.map(c => `${c.title} (${TYPE_LABEL[c.docType] || c.docType})`).join('\n');
+          pushChildren = window.confirm(
+            `This ${TYPE_LABEL[currentDocType]} has ${localChildren.length} linked child(ren):\n\n${childList}\n\nPush them to JIRA as well?`
+          );
+        }
+      }
+    } catch (_) { /* continue with parent only */ }
+  }
+
   const btn = document.getElementById('jira-push-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Pushing…';
 
   try {
+    // Push parent
     const res = await fetch(
       `/api/jira/push/${currentDocType}/${encodeURIComponent(currentFilename)}`,
       { method: 'POST' }
@@ -44,6 +65,33 @@ async function pushToJira() {
         if (doc) { doc.status = 'Created in JIRA'; doc.jiraId = data.key; }
       }
     }
+
+    // Push children if confirmed
+    if (pushChildren && localChildren.length > 0) {
+      const childResults = [];
+      for (const child of localChildren) {
+        try {
+          btn.textContent = `⏳ Pushing ${child.title}…`;
+          const childRes = await fetch(
+            `/api/jira/push/${child.docType}/${encodeURIComponent(child.filename)}`,
+            { method: 'POST' }
+          );
+          const childData = await childRes.json();
+          if (childRes.ok) {
+            childResults.push({ key: childData.key, action: childData.action });
+          }
+        } catch (_) { /* continue with remaining children */ }
+      }
+      if (childResults.length > 0) {
+        const created = childResults.filter(r => r.action === 'created').length;
+        const updated = childResults.filter(r => r.action === 'updated').length;
+        const parts = [];
+        if (created) parts.push(`${created} created`);
+        if (updated) parts.push(`${updated} synced`);
+        showJiraToast('success', `✅ Children pushed: ${parts.join(', ')}`);
+      }
+    }
+
     updateJiraPushBtn();
   } catch (e) {
     showJiraToast('error', `❌ ${e.message}`);
@@ -139,7 +187,7 @@ async function downloadSelected() {
   await performJiraPull(keys, []);
 }
 
-async function performJiraPull(keys, overwriteKeys) {
+async function performJiraPull(keys, overwriteKeys, _allPulled = []) {
   const btn = document.getElementById('jira-download-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Downloading…';
@@ -154,6 +202,8 @@ async function performJiraPull(keys, overwriteKeys) {
     const data = await res.json();
     if (!res.ok) throw new Error(getErrorMessage(data.error, 'Download failed'));
 
+    const accumulatedPulled = [..._allPulled, ...(data.pulled || [])];
+
     let resolvedOverwrite = [...overwriteKeys];
     if (data.conflicts?.length) {
       const conflictList = data.conflicts.map(c => `${c.key} (${c.existingFilename})`).join('\n');
@@ -163,13 +213,19 @@ async function performJiraPull(keys, overwriteKeys) {
       if (confirm) {
         resolvedOverwrite = [...resolvedOverwrite, ...data.conflicts.map(c => c.key)];
         btn.disabled = false;
-        return performJiraPull(keys, resolvedOverwrite);
+        return performJiraPull(keys, resolvedOverwrite, accumulatedPulled);
       }
     }
 
-    const pullCount = data.pulled?.length || 0;
+    const pullCount = accumulatedPulled.length;
     if (pullCount > 0) {
       setJiraStatus('success', `✅ Downloaded ${pullCount} issue(s) successfully.`);
+
+      // Offer to download children of pulled features/epics
+      const parents = accumulatedPulled.filter(p => p.docType === 'feature' || p.docType === 'epic');
+      if (parents.length > 0) await offerChildrenDownload(parents);
+
+      // Refresh search results
       const updatedRes = await fetch(`/api/jira/search?type=${document.getElementById('jira-type').value}&text=${encodeURIComponent(document.getElementById('jira-text').value)}`);
       if (updatedRes.ok) {
         const updatedData = await updatedRes.json();
@@ -184,5 +240,35 @@ async function performJiraPull(keys, overwriteKeys) {
   } finally {
     btn.disabled = false;
     updateDownloadBtn();
+  }
+}
+
+async function offerChildrenDownload(parentIssues) {
+  const allChildren = [];
+  const seen = new Set();
+
+  for (const parent of parentIssues) {
+    try {
+      const res = await fetch(`/api/jira/children/${encodeURIComponent(parent.key)}`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (const child of (data.children || [])) {
+        if (!child.localExists && !seen.has(child.key)) {
+          seen.add(child.key);
+          allChildren.push(child);
+        }
+      }
+    } catch (_) { /* skip on error */ }
+  }
+
+  if (allChildren.length === 0) return;
+
+  const childList = allChildren.map(c => `${c.key} — ${c.summary} (${c.issuetype})`).join('\n');
+  const confirmed = window.confirm(
+    `Found ${allChildren.length} linked child issue(s) in JIRA:\n\n${childList}\n\nDownload them too?`
+  );
+
+  if (confirmed) {
+    await performJiraPull(allChildren.map(c => c.key), []);
   }
 }

@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { stripFrontmatter } from '../utils/transforms.js';
 
-export const LOCAL_TO_JIRA_TYPE = { feature: 'New Feature', epic: 'Epic', story: 'Story', spike: 'Task' };
-export const JIRA_TO_LOCAL_TYPE = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Task: 'spike' };
+export const LOCAL_TO_JIRA_TYPE = { feature: 'New Feature', epic: 'Epic', story: 'Story', spike: 'Task', bug: 'Bug' };
+export const JIRA_TO_LOCAL_TYPE = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Task: 'spike', Bug: 'bug' };
 
 export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, TYPE_CONFIG, isoDate, slugify }) {
   async function jiraRequest(method, urlPath, body) {
@@ -79,8 +79,28 @@ ${description || '_No description in JIRA._'}
     return 'Untitled';
   }
 
+  async function jiraUploadAttachment(issueKey, filename, buffer) {
+    const url = `${JIRA_BASE}/rest/api/2/issue/${issueKey}/attachments`;
+    const formData = new FormData();
+    formData.append('file', new Blob([buffer]), filename);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${JIRA_TOKEN}`,
+        'X-Atlassian-Token': 'no-check',
+      },
+      body: formData,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`JIRA attachment upload → ${res.status}: ${text.slice(0, 300)}`);
+    }
+    return res.json();
+  }
+
   return {
     jiraRequest,
+    jiraUploadAttachment,
     findLocalFileByJiraId,
     jiraIssueToMarkdown,
     extractJiraSummary,
