@@ -87,7 +87,7 @@ const shared = { TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, 
 app.use(docsRoutes(shared));
 app.use(linksRoutes(shared));
 app.use(storiesRoutes(shared));
-app.use(jiraRoutes({ ...shared, JIRA_PROJECT, JIRA_LABEL, FIELD_EPIC_NAME, FIELD_EPIC_LINK, jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary }));
+app.use(jiraRoutes({ ...shared, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE, FIELD_EPIC_NAME, FIELD_EPIC_LINK, jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary }));
 app.use(settingsRoutes({ rootDir: __dirname, broadcast, logInfo }));
 app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError }));
 

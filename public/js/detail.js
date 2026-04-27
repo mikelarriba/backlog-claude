@@ -1,4 +1,17 @@
 // ── Detail view ────────────────────────────────────────────────
+function updateJiraLink(jiraId, jiraUrl) {
+  const el = document.getElementById('detail-jira-link');
+  if (!el) return;
+  if (jiraId && jiraId !== 'TBD') {
+    el.textContent = jiraId;
+    el.href        = jiraUrl || '#';
+    el.style.display = '';
+    el.style.pointerEvents = jiraUrl ? '' : 'none';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function renderDocContent(doc, content) {
   document.getElementById('status-select').value = doc?.status || 'Draft';
   document.getElementById('detail-filename').textContent = doc?.filename || currentFilename;
@@ -40,8 +53,10 @@ async function openDoc(filename, docType) {
     closeQuickCreate();
     updateDocButtons(docType);
 
-    const jiraMatch = content.match(/^JIRA_ID:\s*(.+)$/m);
+    const jiraMatch    = content.match(/^JIRA_ID:\s*(.+)$/m);
+    const jiraUrlMatch = content.match(/^JIRA_URL:\s*(.+)$/m);
     currentJiraId = jiraMatch ? jiraMatch[1].trim() : 'TBD';
+    updateJiraLink(currentJiraId, jiraUrlMatch ? jiraUrlMatch[1].trim() : null);
     updateJiraPushBtn();
 
     if (isSplitMode()) {
@@ -252,6 +267,7 @@ function showList() {
   currentDocType  = null;
   currentStoriesFilename = null;
   currentJiraId   = null;
+  updateJiraLink(null, null);
 
   if (isSplitMode()) {
     // List is already visible — just clear the selection highlight

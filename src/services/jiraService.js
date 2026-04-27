@@ -46,9 +46,11 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, TYPE
     const priority = fields.priority?.name || 'Medium';
     const docType = JIRA_TO_LOCAL_TYPE[issueType] || 'epic';
     const fixVersion = fields.fixVersions?.[0]?.name || 'TBD';
+    const jiraUrl = `${JIRA_BASE}/browse/${key}`;
 
     const content = `---
 JIRA_ID: ${key}
+JIRA_URL: ${jiraUrl}
 Story_Points: TBD
 Status: Created in JIRA
 Priority: ${priority}

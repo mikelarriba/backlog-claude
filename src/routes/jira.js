@@ -11,7 +11,7 @@ import { parseStorySections, serializeStoryFile } from '../services/storyService
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 
 export default function jiraRoutes({
-  TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, BUGS_DIR, JIRA_PROJECT, JIRA_LABEL,
+  TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, BUGS_DIR, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE,
   FIELD_EPIC_NAME, FIELD_EPIC_LINK,
   jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary,
   broadcast, logInfo, logWarn, logError,
@@ -118,8 +118,9 @@ export default function jiraRoutes({
         }
       }
 
-      let updated = setFrontmatterField(content, 'JIRA_ID', key);
-      updated     = setFrontmatterField(updated,  'Status',  'Created in JIRA');
+      let updated = setFrontmatterField(content, 'JIRA_ID',   key);
+      updated     = setFrontmatterField(updated,  'JIRA_URL', `${JIRA_BASE}/browse/${key}`);
+      updated     = setFrontmatterField(updated,  'Status',   'Created in JIRA');
       fs.writeFileSync(filepath, updated);
       broadcast({ type: 'status_updated', filename, docType: type, status: 'Created in JIRA' });
     }

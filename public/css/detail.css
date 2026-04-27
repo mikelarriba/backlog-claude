@@ -47,6 +47,17 @@
   padding-left: 8px;
 }
 
+.detail-jira-link {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--accent);
+  padding-left: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.detail-jira-link:hover { text-decoration: underline; }
+
 .detail-body {
   overflow-y: auto;
   flex: 1;

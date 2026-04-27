@@ -93,6 +93,8 @@ ${idea.trim()}
           }
 
           const fixVersion = extractFrontmatterField(content, 'Fix_Version');
+          const jiraId     = extractFrontmatterField(content, 'JIRA_ID');
+          const jiraUrl    = extractFrontmatterField(content, 'JIRA_URL');
 
           entries.push({
             filename: f,
@@ -101,6 +103,8 @@ ${idea.trim()}
             date: dateMatch ? dateMatch[1] : '',
             status: extractWorkflowStatus(content),
             fixVersion: fixVersion && fixVersion !== 'TBD' ? fixVersion : null,
+            jiraId:  jiraId  && jiraId  !== 'TBD' ? jiraId  : null,
+            jiraUrl: jiraUrl || null,
             parentFilename,
             parentType,
           });
