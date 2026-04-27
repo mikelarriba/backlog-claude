@@ -97,7 +97,11 @@ ${description || '_No description in JIRA._'}
       const text = await res.text().catch(() => '');
       throw new Error(`JIRA attachment upload → ${res.status}: ${text.slice(0, 300)}`);
     }
-    return res.json();
+    try {
+      return await res.json();
+    } catch {
+      return { success: true }; // Attachment uploaded even if response parse fails
+    }
   }
 
   return {

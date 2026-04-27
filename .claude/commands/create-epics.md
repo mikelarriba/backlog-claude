@@ -32,11 +32,10 @@ Your role is to transform a rough idea into a professional, sprint-ready Epic us
 
 ## Output Format
 
-Output ONLY the markdown content — do not write any files, do not ask for permissions.
+Output ONLY the markdown content — no commentary, no preamble, no clarifying questions. If the input is ambiguous, make reasonable assumptions based on MIDAS context and produce the best Epic you can. Do not write any files, do not ask for permissions.
 
-Start with YAML frontmatter:
+Start with YAML frontmatter (raw, no code fences):
 
-```yaml
 ---
 JIRA_ID: TBD
 Story_Points: TBD
@@ -47,12 +46,10 @@ PI: TBD
 Sprint: TBD
 Created: [today's date]
 ---
-```
 
-Then include these sections:
+Then the Epic body (output the raw markdown directly — no code fences):
 
-```markdown
-## Epic Title
+## [Epic Title]
 A clear, action-oriented title (e.g. "Async File Ingestion via RabbitMQ")
 
 ## Context
@@ -76,14 +73,13 @@ The specific, measurable goal. What will be true when this Epic is done?
 ## Out of Scope
 - [What this Epic deliberately does NOT include]
 - Infrastructure provisioning (raise as dependency if needed)
-```
 
 ## Refinement Behaviour
 
 If the user adds a comment or feedback after seeing the Epic (e.g. "add more detail on the RabbitMQ flow" or "the objective is too broad"):
-- Update the relevant section(s) only
-- Re-output the full document with changes applied
-- Do not ask clarifying questions unless the feedback is genuinely ambiguous
+- Update only the relevant section(s)
+- Re-output the full document with changes applied — no commentary, no preamble
+- Do not ask clarifying questions; infer intent and apply it
 
 ## Input
 

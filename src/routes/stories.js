@@ -3,8 +3,9 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { sendError, ensureDir, parseApiError, assertFilename } from '../utils/routeHelpers.js';
-import { extractTitle, setFrontmatterField } from '../utils/transforms.js';
+import { extractTitle, setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
 import { parseStorySections, serializeStoryFile, extractStoryTitle } from '../services/storyService.js';
+import { normalizeOutput } from '../services/claudeService.js';
 
 export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, logError }) {
   const router = Router();
@@ -60,22 +61,22 @@ export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INB
         ? `\n\nOriginal epic idea and upgrade history:\n---\n${fs.readFileSync(inboxPath, 'utf-8')}\n---`
         : '';
 
-      const upgradePrompt = `You are upgrading a single User Story based on user feedback.
+      const upgradePrompt = `Rewrite the following User Story applying the feedback below. The feedback is provided — apply it directly. Do NOT ask for clarification. Do NOT ask what changes are needed. Output ONLY the rewritten markdown — no commentary, no preamble, no code fences.
 
 Current story:
 ---
 ${sections[storyIndex]}
 ---${inboxHistory}
 
-New feedback / requested changes:
+Feedback to apply:
 ${feedback.trim()}
 
-Rewrite ONLY this story incorporating the feedback. Keep the "## Story N: Title" heading format. Output ONLY the markdown — no files, no explanation.`;
+Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections and YAML frontmatter structure.`;
 
       let newStory = '';
       await streamClaude(upgradePrompt, chunk => { newStory += chunk; send({ text: chunk }); });
 
-      newStory = newStory.trim().replace(/^```(?:markdown)?\n?/, '').replace(/\n?```$/, '');
+      newStory = normalizeOutput(newStory);
       sections[storyIndex] = newStory;
       fs.writeFileSync(filepath, serializeStoryFile(frontmatter, sections));
 
@@ -136,28 +137,43 @@ Rewrite ONLY this story incorporating the feedback. Keep the "## Story N: Title"
 
     try {
       const epicContent = fs.readFileSync(filepath, 'utf-8');
-      const storiesTemplate = loadCommand('create-stories');
-      const storiesPrompt = storiesTemplate
-        ? storiesTemplate.replace('$ARGUMENTS', epicContent)
-        : `Break down the following Epic into 3–6 INVEST-compliant User Stories with Gherkin acceptance criteria. Output ONLY the markdown content.\n\n${epicContent}`;
+      const refineTemplate = loadCommand('refine-epics');
+      const storiesPrompt = refineTemplate
+        ? refineTemplate.replace('$ARGUMENTS', epicContent)
+        : `Break down the following Epic into 3–6 sprint-sized User Stories using the COVE framework. Output ONLY the markdown, one story per ## Story N: Title section separated by ---.\n\n${epicContent}`;
 
       let fullContent = '';
       await streamClaude(storiesPrompt, (chunk) => { fullContent += chunk; send({ text: chunk }); });
 
-      fullContent = fullContent.trim().replace(/^```(?:markdown)?\n?/, '').replace(/\n?```$/, '');
+      fullContent = normalizeOutput(fullContent);
 
-      if (!fullContent.startsWith('---')) {
-        fullContent = `---\nEpic_ID: ${filename}\n---\n\n${fullContent}`;
-      } else {
-        fullContent = setFrontmatterField(fullContent, 'Epic_ID', filename);
+      // Split into individual sections on "## Story N:" headings
+      const rawSections = fullContent
+        .split(/(?=^## Story \d+[:\s])/m)
+        .map(s => s.trim())
+        .filter(s => s && /^## Story \d+/i.test(s));
+
+      ensureDir(STORIES_DIR);
+      const date = isoDate();
+      const createdFiles = [];
+
+      for (const section of rawSections) {
+        // Extract title — strip "Story N: " prefix to get the plain title
+        const headingMatch = section.match(/^## Story \d+[:\s]+(.+)$/m);
+        const storyTitle   = headingMatch ? headingMatch[1].trim() : 'Untitled Story';
+        const slug         = slugify(storyTitle);
+        const storyFilename = `${date}-${slug}.md`;
+
+        // Replace "## Story N: Title" heading with clean "## Title"
+        const cleanBody = section.replace(/^## Story \d+[:\s]+.+$/m, `## ${storyTitle}`);
+
+        const frontmatter = `---\nJIRA_ID: TBD\nStory_Points: TBD\nStatus: Draft\nPriority: Medium\nEpic_ID: ${filename}\nSquad: TBD\nPI: TBD\nSprint: TBD\nCreated: ${date}\n---\n\n`;
+        fs.writeFileSync(path.join(STORIES_DIR, storyFilename), frontmatter + cleanBody);
+        broadcast({ type: 'story_created', filename: storyFilename, docType: 'story' });
+        createdFiles.push({ filename: storyFilename, title: storyTitle });
       }
 
-      const storyFilename = filename.replace('.md', '-stories.md');
-      ensureDir(STORIES_DIR);
-      fs.writeFileSync(path.join(STORIES_DIR, storyFilename), fullContent);
-      broadcast({ type: 'story_created', filename: storyFilename, docType: 'story' });
-
-      send({ done: true, filename: storyFilename });
+      send({ done: true, files: createdFiles });
       res.end();
     } catch (err) {
       const apiErr = parseApiError(err);

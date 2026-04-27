@@ -36,15 +36,21 @@ async function generateStories() {
     );
 
     spinner.style.display = 'none';
-    wrap.style.display = 'none';
     stream.textContent = '';
 
-    if (donePayload) {
+    if (donePayload?.files?.length) {
+      const count = donePayload.files.length;
+      stream.textContent = `✅ Created ${count} stor${count === 1 ? 'y' : 'ies'}:\n` +
+        donePayload.files.map(f => `• ${f.title}`).join('\n');
+      wrap.style.display = 'block';
+      setTimeout(() => { wrap.style.display = 'none'; stream.textContent = ''; }, 4000);
       loadHierarchy(currentFilename, currentDocType);
+    } else {
+      wrap.style.display = 'none';
     }
 
     btn.disabled = false;
-    btn.textContent = '✨ Refine';
+    btn.textContent = 'AI Story Generation';
 
   } catch (e) {
     spinner.style.display = 'none';

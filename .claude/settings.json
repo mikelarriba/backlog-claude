@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X PUT http://localhost:3000/api/settings/model -H \"Content-Type: application/json\" -d '{\"model\":\"claude-haiku-4-5\"}')",
+      "Bash(curl -s http://localhost:3000/api/settings/model)",
+      "Bash(curl -s -X PUT http://localhost:3000/api/settings/model -H \"Content-Type: application/json\" -d '{\"model\":null}')",
+      "Bash(xargs ls *)",
+      "Bash(curl -s -X POST http://localhost:3000/api/docs/batch-fix-version -H 'Content-Type: application/json' -d '{\"fixVersion\":\"PI-25.2\",\"docs\":[{\"type\":\"feature\",\"filename\":\"2026-04-23-tracetool-20.md\"}]}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/docs/batch-fix-version -H 'Content-Type: application/json' -d '{\"fixVersion\":null,\"docs\":[{\"type\":\"feature\",\"filename\":\"2026-04-23-tracetool-20.md\"}]}')",
+      "Bash(find /Users/srj9o5d/Development/backlog-claude/public/css -name \"*.css\" -exec wc -l {} +)",
+      "Bash(node --test tests/unit/*.test.js tests/integration/*.test.js)",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(npm install *)",
+      "Bash(npm search *)",
+      "Bash(node -e \"import MsgReader from '@kenjiuno/msgreader'; console.log\\(typeof MsgReader\\);\")",
+      "Bash(node -e \"import MsgReader from '@kenjiuno/msgreader'; console.log\\(Object.keys\\(MsgReader\\)\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(MOCK_CLAUDE=1 node server.js)",
+      "Bash(curl -s -X POST http://localhost:3000/api/bugs/create -F id=SC3-001 -F 'title=Test Bug Title' -F 'description=This is a test bug description.')",
+      "Bash(MOCK_CLAUDE=1 node /Users/srj9o5d/Development/backlog-claude/server.js)",
+      "Bash(curl -s http://localhost:3000/public/js/bugcreate.js)",
+      "Bash(curl -s http://localhost:3000/public/css/bugs.css)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const html = fs.readFileSync\\('index.html', 'utf-8'\\); console.log\\('Sidebar/list elements:', \\(html.match\\(/id=\"doc-list\"|class=\"sidebar\"|id=\"sidebar\"|class=\"left-panel\"|id=\"left-panel\"/g\\) || []\\).join\\('\\\\n'\\)\\);\")",
+      "Bash(curl -sv http://localhost:3000/api/docs)",
+      "Bash(node --check /Users/srj9o5d/Development/backlog-claude/server.js)",
+      "Bash(node --check /Users/srj9o5d/Development/backlog-claude/src/services/bugService.js)"
+    ]
+  }
+}

@@ -3,10 +3,22 @@ function updateJiraLink(jiraId, jiraUrl) {
   const el = document.getElementById('detail-jira-link');
   if (!el) return;
   if (jiraId && jiraId !== 'TBD') {
+    const resolvedUrl = jiraUrl || (jiraBase ? `${jiraBase}/browse/${jiraId}` : null);
     el.textContent = jiraId;
-    el.href        = jiraUrl || '#';
+    el.href        = resolvedUrl || '#';
     el.style.display = '';
-    el.style.pointerEvents = jiraUrl ? '' : 'none';
+    el.style.pointerEvents = resolvedUrl ? '' : 'none';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function updateJiraStatus(jiraStatus) {
+  const el = document.getElementById('detail-jira-status');
+  if (!el) return;
+  if (jiraStatus) {
+    el.textContent = jiraStatus;
+    el.style.display = '';
   } else {
     el.style.display = 'none';
   }
@@ -24,6 +36,80 @@ function renderDocContent(doc, content) {
   titleInput.value = docTitle;
   titleInput.dataset.original = docTitle;
   document.getElementById('detail-content').innerHTML = marked.parse(stripped);
+
+  // JIRA Status badge (read-only, pulled from JIRA)
+  const jiraStatusMatch = content.match(/^JIRA_Status:\s*(.+)$/m);
+  updateJiraStatus(jiraStatusMatch ? jiraStatusMatch[1].trim() : null);
+}
+
+// ── Story points helpers ───────────────────────────────────────
+function computeChildPoints(filename, docType) {
+  // For epics: sum story/spike/bug children. For features: sum epic children.
+  const childType = docType === 'feature' ? 'epic' : null;
+  const children  = allDocs.filter(d => {
+    if (docType === 'feature') return d.docType === 'epic' && d.parentFilename === filename;
+    if (docType === 'epic')    return (d.docType === 'story' || d.docType === 'spike' || d.docType === 'bug') && d.parentFilename === filename;
+    return false;
+  });
+  if (!children.length) return null;
+  let sum = 0;
+  for (const c of children) {
+    if (docType === 'feature') {
+      // Sum the epic's own children points
+      const epicChildren = allDocs.filter(d =>
+        (d.docType === 'story' || d.docType === 'spike' || d.docType === 'bug') && d.parentFilename === c.filename
+      );
+      for (const ec of epicChildren) sum += Number(ec.storyPoints) || 0;
+    } else {
+      sum += Number(c.storyPoints) || 0;
+    }
+  }
+  return sum;
+}
+
+function updateStoryPointsUI(docType, sp) {
+  const isLeaf = docType === 'story' || docType === 'spike' || docType === 'bug';
+  const isAggr = docType === 'epic' || docType === 'feature';
+
+  const spWrap    = document.getElementById('sp-wrap');
+  const spSumWrap = document.getElementById('sp-sum-wrap');
+  const spInput   = document.getElementById('sp-input');
+  const spSum     = document.getElementById('sp-sum');
+
+  if (isLeaf) {
+    spWrap.style.display    = '';
+    spSumWrap.style.display = 'none';
+    spInput.value           = sp != null ? sp : '';
+    spInput.dataset.original = sp != null ? sp : '';
+  } else if (isAggr) {
+    spWrap.style.display    = 'none';
+    spSumWrap.style.display = '';
+    const sum = computeChildPoints(currentFilename, docType);
+    spSum.textContent = sum !== null ? sum : '—';
+  } else {
+    spWrap.style.display    = 'none';
+    spSumWrap.style.display = 'none';
+  }
+}
+
+async function saveStoryPoints() {
+  const input = document.getElementById('sp-input');
+  const newVal = input.value.trim();
+  const orig   = input.dataset.original || '';
+  if (newVal === orig || !currentFilename || !currentDocType) return;
+  try {
+    const res = await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storyPoints: newVal === '' ? null : Number(newVal) }),
+    });
+    if (!res.ok) { input.value = orig; return; }
+    input.dataset.original = newVal;
+    const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
+    if (doc) doc.storyPoints = newVal === '' ? null : Number(newVal);
+  } catch {
+    input.value = orig;
+  }
 }
 
 function updateDocButtons(docType) {
@@ -58,6 +144,7 @@ async function openDoc(filename, docType) {
     currentJiraId = jiraMatch ? jiraMatch[1].trim() : 'TBD';
     updateJiraLink(currentJiraId, jiraUrlMatch ? jiraUrlMatch[1].trim() : null);
     updateJiraPushBtn();
+    updateStoryPointsUI(docType, doc?.storyPoints ?? null);
 
     if (isSplitMode()) {
       document.getElementById('detail-view').classList.add('show');
@@ -268,6 +355,9 @@ function showList() {
   currentStoriesFilename = null;
   currentJiraId   = null;
   updateJiraLink(null, null);
+  updateJiraStatus(null);
+  document.getElementById('sp-wrap').style.display    = 'none';
+  document.getElementById('sp-sum-wrap').style.display = 'none';
 
   if (isSplitMode()) {
     // List is already visible — just clear the selection highlight

@@ -1,16 +1,61 @@
 // ── Push to JIRA ──────────────────────────────────────────────
+const JIRA_CARET = ' <span class="toolbar-caret">▾</span>';
+
 function updateJiraPushBtn() {
   const btn = document.getElementById('jira-push-btn');
   if (!btn) return;
   const isMultiStory = currentDocType === 'story' && currentFilename?.endsWith('-stories.md');
+  let label;
   if (isMultiStory) {
-    btn.textContent = '↑ Push Stories';
+    label = '↑ Push Stories';
   } else if (currentJiraId && currentJiraId !== 'TBD') {
-    btn.textContent = '↑ Sync to JIRA';
+    label = '↑ JIRA';
   } else {
-    btn.textContent = '↑ Push to JIRA';
+    label = '↑ JIRA';
   }
+  btn.innerHTML = label + JIRA_CARET;
   btn.disabled = false;
+
+  // Enable/disable Sync Status only when a JIRA_ID exists
+  const syncBtn = document.getElementById('jira-sync-status-btn');
+  if (syncBtn) syncBtn.disabled = !(currentJiraId && currentJiraId !== 'TBD');
+}
+
+async function syncJiraStatus() {
+  if (!currentFilename || !currentDocType) return;
+  if (!currentJiraId || currentJiraId === 'TBD') return;
+
+  const btn = document.getElementById('jira-push-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(
+      `/api/jira/sync-status/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+      { method: 'POST' }
+    );
+    let data;
+    try { data = await res.json(); } catch { data = {}; }
+    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Sync failed'));
+
+    // Update JIRA Status badge
+    if (data.jiraStatus) updateJiraStatus(data.jiraStatus);
+
+    // Update story points input if returned
+    if (data.storyPoints !== null && data.storyPoints !== undefined) {
+      const spInput = document.getElementById('sp-input');
+      if (spInput && spInput.style.display !== 'none') {
+        spInput.value = data.storyPoints;
+        spInput.dataset.original = data.storyPoints;
+        const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
+        if (doc) doc.storyPoints = data.storyPoints;
+      }
+    }
+
+    showJiraToast('success', `✅ Status synced: ${data.jiraStatus || '—'}`);
+  } catch (e) {
+    showJiraToast('error', `❌ ${e.message}`);
+  } finally {
+    updateJiraPushBtn();
+  }
 }
 
 async function pushToJira() {
@@ -45,7 +90,12 @@ async function pushToJira() {
       `/api/jira/push/${currentDocType}/${encodeURIComponent(currentFilename)}`,
       { method: 'POST' }
     );
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { error: await res.text().catch(() => 'Failed to parse response') };
+    }
     if (!res.ok) throw new Error(getErrorMessage(data.error, 'Push failed'));
 
     if (data.type === 'multi-story') {
@@ -76,8 +126,13 @@ async function pushToJira() {
             `/api/jira/push/${child.docType}/${encodeURIComponent(child.filename)}`,
             { method: 'POST' }
           );
-          const childData = await childRes.json();
-          if (childRes.ok) {
+          let childData;
+          try {
+            childData = await childRes.json();
+          } catch {
+            childData = {};
+          }
+          if (childRes.ok && childData.key) {
             childResults.push({ key: childData.key, action: childData.action });
           }
         } catch (_) { /* continue with remaining children */ }

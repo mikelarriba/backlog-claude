@@ -12,7 +12,7 @@ import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 
 export default function jiraRoutes({
   TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, BUGS_DIR, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE,
-  FIELD_EPIC_NAME, FIELD_EPIC_LINK,
+  FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
   jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary,
   broadcast, logInfo, logWarn, logError,
 }) {
@@ -70,7 +70,9 @@ export default function jiraRoutes({
     const summary     = extractJiraSummary(content);
     const description = markdownToJira(stripFrontmatter(content));
     const jiraType    = LOCAL_TO_JIRA_TYPE[type] || 'Story';
-    const localFixVersion = extractFrontmatterField(content, 'Fix_Version');
+    const localFixVersion  = extractFrontmatterField(content, 'Fix_Version');
+    const localStoryPoints = extractFrontmatterField(content, 'Story_Points');
+    const spValue = localStoryPoints && localStoryPoints !== 'TBD' ? Number(localStoryPoints) : null;
 
     let key, action;
 
@@ -79,6 +81,7 @@ export default function jiraRoutes({
       if (localFixVersion && localFixVersion !== 'TBD') {
         updateFields.fixVersions = [{ name: localFixVersion }];
       }
+      if (spValue !== null) updateFields[FIELD_STORY_POINTS] = spValue;
       await jiraRequest('PUT', `/issue/${jiraId}`, { fields: updateFields });
       key = jiraId; action = 'updated';
     } else {
@@ -87,6 +90,7 @@ export default function jiraRoutes({
         issuetype: { name: jiraType }, labels: type === 'bug' ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues'] : [JIRA_LABEL],
       };
       if (localFixVersion && localFixVersion !== 'TBD') fields.fixVersions = [{ name: localFixVersion }];
+      if (spValue !== null) fields[FIELD_STORY_POINTS] = spValue;
       if (type === 'epic') fields[FIELD_EPIC_NAME] = summary.slice(0, 60);
 
       if (type === 'story' || type === 'spike' || type === 'bug') {
@@ -173,6 +177,39 @@ export default function jiraRoutes({
       const apiErr = parseApiError(err);
       logError('POST /api/jira/push/:type/:filename', apiErr.message, apiErr.details || {});
       sendError(res, ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── POST /api/jira/sync-status/:type/:filename ────────────────────────────
+  router.post('/api/jira/sync-status/:type/:filename', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+    try {
+      const docType  = assertDocType(req.params.type, TYPE_CONFIG);
+      const cfg      = TYPE_CONFIG[docType];
+      const filename = assertFilename(req.params.filename);
+      const filepath = path.join(cfg.dir(), filename);
+      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+
+      const content = fs.readFileSync(filepath, 'utf-8');
+      const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
+      if (!jiraId || jiraId === 'TBD') return sendError(res, 400, 'NO_JIRA_ID', 'Document has no JIRA_ID');
+
+      const issue      = await jiraRequest('GET', `/issue/${jiraId}?fields=status,${FIELD_STORY_POINTS}`);
+      const jiraStatus = issue.fields?.status?.name || null;
+      const jiraSp     = issue.fields?.[FIELD_STORY_POINTS] ?? null;
+
+      let updated = content;
+      if (jiraStatus) updated = setFrontmatterField(updated, 'JIRA_Status', jiraStatus);
+      if (jiraSp !== null) updated = setFrontmatterField(updated, 'Story_Points', String(jiraSp));
+      fs.writeFileSync(filepath, updated);
+      broadcast({ type: 'title_updated', filename, docType });
+
+      logInfo('POST /api/jira/sync-status', `Synced status for ${jiraId}: ${jiraStatus}, SP: ${jiraSp}`);
+      res.json({ success: true, jiraStatus, storyPoints: jiraSp });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/sync-status', apiErr.message, apiErr.details || {});
+      sendError(res, ['INVALID_TYPE', 'INVALID_FILENAME', 'NO_JIRA_ID'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
 

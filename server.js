@@ -64,8 +64,9 @@ const JIRA_BASE  = (process.env.JIRA_BASE_URL || 'https://devstack.vwgroup.com/j
 const JIRA_TOKEN = process.env.JIRA_API_TOKEN || '';
 const JIRA_PROJECT = 'EAMDM';
 const JIRA_LABEL   = 'MIDAS_Development';
-const FIELD_EPIC_NAME = 'customfield_10002';
-const FIELD_EPIC_LINK = 'customfield_10000';
+const FIELD_EPIC_NAME    = 'customfield_10002';
+const FIELD_EPIC_LINK    = 'customfield_10000';
+const FIELD_STORY_POINTS = 'customfield_10016'; // JIRA Server standard story points field
 
 const { jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } =
   createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, TYPE_CONFIG, isoDate, slugify });
@@ -87,8 +88,8 @@ const shared = { TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, 
 app.use(docsRoutes(shared));
 app.use(linksRoutes(shared));
 app.use(storiesRoutes(shared));
-app.use(jiraRoutes({ ...shared, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE, FIELD_EPIC_NAME, FIELD_EPIC_LINK, jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary }));
-app.use(settingsRoutes({ rootDir: __dirname, broadcast, logInfo }));
+app.use(jiraRoutes({ ...shared, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS, jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary }));
+app.use(settingsRoutes({ rootDir: __dirname, broadcast, logInfo, jiraBase: JIRA_BASE }));
 app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError }));
 
 // ── Startup ──────────────────────────────────────────────────────────────────

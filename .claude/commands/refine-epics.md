@@ -47,49 +47,42 @@ Data model: `Users → Datapools → Tests → Files`
 
 ## Output Format
 
-Output ONLY the markdown content — do not write any files, do not ask for permissions.
+Output ONLY the markdown content — no commentary, no preamble, no summary table. Do not write any files, do not ask for permissions.
 
-Start with a single YAML frontmatter block for the stories file:
-
-```yaml
----
-JIRA_ID: TBD
-Story_Points: TBD
-Status: Draft
-Priority: [inherit from Epic or infer]
-Squad: TBD
-PI: TBD
-Sprint: TBD
-Created: [today's date]
----
-```
-
-Then output each story using this format. Generate as many stories as needed to cover the full Epic scope — typically 3–7:
+Each story will be saved as a **separate file** by the system. Output them sequentially, separated by `---`, using this exact format for each:
 
 ```markdown
 ## Story 1: [Title]
 
-**As a** [Test Engineer / Data Engineer / Admin],
-**I want to** [specific action],
-**So that** [concrete benefit].
-
-### Context
+## Context
 Why this slice is needed and how it relates to the Epic.
 
-### Execution
+## Objective
+What will be true when this story is done.
+
+## Value
+Specific benefit to the persona and/or the business.
+
+## Execution
 > V1 or V2. [One sentence rationale.]
 
 1. [Step — be specific about component, endpoint, or OpenSearch index]
 2. [Step]
 3. [Step]
 
-### Acceptance Criteria
+## Acceptance Criteria
 
-**Given** [context], **When** [action], **Then** [expected result].
-**Given** [context], **When** [action], **Then** [expected result].
-**Given** [context], **When** [action], **Then** [expected result].
+### AC1: [Happy Path]
+**Given** [context],
+**When** [action],
+**Then** [expected result].
 
-### Out of Scope
+### AC2: [Edge Case or Error]
+**Given** [context],
+**When** [action],
+**Then** [expected result].
+
+## Out of Scope
 - [What this story does NOT include]
 
 ---
@@ -98,17 +91,7 @@ Why this slice is needed and how it relates to the Epic.
 ...
 ```
 
-After all stories, add a summary table:
-
-```markdown
-## Story Summary
-
-| # | Title | Persona | V1/V2 | Depends On |
-| :--- | :--- | :--- | :--- | :--- |
-| 1 | [Title] | [Persona] | V1/V2 | — |
-| 2 | [Title] | [Persona] | V1/V2 | Story 1 |
-...
-```
+Generate as many stories as needed to cover the full Epic scope — typically 3–7. Each story must be independently deliverable within a single 3-week sprint.
 
 ## Input
 

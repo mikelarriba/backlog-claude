@@ -3,6 +3,7 @@
 // since all scripts share the same global scope (no ES modules).
 
 var allDocs             = [];
+var jiraBase            = '';
 var currentFilename     = null;
 var currentDocType      = null;
 var activeTypeFilter    = 'all';

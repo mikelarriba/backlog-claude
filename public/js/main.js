@@ -51,6 +51,14 @@ function toggleModelSection() {
   chevron.style.transform = isOpen ? 'rotate(90deg)' : '';
 }
 
+async function loadAppConfig() {
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    if (cfg.jiraBase) jiraBase = cfg.jiraBase;
+  } catch {}
+}
+
 async function loadModelSetting() {
   try {
     const res = await fetch('/api/settings/model');
@@ -79,9 +87,9 @@ async function updateModelSetting(model) {
   }
 }
 
-// Bootstrap — load PI settings, JIRA versions & model before docs so swimlanes render correctly
+// Bootstrap — load PI settings, JIRA versions, model & app config before docs so swimlanes render correctly
 (async () => {
-  await Promise.all([loadPiSettings(), loadJiraVersions(), loadModelSetting()]);
+  await Promise.all([loadPiSettings(), loadJiraVersions(), loadModelSetting(), loadAppConfig()]);
   loadDocs();
 })();
 initDragDrop();

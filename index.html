@@ -204,11 +204,25 @@
             <input class="detail-title-input" id="detail-title-input"
                    type="text" placeholder="Title…"
                    onblur="saveTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelTitleEdit()}">
-            <span class="detail-filename" id="detail-filename"></span>
-            <a id="detail-jira-link" class="detail-jira-link" href="#" target="_blank" rel="noopener" style="display:none"></a>
+            <div class="detail-meta-row">
+              <span class="detail-filename" id="detail-filename"></span>
+              <a id="detail-jira-link" class="detail-jira-link" href="#" target="_blank" rel="noopener" style="display:none"></a>
+              <span id="detail-jira-status" class="detail-jira-status" style="display:none"></span>
+            </div>
           </div>
         </div>
         <div class="detail-toolbar">
+          <!-- Story points (editable for stories/spikes/bugs; sum for epics/features) -->
+          <div id="sp-wrap" class="sp-wrap" style="display:none">
+            <label class="sp-label">SP</label>
+            <input id="sp-input" class="sp-input" type="number" min="0" max="999" placeholder="—"
+                   onblur="saveStoryPoints()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){this.blur()}">
+          </div>
+          <div id="sp-sum-wrap" class="sp-sum-wrap" style="display:none">
+            <span class="sp-label">SP</span>
+            <span id="sp-sum" class="sp-sum">0</span>
+          </div>
+
           <select class="status-select" id="status-select" onchange="updateDocStatus(this.value)">
             <option value="Draft">Draft</option>
             <option value="Created in JIRA">Created in JIRA</option>
@@ -256,7 +270,20 @@
 
           <div class="toolbar-sep"></div>
 
-          <button class="btn-toolbar btn-toolbar-jira" id="jira-push-btn" onclick="pushToJira()">↑ JIRA</button>
+          <!-- JIRA dropdown: push or sync status -->
+          <div class="dropdown-wrap" id="jira-dropdown-wrap">
+            <button class="btn-toolbar btn-toolbar-jira" id="jira-push-btn" onclick="toggleDropdown('jira-dropdown-menu')">
+              ↑ JIRA <span class="toolbar-caret">▾</span>
+            </button>
+            <div class="dropdown-menu" id="jira-dropdown-menu">
+              <button class="dropdown-item" onclick="pushToJira();closeDropdown('jira-dropdown-menu')">
+                <span class="di-badge jira">Push</span>Sync to JIRA
+              </button>
+              <button class="dropdown-item" id="jira-sync-status-btn" onclick="syncJiraStatus();closeDropdown('jira-dropdown-menu')">
+                <span class="di-badge">Pull</span>Sync Status
+              </button>
+            </div>
+          </div>
           <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">Delete</button>
         </div>
       </div>
