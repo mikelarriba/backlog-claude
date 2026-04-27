@@ -4,8 +4,13 @@ import fs from 'fs';
 import path from 'path';
 import { setModelOverride, getModelOverride } from '../services/claudeService.js';
 
-export default function settingsRoutes({ rootDir, broadcast, logInfo }) {
+export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }) {
   const router = Router();
+
+  // ── App config (read-only, consumed by frontend) ───────────────────────────
+  router.get('/api/config', (req, res) => {
+    res.json({ jiraBase: jiraBase || '' });
+  });
 
   const PI_SETTINGS_PATH    = path.join(rootDir, '.pi-settings.json');
   const MODEL_SETTINGS_PATH = path.join(rootDir, '.model-settings.json');

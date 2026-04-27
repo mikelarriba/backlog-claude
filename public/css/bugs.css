@@ -1,0 +1,147 @@
+/* ── Bug Create Button ────────────────────────────────────────── */
+.btn-bug-create {
+  width: 100%;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--type-bug-bg);
+  color: var(--type-bug-color);
+  border: 1px solid var(--type-bug-color);
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-bug-create:hover {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+}
+
+.bug-icon { font-size: 1rem; }
+
+/* ── Bug Modal ───────────────────────────────────────────────── */
+.bug-modal {
+  width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.bug-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.bug-modal-header h3 {
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bug-modal-close {
+  font-size: 1.4rem;
+  padding: 2px 8px;
+  color: var(--muted);
+}
+
+.bug-modal-close:hover { color: var(--text); }
+
+.bug-modal-body {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.bug-modal-body textarea {
+  min-height: 100px;
+}
+
+/* ── Dropzone ────────────────────────────────────────────────── */
+.bug-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.bug-dropzone:hover,
+.bug-dropzone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.bug-dropzone-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* ── File list ───────────────────────────────────────────────── */
+.bug-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.bug-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+.bug-file-name {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.bug-file-size {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin: 0 8px;
+  flex-shrink: 0;
+}
+
+.bug-file-remove {
+  background: none;
+  border: none;
+  color: var(--error-text);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.bug-file-remove:hover { opacity: 0.7; }
+
+/* ── Footer ──────────────────────────────────────────────────── */
+.bug-modal-footer {
+  margin-top: 16px;
+}
+
+.bug-modal-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.btn-bug-submit {
+  min-width: 120px;
+}

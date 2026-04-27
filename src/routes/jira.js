@@ -11,9 +11,9 @@ import { parseStorySections, serializeStoryFile } from '../services/storyService
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 
 export default function jiraRoutes({
-  TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, JIRA_PROJECT, JIRA_LABEL,
-  FIELD_EPIC_NAME, FIELD_EPIC_LINK,
-  jiraRequest, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary,
+  TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, BUGS_DIR, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE,
+  FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
+  jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary,
   broadcast, logInfo, logWarn, logError,
 }) {
   const router = Router();
@@ -70,7 +70,9 @@ export default function jiraRoutes({
     const summary     = extractJiraSummary(content);
     const description = markdownToJira(stripFrontmatter(content));
     const jiraType    = LOCAL_TO_JIRA_TYPE[type] || 'Story';
-    const localFixVersion = extractFrontmatterField(content, 'Fix_Version');
+    const localFixVersion  = extractFrontmatterField(content, 'Fix_Version');
+    const localStoryPoints = extractFrontmatterField(content, 'Story_Points');
+    const spValue = localStoryPoints && localStoryPoints !== 'TBD' ? Number(localStoryPoints) : null;
 
     let key, action;
 
@@ -79,14 +81,16 @@ export default function jiraRoutes({
       if (localFixVersion && localFixVersion !== 'TBD') {
         updateFields.fixVersions = [{ name: localFixVersion }];
       }
+      if (spValue !== null) updateFields[FIELD_STORY_POINTS] = spValue;
       await jiraRequest('PUT', `/issue/${jiraId}`, { fields: updateFields });
       key = jiraId; action = 'updated';
     } else {
       const fields = {
         project: { key: JIRA_PROJECT }, summary, description,
-        issuetype: { name: jiraType }, labels: [JIRA_LABEL],
+        issuetype: { name: jiraType }, labels: type === 'bug' ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues'] : [JIRA_LABEL],
       };
       if (localFixVersion && localFixVersion !== 'TBD') fields.fixVersions = [{ name: localFixVersion }];
+      if (spValue !== null) fields[FIELD_STORY_POINTS] = spValue;
       if (type === 'epic') fields[FIELD_EPIC_NAME] = summary.slice(0, 60);
 
       if (type === 'story' || type === 'spike' || type === 'bug') {
@@ -118,10 +122,28 @@ export default function jiraRoutes({
         }
       }
 
-      let updated = setFrontmatterField(content, 'JIRA_ID', key);
-      updated     = setFrontmatterField(updated,  'Status',  'Created in JIRA');
+      let updated = setFrontmatterField(content, 'JIRA_ID',   key);
+      updated     = setFrontmatterField(updated,  'JIRA_URL', `${JIRA_BASE}/browse/${key}`);
+      updated     = setFrontmatterField(updated,  'Status',   'Created in JIRA');
       fs.writeFileSync(filepath, updated);
       broadcast({ type: 'status_updated', filename, docType: type, status: 'Created in JIRA' });
+    }
+
+    // Upload local attachments for bugs
+    if (type === 'bug' && BUGS_DIR) {
+      const slug = filename.replace(/\.md$/, '').replace(/^\d{4}-\d{2}-\d{2}-/, '');
+      const attachDir = path.join(BUGS_DIR, 'attachments', slug);
+      if (fs.existsSync(attachDir)) {
+        for (const attFile of fs.readdirSync(attachDir)) {
+          try {
+            const buf = fs.readFileSync(path.join(attachDir, attFile));
+            await jiraUploadAttachment(key, attFile, buf);
+            logInfo('jira/push', `Uploaded attachment ${attFile} to ${key}`);
+          } catch (e) {
+            logWarn('jira/push', `Failed to upload attachment ${attFile}: ${e.message}`);
+          }
+        }
+      }
     }
 
     return { action, key, filename, docType: type };
@@ -158,6 +180,39 @@ export default function jiraRoutes({
     }
   });
 
+  // ── POST /api/jira/sync-status/:type/:filename ────────────────────────────
+  router.post('/api/jira/sync-status/:type/:filename', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+    try {
+      const docType  = assertDocType(req.params.type, TYPE_CONFIG);
+      const cfg      = TYPE_CONFIG[docType];
+      const filename = assertFilename(req.params.filename);
+      const filepath = path.join(cfg.dir(), filename);
+      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+
+      const content = fs.readFileSync(filepath, 'utf-8');
+      const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
+      if (!jiraId || jiraId === 'TBD') return sendError(res, 400, 'NO_JIRA_ID', 'Document has no JIRA_ID');
+
+      const issue      = await jiraRequest('GET', `/issue/${jiraId}?fields=status,${FIELD_STORY_POINTS}`);
+      const jiraStatus = issue.fields?.status?.name || null;
+      const jiraSp     = issue.fields?.[FIELD_STORY_POINTS] ?? null;
+
+      let updated = content;
+      if (jiraStatus) updated = setFrontmatterField(updated, 'JIRA_Status', jiraStatus);
+      if (jiraSp !== null) updated = setFrontmatterField(updated, 'Story_Points', String(jiraSp));
+      fs.writeFileSync(filepath, updated);
+      broadcast({ type: 'title_updated', filename, docType });
+
+      logInfo('POST /api/jira/sync-status', `Synced status for ${jiraId}: ${jiraStatus}, SP: ${jiraSp}`);
+      res.json({ success: true, jiraStatus, storyPoints: jiraSp });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/sync-status', apiErr.message, apiErr.details || {});
+      sendError(res, ['INVALID_TYPE', 'INVALID_FILENAME', 'NO_JIRA_ID'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
   // ── GET /api/jira/search ───────────────────────────────────────────────────
   router.get('/api/jira/search', async (req, res) => {
     try {
@@ -169,7 +224,7 @@ export default function jiraRoutes({
       }
 
       const typeClause = type === 'all'
-        ? `issuetype in ("New Feature", Epic, Story, Task)`
+        ? `issuetype in ("New Feature", Epic, Story, Task, Bug)`
         : `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
 
       const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
@@ -242,6 +297,56 @@ export default function jiraRoutes({
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/jira/pull', apiErr.message, apiErr.details || {});
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── GET /api/jira/children/:key ─────────────────────────────────────────────
+  router.get('/api/jira/children/:key', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+    try {
+      const key = req.params.key;
+      const issue = await jiraRequest('GET', `/issue/${key}?fields=issuetype,issuelinks,subtasks`);
+      const issueType = issue.fields.issuetype?.name;
+      const children = [];
+      const seen = new Set();
+
+      function addChild(child) {
+        if (seen.has(child.key)) return;
+        seen.add(child.key);
+        const existing = findLocalFileByJiraId(child.key);
+        children.push({
+          key: child.key,
+          summary: child.fields?.summary || '',
+          issuetype: child.fields?.issuetype?.name || '',
+          status: child.fields?.status?.name || '',
+          localExists: !!existing,
+          localFilename: existing?.filename || null,
+          localDocType: existing?.docType || null,
+        });
+      }
+
+      // Epics: find children via Epic Link custom field
+      if (issueType === 'Epic') {
+        const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
+        const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} ORDER BY issuetype ASC`;
+        const data = await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=summary,issuetype,status,priority`);
+        for (const child of (data.issues || [])) addChild(child);
+      }
+
+      // New Features / Epics: check issue links (inward = contained children)
+      for (const link of (issue.fields.issuelinks || [])) {
+        if (link.inwardIssue) addChild(link.inwardIssue);
+      }
+
+      // Subtasks
+      for (const st of (issue.fields.subtasks || [])) addChild(st);
+
+      res.json({ parentKey: key, parentType: issueType, children });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('GET /api/jira/children/:key', apiErr.message, apiErr.details || {});
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });

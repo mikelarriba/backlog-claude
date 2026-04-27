@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/public/css/detail.css" />
   <link rel="stylesheet" href="/public/css/stories.css" />
   <link rel="stylesheet" href="/public/css/jira.css" />
+  <link rel="stylesheet" href="/public/css/bugs.css" />
 
   <!-- Theme (load before render to avoid flash) -->
   <script src="/public/js/theme.js"></script>
@@ -86,6 +87,9 @@
         <span id="btn-label">Generate</span>
       </button>
     </div>
+    <button class="btn-bug-create" onclick="openBugModal()">
+      <span class="bug-icon">&#128027;</span> Create Bug Report
+    </button>
 
     <div class="status" id="status"></div>
 
@@ -106,6 +110,7 @@
                 <option value="epic">Epic</option>
                 <option value="story">Story</option>
                 <option value="spike">Task / Spike</option>
+                <option value="bug">Bug</option>
               </select>
             </div>
             <div class="field">
@@ -199,10 +204,25 @@
             <input class="detail-title-input" id="detail-title-input"
                    type="text" placeholder="Title…"
                    onblur="saveTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelTitleEdit()}">
-            <span class="detail-filename" id="detail-filename"></span>
+            <div class="detail-meta-row">
+              <span class="detail-filename" id="detail-filename"></span>
+              <a id="detail-jira-link" class="detail-jira-link" href="#" target="_blank" rel="noopener" style="display:none"></a>
+              <span id="detail-jira-status" class="detail-jira-status" style="display:none"></span>
+            </div>
           </div>
         </div>
         <div class="detail-toolbar">
+          <!-- Story points (editable for stories/spikes/bugs; sum for epics/features) -->
+          <div id="sp-wrap" class="sp-wrap" style="display:none">
+            <label class="sp-label">SP</label>
+            <input id="sp-input" class="sp-input" type="number" min="0" max="999" placeholder="—"
+                   onblur="saveStoryPoints()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){this.blur()}">
+          </div>
+          <div id="sp-sum-wrap" class="sp-sum-wrap" style="display:none">
+            <span class="sp-label">SP</span>
+            <span id="sp-sum" class="sp-sum">0</span>
+          </div>
+
           <select class="status-select" id="status-select" onchange="updateDocStatus(this.value)">
             <option value="Draft">Draft</option>
             <option value="Created in JIRA">Created in JIRA</option>
@@ -250,7 +270,20 @@
 
           <div class="toolbar-sep"></div>
 
-          <button class="btn-toolbar btn-toolbar-jira" id="jira-push-btn" onclick="pushToJira()">↑ JIRA</button>
+          <!-- JIRA dropdown: push or sync status -->
+          <div class="dropdown-wrap" id="jira-dropdown-wrap">
+            <button class="btn-toolbar btn-toolbar-jira" id="jira-push-btn" onclick="toggleDropdown('jira-dropdown-menu')">
+              ↑ JIRA <span class="toolbar-caret">▾</span>
+            </button>
+            <div class="dropdown-menu" id="jira-dropdown-menu">
+              <button class="dropdown-item" onclick="pushToJira();closeDropdown('jira-dropdown-menu')">
+                <span class="di-badge jira">Push</span>Sync to JIRA
+              </button>
+              <button class="dropdown-item" id="jira-sync-status-btn" onclick="syncJiraStatus();closeDropdown('jira-dropdown-menu')">
+                <span class="di-badge">Pull</span>Sync Status
+              </button>
+            </div>
+          </div>
           <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">Delete</button>
         </div>
       </div>
@@ -331,6 +364,49 @@
 <!-- ── JIRA push toast ──────────────────────────────────────── -->
 <div id="jira-push-toast"></div>
 
+<!-- ── Bug creation modal ──────────────────────────────────── -->
+<div class="dialog-overlay" id="bug-modal-overlay">
+  <div class="dialog bug-modal">
+    <div class="bug-modal-header">
+      <h3><span class="bug-icon">&#128027;</span> Create Bug Report</h3>
+      <button class="btn-ghost bug-modal-close" onclick="closeBugModal()">&times;</button>
+    </div>
+    <div class="bug-modal-body">
+      <div class="meta-row">
+        <div class="field">
+          <label for="bug-id">ID *</label>
+          <input id="bug-id" type="text" placeholder="e.g. SC3-1234" />
+        </div>
+        <div class="field">
+          <label for="bug-title">Title *</label>
+          <input id="bug-title" type="text" placeholder="Short description…" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="bug-description">Description</label>
+        <textarea id="bug-description" placeholder="Detailed bug description — steps to reproduce, expected vs actual behaviour…"></textarea>
+      </div>
+      <div class="field">
+        <label>Attachments (max 5)</label>
+        <div class="bug-dropzone" id="bug-dropzone" onclick="document.getElementById('bug-files').click()">
+          <input type="file" id="bug-files" multiple accept="*/*" style="display:none" onchange="onBugFilesSelected(this.files)" />
+          <div class="bug-dropzone-label" id="bug-dropzone-label">Drop files here or click to browse</div>
+        </div>
+        <div class="bug-file-list" id="bug-file-list"></div>
+      </div>
+    </div>
+    <div class="bug-modal-footer">
+      <div class="bug-modal-hint">Title and description will be auto-translated to English. .msg files are converted to PDF.</div>
+      <div class="dialog-actions">
+        <button class="btn-secondary" onclick="closeBugModal()">Cancel</button>
+        <button class="btn-primary btn-bug-submit" id="bug-submit-btn" onclick="submitBugReport()">
+          <span id="bug-submit-label">Create Bug</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Delete confirmation dialog ───────────────────────────── -->
 <div class="dialog-overlay" id="delete-overlay">
   <div class="dialog">
@@ -351,6 +427,7 @@
 <script src="/public/js/quickcreate.js"></script>
 <script src="/public/js/stories.js"></script>
 <script src="/public/js/jira.js"></script>
+<script src="/public/js/bugcreate.js"></script>
 <script src="/public/js/refine.js"></script>
 <script src="/public/js/dragdrop.js"></script>
 <script src="/public/js/main.js"></script>

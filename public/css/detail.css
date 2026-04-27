@@ -41,10 +41,84 @@
 .detail-title-input:hover { border-color: var(--border); background: var(--surface2); }
 .detail-title-input:focus { border-color: var(--accent); background: var(--surface2); }
 
+.detail-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  min-width: 0;
+}
+
 .detail-filename {
   font-size: 0.66rem;
   color: var(--muted);
   padding-left: 8px;
+}
+
+.detail-jira-link {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--accent);
+  padding-left: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.detail-jira-link:hover { text-decoration: underline; }
+
+.detail-jira-status {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 8px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Story points ─────────────────────────────────────────────── */
+.sp-wrap, .sp-sum-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sp-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.sp-input {
+  width: 44px;
+  height: 26px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 4px;
+  outline: none;
+  font-family: inherit;
+  -moz-appearance: textfield;
+}
+.sp-input::-webkit-outer-spin-button,
+.sp-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.sp-input:hover { border-color: var(--muted); }
+.sp-input:focus { border-color: var(--accent); background: var(--surface); }
+
+.sp-sum {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 24px;
+  text-align: center;
 }
 
 .detail-body {
@@ -345,6 +419,7 @@
 .di-badge.spike { background: var(--type-spike-bg); color: var(--type-spike-color); }
 .di-badge.bug   { background: var(--type-bug-bg);   color: var(--type-bug-color); }
 .di-badge.epic  { background: var(--type-epic-bg);  color: var(--type-epic-color); }
+.di-badge.jira  { background: var(--accent-subtle); color: var(--accent-hover); }
 
 /* ── Quick Create panel ──────────────────────────────────────── */
 #quick-create-panel {
@@ -593,4 +668,40 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 14px;
+}
+
+/* ── Responsive: Narrow screens ──────────────────────────────── */
+@media (max-width: 768px) {
+  .detail-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px;
+  }
+
+  .detail-title-input {
+    min-width: 120px;
+    max-width: 100%;
+    font-size: 0.85rem;
+  }
+
+  .detail-toolbar {
+    order: 3;
+    width: 100%;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .btn-toolbar {
+    padding: 0 8px;
+    height: 28px;
+    font-size: 0.7rem;
+  }
+
+  .toolbar-sep { display: none; }
+
+  .status-select {
+    font-size: 0.7rem;
+    padding: 0 6px;
+    height: 28px;
+  }
 }

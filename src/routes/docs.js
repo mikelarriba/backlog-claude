@@ -3,6 +3,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { sendError, ensureDir, parseApiError, assertDocType, assertStatus, assertFilename } from '../utils/routeHelpers.js';
+import { normalizeOutput } from '../services/claudeService.js';
 import {
   isoDate, slugify, extractTitle, extractWorkflowStatus,
   setFrontmatterField, extractFrontmatterField, stripFrontmatter,
@@ -92,7 +93,10 @@ ${idea.trim()}
             if (val && val !== 'TBD') { parentFilename = val; parentType = 'epic'; }
           }
 
-          const fixVersion = extractFrontmatterField(content, 'Fix_Version');
+          const fixVersion  = extractFrontmatterField(content, 'Fix_Version');
+          const jiraId      = extractFrontmatterField(content, 'JIRA_ID');
+          const jiraUrl     = extractFrontmatterField(content, 'JIRA_URL');
+          const storyPoints = extractFrontmatterField(content, 'Story_Points');
 
           entries.push({
             filename: f,
@@ -101,6 +105,9 @@ ${idea.trim()}
             date: dateMatch ? dateMatch[1] : '',
             status: extractWorkflowStatus(content),
             fixVersion: fixVersion && fixVersion !== 'TBD' ? fixVersion : null,
+            jiraId:  jiraId  && jiraId  !== 'TBD' ? jiraId  : null,
+            jiraUrl: jiraUrl || null,
+            storyPoints: storyPoints && storyPoints !== 'TBD' ? Number(storyPoints) || null : null,
             parentFilename,
             parentType,
           });
@@ -139,7 +146,7 @@ ${idea.trim()}
       const filepath = path.join(cfg.dir(), filename);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const { status, title, fixVersion } = req.body;
+      const { status, title, fixVersion, storyPoints } = req.body;
       let content = fs.readFileSync(filepath, 'utf-8');
 
       if (status !== undefined) {
@@ -149,6 +156,11 @@ ${idea.trim()}
 
       if (fixVersion !== undefined) {
         content = setFrontmatterField(content, 'Fix_Version', fixVersion || 'TBD');
+      }
+
+      if (storyPoints !== undefined) {
+        const val = storyPoints === null || storyPoints === '' ? 'TBD' : String(Number(storyPoints) || storyPoints);
+        content = setFrontmatterField(content, 'Story_Points', val);
       }
 
       if (title !== undefined) {
@@ -168,7 +180,7 @@ ${idea.trim()}
 
       fs.writeFileSync(filepath, content);
       broadcast({ type: 'title_updated', filename, docType });
-      res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }) });
+      res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }) });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(
@@ -274,22 +286,22 @@ ${idea.trim()}
         ? `\n\nOriginal idea and upgrade history (for context):\n---\n${fs.readFileSync(inboxPath, 'utf-8')}\n---`
         : '';
 
-      const upgradePrompt = `You are upgrading an existing ${docType} document based on user feedback.
+      const upgradePrompt = `Rewrite the following ${docType} document applying the feedback below. The feedback is provided — apply it directly. Do NOT ask for clarification. Do NOT ask what changes are needed. Do NOT say you cannot see feedback. Output ONLY the rewritten markdown — no commentary, no preamble, no code fences.
 
 Current document:
 ---
 ${currentContent}
 ---${inboxHistory}
 
-New feedback / requested changes:
+Feedback to apply:
 ${feedback.trim()}
 
-Rewrite the complete document incorporating the feedback. Preserve all COVE sections and YAML frontmatter structure. Output ONLY the markdown content — do not write any files.`;
+Rewrite the complete document incorporating the feedback above. Preserve all COVE sections and YAML frontmatter structure.`;
 
       let fullContent = '';
       await streamClaude(upgradePrompt, (chunk) => { fullContent += chunk; send({ text: chunk }); });
 
-      fullContent = fullContent.trim().replace(/^```(?:markdown)?\n?/, '').replace(/\n?```$/, '');
+      fullContent = normalizeOutput(fullContent);
       fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
       fs.writeFileSync(filepath, fullContent);
 

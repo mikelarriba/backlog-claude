@@ -56,6 +56,18 @@ function buildClaudeArgs(prompt) {
 
 const CLAUDE_TIMEOUT_MS = 120_000;
 
+// Strip code fences that models sometimes wrap around output.
+// Handles: ```yaml\n---frontmatter---\n```\nbody  →  ---frontmatter---\nbody
+// And:     ```markdown\nentire output\n```  →  entire output
+export function normalizeOutput(content) {
+  let c = content.trim();
+  // Unwrap yaml-fenced frontmatter block that appears before the body
+  c = c.replace(/^```[\w]+\n(---[\s\S]*?---)\n```\n?/, '$1\n');
+  // Strip any remaining outer code fence (```markdown, ``` etc.)
+  c = c.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
+  return c.trim();
+}
+
 export function callClaude(rootDir, prompt) {
   if (process.env.MOCK_CLAUDE) return Promise.resolve(MOCK_RESPONSE);
   return new Promise((resolve, reject) => {
@@ -71,8 +83,7 @@ export function callClaude(rootDir, prompt) {
     proc.on('close', code => {
       clearTimeout(timer);
       if (code !== 0) return reject(new Error(err.trim() || `claude exited ${code}`));
-      const trimmed = out.trim().replace(/^```(?:markdown)?\n?/, '').replace(/\n?```$/, '');
-      resolve(trimmed);
+      resolve(normalizeOutput(out));
     });
   });
 }
