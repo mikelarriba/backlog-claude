@@ -16,6 +16,9 @@
   <link rel="stylesheet" href="/public/css/stories.css" />
   <link rel="stylesheet" href="/public/css/jira.css" />
   <link rel="stylesheet" href="/public/css/bugs.css" />
+  <link rel="stylesheet" href="/public/css/piconfig.css" />
+  <link rel="stylesheet" href="/public/css/distribution.css" />
+  <link rel="stylesheet" href="/public/css/roadmap.css" />
 
   <!-- Theme (load before render to avoid flash) -->
   <script src="/public/js/theme.js"></script>
@@ -50,13 +53,13 @@
     <p class="subtitle">Turn a rough idea into a polished Epic.</p>
 
     <div class="field">
-      <label for="idea">Your Idea *</label>
-      <textarea id="idea" placeholder="e.g. Users should be able to reset their password via email without contacting support..."></textarea>
+      <label for="doc-title">Title <span class="field-required">*</span></label>
+      <input id="doc-title" type="text" placeholder="e.g. Self-Service Auth" />
     </div>
 
     <div class="field">
-      <label for="doc-title">Title</label>
-      <input id="doc-title" type="text" placeholder="e.g. Self-Service Auth" />
+      <label for="idea">Notes / Idea <span class="field-optional">(optional for drafts)</span></label>
+      <textarea id="idea" placeholder="e.g. Users should be able to reset their password via email without contacting support..."></textarea>
     </div>
 
     <div class="meta-row">
@@ -83,8 +86,9 @@
 
     <div class="actions">
       <button class="btn-secondary" onclick="clearForm()">Clear</button>
+      <button class="btn-draft" id="draft-btn" onclick="saveDraft()">Save Draft</button>
       <button class="btn-primary" id="generate-btn" onclick="generateDoc()">
-        <span id="btn-label">Generate</span>
+        <span id="btn-label">✨ Generate</span>
       </button>
     </div>
     <button class="btn-bug-create" onclick="openBugModal()">
@@ -122,6 +126,14 @@
           <div class="jira-results" id="jira-results"></div>
           <button class="btn-jira-download" id="jira-download-btn" style="display:none" onclick="downloadSelected()">⬇ Download Selected</button>
           <div class="jira-status" id="jira-status"></div>
+          <div class="jira-key-import">
+            <label for="jira-key-input">Import by key</label>
+            <div class="jira-key-row">
+              <input id="jira-key-input" type="text" placeholder="e.g. EAMDM-9969, EAMDM-1234"
+                     onkeydown="if(event.key==='Enter') pullByKey()" />
+              <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -147,6 +159,30 @@
         </div>
       </div>
     </div>
+
+    <!-- PI Sprint Configuration -->
+    <div class="collapsible pi-config-section">
+      <div class="collapsible-header" onclick="togglePiConfigSection()">
+        <span class="collapsible-title">📊 PI Sprint Config</span>
+        <span class="collapsible-chevron" id="pi-config-chevron">▶</span>
+      </div>
+      <div class="collapsible-body" id="pi-config-body">
+        <div class="collapsible-inner">
+          <div class="pi-config-tabs" id="pi-config-tabs"></div>
+          <div class="pi-config-sprints" id="pi-config-sprints"></div>
+          <button class="btn-pi-add-sprint" onclick="addSprintRow()">+ Add Sprint</button>
+          <button class="btn-pi-save" id="pi-config-save-btn" onclick="saveSprintConfig()">Save Configuration</button>
+          <button class="btn-pi-distribute" id="pi-config-distribute-btn" onclick="openDistributionModal(_piConfigActivePi)">Distribute Stories</button>
+          <div class="pi-config-split-row">
+            <label class="pi-config-split-label" for="split-threshold-input">Split cards ≥</label>
+            <input class="pi-config-split-input" id="split-threshold-input" type="number" min="1" max="99"
+                   value="8" onchange="saveSplitThreshold(this.value)" />
+            <span class="pi-config-split-unit">SP</span>
+          </div>
+          <div class="pi-config-status" id="pi-config-status"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ── Right Panel ───────────────────────────────────────────── -->
@@ -158,6 +194,12 @@
         <div class="list-header-top">
           <span class="list-title">Your Issues</span>
           <span class="epic-count" id="epic-count">0</span>
+          <div class="dropdown-wrap" id="roadmap-dropdown-wrap">
+            <button class="btn-toolbar btn-toolbar-roadmap" onclick="toggleDropdown('roadmap-dropdown-menu')">
+              Roadmap <span class="toolbar-caret">▾</span>
+            </button>
+            <div class="dropdown-menu" id="roadmap-dropdown-menu"></div>
+          </div>
         </div>
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
@@ -227,6 +269,11 @@
             <option value="Draft">Draft</option>
             <option value="Created in JIRA">Created in JIRA</option>
             <option value="Archived">Archived</option>
+          </select>
+
+          <select class="sprint-select" id="sprint-select" style="display:none"
+                  onchange="updateDocSprint(this.value)">
+            <option value="">No Sprint</option>
           </select>
 
           <div class="toolbar-sep"></div>
@@ -358,6 +405,23 @@
       </div>
     </div>
 
+    <!-- PI Roadmap View: sprint board with draggable cards -->
+    <div id="roadmap-view">
+      <div class="roadmap-header">
+        <button class="btn-ghost" onclick="closeRoadmapView()">← Back</button>
+        <span class="roadmap-title">📊 PI Roadmap: <span id="roadmap-pi-name"></span></span>
+        <!-- View toggle -->
+        <div class="roadmap-view-toggle">
+          <button id="rm-view-stories" class="rm-toggle-btn active" onclick="setRoadmapView('stories')">Stories</button>
+          <button id="rm-view-epics"   class="rm-toggle-btn"        onclick="setRoadmapView('epics')">Epics</button>
+        </div>
+        <div class="roadmap-header-right">
+          <button class="btn-toolbar" onclick="openDistributionModal(_roadmapPiName)">Distribute</button>
+        </div>
+      </div>
+      <div class="roadmap-body" id="roadmap-body"></div>
+    </div>
+
   </div>
 </div>
 
@@ -419,6 +483,71 @@
   </div>
 </div>
 
+<!-- ── JIRA selection modal ───────────────────────────────────── -->
+<div class="dialog-overlay" id="jira-select-overlay">
+  <div class="dialog jira-select-dialog">
+    <div class="jira-select-header">
+      <h3 id="jira-select-title">Select issues</h3>
+      <div class="jira-select-bulk">
+        <button class="btn-ghost btn-xs" onclick="jiraSelectAll(true)">All</button>
+        <button class="btn-ghost btn-xs" onclick="jiraSelectAll(false)">None</button>
+      </div>
+    </div>
+    <div class="jira-select-list" id="jira-select-list"></div>
+    <div class="dialog-actions">
+      <button class="btn-secondary" onclick="jiraSelectCancel()">Cancel</button>
+      <button class="btn-primary" id="jira-select-confirm-btn" onclick="jiraSelectConfirm()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI Story Split modal -->
+<div class="dialog-overlay" id="split-overlay">
+  <div class="dialog split-dialog">
+    <div class="split-dialog-header">
+      <h3>Split Story with AI</h3>
+      <button class="btn-ghost btn-xs" onclick="closeSplitModal()">&times;</button>
+    </div>
+    <div class="split-dialog-meta">
+      <div class="split-meta-title" id="split-modal-title"></div>
+      <div class="split-meta-sp" id="split-modal-sp"></div>
+    </div>
+    <div class="split-sprint-row">
+      <div class="split-sprint-col">
+        <label class="split-sprint-label">Part 1 → Sprint</label>
+        <select class="sprint-select" id="split-sprint-1"></select>
+      </div>
+      <div class="split-sprint-arrow">→</div>
+      <div class="split-sprint-col">
+        <label class="split-sprint-label">Part 2 → Sprint</label>
+        <select class="sprint-select" id="split-sprint-2"></select>
+      </div>
+    </div>
+    <div class="split-modal-output" id="split-modal-output"></div>
+    <div class="split-modal-status" id="split-modal-status"></div>
+    <div class="dialog-actions">
+      <button class="btn-secondary" onclick="closeSplitModal()">Cancel</button>
+      <button class="btn-primary" id="split-apply-btn" onclick="executeSplit()">Split with AI</button>
+    </div>
+  </div>
+</div>
+
+<!-- Distribution modal -->
+<div class="dialog-overlay" id="distribution-overlay">
+  <div class="dialog distribution-dialog">
+    <div class="distribution-header">
+      <h3 id="distribution-title">Sprint Distribution</h3>
+      <button class="btn-ghost btn-xs" onclick="closeDistributionModal()">&times;</button>
+    </div>
+    <div class="distribution-body" id="distribution-body"></div>
+    <div class="distribution-messages" id="distribution-messages"></div>
+    <div class="dialog-actions">
+      <button class="btn-secondary" onclick="closeDistributionModal()">Cancel</button>
+      <button class="btn-primary" id="distribution-apply-btn" onclick="applyDistribution()">Apply Distribution</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── External JS (load order matters — state first, main last) ── -->
 <script src="/public/js/state.js"></script>
 <script src="/public/js/list.js"></script>
@@ -429,6 +558,9 @@
 <script src="/public/js/jira.js"></script>
 <script src="/public/js/bugcreate.js"></script>
 <script src="/public/js/refine.js"></script>
+<script src="/public/js/piconfig.js"></script>
+<script src="/public/js/distribution.js"></script>
+<script src="/public/js/roadmap.js"></script>
 <script src="/public/js/dragdrop.js"></script>
 <script src="/public/js/main.js"></script>
 

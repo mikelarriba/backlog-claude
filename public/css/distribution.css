@@ -1,0 +1,256 @@
+/* ── Distribution Modal ─────────────────────────────────────── */
+.distribution-dialog {
+  width: 640px;
+  max-width: 92vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.distribution-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.distribution-header h3 { margin: 0; font-size: 1rem; }
+
+.distribution-body {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.distribution-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 0;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.distribution-empty,
+.distribution-error {
+  text-align: center;
+  padding: 32px 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.distribution-error { color: var(--error-text); }
+
+/* Sprint section */
+.distribution-sprint-section {
+  margin-bottom: 16px;
+}
+.distribution-sprint-section:last-child { margin-bottom: 0; }
+
+.distribution-sprint-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border-radius: 6px 6px 0 0;
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+
+.distribution-sprint-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.distribution-sprint-stats {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Capacity bar */
+.distribution-capacity-bar {
+  height: 4px;
+  background: var(--surface2);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.distribution-capacity-fill {
+  height: 100%;
+  background: var(--success);
+  transition: width 0.3s ease;
+}
+.distribution-capacity-bar.warn .distribution-capacity-fill { background: #F59E0B; }
+.distribution-capacity-bar.over .distribution-capacity-fill { background: var(--error-text); }
+
+/* Items list */
+.distribution-sprint-items {
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+
+.distribution-sprint-empty {
+  padding: 10px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.distribution-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  user-select: none;
+}
+.distribution-item:last-child { border-bottom: none; }
+.distribution-item:hover { background: var(--surface2); }
+
+.distribution-item.already-assigned {
+  opacity: 0.55;
+}
+
+.distribution-item input[type=checkbox] {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.distribution-item-body { flex: 1; min-width: 0; }
+
+.distribution-item-title {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.distribution-item-meta {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+/* Distribution badges */
+.dist-badge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.dist-badge.type-story   { background: var(--type-story-bg);   color: var(--type-story-color); }
+.dist-badge.type-spike   { background: var(--type-spike-bg);   color: var(--type-spike-color); }
+.dist-badge.type-bug     { background: var(--type-bug-bg);     color: var(--type-bug-color); }
+.dist-badge.type-epic    { background: var(--type-epic-bg);    color: var(--type-epic-color); }
+
+.dist-badge.priority-critical,
+.dist-badge.priority-major { background: rgba(239,68,68,0.15); color: #EF4444; }
+.dist-badge.priority-high  { background: rgba(245,158,11,0.15); color: #F59E0B; }
+.dist-badge.priority-medium { background: var(--surface2); color: var(--muted); }
+.dist-badge.priority-low   { background: var(--surface2); color: var(--muted); opacity: 0.7; }
+
+.dist-badge.sp {
+  background: rgba(0,150,214,0.12);
+  color: var(--accent-hover);
+}
+[data-theme="light"] .dist-badge.sp { color: var(--accent); }
+
+.dist-badge.no-sp {
+  background: rgba(245,158,11,0.12);
+  color: #F59E0B;
+  font-style: italic;
+}
+
+.dist-badge.existing {
+  background: var(--surface2);
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Overflow section */
+.distribution-overflow-section { margin-top: 16px; }
+
+.overflow-header {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+}
+.overflow-header .distribution-sprint-name { color: var(--error-text); }
+.overflow-header .distribution-sprint-stats { color: var(--error-text); opacity: 0.8; }
+
+.distribution-overflow-section .distribution-sprint-items {
+  border-color: var(--error-border);
+}
+
+.overflow-item { opacity: 0.7; }
+
+/* Messages */
+.distribution-messages {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.distribution-msg {
+  font-size: 0.73rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.distribution-msg.warning {
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.25);
+  color: #F59E0B;
+}
+
+.distribution-msg.suggestion {
+  background: var(--accent-subtle);
+  border: 1px solid rgba(0,150,214,0.2);
+  color: var(--accent-hover);
+}
+[data-theme="light"] .distribution-msg.suggestion { color: var(--accent); }
+
+/* Swimlane distribute button */
+.btn-distribute {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+.btn-distribute:hover {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+  background: var(--accent-subtle);
+}
+[data-theme="light"] .btn-distribute:hover { color: var(--accent); }

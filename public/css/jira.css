@@ -147,6 +147,137 @@
 .jira-status.loading { background: var(--accent-subtle); border: 1px solid rgba(0,150,214,0.25); color: var(--accent-hover); }
 [data-theme="light"] .jira-status.loading { color: var(--accent); }
 
+/* ── Import by key ───────────────────────────────────────────── */
+.jira-key-import {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.jira-key-import label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.jira-key-row {
+  display: flex;
+  gap: 6px;
+}
+
+.jira-key-row input {
+  flex: 1;
+  font-size: 0.82rem;
+  padding: 7px 10px;
+}
+
+.btn-jira-key {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.btn-jira-key:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+.btn-jira-key:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── JIRA selection modal ────────────────────────────────────── */
+.jira-select-dialog {
+  width: 540px;
+  max-width: 90vw;
+}
+
+.jira-select-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.jira-select-header h3 { margin: 0; font-size: 1rem; }
+
+.jira-select-bulk { display: flex; gap: 6px; }
+
+.btn-xs {
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-xs:hover { border-color: var(--muted); color: var(--text); }
+
+.jira-select-list {
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.jira-select-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+  user-select: none;
+}
+.jira-select-item:hover { border-color: var(--accent); background: var(--surface2); }
+.jira-select-item:has(input:checked) { border-color: var(--accent); background: var(--accent-subtle); }
+
+.jira-select-item input[type=checkbox] {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.jira-select-item-body { flex: 1; min-width: 0; }
+
+.jira-select-key {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--type-epic-color);
+  font-family: 'Fira Code', monospace;
+  margin-bottom: 2px;
+}
+
+.jira-select-summary {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jira-select-meta { display: flex; gap: 5px; flex-wrap: wrap; }
+
 /* ── Model Settings section ─────────────────────────────────── */
 .model-section { margin-top: 12px; }
 .model-body.open { max-height: 200px; }

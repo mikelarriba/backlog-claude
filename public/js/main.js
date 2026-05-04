@@ -34,9 +34,11 @@ function updateSplitMode() {
 }
 
 function highlightSelectedItem(filename, docType) {
-  document.querySelectorAll('.epic-item').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.epic-item, .roadmap-card').forEach(el => el.classList.remove('selected'));
   if (filename) {
     document.querySelector(`.epic-item[data-filename="${CSS.escape(filename)}"][data-doctype="${docType}"]`)
+      ?.classList.add('selected');
+    document.querySelector(`.roadmap-card[data-filename="${CSS.escape(filename)}"][data-doctype="${docType}"]`)
       ?.classList.add('selected');
   }
 }
@@ -87,9 +89,11 @@ async function updateModelSetting(model) {
   }
 }
 
-// Bootstrap — load PI settings, JIRA versions, model & app config before docs so swimlanes render correctly
+// Bootstrap — load PI settings, JIRA versions, sprint config, model & app config before docs so swimlanes render correctly
 (async () => {
   await Promise.all([loadPiSettings(), loadJiraVersions(), loadModelSetting(), loadAppConfig()]);
+  await loadAllSprintConfigs();
+  populateRoadmapDropdown();
   loadDocs();
 })();
 initDragDrop();
@@ -100,12 +104,26 @@ const evtSource = new EventSource('/api/events');
 evtSource.onmessage = (e) => {
   try {
     const payload = JSON.parse(e.data);
-    if (['feature_created','epic_created','story_created','spike_created','bug_created','status_updated','title_updated','doc_deleted','batch_fix_version_updated','link_updated'].includes(payload.type)) {
+    if (['feature_created','epic_created','story_created','spike_created','bug_created','status_updated','title_updated','doc_deleted','batch_deleted','batch_fix_version_updated','link_updated'].includes(payload.type)) {
       loadDocs();
     }
     if (payload.type === 'pi_settings_updated') {
       piSettings = { currentPi: payload.currentPi, nextPi: payload.nextPi };
+      populateRoadmapDropdown();
+      loadAllSprintConfigs().then(() => { loadDocs(); refreshRoadmapView(); });
+    }
+    if (payload.type === 'sprint_settings_updated') {
+      loadAllSprintConfigs().then(() => { loadDocs(); refreshRoadmapView(); });
+    }
+    if (payload.type === 'batch_sprint_updated') {
       loadDocs();
+      refreshRoadmapView();
+    }
+    if (payload.type === 'split_threshold_updated') {
+      splitThreshold = payload.splitThreshold;
+      const el = document.getElementById('split-threshold-input');
+      if (el) el.value = splitThreshold;
+      refreshRoadmapView();
     }
   } catch {}
 };
@@ -113,4 +131,9 @@ evtSource.onmessage = (e) => {
 // Close delete dialog on overlay click
 document.getElementById('delete-overlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeDeleteDialog();
+});
+
+// Close split modal on overlay click
+document.getElementById('split-overlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeSplitModal();
 });

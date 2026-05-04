@@ -1,0 +1,232 @@
+/* ── PI Sprint Configuration panel ──────────────────────────── */
+.pi-config-section { margin-top: 12px; }
+
+.pi-config-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.pi-config-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+
+.pi-config-tab:hover { border-color: var(--accent); color: var(--text); }
+.pi-config-tab.active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent-hover);
+}
+[data-theme="light"] .pi-config-tab.active { color: var(--accent); }
+
+.pi-config-tab-name {
+  font-size: 0.62rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.pi-config-empty {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 12px 0;
+  font-style: italic;
+}
+
+/* Sprint rows */
+.pi-config-sprints {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.pi-config-sprint-row {
+  display: grid;
+  grid-template-columns: 1fr 72px 28px;
+  gap: 6px;
+  align-items: center;
+}
+
+.pi-config-sprint-name {
+  font-size: 0.78rem;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.pi-config-sprint-name:focus { border-color: var(--accent); }
+
+.pi-config-capacity-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pi-config-sprint-cap {
+  width: 100%;
+  font-size: 0.78rem;
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.pi-config-sprint-cap:focus { border-color: var(--accent); }
+.pi-config-sprint-cap::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.pi-config-cap-label {
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.pi-config-remove-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s, color 0.12s;
+  font-family: inherit;
+}
+.pi-config-remove-btn:hover { border-color: var(--error-border); color: var(--error-text); }
+
+.btn-pi-add-sprint {
+  width: 100%;
+  background: transparent;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.12s, color 0.12s;
+  margin-bottom: 8px;
+}
+.btn-pi-add-sprint:hover { border-color: var(--accent); color: var(--accent-hover); }
+
+.btn-pi-save {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, opacity 0.15s;
+}
+.btn-pi-save:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-pi-save:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-pi-distribute {
+  width: 100%;
+  background: transparent;
+  color: var(--accent-hover);
+  border: 1px solid rgba(0,150,214,0.3);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+  margin-top: 6px;
+}
+.btn-pi-distribute:hover { background: var(--accent-subtle); border-color: var(--accent); }
+[data-theme="light"] .btn-pi-distribute { color: var(--accent); }
+
+.pi-config-status {
+  font-size: 0.72rem;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-top: 8px;
+  display: none;
+}
+.pi-config-status.show { display: block; }
+.pi-config-status.success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
+.pi-config-status.error   { background: var(--error-bg);   border: 1px solid var(--error-border);   color: var(--error-text); }
+
+/* ── Sprint badge in list view ─────────────────────────────── */
+.sprint-badge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: rgba(0, 150, 214, 0.12);
+  color: var(--accent-hover);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+[data-theme="light"] .sprint-badge {
+  color: var(--accent);
+  background: rgba(0, 30, 80, 0.08);
+}
+
+/* ── Sprint select in detail toolbar ───────────────────────── */
+.sprint-select {
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.sprint-select:focus { border-color: var(--accent); }
+
+/* ── Swimlane capacity summary ─────────────────────────────── */
+.swimlane-capacity {
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 12px;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success-border);
+  white-space: nowrap;
+  margin-left: 4px;
+}
+.swimlane-capacity.over {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border-color: var(--error-border);
+}

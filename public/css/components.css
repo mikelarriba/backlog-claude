@@ -1,4 +1,17 @@
 /* ── Forms ───────────────────────────────────────────────────── */
+/* Field label annotations */
+.field-required {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+.field-optional {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.68rem;
+  font-style: italic;
+}
+
 label {
   display: block;
   font-size: 0.72rem;
@@ -66,6 +79,20 @@ button:active:not(:disabled) { transform: scale(0.97); }
 }
 
 .btn-secondary:hover { border-color: var(--muted); color: var(--text); background: var(--surface2); }
+
+/* Draft button — sits between secondary and primary */
+.btn-draft {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  flex: 1;
+}
+.btn-draft:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-draft:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-ghost {
   background: transparent;

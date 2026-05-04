@@ -11,22 +11,31 @@
   flex-direction: row;
 }
 
-/* List panel — scrollable, fixed proportion */
+/* List panel — full width when nothing selected, 60 % when detail is open */
 .right.split-mode #list-view {
-  flex: 0 0 60%;
-  width: 60%;
+  flex: 1 1 auto;
   border-right: 1px solid var(--border);
   min-width: 0;
   height: 100%;
+  transition: flex-basis 0.15s ease;
 }
 
-/* Detail panel — always rendered, shows placeholder when empty */
+.right.split-mode.has-selection #list-view {
+  flex: 0 0 60%;
+  width: 60%;
+}
+
+/* Detail panel — hidden until something is selected */
 .right.split-mode #detail-view {
-  display: flex;          /* override default display:none */
-  flex: 1 1 40%;
+  display: none;
+  flex: 0 0 40%;
   min-width: 0;
   height: 100%;
   background: var(--bg);
+}
+
+.right.split-mode.has-selection #detail-view {
+  display: flex;
 }
 
 /* Hide the ← Back button; list is always visible */
@@ -47,29 +56,8 @@
   border-left-color: var(--accent);
 }
 
-/* ── Empty-state placeholder (shown when no doc is selected) ── */
-#split-placeholder {
-  display: none;          /* hidden by default and in narrow mode */
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  flex: 1;
-  color: var(--muted);
-  font-size: 0.84rem;
-  text-align: center;
-  padding: 32px;
-  background: var(--bg);
-}
-
-.right.split-mode #split-placeholder {
-  display: flex;          /* visible only in split mode */
-}
-
-/* Hide placeholder when a doc is open */
-.right.split-mode #detail-view.show #split-placeholder {
-  display: none;
-}
+/* ── Empty-state placeholder (kept for roadmap mode) ── */
+#split-placeholder { display: none; }
 
 .split-placeholder-icon {
   font-size: 2.2rem;

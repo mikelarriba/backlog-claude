@@ -66,10 +66,10 @@ const JIRA_PROJECT = 'EAMDM';
 const JIRA_LABEL   = 'MIDAS_Development';
 const FIELD_EPIC_NAME    = 'customfield_10002';
 const FIELD_EPIC_LINK    = 'customfield_10000';
-const FIELD_STORY_POINTS = 'customfield_10016'; // JIRA Server standard story points field
+const FIELD_STORY_POINTS = 'customfield_10006'; // VW Group JIRA story points field
 
 const { jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } =
-  createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, TYPE_CONFIG, isoDate, slugify });
+  createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIELD_STORY_POINTS, TYPE_CONFIG, isoDate, slugify });
 
 // ── Middleware & SSE ─────────────────────────────────────────────────────────
 app.use(express.json());
@@ -83,7 +83,7 @@ const callClaude   = prompt => callClaudeService(__dirname, prompt);
 const streamClaude = (prompt, onChunk) => streamClaudeService(__dirname, prompt, onChunk);
 
 // ── Mount route modules ──────────────────────────────────────────────────────
-const shared = { TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logWarn, logError };
+const shared = { rootDir: __dirname, TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logWarn, logError };
 
 app.use(docsRoutes(shared));
 app.use(linksRoutes(shared));

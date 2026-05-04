@@ -93,3 +93,37 @@
   background: var(--bg);
   transition: background 0.2s;
 }
+
+/* ── Responsive breakpoints ──────────────────────────────────── */
+
+/* Medium screens (≤ 1100px): narrow left panel */
+@media (max-width: 1100px) {
+  .app {
+    grid-template-columns: 300px 1fr;
+  }
+  .left {
+    padding: 18px 16px;
+  }
+}
+
+/* Small screens (≤ 820px): collapse left panel, full-width right */
+@media (max-width: 820px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .left {
+    display: none;           /* hide generation form — backlog list is primary UI */
+  }
+  .right {
+    height: 100vh;
+  }
+}
+
+/* ── Detail toolbar wrapping ─────────────────────────────────── */
+@media (max-width: 1000px) {
+  .detail-toolbar {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}

@@ -1,3 +1,51 @@
+// ── JIRA selection modal ─────────────────────────────────────
+var _jiraSelectResolve = null;
+var _jiraSelectItems   = [];
+
+function showJiraSelectModal(title, items, confirmLabel) {
+  return new Promise(function(resolve) {
+    _jiraSelectResolve = resolve;
+    _jiraSelectItems   = items;
+    document.getElementById('jira-select-title').textContent       = title;
+    document.getElementById('jira-select-confirm-btn').textContent = confirmLabel || 'Confirm';
+
+    const list = document.getElementById('jira-select-list');
+    list.innerHTML = items.map(function(item, i) {
+      const keyHtml   = item.key  ? '<span class="jira-select-key">'  + escHtml(String(item.key))  + '</span>' : '';
+      const typeClass = (item.type || '').replace(/\s+/g, '-');
+      const typeHtml  = item.type ? '<span class="jira-badge type-' + escHtml(typeClass) + '">' + escHtml(item.type) + '</span>' : '';
+      const localHtml = item.localExists ? '<span class="jira-badge local">✓ Local</span>' : '';
+      return '<label class="jira-select-item">' +
+        '<input type="checkbox" checked data-idx="' + i + '" />' +
+        '<div class="jira-select-item-body">' +
+          keyHtml +
+          '<span class="jira-select-summary">' + escHtml(item.summary || '') + '</span>' +
+          '<div class="jira-select-meta">' + typeHtml + localHtml + '</div>' +
+        '</div>' +
+      '</label>';
+    }).join('');
+
+    document.getElementById('jira-select-overlay').classList.add('show');
+  });
+}
+
+function jiraSelectAll(checked) {
+  document.querySelectorAll('#jira-select-list input[type=checkbox]').forEach(function(cb) { cb.checked = checked; });
+}
+
+function jiraSelectCancel() {
+  document.getElementById('jira-select-overlay').classList.remove('show');
+  if (_jiraSelectResolve) { _jiraSelectResolve([]); _jiraSelectResolve = null; }
+}
+
+function jiraSelectConfirm() {
+  const selected = Array.from(
+    document.querySelectorAll('#jira-select-list input[type=checkbox]:checked')
+  ).map(function(cb) { return _jiraSelectItems[parseInt(cb.dataset.idx)]; });
+  document.getElementById('jira-select-overlay').classList.remove('show');
+  if (_jiraSelectResolve) { _jiraSelectResolve(selected); _jiraSelectResolve = null; }
+}
+
 // ── Push to JIRA ──────────────────────────────────────────────
 const JIRA_CARET = ' <span class="toolbar-caret">▾</span>';
 
@@ -5,18 +53,9 @@ function updateJiraPushBtn() {
   const btn = document.getElementById('jira-push-btn');
   if (!btn) return;
   const isMultiStory = currentDocType === 'story' && currentFilename?.endsWith('-stories.md');
-  let label;
-  if (isMultiStory) {
-    label = '↑ Push Stories';
-  } else if (currentJiraId && currentJiraId !== 'TBD') {
-    label = '↑ JIRA';
-  } else {
-    label = '↑ JIRA';
-  }
-  btn.innerHTML = label + JIRA_CARET;
+  btn.innerHTML = (isMultiStory ? '↑ Push Stories' : '↑ JIRA') + JIRA_CARET;
   btn.disabled = false;
 
-  // Enable/disable Sync Status only when a JIRA_ID exists
   const syncBtn = document.getElementById('jira-sync-status-btn');
   if (syncBtn) syncBtn.disabled = !(currentJiraId && currentJiraId !== 'TBD');
 }
@@ -36,10 +75,8 @@ async function syncJiraStatus() {
     try { data = await res.json(); } catch { data = {}; }
     if (!res.ok) throw new Error(getErrorMessage(data.error, 'Sync failed'));
 
-    // Update JIRA Status badge
     if (data.jiraStatus) updateJiraStatus(data.jiraStatus);
 
-    // Update story points input if returned
     if (data.storyPoints !== null && data.storyPoints !== undefined) {
       const spInput = document.getElementById('sp-input');
       if (spInput && spInput.style.display !== 'none') {
@@ -50,7 +87,8 @@ async function syncJiraStatus() {
       }
     }
 
-    showJiraToast('success', `✅ Status synced: ${data.jiraStatus || '—'}`);
+    const spMsg = (data.storyPoints !== null && data.storyPoints !== undefined) ? `, SP: ${data.storyPoints}` : '';
+    showJiraToast('success', `✅ Status synced: ${data.jiraStatus || '—'}${spMsg}`);
   } catch (e) {
     showJiraToast('error', `❌ ${e.message}`);
   } finally {
@@ -61,41 +99,44 @@ async function syncJiraStatus() {
 async function pushToJira() {
   if (!currentFilename || !currentDocType) return;
 
-  // Check for local children before pushing (features/epics only)
-  let pushChildren = false;
-  let localChildren = [];
+  // For features/epics: let user select which children to also push
+  let selectedChildren = [];
   if (currentDocType === 'feature' || currentDocType === 'epic') {
     try {
       const linksRes = await fetch(`/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`);
       if (linksRes.ok) {
-        const linksData = await linksRes.json();
-        localChildren = linksData.children || [];
+        const linksData  = await linksRes.json();
+        const localChildren = linksData.children || [];
         if (localChildren.length > 0) {
-          const childList = localChildren.map(c => `${c.title} (${TYPE_LABEL[c.docType] || c.docType})`).join('\n');
-          pushChildren = window.confirm(
-            `This ${TYPE_LABEL[currentDocType]} has ${localChildren.length} linked child(ren):\n\n${childList}\n\nPush them to JIRA as well?`
+          const modalItems = localChildren.map(c => ({
+            key:      c.jiraId && c.jiraId !== 'TBD' ? c.jiraId : 'New',
+            summary:  c.title,
+            type:     TYPE_LABEL[c.docType] || c.docType,
+            filename: c.filename,
+            docType:  c.docType,
+          }));
+          selectedChildren = await showJiraSelectModal(
+            `${localChildren.length} linked child issue(s) — select to push`,
+            modalItems,
+            'Push selected'
           );
         }
       }
-    } catch (_) { /* continue with parent only */ }
+    } catch (_) { /* continue without children */ }
   }
 
   const btn = document.getElementById('jira-push-btn');
-  btn.disabled = true;
+  btn.disabled    = true;
   btn.textContent = '⏳ Pushing…';
 
   try {
-    // Push parent
+    // Push the parent doc
     const res = await fetch(
       `/api/jira/push/${currentDocType}/${encodeURIComponent(currentFilename)}`,
       { method: 'POST' }
     );
     let data;
-    try {
-      data = await res.json();
-    } catch {
-      data = { error: await res.text().catch(() => 'Failed to parse response') };
-    }
+    try { data = await res.json(); } catch { data = { error: await res.text().catch(() => 'Failed to parse response') }; }
     if (!res.ok) throw new Error(getErrorMessage(data.error, 'Push failed'));
 
     if (data.type === 'multi-story') {
@@ -116,22 +157,18 @@ async function pushToJira() {
       }
     }
 
-    // Push children if confirmed
-    if (pushChildren && localChildren.length > 0) {
+    // Push selected children
+    if (selectedChildren.length > 0) {
       const childResults = [];
-      for (const child of localChildren) {
+      for (const child of selectedChildren) {
         try {
-          btn.textContent = `⏳ Pushing ${child.title}…`;
-          const childRes = await fetch(
+          btn.textContent = `⏳ Pushing ${child.summary}…`;
+          const childRes  = await fetch(
             `/api/jira/push/${child.docType}/${encodeURIComponent(child.filename)}`,
             { method: 'POST' }
           );
           let childData;
-          try {
-            childData = await childRes.json();
-          } catch {
-            childData = {};
-          }
+          try { childData = await childRes.json(); } catch { childData = {}; }
           if (childRes.ok && childData.key) {
             childResults.push({ key: childData.key, action: childData.action });
           }
@@ -242,7 +279,7 @@ async function downloadSelected() {
   await performJiraPull(keys, []);
 }
 
-async function performJiraPull(keys, overwriteKeys, _allPulled = []) {
+async function performJiraPull(keys, overwriteKeys, _allPulled = [], parentLink = null) {
   const btn = document.getElementById('jira-download-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Downloading…';
@@ -252,7 +289,7 @@ async function performJiraPull(keys, overwriteKeys, _allPulled = []) {
     const res  = await fetch('/api/jira/pull', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys, overwriteKeys })
+      body: JSON.stringify({ keys, overwriteKeys, parentLink })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(getErrorMessage(data.error, 'Download failed'));
@@ -261,14 +298,20 @@ async function performJiraPull(keys, overwriteKeys, _allPulled = []) {
 
     let resolvedOverwrite = [...overwriteKeys];
     if (data.conflicts?.length) {
-      const conflictList = data.conflicts.map(c => `${c.key} (${c.existingFilename})`).join('\n');
-      const confirm = window.confirm(
-        `${data.conflicts.length} issue(s) already exist locally:\n\n${conflictList}\n\nOverwrite?`
+      const conflictItems = data.conflicts.map(c => ({
+        key:     c.key,
+        summary: c.existingFilename,
+        type:    c.existingDocType,
+      }));
+      const selectedOverwrite = await showJiraSelectModal(
+        `${data.conflicts.length} issue(s) already exist locally — overwrite?`,
+        conflictItems,
+        'Overwrite selected'
       );
-      if (confirm) {
-        resolvedOverwrite = [...resolvedOverwrite, ...data.conflicts.map(c => c.key)];
+      if (selectedOverwrite.length) {
+        resolvedOverwrite = [...resolvedOverwrite, ...selectedOverwrite.map(c => c.key)];
         btn.disabled = false;
-        return performJiraPull(keys, resolvedOverwrite, accumulatedPulled);
+        return performJiraPull(keys, resolvedOverwrite, accumulatedPulled, parentLink);
       }
     }
 
@@ -298,8 +341,34 @@ async function performJiraPull(keys, overwriteKeys, _allPulled = []) {
   }
 }
 
+// ── Import by key (bypasses label filter) ────────────────────
+async function pullByKey() {
+  const input = document.getElementById('jira-key-input');
+  const raw   = (input.value || '').trim();
+  if (!raw) { input.focus(); return; }
+
+  const keys = raw.split(/[\s,]+/).map(k => k.trim().toUpperCase()).filter(Boolean);
+  if (!keys.length) return;
+
+  const btn = document.querySelector('.btn-jira-key');
+  btn.disabled    = true;
+  btn.textContent = '⏳ Importing…';
+  setJiraStatus('loading', `Importing ${keys.join(', ')}…`);
+
+  try {
+    await performJiraPull(keys, []);
+    input.value = '';
+  } catch (e) {
+    setJiraStatus('error', `❌ ${e.message}`);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '⬇ Import';
+  }
+}
+
 async function offerChildrenDownload(parentIssues) {
-  const allChildren = [];
+  const allChildren  = [];
+  const childToParent = new Map(); // child.key → parent issue
   const seen = new Set();
 
   for (const parent of parentIssues) {
@@ -308,9 +377,15 @@ async function offerChildrenDownload(parentIssues) {
       if (!res.ok) continue;
       const data = await res.json();
       for (const child of (data.children || [])) {
-        if (!child.localExists && !seen.has(child.key)) {
+        if (!seen.has(child.key)) {
           seen.add(child.key);
-          allChildren.push(child);
+          allChildren.push({
+            key:        child.key,
+            summary:    child.summary,
+            type:       child.issuetype,
+            localExists: child.localExists,
+          });
+          childToParent.set(child.key, parent);
         }
       }
     } catch (_) { /* skip on error */ }
@@ -318,12 +393,24 @@ async function offerChildrenDownload(parentIssues) {
 
   if (allChildren.length === 0) return;
 
-  const childList = allChildren.map(c => `${c.key} — ${c.summary} (${c.issuetype})`).join('\n');
-  const confirmed = window.confirm(
-    `Found ${allChildren.length} linked child issue(s) in JIRA:\n\n${childList}\n\nDownload them too?`
+  const selected = await showJiraSelectModal(
+    `${allChildren.length} linked child issue(s) found in JIRA`,
+    allChildren,
+    'Download selected'
   );
 
-  if (confirmed) {
-    await performJiraPull(allChildren.map(c => c.key), []);
+  if (!selected.length) return;
+
+  // Pull each group of children with their parent link so Epic_ID / Feature_ID is set
+  for (const parent of parentIssues) {
+    const childKeys = selected
+      .filter(c => childToParent.get(c.key)?.key === parent.key)
+      .map(c => c.key);
+    if (childKeys.length) {
+      await performJiraPull(childKeys, [], [], {
+        filename: parent.filename,
+        docType:  parent.docType,
+      });
+    }
   }
 }

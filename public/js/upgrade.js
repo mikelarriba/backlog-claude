@@ -3,9 +3,21 @@ function toggleUpgradePanel() {
   const panel  = document.getElementById('upgrade-panel');
   const isOpen = panel.classList.toggle('open');
   if (isOpen) {
+    _prefillUpgradeIfDraft();
     document.getElementById('upgrade-feedback').focus();
   } else {
     resetUpgradePanel();
+  }
+}
+
+// When the current doc is a minimal draft, pre-fill a helpful default prompt
+function _prefillUpgradeIfDraft() {
+  const textarea = document.getElementById('upgrade-feedback');
+  if (textarea.value.trim()) return; // don't overwrite user input
+  const body = document.getElementById('detail-content')?.textContent?.trim() || '';
+  if (body.length < 250) {
+    const label = TYPE_LABEL[currentDocType] || currentDocType;
+    textarea.value = `Generate a complete ${label} using the COVE framework (Context, Objective, Value, Execution) with Acceptance Criteria. Use the title and any notes above as context.`;
   }
 }
 

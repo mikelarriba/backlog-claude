@@ -25,19 +25,30 @@ async function executeLinkDrop(srcFilename, srcDocType, dropTarget) {
   const tgtDocType  = dropTarget.dataset.doctype;
   const tgtTitle    = dropTarget.querySelector('.epic-title-text')?.textContent || tgtFilename;
 
-  try {
-    const res = await fetch('/api/link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sourceType: srcDocType, sourceFilename: srcFilename,
-        targetType: tgtDocType, targetFilename: tgtFilename,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Link failed'));
+  // If multi-selected, link all selected items
+  const dragDocs = getDragDocs(srcFilename, srcDocType);
 
-    showJiraToast('success', `Linked to "${tgtTitle}"`);
+  try {
+    let linked = 0;
+    for (const d of dragDocs) {
+      const valid = DRAG_TARGETS[d.docType] || [];
+      if (!valid.includes(tgtDocType)) continue;
+      const res = await fetch('/api/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceType: d.docType, sourceFilename: d.filename,
+          targetType: tgtDocType, targetFilename: tgtFilename,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Link failed'));
+      linked++;
+    }
+
+    const msg = linked > 1 ? `Linked ${linked} items to "${tgtTitle}"` : `Linked to "${tgtTitle}"`;
+    showJiraToast('success', msg);
+    clearSelection();
     if (currentFilename === srcFilename || currentFilename === tgtFilename) {
       loadHierarchy(currentFilename, currentDocType);
     }
@@ -55,12 +66,22 @@ async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
     return;
   }
 
+  // Collect all items to move (multi-select aware + descendants)
+  const dragDocs = getDragDocs(srcFilename, srcDocType);
   const childrenMap = buildChildrenMap(allDocs);
-  const srcDoc      = allDocs.find(d => d.filename === srcFilename && d.docType === srcDocType);
-  if (!srcDoc) return;
-
-  const descendants = getDescendants(srcFilename, childrenMap);
-  const docsToMove  = [srcDoc, ...descendants];
+  const allToMove = [];
+  const seen = new Set();
+  for (const d of dragDocs) {
+    if (seen.has(d.filename)) continue;
+    seen.add(d.filename);
+    allToMove.push(d);
+    for (const desc of getDescendants(d.filename, childrenMap)) {
+      if (!seen.has(desc.filename)) {
+        seen.add(desc.filename);
+        allToMove.push(desc);
+      }
+    }
+  }
 
   try {
     const res = await fetch('/api/docs/batch-fix-version', {
@@ -68,18 +89,29 @@ async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fixVersion: newFixVersion,
-        docs: docsToMove.map(d => ({ type: d.docType, filename: d.filename })),
+        docs: allToMove.map(d => ({ type: d.docType, filename: d.filename })),
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(getErrorMessage(data.error, 'Move failed'));
 
     const label    = SECTION_LABELS[targetSection];
-    const countMsg = docsToMove.length > 1 ? ` (${docsToMove.length} items)` : '';
+    const countMsg = allToMove.length > 1 ? ` (${allToMove.length} items)` : '';
     showJiraToast('success', `Moved to ${label}${countMsg}`);
+    clearSelection();
   } catch (err) {
     showJiraToast('error', err.message);
   }
+}
+
+// Returns the docs being dragged — either the multi-selection or just the single item
+function getDragDocs(srcFilename, srcDocType) {
+  const key = itemKey(srcFilename, srcDocType);
+  if (selectedItems.size > 1 && selectedItems.has(key)) {
+    return getSelectedDocs();
+  }
+  const doc = allDocs.find(d => d.filename === srcFilename && d.docType === srcDocType);
+  return doc ? [doc] : [];
 }
 
 function resolveDropTargets(snap, e) {
@@ -142,20 +174,39 @@ function initDragDrop() {
       state.started = true;
       _justDragged = true;
 
+      const dragDocs = getDragDocs(state.srcFilename, state.srcDocType);
+      const multiCount = dragDocs.length;
+
       const ghost = document.createElement('div');
       ghost.className = 'drag-ghost';
-      const badge = document.createElement('span');
-      badge.className = `type-badge ${state.srcDocType}`;
-      badge.textContent = TYPE_LABEL[state.srcDocType] || state.srcDocType;
-      ghost.appendChild(badge);
-      ghost.appendChild(document.createTextNode(
-        allDocs.find(d => d.filename === state.srcFilename)?.title || state.srcFilename
-      ));
+      if (multiCount > 1) {
+        const countBadge = document.createElement('span');
+        countBadge.className = 'drag-count-badge';
+        countBadge.textContent = multiCount;
+        ghost.appendChild(countBadge);
+        ghost.appendChild(document.createTextNode(`${multiCount} items`));
+      } else {
+        const badge = document.createElement('span');
+        badge.className = `type-badge ${state.srcDocType}`;
+        badge.textContent = TYPE_LABEL[state.srcDocType] || state.srcDocType;
+        ghost.appendChild(badge);
+        ghost.appendChild(document.createTextNode(
+          allDocs.find(d => d.filename === state.srcFilename)?.title || state.srcFilename
+        ));
+      }
       document.body.appendChild(ghost);
       state.ghost = ghost;
 
-      const srcItem = list.querySelector(`[data-filename="${CSS.escape(state.srcFilename)}"]`);
-      if (srcItem) srcItem.classList.add('drag-source');
+      // Mark all dragged items as drag-source
+      if (multiCount > 1) {
+        for (const d of dragDocs) {
+          const el = list.querySelector(`[data-filename="${CSS.escape(d.filename)}"][data-doctype="${d.docType}"]`);
+          if (el) el.classList.add('drag-source');
+        }
+      } else {
+        const srcItem = list.querySelector(`[data-filename="${CSS.escape(state.srcFilename)}"]`);
+        if (srcItem) srcItem.classList.add('drag-source');
+      }
       list.classList.add('dragging-active');
       document.body.style.userSelect = 'none';
     }

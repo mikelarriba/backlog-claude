@@ -54,7 +54,10 @@ function buildClaudeArgs(prompt) {
   return args;
 }
 
-const CLAUDE_TIMEOUT_MS = 120_000;
+// callClaude (non-streaming): 3 min — generate route, one-shot rewrites
+const CALL_TIMEOUT_MS = 180_000;
+// streamClaude (streaming): 5 min — upgrade/refine routes, long COVE rewrites
+const STREAM_TIMEOUT_MS = 300_000;
 
 // Strip code fences that models sometimes wrap around output.
 // Handles: ```yaml\n---frontmatter---\n```\nbody  →  ---frontmatter---\nbody
@@ -73,11 +76,11 @@ export function callClaude(rootDir, prompt) {
   return new Promise((resolve, reject) => {
     let out = '';
     let err = '';
-    const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir });
+    const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });
     const timer = setTimeout(() => {
       proc.kill();
-      reject(new Error('Claude subprocess timed out after 120s'));
-    }, CLAUDE_TIMEOUT_MS);
+      reject(new Error('Claude subprocess timed out after 3 min'));
+    }, CALL_TIMEOUT_MS);
     proc.stdout.on('data', d => (out += d.toString()));
     proc.stderr.on('data', d => (err += d.toString()));
     proc.on('close', code => {
@@ -95,11 +98,11 @@ export function streamClaude(rootDir, prompt, onChunk) {
   }
   return new Promise((resolve, reject) => {
     let err = '';
-    const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir });
+    const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });
     const timer = setTimeout(() => {
       proc.kill();
-      reject(new Error('Claude subprocess timed out after 120s'));
-    }, CLAUDE_TIMEOUT_MS);
+      reject(new Error('Claude subprocess timed out after 5 min'));
+    }, STREAM_TIMEOUT_MS);
     proc.stdout.on('data', d => onChunk(d.toString()));
     proc.stderr.on('data', d => (err += d.toString()));
     proc.on('close', code => {

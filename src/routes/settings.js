@@ -36,15 +36,67 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
 
   // ── PI settings ────────────────────────────────────────────────────────────
   router.get('/api/settings/pi', (req, res) => {
-    res.json(loadPiSettings());
+    const { sprints, ...rest } = loadPiSettings();
+    res.json(rest);
   });
 
   router.put('/api/settings/pi', (req, res) => {
     const { currentPi, nextPi } = req.body;
-    const settings = { currentPi: currentPi || null, nextPi: nextPi || null };
+    const existing = loadPiSettings();
+    const settings = { ...existing, currentPi: currentPi || null, nextPi: nextPi || null };
     savePiSettings(settings);
-    broadcast({ type: 'pi_settings_updated', ...settings });
-    res.json({ success: true, ...settings });
+    broadcast({ type: 'pi_settings_updated', currentPi: settings.currentPi, nextPi: settings.nextPi });
+    res.json({ success: true, currentPi: settings.currentPi, nextPi: settings.nextPi });
+  });
+
+  // ── Split threshold ────────────────────────────────────────────────────────
+  router.get('/api/settings/pi/split-threshold', (req, res) => {
+    const settings = loadPiSettings();
+    res.json({ splitThreshold: settings.splitThreshold ?? 8 });
+  });
+
+  router.put('/api/settings/pi/split-threshold', (req, res) => {
+    const { splitThreshold } = req.body;
+    const val = Number(splitThreshold);
+    if (!Number.isInteger(val) || val < 1) {
+      return res.status(400).json({ error: 'splitThreshold must be a positive integer' });
+    }
+    const settings = loadPiSettings();
+    settings.splitThreshold = val;
+    savePiSettings(settings);
+    broadcast({ type: 'split_threshold_updated', splitThreshold: val });
+    res.json({ success: true, splitThreshold: val });
+  });
+
+  // ── Sprint config per PI ──────────────────────────────────────────────────
+  router.get('/api/settings/pi/sprints/:piName', (req, res) => {
+    const piName = decodeURIComponent(req.params.piName);
+    const settings = loadPiSettings();
+    const sprints = (settings.sprints && settings.sprints[piName]) || [];
+    res.json({ piName, sprints });
+  });
+
+  router.put('/api/settings/pi/sprints/:piName', (req, res) => {
+    const piName = decodeURIComponent(req.params.piName);
+    const { sprints } = req.body;
+    if (!Array.isArray(sprints) || sprints.length < 1) {
+      return res.status(400).json({ error: 'At least one sprint is required' });
+    }
+    for (const s of sprints) {
+      if (!s.name || typeof s.name !== 'string' || !s.name.trim()) {
+        return res.status(400).json({ error: 'Each sprint must have a non-empty name' });
+      }
+      if (typeof s.capacity !== 'number' || s.capacity < 0) {
+        return res.status(400).json({ error: `Sprint "${s.name}" must have a capacity >= 0` });
+      }
+    }
+    const settings = loadPiSettings();
+    if (!settings.sprints) settings.sprints = {};
+    settings.sprints[piName] = sprints.map(s => ({ name: s.name.trim(), capacity: s.capacity }));
+    savePiSettings(settings);
+    broadcast({ type: 'sprint_settings_updated', piName });
+    logInfo('PUT /api/settings/pi/sprints', `Saved ${sprints.length} sprint(s) for ${piName}`);
+    res.json({ success: true, piName, sprints: settings.sprints[piName] });
   });
 
   // ── Model settings ─────────────────────────────────────────────────────────
