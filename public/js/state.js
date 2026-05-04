@@ -13,7 +13,11 @@ var currentJiraId       = null;
 var _justDragged        = false;
 var _quickCreateType    = null;
 var _toastTimer         = null;
+var selectedItems       = new Set();  // Set of "docType:filename" keys
+var _lastClickedItem    = null;       // { filename, docType } for shift-range select
 var jiraSearchResults   = [];
+var sprintConfig        = {}; // { piName: [{ name, capacity }] }
+var splitThreshold      = 8;  // SP value above which a card spans two sprints
 
 const TYPE_LABEL  = { epic: 'Epic', story: 'Story', spike: 'Spike', feature: 'Feature', bug: 'Bug' };
 const STATUS_LABEL = { Draft: 'Draft', 'Created in JIRA': 'In JIRA', Archived: 'Archived' };

@@ -51,8 +51,6 @@ Created: [today's date]
 
 Then the story body (raw markdown, no code fences, no additional commentary):
 
-## [Story Title]
-
 ## Context
 Why is this story needed now? What problem does it solve?
 

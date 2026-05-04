@@ -112,6 +112,44 @@ async function saveStoryPoints() {
   }
 }
 
+// ── Sprint select helpers ─────────────────────────────────────
+function updateSprintSelect(docType, fixVersion, currentSprint) {
+  const sel = document.getElementById('sprint-select');
+  const isLeaf = docType === 'story' || docType === 'spike' || docType === 'bug';
+
+  // Only show for leaf items that belong to a PI
+  if (!isLeaf || !fixVersion) {
+    sel.style.display = 'none';
+    return;
+  }
+
+  const sprints = getSprintsForPi(fixVersion);
+  if (!sprints.length) {
+    sel.style.display = 'none';
+    return;
+  }
+
+  sel.innerHTML = '<option value="">No Sprint</option>' +
+    sprints.map(s => `<option value="${escHtml(s.name)}"${s.name === currentSprint ? ' selected' : ''}>${escHtml(s.name)}</option>`).join('');
+  sel.value = currentSprint || '';
+  sel.style.display = '';
+}
+
+async function updateDocSprint(sprint) {
+  if (!currentFilename || !currentDocType) return;
+  try {
+    const res = await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sprint: sprint || null }),
+    });
+    if (!res.ok) return;
+    const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
+    if (doc) doc.sprint = sprint || null;
+    applyFilters();
+  } catch {}
+}
+
 function updateDocButtons(docType) {
   const isEpic    = docType === 'epic';
   const isFeature = docType === 'feature';
@@ -145,8 +183,10 @@ async function openDoc(filename, docType) {
     updateJiraLink(currentJiraId, jiraUrlMatch ? jiraUrlMatch[1].trim() : null);
     updateJiraPushBtn();
     updateStoryPointsUI(docType, doc?.storyPoints ?? null);
+    updateSprintSelect(docType, doc?.fixVersion, doc?.sprint);
 
-    if (isSplitMode()) {
+    document.querySelector('.right').classList.add('has-selection');
+    if (isSplitMode() || isRoadmapOpen()) {
       document.getElementById('detail-view').classList.add('show');
       highlightSelectedItem(filename, docType);
     } else {
@@ -345,6 +385,7 @@ async function updateDocStatus(status) {
 
 function showList() {
   document.getElementById('detail-view').classList.remove('show');
+  document.querySelector('.right').classList.remove('has-selection');
   document.getElementById('upgrade-panel').classList.remove('open');
   document.getElementById('original-section').style.display = 'none';
   resetUpgradePanel();
@@ -359,7 +400,10 @@ function showList() {
   document.getElementById('sp-wrap').style.display    = 'none';
   document.getElementById('sp-sum-wrap').style.display = 'none';
 
-  if (isSplitMode()) {
+  if (isRoadmapOpen()) {
+    // Roadmap stays visible; just clear the selection highlight
+    highlightSelectedItem(null, null);
+  } else if (isSplitMode()) {
     // List is already visible — just clear the selection highlight
     highlightSelectedItem(null, null);
   } else {

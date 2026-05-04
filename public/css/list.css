@@ -205,6 +205,16 @@
 }
 .epic-item:hover .drag-handle { opacity: 1; }
 
+/* ── Multi-select highlight ─────────────────────────────────── */
+.epic-item.multi-selected {
+  background: var(--accent-subtle);
+  border-left-color: var(--accent);
+}
+.epic-item.multi-selected:hover {
+  background: var(--accent-subtle);
+  border-left-color: var(--accent);
+}
+
 /* ── Drag states ─────────────────────────────────────────────── */
 .epic-item.drag-source { opacity: 0.3; }
 .epic-item.drag-target-valid {
@@ -239,6 +249,30 @@
   width: 12px;
 }
 
+/* ── Collapse toggle button ──────────────────────────────────── */
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0.25;
+  transition: opacity 0.12s, color 0.12s;
+  margin-top: 1px;
+}
+.collapse-btn svg { display: block; transition: transform 0.15s; }
+.collapse-btn.is-collapsed svg { transform: rotate(-90deg); }
+.collapse-btn:hover { color: var(--text); opacity: 1; }
+.epic-item:hover .collapse-btn { opacity: 1; }
+.collapse-btn.is-collapsed { opacity: 1; color: var(--accent); }
+
 /* ── Drag ghost ──────────────────────────────────────────────── */
 .drag-ghost {
   position: fixed;
@@ -255,4 +289,110 @@
   gap: 8px;
   box-shadow: 0 8px 24px var(--shadow);
   white-space: nowrap;
+}
+
+.drag-count-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── Context menu ───────────────────────────────────────────── */
+.context-menu {
+  position: fixed;
+  z-index: 10000;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  min-width: 200px;
+  box-shadow: 0 8px 28px var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ctx-header {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 4px 10px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ctx-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 6px;
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.ctx-item:hover { background: var(--surface2); }
+
+.ctx-item.ctx-danger { color: var(--error-text); }
+.ctx-item.ctx-danger:hover { background: var(--error-bg); }
+
+.ctx-badge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 20px;
+  background: var(--surface2);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ── Submenu ────────────────────────────────────────────────── */
+.ctx-submenu-wrap {
+  position: relative;
+}
+
+.ctx-submenu {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  min-width: 180px;
+  box-shadow: 0 8px 28px var(--shadow);
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ctx-submenu-wrap:hover > .ctx-submenu {
+  display: flex;
+}
+
+.ctx-has-sub::after {
+  content: '';
+  margin-left: auto;
 }

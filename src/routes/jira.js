@@ -224,11 +224,13 @@ export default function jiraRoutes({
       }
 
       const typeClause = type === 'all'
-        ? `issuetype in ("New Feature", Epic, Story, Task, Bug)`
-        : `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
+        ? `issuetype in ("New Feature", Epic, Story, Improvement, Task, Bug)`
+        : type === 'story'
+          ? `issuetype in ("Story", "Improvement")`
+          : `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
 
       const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
-      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND ${typeClause}${textClause} ORDER BY updated DESC`;
+      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause} ORDER BY updated DESC`;
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
       const data = await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`);
 
@@ -258,11 +260,16 @@ export default function jiraRoutes({
   // ── POST /api/jira/pull ────────────────────────────────────────────────────
   router.post('/api/jira/pull', async (req, res) => {
     try {
-      const { keys = [], overwriteKeys = [] } = req.body;
+      const { keys = [], overwriteKeys = [], parentLink = null } = req.body;
       if (!Array.isArray(keys)) return sendError(res, 400, 'VALIDATION_ERROR', 'keys must be an array');
       if (!keys.length) return sendError(res, 400, 'VALIDATION_ERROR', 'No keys provided');
 
       if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+      // Determine which frontmatter field links a child to its parent
+      const parentFieldName = parentLink?.docType === 'epic'    ? 'Epic_ID'
+                            : parentLink?.docType === 'feature' ? 'Feature_ID'
+                            : null;
 
       const pulled    = [];
       const conflicts = [];
@@ -274,8 +281,8 @@ export default function jiraRoutes({
           continue;
         }
 
-        const issue = await jiraRequest('GET', `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,${FIELD_EPIC_NAME}`);
-        const { docType, content } = jiraIssueToMarkdown(issue);
+        const issue = await jiraRequest('GET', `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`);
+        let { docType, content } = jiraIssueToMarkdown(issue);
 
         let filename;
         if (existing && overwriteKeys.includes(key)) {
@@ -283,6 +290,11 @@ export default function jiraRoutes({
         } else {
           const slug = slugify(issue.fields.summary || key);
           filename = `${isoDate()}-${slug}.md`;
+        }
+
+        // Link child to local parent file so the "└" hierarchy renders correctly
+        if (parentFieldName && parentLink.filename) {
+          content = setFrontmatterField(content, parentFieldName, parentLink.filename);
         }
 
         const destDir = TYPE_CONFIG[docType].dir();

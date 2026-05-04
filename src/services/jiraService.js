@@ -1,11 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import { stripFrontmatter } from '../utils/transforms.js';
+import { stripFrontmatter, jiraToMarkdown } from '../utils/transforms.js';
 
 export const LOCAL_TO_JIRA_TYPE = { feature: 'New Feature', epic: 'Epic', story: 'Story', spike: 'Task', bug: 'Bug' };
-export const JIRA_TO_LOCAL_TYPE = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Task: 'spike', Bug: 'bug' };
+export const JIRA_TO_LOCAL_TYPE = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Improvement: 'story', Task: 'spike', Bug: 'bug' };
 
-export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, TYPE_CONFIG, isoDate, slugify }) {
+export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIELD_STORY_POINTS, TYPE_CONFIG, isoDate, slugify }) {
   async function jiraRequest(method, urlPath, body) {
     const url = `${JIRA_BASE}/rest/api/2${urlPath}`;
     const opts = {
@@ -40,18 +40,20 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, TYPE
 
   function jiraIssueToMarkdown(issue) {
     const { key, fields } = issue;
-    const summary = (fields.summary || '').trim();
-    const description = (fields.description || '').trim();
+    const summary = (fields.summary || '').replace(/[\r\n]+/g, ' ').trim();
+    const description = jiraToMarkdown(fields.description || '');
     const issueType = fields.issuetype?.name || 'Epic';
     const priority = fields.priority?.name || 'Medium';
     const docType = JIRA_TO_LOCAL_TYPE[issueType] || 'epic';
     const fixVersion = fields.fixVersions?.[0]?.name || 'TBD';
     const jiraUrl = `${JIRA_BASE}/browse/${key}`;
+    const spRaw = FIELD_STORY_POINTS ? fields[FIELD_STORY_POINTS] : null;
+    const storyPoints = spRaw != null ? String(spRaw) : 'TBD';
 
     const content = `---
 JIRA_ID: ${key}
 JIRA_URL: ${jiraUrl}
-Story_Points: TBD
+Story_Points: ${storyPoints}
 Status: Created in JIRA
 Priority: ${priority}
 Fix_Version: ${fixVersion}

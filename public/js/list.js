@@ -4,6 +4,7 @@
 var piSettings    = { currentPi: null, nextPi: null };
 var jiraVersions  = [];
 var _swimlanesCollapsed = { currentPi: false, nextPi: false, backlog: false };
+var _collapsedItems = new Set(); // filenames of collapsed epics/features
 
 async function loadDocs() {
   try {
@@ -43,6 +44,7 @@ function buildTreeOrder(docs) {
     if (placed.has(key(doc))) return;
     placed.add(key(doc));
     ordered.push({ doc, indent });
+    if (_collapsedItems.has(doc.filename)) return; // skip children when collapsed
     const children = childrenMap.get(doc.filename) || [];
     children.forEach(child => place(child, indent + 1));
   }
@@ -50,9 +52,13 @@ function buildTreeOrder(docs) {
   docs.forEach(d => {
     if (!d.parentFilename || !byFilename.has(d.parentFilename)) place(d, 0);
   });
-  docs.forEach(d => { if (!placed.has(key(d))) place(d, 0); });
+  // Safety pass: only place truly orphaned docs (parent not in this swimlane).
+  // Do NOT place children of collapsed parents — they should stay hidden.
+  docs.forEach(d => {
+    if (!placed.has(key(d)) && (!d.parentFilename || !byFilename.has(d.parentFilename))) place(d, 0);
+  });
 
-  return ordered;
+  return { ordered, childrenMap };
 }
 
 // ── Swimlane rendering ────────────────────────────────────────
@@ -122,10 +128,23 @@ function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
   const versionDisplay = versionName ? `<span class="swimlane-version-name">${escHtml(versionName)}</span>` : '';
   const countBadge     = `<span class="swimlane-count">${docs.length}</span>`;
 
+  // Capacity summary + distribute button for PI swimlanes with sprint config
+  let capacitySummary = '';
+  let distributeBtn = '';
+  if (versionName && sprintConfig[versionName] && sprintConfig[versionName].length) {
+    const sprints = sprintConfig[versionName];
+    const totalCapacity = sprints.reduce((sum, s) => sum + s.capacity, 0);
+    const assignedSP = docs.reduce((sum, d) => sum + (Number(d.storyPoints) || 0), 0);
+    const pct = totalCapacity > 0 ? Math.round((assignedSP / totalCapacity) * 100) : 0;
+    const overClass = pct > 100 ? ' over' : '';
+    capacitySummary = `<span class="swimlane-capacity${overClass}">${assignedSP} / ${totalCapacity} SP (${pct}%)</span>`;
+    distributeBtn = `<button class="btn-distribute" onclick="event.stopPropagation(); openDistributionModal('${escHtml(versionName)}')" title="Auto-distribute stories into sprints">Distribute</button>`;
+  }
+
   // Render items
-  const ordered = buildTreeOrder(docs);
+  const { ordered, childrenMap } = buildTreeOrder(docs);
   const itemsHtml = ordered.length
-    ? ordered.map(({ doc: d, indent }) => renderDocItem(d, indent)).join('')
+    ? ordered.map(({ doc: d, indent }) => renderDocItem(d, indent, childrenMap)).join('')
     : `<div class="swimlane-empty">No issues in this section</div>`;
 
   return `
@@ -135,7 +154,9 @@ function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
         <span class="swimlane-label">${label}</span>
         ${versionDisplay}
         ${countBadge}
+        ${capacitySummary}
         <div class="swimlane-header-right">
+          ${distributeBtn}
           ${versionSelector}
         </div>
       </div>
@@ -145,25 +166,53 @@ function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
     </div>`;
 }
 
-function renderDocItem(d, indent) {
+function renderDocItem(d, indent, childrenMap) {
   const statusClass = (d.status || 'Draft').replace(/\s+/g, '-');
   const connector   = indent > 0 ? `<span class="tree-connector">└</span>` : '';
+
+  const hasChildren = (childrenMap && (childrenMap.get(d.filename) || []).length > 0);
+  const isCollapsible = hasChildren && (d.docType === 'feature' || d.docType === 'epic');
+  const isCollapsed   = _collapsedItems.has(d.filename);
+  const collapseBtn   = isCollapsible
+    ? `<button class="collapse-btn${isCollapsed ? ' is-collapsed' : ''}"
+               onclick="toggleItemCollapse('${escHtml(d.filename)}', event)"
+               title="${isCollapsed ? 'Expand children' : 'Collapse children'}">
+         <svg viewBox="0 0 10 10" width="10" height="10"><polyline points="2,3 5,7 8,3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+       </button>`
+    : '';
+
+  const selKey = `${d.docType}:${d.filename}`;
+  const multiSel = selectedItems.has(selKey) ? ' multi-selected' : '';
+
   return `
-    <div class="epic-item"
+    <div class="epic-item${multiSel}"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
          data-indent="${indent}"
-         onclick="openDoc('${escHtml(d.filename)}','${d.docType}')">
+         onclick="handleItemClick(event,'${escHtml(d.filename)}','${d.docType}')"
+         oncontextmenu="handleItemContextMenu(event,'${escHtml(d.filename)}','${d.docType}')">
       <div class="drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      ${collapseBtn}
       ${connector}
-      <div class="epic-dot"></div>
+      ${isCollapsible ? '' : '<div class="epic-dot"></div>'}
       <div style="flex:1">
         <div class="epic-title-text">${escHtml(d.title)}</div>
       </div>
+      ${d.sprint ? `<span class="sprint-badge">${escHtml(d.sprint)}</span>` : ''}
       <span class="status-badge ${statusClass}">${STATUS_LABEL[d.status] || d.status || 'Draft'}</span>
       <span class="type-badge ${d.docType}">${TYPE_LABEL[d.docType] || d.docType}</span>
       <div class="epic-date">${d.date}</div>
     </div>`;
+}
+
+function toggleItemCollapse(filename, e) {
+  e.stopPropagation();
+  if (_collapsedItems.has(filename)) {
+    _collapsedItems.delete(filename);
+  } else {
+    _collapsedItems.add(filename);
+  }
+  applyFilters();
 }
 
 function toggleSwimlane(sectionKey) {
@@ -225,4 +274,254 @@ function applyFilters() {
   if (activeStatusFilter !== 'all') filtered = filtered.filter(d => (d.status || 'Draft') === activeStatusFilter);
   if (q) filtered = filtered.filter(d => d.title.toLowerCase().includes(q) || d.filename.toLowerCase().includes(q));
   renderSwimlanes(filtered);
+}
+
+// ── Multi-select ─────────────────────────────────────────────
+function itemKey(filename, docType) { return `${docType}:${filename}`; }
+
+function getVisibleItems() {
+  return Array.from(document.querySelectorAll('.epic-item')).map(el => ({
+    filename: el.dataset.filename,
+    docType:  el.dataset.doctype,
+    el,
+  }));
+}
+
+function clearSelection() {
+  selectedItems.clear();
+  _lastClickedItem = null;
+  document.querySelectorAll('.epic-item.multi-selected').forEach(el => el.classList.remove('multi-selected'));
+}
+
+function syncSelectionUI() {
+  document.querySelectorAll('.epic-item').forEach(el => {
+    const key = itemKey(el.dataset.filename, el.dataset.doctype);
+    el.classList.toggle('multi-selected', selectedItems.has(key));
+  });
+}
+
+function handleItemClick(e, filename, docType) {
+  if (_justDragged) return;
+
+  // Clicks on collapse button are handled separately
+  if (e.target.closest('.collapse-btn')) return;
+
+  const key = itemKey(filename, docType);
+  const isMeta = e.metaKey || e.ctrlKey;
+  const isShift = e.shiftKey;
+
+  if (isMeta) {
+    // Cmd/Ctrl+Click: toggle individual item
+    e.preventDefault();
+    if (selectedItems.has(key)) {
+      selectedItems.delete(key);
+    } else {
+      selectedItems.add(key);
+    }
+    _lastClickedItem = { filename, docType };
+    syncSelectionUI();
+    return;
+  }
+
+  if (isShift && _lastClickedItem) {
+    // Shift+Click: range select
+    e.preventDefault();
+    const visible = getVisibleItems();
+    const lastIdx = visible.findIndex(v => v.filename === _lastClickedItem.filename && v.docType === _lastClickedItem.docType);
+    const curIdx  = visible.findIndex(v => v.filename === filename && v.docType === docType);
+    if (lastIdx >= 0 && curIdx >= 0) {
+      const start = Math.min(lastIdx, curIdx);
+      const end   = Math.max(lastIdx, curIdx);
+      for (let i = start; i <= end; i++) {
+        selectedItems.add(itemKey(visible[i].filename, visible[i].docType));
+      }
+    }
+    syncSelectionUI();
+    return;
+  }
+
+  // Plain click: clear selection and open the doc
+  if (selectedItems.size > 0) {
+    clearSelection();
+  }
+  openDoc(filename, docType);
+}
+
+// ── Context menu ─────────────────────────────────────────────
+function handleItemContextMenu(e, filename, docType) {
+  e.preventDefault();
+
+  const key = itemKey(filename, docType);
+
+  // If right-clicking an unselected item, select only that item
+  if (!selectedItems.has(key)) {
+    clearSelection();
+    selectedItems.add(key);
+    _lastClickedItem = { filename, docType };
+    syncSelectionUI();
+  }
+
+  showContextMenu(e.clientX, e.clientY);
+}
+
+function showContextMenu(x, y) {
+  closeContextMenu();
+  const count = selectedItems.size;
+  if (!count) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.id = 'list-context-menu';
+
+  // "Move to PI" submenu
+  const piOptions = [];
+  if (piSettings.currentPi) piOptions.push({ label: piSettings.currentPi, badge: 'Current', section: 'currentPi' });
+  if (piSettings.nextPi)    piOptions.push({ label: piSettings.nextPi,    badge: 'Next',    section: 'nextPi' });
+  piOptions.push({ label: 'Backlog (clear version)', badge: null, section: 'backlog' });
+
+  const piItems = piOptions.map(opt => {
+    const badge = opt.badge ? `<span class="ctx-badge">${escHtml(opt.badge)}</span>` : '';
+    return `<button class="ctx-item" onclick="contextMoveToPI('${opt.section}')">
+      ${badge}${escHtml(opt.label)}
+    </button>`;
+  }).join('');
+
+  menu.innerHTML = `
+    <div class="ctx-header">${count} item${count > 1 ? 's' : ''} selected</div>
+    <div class="ctx-separator"></div>
+    <div class="ctx-submenu-wrap">
+      <button class="ctx-item ctx-has-sub">Move to PI →</button>
+      <div class="ctx-submenu">${piItems}</div>
+    </div>
+    <div class="ctx-separator"></div>
+    <button class="ctx-item ctx-danger" onclick="contextDeleteSelected()">Delete</button>
+  `;
+
+  document.body.appendChild(menu);
+
+  // Position: ensure it stays within viewport
+  const rect = menu.getBoundingClientRect();
+  if (x + rect.width > window.innerWidth)  x = window.innerWidth - rect.width - 8;
+  if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
+  menu.style.left = `${x}px`;
+  menu.style.top  = `${y}px`;
+
+  // Close on outside click (next tick)
+  setTimeout(() => {
+    document.addEventListener('mousedown', _closeContextMenuHandler);
+    document.addEventListener('contextmenu', _closeContextMenuOnRightClick);
+  }, 0);
+}
+
+function _closeContextMenuHandler(e) {
+  if (!e.target.closest('#list-context-menu')) closeContextMenu();
+}
+function _closeContextMenuOnRightClick(e) {
+  if (!e.target.closest('#list-context-menu')) closeContextMenu();
+}
+
+function closeContextMenu() {
+  const menu = document.getElementById('list-context-menu');
+  if (menu) menu.remove();
+  document.removeEventListener('mousedown', _closeContextMenuHandler);
+  document.removeEventListener('contextmenu', _closeContextMenuOnRightClick);
+}
+
+async function contextMoveToPI(section) {
+  closeContextMenu();
+  const newFixVersion = sectionToFixVersion(section);
+  if (section !== 'backlog' && !newFixVersion) {
+    showJiraToast('error', `Set a version for ${SECTION_LABELS[section]} first`);
+    return;
+  }
+
+  const docs = getSelectedDocs();
+  if (!docs.length) return;
+
+  // Include descendants for parent items
+  const childrenMap = buildChildrenMap(allDocs);
+  const allToMove = [];
+  const seen = new Set();
+  for (const d of docs) {
+    if (seen.has(d.filename)) continue;
+    seen.add(d.filename);
+    allToMove.push(d);
+    for (const desc of getDescendants(d.filename, childrenMap)) {
+      if (!seen.has(desc.filename)) {
+        seen.add(desc.filename);
+        allToMove.push(desc);
+      }
+    }
+  }
+
+  try {
+    const res = await fetch('/api/docs/batch-fix-version', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fixVersion: newFixVersion,
+        docs: allToMove.map(d => ({ type: d.docType, filename: d.filename })),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Move failed'));
+
+    const label = SECTION_LABELS[section];
+    showJiraToast('success', `Moved ${allToMove.length} item(s) to ${label}`);
+    clearSelection();
+  } catch (err) {
+    showJiraToast('error', err.message);
+  }
+}
+
+async function contextDeleteSelected() {
+  closeContextMenu();
+  const docs = getSelectedDocs();
+  if (!docs.length) return;
+
+  const count = docs.length;
+  const msg = count === 1
+    ? `Delete "${docs[0].title}"? This cannot be undone.`
+    : `Delete ${count} selected items? This cannot be undone.`;
+
+  document.getElementById('delete-msg').textContent = msg;
+  document.getElementById('delete-overlay').classList.add('show');
+
+  // Replace the delete handler temporarily for batch delete
+  const btn = document.getElementById('confirm-delete-btn');
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+      const res = await fetch('/api/docs/batch-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docs: docs.map(d => ({ type: d.docType, filename: d.filename })) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Delete failed'));
+
+      closeDeleteDialog();
+      clearSelection();
+      showJiraToast('success', `Deleted ${data.deleted} item(s)`);
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+      showJiraToast('error', err.message);
+    } finally {
+      // Restore original handler
+      btn.onclick = executeDelete;
+    }
+  };
+}
+
+function getSelectedDocs() {
+  const docs = [];
+  for (const key of selectedItems) {
+    const [docType, ...rest] = key.split(':');
+    const filename = rest.join(':');
+    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    if (doc) docs.push(doc);
+  }
+  return docs;
 }

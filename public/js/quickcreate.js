@@ -1,9 +1,54 @@
+// ── Save Draft (no AI) ────────────────────────────────────────
+async function saveDraft() {
+  const title = document.getElementById('doc-title').value.trim();
+  const idea  = document.getElementById('idea').value.trim();
+
+  if (!title) {
+    document.getElementById('doc-title').focus();
+    setStatus('error', '❌ A title is required to save a draft');
+    return;
+  }
+
+  const type     = document.getElementById('doc-type').value;
+  const priority = document.getElementById('priority').value;
+
+  const btn = document.getElementById('draft-btn');
+  btn.disabled    = true;
+  btn.textContent = 'Saving…';
+  setStatus('loading', 'Saving draft…');
+
+  try {
+    const res = await fetch('/api/docs/draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, idea, type, priority }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Save failed'));
+
+    clearForm();
+    setStatus('success', `✅ Draft saved: ${data.filename}`);
+    await loadDocs();
+    openDoc(data.filename, data.docType);
+  } catch (e) {
+    setStatus('error', `❌ ${e.message}`);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Save Draft';
+  }
+}
+
 // ── Generate Doc (left panel form) ────────────────────────────
 async function generateDoc() {
-  const idea = document.getElementById('idea').value.trim();
-  if (!idea) { document.getElementById('idea').focus(); return; }
-
-  const title    = document.getElementById('doc-title').value.trim();
+  const title = document.getElementById('doc-title').value.trim();
+  const idea  = document.getElementById('idea').value.trim();
+  // AI generate needs at least some content to work from
+  const prompt = idea || title;
+  if (!prompt) {
+    document.getElementById('doc-title').focus();
+    setStatus('error', '❌ Add a title or notes so Claude has something to work with');
+    return;
+  }
   const priority = document.getElementById('priority').value;
   const type     = document.getElementById('doc-type').value;
 
@@ -14,7 +59,7 @@ async function generateDoc() {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idea, title, priority, type })
+      body: JSON.stringify({ idea: prompt, title, priority, type })
     });
 
     const data = await res.json();

@@ -22,9 +22,12 @@ export function watchInbox({
     _isClaimed(filename) ||
     allDocDirs.some(dir => fs.existsSync(path.join(dir, filename)));
 
-  for (const f of fs.readdirSync(INBOX_DIR).filter(isInboxFile)) {
-    if (!shouldSkip(f)) processInboxFile(f);
-  }
+  // Process existing inbox files sequentially to avoid spawning many claude subprocesses at once
+  (async () => {
+    for (const f of fs.readdirSync(INBOX_DIR).filter(isInboxFile)) {
+      if (!shouldSkip(f)) await processInboxFile(f);
+    }
+  })();
 
   fs.watch(INBOX_DIR, (event, filename) => {
     if (event !== 'rename' || !filename || !isInboxFile(filename)) return;
