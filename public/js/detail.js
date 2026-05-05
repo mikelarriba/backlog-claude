@@ -313,13 +313,90 @@ async function loadHierarchy(filename, docType) {
     if (children.length) parts.push(`↓ ${children.length} linked`);
     label.textContent = `🔗 ${parts.join('  ·  ') || 'Linked Issues'}`;
 
-    if (rows.length) {
-      body.innerHTML = rows.join('');
+    // Always show hierarchy section for epics/features — even with no children yet
+    const isParent = docType === 'epic' || docType === 'feature';
+    const childLabel = docType === 'epic' ? 'story / spike / bug' : 'epic';
+    const linkBtn = isParent
+      ? `<button class="btn-link-existing" onclick="linkExistingChildren()">＋ Link existing ${childLabel}</button>`
+      : '';
+
+    if (rows.length || isParent) {
+      body.innerHTML = rows.join('') + linkBtn;
       section.style.display = 'block';
     }
   } catch (e) {
     console.warn('Could not load hierarchy:', e.message);
   }
+}
+
+// ── Link existing child to current doc ────────────────────────
+async function linkExistingChildren() {
+  if (!currentFilename || (currentDocType !== 'epic' && currentDocType !== 'feature')) return;
+
+  const childTypes = currentDocType === 'epic' ? ['story', 'spike', 'bug'] : ['epic'];
+
+  // Find already-linked children so we can exclude them
+  const linkedFilenames = new Set();
+  try {
+    const res = await fetch(`/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`);
+    if (res.ok) {
+      const { children } = await res.json();
+      for (const c of (children || [])) linkedFilenames.add(c.filename);
+    }
+  } catch (_) {}
+
+  // Build candidates: items of the right type that aren't already linked here
+  const candidates = allDocs
+    .filter(d => childTypes.includes(d.docType) && !linkedFilenames.has(d.filename))
+    .map(d => ({
+      key:       d.filename,
+      filename:  d.filename,
+      docType:   d.docType,
+      summary:   d.title,
+      type:      TYPE_LABEL[d.docType] || d.docType,
+      localExists: false,
+    }))
+    .sort((a, b) => a.summary.localeCompare(b.summary));
+
+  if (!candidates.length) {
+    showJiraToast('success', 'No unlinked items available');
+    return;
+  }
+
+  const selected = await showJiraSelectModal(
+    `Link existing ${childLabel(currentDocType)} to "${allDocs.find(d=>d.filename===currentFilename)?.title || currentFilename}"`,
+    candidates,
+    'Link selected'
+  );
+
+  if (!selected.length) return;
+
+  let linked = 0;
+  for (const item of selected) {
+    try {
+      const res = await fetch('/api/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceType:     item.docType,
+          sourceFilename: item.filename,
+          targetType:     currentDocType,
+          targetFilename: currentFilename,
+        }),
+      });
+      if (res.ok) linked++;
+    } catch (_) {}
+  }
+
+  if (linked > 0) {
+    showJiraToast('success', `Linked ${linked} item(s)`);
+    loadHierarchy(currentFilename, currentDocType);
+    await loadDocs();
+  }
+}
+
+function childLabel(docType) {
+  return docType === 'epic' ? 'story / spike / bug' : 'epic';
 }
 
 async function toggleHierarchyChild(rowEl) {

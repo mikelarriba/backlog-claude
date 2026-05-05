@@ -1,8 +1,9 @@
-// ── PI Roadmap View ────────────────────────────────────────────
-var _roadmapPiName = null;
-var _roadmapView   = 'stories'; // 'stories' | 'epics'
+// ── Roadmap View (Two-Panel: Epics + Stories) ─────────────────
+var _roadmapPiName       = null;  // selected PI filter (null = all)
+var _roadmapPanelState   = { epics: true, stories: true }; // expanded/collapsed
+var _roadmapFocusedEpic  = null;  // filename of clicked epic (focus mode)
 
-// Palette for epic bars — consistent hash-based colour
+// Palette for epic cards — consistent hash-based colour
 const _EPIC_COLORS = [
   '#3B82F6','#8B5CF6','#10B981','#14B8A6',
   '#F59E0B','#EC4899','#06B6D4','#6366F1',
@@ -13,38 +14,27 @@ function epicColor(key) {
   return _EPIC_COLORS[h % _EPIC_COLORS.length];
 }
 
-function setRoadmapView(view) {
-  _roadmapView = view;
-  document.getElementById('rm-view-stories').classList.toggle('active', view === 'stories');
-  document.getElementById('rm-view-epics').classList.toggle('active', view === 'epics');
-  renderRoadmapBoard();
-}
-
-function openRoadmapView(piName) {
-  if (!piName) return;
-  _roadmapPiName = piName;
-
+// ── Open / Close ─────────────────────────────────────────────
+function openRoadmapView() {
   // Hide other views
   document.getElementById('list-view').style.display = 'none';
   document.getElementById('refine-view')?.classList.remove('show');
-
-  // Close any open detail without restoring list-view
   document.getElementById('detail-view').classList.remove('show');
   document.querySelector('.right').classList.remove('has-selection');
   currentFilename = null;
   currentDocType  = null;
 
-  // Show roadmap — always start on Stories view
-  _roadmapView = 'stories';
-  document.getElementById('rm-view-stories').classList.add('active');
-  document.getElementById('rm-view-epics').classList.remove('active');
-
-  document.getElementById('roadmap-pi-name').textContent = piName;
+  // Show roadmap
   document.getElementById('roadmap-view').classList.add('show');
   document.querySelector('.right').classList.add('roadmap-mode');
 
+  // Populate PI filter dropdown
+  populateRoadmapPiFilter();
+
+  // Reset focus
+  _roadmapFocusedEpic = null;
+
   renderRoadmapBoard();
-  closeAllDropdowns();
 }
 
 function closeRoadmapView() {
@@ -55,7 +45,8 @@ function closeRoadmapView() {
   currentFilename = null;
   currentDocType  = null;
   document.getElementById('list-view').style.display = '';
-  _roadmapPiName = null;
+  _roadmapPiName      = null;
+  _roadmapFocusedEpic = null;
 }
 
 function isRoadmapOpen() {
@@ -63,32 +54,232 @@ function isRoadmapOpen() {
 }
 
 function refreshRoadmapView() {
-  if (isRoadmapOpen() && _roadmapPiName) renderRoadmapBoard();
+  if (isRoadmapOpen()) renderRoadmapBoard();
 }
 
+// ── PI Filter ────────────────────────────────────────────────
+function populateRoadmapPiFilter() {
+  const select = document.getElementById('roadmap-pi-filter');
+  if (!select) return;
+  let html = '<option value="">All Sprints</option>';
+  if (piSettings.currentPi) {
+    html += `<option value="${escHtml(piSettings.currentPi)}">${escHtml(piSettings.currentPi)}</option>`;
+  }
+  if (piSettings.nextPi) {
+    html += `<option value="${escHtml(piSettings.nextPi)}">${escHtml(piSettings.nextPi)}</option>`;
+  }
+  select.innerHTML = html;
+  if (_roadmapPiName) select.value = _roadmapPiName;
+}
+
+function filterRoadmapByPi(piName) {
+  _roadmapPiName = piName || null;
+  renderRoadmapBoard();
+}
+
+// ── Panel collapse ───────────────────────────────────────────
+function toggleRoadmapPanel(panel) {
+  _roadmapPanelState[panel] = !_roadmapPanelState[panel];
+  const body    = document.getElementById(`rm-body-${panel}`);
+  const chevron = document.getElementById(`rm-chevron-${panel}`);
+  if (_roadmapPanelState[panel]) {
+    body.classList.remove('collapsed');
+    chevron.textContent = '▼';
+  } else {
+    body.classList.add('collapsed');
+    chevron.textContent = '▶';
+  }
+}
+
+// ── Epic focus (click on epic card) ──────────────────────────
+function focusEpic(filename) {
+  if (_roadmapFocusedEpic === filename) {
+    _roadmapFocusedEpic = null; // toggle off
+  } else {
+    _roadmapFocusedEpic = filename;
+  }
+  applyEpicFocus();
+}
+
+function applyEpicFocus() {
+  // Epic panel: highlight focused epic
+  document.querySelectorAll('.rm-epic-card').forEach(card => {
+    card.classList.toggle('rm-focused', card.dataset.filename === _roadmapFocusedEpic);
+    card.classList.toggle('rm-dimmed', _roadmapFocusedEpic && card.dataset.filename !== _roadmapFocusedEpic);
+  });
+
+  // Story panel: dim non-matching stories
+  document.querySelectorAll('.roadmap-card').forEach(card => {
+    if (!_roadmapFocusedEpic) {
+      card.classList.remove('rm-dimmed');
+      return;
+    }
+    const parent = card.dataset.parent || '';
+    card.classList.toggle('rm-dimmed', parent !== _roadmapFocusedEpic);
+  });
+}
+
+// ── Gather all sprints across PIs ────────────────────────────
+function getAllSprints() {
+  // If a PI filter is active, only show that PI's sprints
+  if (_roadmapPiName && sprintConfig[_roadmapPiName]) {
+    return sprintConfig[_roadmapPiName];
+  }
+  // Else merge all PI sprints in order (current then next)
+  const all = [];
+  const seen = new Set();
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  for (const pi of pis) {
+    for (const s of (sprintConfig[pi] || [])) {
+      if (!seen.has(s.name)) {
+        seen.add(s.name);
+        all.push(s);
+      }
+    }
+  }
+  return all;
+}
+
+// ── Main render ──────────────────────────────────────────────
 function renderRoadmapBoard() {
-  const body   = document.getElementById('roadmap-body');
-  const piName = _roadmapPiName;
-  if (!piName) { body.innerHTML = ''; return; }
+  const sprints = getAllSprints();
 
-  const sprints = sprintConfig[piName];
-  if (!sprints || !sprints.length) {
-    body.classList.remove('et-mode');
-    body.innerHTML = '<div class="roadmap-empty">No sprints configured for this PI. Open the PI Sprint Config panel to set them up.</div>';
+  if (!sprints.length) {
+    document.getElementById('rm-body-epics').innerHTML = '<div class="roadmap-empty">No sprints configured. Set up sprints in PI Sprint Config.</div>';
+    document.getElementById('rm-body-stories').innerHTML = '';
+    document.getElementById('rm-count-epics').textContent = '0';
+    document.getElementById('rm-count-stories').textContent = '0';
     return;
   }
 
-  if (_roadmapView === 'epics') {
-    body.classList.add('et-mode');
-    renderEpicTimeline(body, piName, sprints);
-    return;
-  }
+  renderEpicPanel(sprints);
+  renderStoryPanel(sprints);
+  applyEpicFocus();
+}
 
-  body.classList.remove('et-mode');
+// ── Epic panel rendering ─────────────────────────────────────
+function renderEpicPanel(sprints) {
+  const body = document.getElementById('rm-body-epics');
 
-  // Get leaf docs in this PI
+  // Get epics that have children in the visible sprints
+  const epicTypes = new Set(['epic', 'feature']);
   const leafTypes = new Set(['story', 'spike', 'bug']);
-  const piDocs = allDocs.filter(d => leafTypes.has(d.docType) && d.fixVersion === piName);
+
+  // All visible leaf docs (respect PI filter)
+  const piFilter = _roadmapPiName;
+  const visibleLeafs = piFilter
+    ? allDocs.filter(d => leafTypes.has(d.docType) && d.fixVersion === piFilter)
+    : allDocs.filter(d => leafTypes.has(d.docType) && d.sprint);
+
+  // Map: epicFilename → { epicDoc, sprintSet, storyCount, totalSP }
+  const epicMap = new Map();
+  for (const leaf of visibleLeafs) {
+    const key = leaf.parentFilename || '__none__';
+    if (!epicMap.has(key)) {
+      const epicDoc = leaf.parentFilename
+        ? allDocs.find(d => d.filename === leaf.parentFilename)
+        : null;
+      epicMap.set(key, { epicDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
+    }
+    const entry = epicMap.get(key);
+    entry.storyCount++;
+    entry.totalSP += Number(leaf.storyPoints) || 0;
+    if (leaf.sprint) entry.sprints.add(leaf.sprint);
+  }
+
+  // Also add epics with no children yet but have a sprint assignment
+  for (const d of allDocs) {
+    if (epicTypes.has(d.docType) && !epicMap.has(d.filename)) {
+      if (piFilter && d.fixVersion !== piFilter) continue;
+      epicMap.set(d.filename, { epicDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
+    }
+  }
+
+  // Sort: named epics first (by title)
+  const sorted = [...epicMap.entries()].sort(([ka, a], [kb, b]) => {
+    if (ka === '__none__') return 1;
+    if (kb === '__none__') return -1;
+    return (a.epicDoc?.title || ka).localeCompare(b.epicDoc?.title || kb);
+  });
+
+  document.getElementById('rm-count-epics').textContent = sorted.length;
+
+  // Sprint name → index for positioning
+  const sprintIdx = new Map(sprints.map((s, i) => [s.name, i]));
+  const N = sprints.length;
+
+  // Header row
+  const headerCells = sprints.map(s => `
+    <div class="rm-sprint-header-cell">${escHtml(s.name)}</div>
+  `).join('');
+
+  // Epic rows
+  let rowsHtml = '';
+  for (const [key, { epicDoc, sprints: sprintSet, storyCount, totalSP }] of sorted) {
+    const isNone = key === '__none__';
+    const title  = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
+    const color  = isNone ? 'var(--muted)' : epicColor(key);
+    const fn     = epicDoc?.filename || '';
+
+    // Compute sprint span
+    const indices = [...sprintSet]
+      .filter(s => sprintIdx.has(s))
+      .map(s => sprintIdx.get(s));
+    const minIdx = indices.length ? Math.min(...indices) : -1;
+    const maxIdx = indices.length ? Math.max(...indices) : -1;
+
+    // Bar geometry
+    let barHtml = '';
+    if (minIdx >= 0) {
+      const leftPct  = ((minIdx / N) * 100).toFixed(2);
+      const widthPct = (((maxIdx - minIdx + 1) / N) * 100).toFixed(2);
+      barHtml = `<div class="rm-epic-bar" style="left:${leftPct}%;width:${widthPct}%;background:${color};"></div>`;
+    }
+
+    // Grid cells (vertical lines)
+    const cells = sprints.map(() => '<div class="rm-grid-cell"></div>').join('');
+
+    const meta = `${storyCount} stor${storyCount !== 1 ? 'ies' : 'y'} · ${totalSP} SP`;
+
+    rowsHtml += `
+      <div class="rm-epic-card${isNone ? ' rm-epic-unlinked' : ''}"
+           data-filename="${escHtml(fn)}"
+           onclick="${fn ? `focusEpic('${escHtml(fn)}')` : ''}">
+        <div class="rm-epic-name-col">
+          <div class="rm-epic-dot" style="background:${color}"></div>
+          <div class="rm-epic-info">
+            <div class="rm-epic-title">${escHtml(title)}</div>
+            <div class="rm-epic-meta">${escHtml(meta)}</div>
+          </div>
+        </div>
+        <div class="rm-epic-timeline">
+          ${cells}
+          ${barHtml}
+        </div>
+      </div>`;
+  }
+
+  body.innerHTML = `
+    <div class="rm-board-header">
+      <div class="rm-name-col-header">Epic / Feature</div>
+      <div class="rm-sprint-headers">${headerCells}</div>
+    </div>
+    ${rowsHtml}`;
+}
+
+// ── Story panel rendering ────────────────────────────────────
+function renderStoryPanel(sprints) {
+  const body = document.getElementById('rm-body-stories');
+
+  const leafTypes = new Set(['story', 'spike', 'bug']);
+  const piFilter  = _roadmapPiName;
+
+  // Get visible stories
+  const piDocs = piFilter
+    ? allDocs.filter(d => leafTypes.has(d.docType) && d.fixVersion === piFilter)
+    : allDocs.filter(d => leafTypes.has(d.docType) && (d.fixVersion === piSettings.currentPi || d.fixVersion === piSettings.nextPi));
+
+  document.getElementById('rm-count-stories').textContent = piDocs.length;
 
   // Group by sprint
   const grouped = new Map();
@@ -103,56 +294,25 @@ function renderRoadmapBoard() {
     }
   }
 
-  // Build ghost-continuation map: sprintName → [{ doc, fromSprint }]
-  // A card is a "split candidate" if SP >= splitThreshold
-  const ghosts = new Map(); // sprintName → array of ghost entries
-  for (const s of sprints) ghosts.set(s.name, []);
-
-  for (let i = 0; i < sprints.length; i++) {
-    const sprint = sprints[i];
-    const docs   = grouped.get(sprint.name) || [];
-    for (const d of docs) {
-      const sp = Number(d.storyPoints) || 0;
-      if (sp >= splitThreshold && i < sprints.length - 1) {
-        const nextSprint = sprints[i + 1].name;
-        ghosts.get(nextSprint).push({ doc: d, fromSprint: sprint.name });
-      }
-    }
-  }
-
-  // Capacity accounting: split-candidate cards contribute half SP to each sprint
-  function effectiveSP(docs, sprintIndex) {
-    return docs.reduce((sum, d) => {
-      const sp = Number(d.storyPoints) || 0;
-      const isCandidate = sp >= splitThreshold;
-      // Half SP in assigned sprint, half shows in next sprint
-      return sum + (isCandidate ? Math.ceil(sp / 2) : sp);
-    }, 0);
-  }
-
-  // Render columns
+  // Render columns (same sprint order as epic panel)
   let html = '';
-  for (let i = 0; i < sprints.length; i++) {
-    const s     = sprints[i];
-    const docs  = grouped.get(s.name) || [];
-    const ghostList = ghosts.get(s.name) || [];
-    // Effective SP: own items (halved if candidate) + ghost continuations (other half)
-    const ownSP   = effectiveSP(docs, i);
-    const ghostSP = ghostList.reduce((sum, g) => sum + Math.floor((Number(g.doc.storyPoints) || 0) / 2), 0);
-    const usedSP  = ownSP + ghostSP;
-    html += renderRoadmapColumn(s.name, docs, s.capacity, usedSP, ghostList);
+  for (const s of sprints) {
+    const docs = grouped.get(s.name) || [];
+    html += renderStoryColumn(s.name, docs, s.capacity);
   }
-  // Unassigned column
-  html += renderRoadmapColumn(null, unassigned, 0, 0, []);
+  // Unassigned
+  html += renderStoryColumn(null, unassigned, 0);
 
-  body.innerHTML = html;
+  body.innerHTML = `<div class="rm-story-columns">${html}</div>`;
   initRoadmapDragDrop();
 }
 
-function renderRoadmapColumn(sprintName, docs, capacity, usedSP, ghostList) {
+function renderStoryColumn(sprintName, docs, capacity) {
   const isUnassigned = !sprintName;
   const label        = isUnassigned ? 'Unassigned' : escHtml(sprintName);
   const columnClass  = isUnassigned ? 'roadmap-column roadmap-unassigned' : 'roadmap-column';
+
+  const usedSP = docs.reduce((sum, d) => sum + (Number(d.storyPoints) || 0), 0);
 
   let statsHtml = '';
   let barHtml   = '';
@@ -168,16 +328,9 @@ function renderRoadmapColumn(sprintName, docs, capacity, usedSP, ghostList) {
     statsHtml = `<span class="roadmap-col-stats">${docs.length} item(s)</span>`;
   }
 
-  // Ghost cards come first (they're continuations from the previous sprint)
-  const ghostsHtml = ghostList.map(g => renderGhostCard(g.doc, g.fromSprint, sprintName)).join('');
-
   const cardsHtml = docs.length
     ? docs.map(d => renderRoadmapCard(d, sprintName)).join('')
-    : '';
-
-  const emptyHtml = !docs.length && !ghostList.length
-    ? '<div class="roadmap-card-empty">No items</div>'
-    : '';
+    : '<div class="roadmap-card-empty">No items</div>';
 
   return `
     <div class="${columnClass}" data-sprint="${sprintName ? escHtml(sprintName) : ''}">
@@ -187,40 +340,34 @@ function renderRoadmapColumn(sprintName, docs, capacity, usedSP, ghostList) {
       </div>
       ${barHtml}
       <div class="roadmap-card-list" data-sprint="${sprintName ? escHtml(sprintName) : ''}">
-        ${ghostsHtml}${cardsHtml}${emptyHtml}
+        ${cardsHtml}
       </div>
     </div>`;
 }
 
 function renderRoadmapCard(d, sprintName) {
   const priorityClass = (d.priority || 'Medium').replace(/\s+/g, '-').toLowerCase();
-  const sp            = Number(d.storyPoints) || 0;
-  const spLabel       = sp ? `${sp} SP` : 'No SP';
-  const spClass       = sp ? 'rm-badge rm-sp' : 'rm-badge rm-no-sp';
-  const isCandidate   = sp >= splitThreshold;
+  const sp      = Number(d.storyPoints) || 0;
+  const spLabel = sp ? `${sp} SP` : 'No SP';
+  const spClass = sp ? 'rm-badge rm-sp' : 'rm-badge rm-no-sp';
 
-  // Find parent epic title
+  // Find parent epic for focus feature
+  const parentFn = d.parentFilename || '';
   let parentHtml = '';
-  if (d.parentFilename) {
-    const parent = allDocs.find(p => p.filename === d.parentFilename);
-    if (parent) parentHtml = `<div class="roadmap-card-parent">${escHtml(parent.title)}</div>`;
+  if (parentFn) {
+    const parent = allDocs.find(p => p.filename === parentFn);
+    if (parent) {
+      const color = epicColor(parentFn);
+      parentHtml = `<div class="roadmap-card-parent"><span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}</div>`;
+    }
   }
 
-  const candidateBadge = isCandidate
-    ? `<span class="rm-badge rm-split-candidate" title="This card spans 2 sprints (${sp} SP ≥ ${splitThreshold} SP threshold)">↔ 2 sprints</span>`
-    : '';
-
-  const splitBtn = isCandidate
-    ? `<button class="rm-split-btn" onclick="event.stopPropagation(); openSplitModal('${escHtml(d.filename)}','${d.docType}','${escHtml(sprintName || '')}')">Split with AI</button>`
-    : '';
-
-  const cardClass = `roadmap-card${isCandidate ? ' rm-split-candidate-card' : ''}`;
-
   return `
-    <div class="${cardClass}" draggable="true"
+    <div class="roadmap-card" draggable="true"
          onclick="openDoc('${escHtml(d.filename)}','${d.docType}')"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
+         data-parent="${escHtml(parentFn)}"
          data-sprint="${d.sprint ? escHtml(d.sprint) : ''}">
       ${parentHtml}
       <div class="roadmap-card-title">${escHtml(d.title)}</div>
@@ -228,32 +375,13 @@ function renderRoadmapCard(d, sprintName) {
         <span class="rm-badge rm-type-${d.docType}">${TYPE_LABEL[d.docType] || d.docType}</span>
         <span class="rm-badge rm-priority-${priorityClass}">${escHtml(d.priority || 'Medium')}</span>
         <span class="${spClass}">${spLabel}</span>
-        ${candidateBadge}
       </div>
-      ${splitBtn}
     </div>`;
 }
 
-function renderGhostCard(d, fromSprint, inSprint) {
-  const sp = Number(d.storyPoints) || 0;
-  return `
-    <div class="roadmap-card rm-ghost-card"
-         onclick="openDoc('${escHtml(d.filename)}','${d.docType}')"
-         data-filename="${escHtml(d.filename)}"
-         data-doctype="${d.docType}"
-         data-sprint="${d.sprint ? escHtml(d.sprint) : ''}">
-      <div class="rm-ghost-label">↩ Continued from ${escHtml(fromSprint)}</div>
-      <div class="roadmap-card-title">${escHtml(d.title)}</div>
-      <div class="roadmap-card-meta">
-        <span class="rm-badge rm-sp">${sp} SP (cont.)</span>
-      </div>
-      <button class="rm-split-btn" onclick="event.stopPropagation(); openSplitModal('${escHtml(d.filename)}','${d.docType}','${escHtml(fromSprint)}','${escHtml(inSprint)}')">Split with AI</button>
-    </div>`;
-}
-
-// ── Drag and drop ─────────────────────────────────────────────
+// ── Drag and drop (story cards between sprint columns) ────────
 function initRoadmapDragDrop() {
-  const cards    = document.querySelectorAll('.roadmap-card[draggable]');
+  const cards     = document.querySelectorAll('.roadmap-card[draggable]');
   const dropZones = document.querySelectorAll('.roadmap-card-list');
 
   cards.forEach(card => {
@@ -305,26 +433,7 @@ function initRoadmapDragDrop() {
   });
 }
 
-// ── Roadmap dropdown population ───────────────────────────────
-function populateRoadmapDropdown() {
-  const menu = document.getElementById('roadmap-dropdown-menu');
-  if (!menu) return;
-  let html = '';
-  if (piSettings.currentPi) {
-    html += `<button class="dropdown-item" onclick="openRoadmapView('${escHtml(piSettings.currentPi)}');closeDropdown('roadmap-dropdown-menu')">
-      <span class="di-badge">Current</span>${escHtml(piSettings.currentPi)}</button>`;
-  }
-  if (piSettings.nextPi) {
-    html += `<button class="dropdown-item" onclick="openRoadmapView('${escHtml(piSettings.nextPi)}');closeDropdown('roadmap-dropdown-menu')">
-      <span class="di-badge">Next</span>${escHtml(piSettings.nextPi)}</button>`;
-  }
-  if (!html) {
-    html = '<div class="dropdown-item" style="opacity:0.5;cursor:default">No PIs configured</div>';
-  }
-  menu.innerHTML = html;
-}
-
-// ── AI Split modal ────────────────────────────────────────────
+// ── Split modal (kept from old roadmap) ──────────────────────
 var _splitModalFilename = null;
 var _splitModalDocType  = null;
 var _splitModalSprint1  = null;
@@ -338,9 +447,8 @@ function openSplitModal(filename, docType, sprint1, sprint2) {
 
   const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
   const sp  = Number(doc?.storyPoints) || 0;
-  const sprints = _roadmapPiName ? (sprintConfig[_roadmapPiName] || []) : [];
+  const sprints = getAllSprints();
 
-  // Build sprint selectors
   const sprintOptions = sprints.map(s =>
     `<option value="${escHtml(s.name)}">${escHtml(s.name)}</option>`
   ).join('');
@@ -434,123 +542,6 @@ async function executeSplit() {
   }
 }
 
-// ── Epic Timeline View ────────────────────────────────────────
-function renderEpicTimeline(body, piName, sprints) {
-  const N = sprints.length;
-  const leafTypes = new Set(['story', 'spike', 'bug']);
-  const piLeafs   = allDocs.filter(d => leafTypes.has(d.docType) && d.fixVersion === piName);
-
-  // Sprint index lookup
-  const sprintIdx = new Map(sprints.map((s, i) => [s.name, i]));
-
-  // Group leaves by their epic/feature parent (or __none__ if unlinked)
-  const epicGroups = new Map(); // epicFilename | '__none__' → { epicDoc, stories }
-
-  for (const leaf of piLeafs) {
-    const key = leaf.parentFilename || '__none__';
-    if (!epicGroups.has(key)) {
-      const epicDoc = leaf.parentFilename
-        ? allDocs.find(d => d.filename === leaf.parentFilename)
-        : null;
-      epicGroups.set(key, { epicDoc, stories: [] });
-    }
-    epicGroups.get(key).stories.push(leaf);
-  }
-
-  if (!epicGroups.size) {
-    body.innerHTML = '<div class="roadmap-empty">No stories assigned to this PI yet.</div>';
-    return;
-  }
-
-  // Sort groups: named epics first (by title), then unlinked
-  const sorted = [...epicGroups.entries()].sort(([ka, a], [kb, b]) => {
-    if (ka === '__none__') return 1;
-    if (kb === '__none__') return -1;
-    return (a.epicDoc?.title || ka).localeCompare(b.epicDoc?.title || kb);
-  });
-
-  // ── Header row ─────────────────────────────────────────────
-  const sprintHeaderCells = sprints.map(s => `
-    <div class="et-sprint-header">
-      <div class="et-sprint-name">${escHtml(s.name)}</div>
-      ${s.capacity ? `<div class="et-sprint-cap">${s.capacity} SP</div>` : ''}
-    </div>`).join('');
-
-  // ── Epic rows ───────────────────────────────────────────────
-  let rowsHtml = '';
-  for (const [key, { epicDoc, stories }] of sorted) {
-    const isNone  = key === '__none__';
-    const title   = epicDoc?.title || (isNone ? 'No Epic' : key);
-    const epicFn  = epicDoc?.filename || null;
-    const color   = isNone ? 'var(--muted)' : epicColor(key);
-
-    // Compute sprint range from assigned stories
-    const indices = stories
-      .filter(s => s.sprint && sprintIdx.has(s.sprint))
-      .map(s => sprintIdx.get(s.sprint));
-    const minIdx     = indices.length ? Math.min(...indices) : -1;
-    const maxIdx     = indices.length ? Math.max(...indices) : -1;
-    const sprintSpan = maxIdx >= 0 ? maxIdx - minIdx + 1 : 0;
-
-    const totalSP        = stories.reduce((sum, s) => sum + (Number(s.storyPoints) || 0), 0);
-    const assignedCount  = stories.filter(s => s.sprint).length;
-    const unassignedCount = stories.length - assignedCount;
-
-    // Meta line shown in the name column
-    const metaParts = [];
-    if (sprintSpan)       metaParts.push(`${sprintSpan} sprint${sprintSpan !== 1 ? 's' : ''}`);
-    if (stories.length)   metaParts.push(`${stories.length} item${stories.length !== 1 ? 's' : ''}`);
-    if (totalSP)          metaParts.push(`${totalSP} SP`);
-    if (unassignedCount)  metaParts.push(`${unassignedCount} unscheduled`);
-
-    // Bar geometry (as percentage of the sprint row width)
-    let barHtml = '';
-    if (minIdx >= 0) {
-      const leftPct  = ((minIdx / N) * 100).toFixed(2);
-      const widthPct = (((maxIdx - minIdx + 1) / N) * 100).toFixed(2);
-      const label    = `${sprintSpan} sprint${sprintSpan !== 1 ? 's' : ''} · ${stories.length} item${stories.length !== 1 ? 's' : ''}${totalSP ? ' · ' + totalSP + ' SP' : ''}`;
-      const click    = epicFn ? `onclick="event.stopPropagation(); openDoc('${escHtml(epicFn)}','${epicDoc.docType || 'epic'}')"` : '';
-      barHtml = `
-        <div class="et-bar" style="left:${leftPct}%;width:${widthPct}%;background:${color};" ${click}
-             title="${escHtml(title)}">
-          <span class="et-bar-label">${escHtml(label)}</span>
-        </div>`;
-    } else {
-      barHtml = `
-        <div class="et-bar et-bar-unscheduled">
-          <span class="et-bar-label">All unscheduled (${stories.length})</span>
-        </div>`;
-    }
-
-    // Sprint grid cells (background lines)
-    const cells = sprints.map((_, i) =>
-      `<div class="et-sprint-cell${i === N - 1 ? ' et-last' : ''}"></div>`
-    ).join('');
-
-    const rowClick = epicFn ? `onclick="openDoc('${escHtml(epicFn)}','${epicDoc.docType || 'epic'}')"` : '';
-
-    rowsHtml += `
-      <div class="et-epic-row" ${rowClick} style="cursor:${epicFn ? 'pointer' : 'default'}">
-        <div class="et-name-col">
-          <div class="et-epic-dot" style="background:${isNone ? 'var(--muted)' : color}"></div>
-          <div class="et-name-text">
-            <div class="et-epic-title">${escHtml(title)}</div>
-            <div class="et-epic-meta">${escHtml(metaParts.join(' · '))}</div>
-          </div>
-        </div>
-        <div class="et-sprints-row">
-          ${cells}
-          ${barHtml}
-        </div>
-      </div>`;
-  }
-
-  body.innerHTML = `
-    <div class="et-timeline">
-      <div class="et-header-row">
-        <div class="et-name-col et-header-label">Epic / Feature</div>
-        <div class="et-sprints-row et-header-sprints">${sprintHeaderCells}</div>
-      </div>
-      ${rowsHtml}
-    </div>`;
-}
+// ── Deprecated (no-op stubs for backward compat) ─────────────
+function populateRoadmapDropdown() {}
+function setRoadmapView() {}

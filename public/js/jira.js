@@ -14,7 +14,7 @@ function showJiraSelectModal(title, items, confirmLabel) {
       const keyHtml   = item.key  ? '<span class="jira-select-key">'  + escHtml(String(item.key))  + '</span>' : '';
       const typeClass = (item.type || '').replace(/\s+/g, '-');
       const typeHtml  = item.type ? '<span class="jira-badge type-' + escHtml(typeClass) + '">' + escHtml(item.type) + '</span>' : '';
-      const localHtml = item.localExists ? '<span class="jira-badge local">✓ Local</span>' : '';
+      const localHtml = item.localExists ? '<span class="jira-badge local-update">↺ Update</span>' : '<span class="jira-badge local-new">+ New</span>';
       return '<label class="jira-select-item">' +
         '<input type="checkbox" checked data-idx="' + i + '" />' +
         '<div class="jira-select-item-body">' +
@@ -56,8 +56,23 @@ function updateJiraPushBtn() {
   btn.innerHTML = (isMultiStory ? '↑ Push Stories' : '↑ JIRA') + JIRA_CARET;
   btn.disabled = false;
 
+  const hasJiraId     = !!(currentJiraId && currentJiraId !== 'TBD');
+  const isParentType  = currentDocType === 'epic' || currentDocType === 'feature';
+
   const syncBtn = document.getElementById('jira-sync-status-btn');
-  if (syncBtn) syncBtn.disabled = !(currentJiraId && currentJiraId !== 'TBD');
+  if (syncBtn) syncBtn.disabled = !hasJiraId;
+
+  const childrenBtn = document.getElementById('jira-get-children-btn');
+  if (childrenBtn) {
+    childrenBtn.style.display = isParentType ? '' : 'none';
+    childrenBtn.disabled = !hasJiraId;
+  }
+}
+
+async function retrieveChildrenFromJira() {
+  if (!currentFilename || !currentDocType) return;
+  if (!currentJiraId || currentJiraId === 'TBD') return;
+  await offerChildrenDownload([{ key: currentJiraId, filename: currentFilename, docType: currentDocType }]);
 }
 
 async function syncJiraStatus() {
@@ -94,6 +109,76 @@ async function syncJiraStatus() {
   } finally {
     updateJiraPushBtn();
   }
+}
+
+// ── Update from JIRA ─────────────────────────────────────────
+async function updateFromJira(jiraKeyOverride) {
+  if (!currentFilename || !currentDocType) return;
+
+  const hasKey = currentJiraId && currentJiraId !== 'TBD';
+
+  // If no JIRA_ID on the doc, show a small inline prompt in the dropdown
+  if (!hasKey && !jiraKeyOverride) {
+    showUpdateFromJiraKeyPrompt();
+    return;
+  }
+
+  const key = jiraKeyOverride || currentJiraId;
+  const btn = document.getElementById('jira-push-btn');
+  btn.disabled    = true;
+  btn.textContent = '⏳ Updating…';
+  closeAllDropdowns();
+
+  try {
+    const res = await fetch(
+      `/api/jira/update-from-jira/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+      {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(key !== currentJiraId ? { jiraKey: key } : {}),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Update failed'));
+    showJiraToast('success', `✅ Updated from ${data.key}`);
+    // Reload the open doc to show new content
+    if (currentFilename) openDoc(currentFilename, currentDocType);
+    // Offer to sync children if this is a feature or epic
+    if (currentDocType === 'feature' || currentDocType === 'epic') {
+      await offerChildrenDownload([{ key: data.key, filename: currentFilename, docType: currentDocType }]);
+    }
+  } catch (e) {
+    showJiraToast('error', `❌ ${e.message}`);
+  } finally {
+    updateJiraPushBtn();
+  }
+}
+
+function showUpdateFromJiraKeyPrompt() {
+  // Swap the dropdown content to show an inline key input
+  const menu = document.getElementById('jira-dropdown-menu');
+  if (!menu) return;
+  menu.innerHTML = `
+    <div class="jira-key-prompt">
+      <div class="jira-key-prompt-label">Enter JIRA key</div>
+      <div class="jira-key-prompt-row">
+        <input id="jira-update-key-input" class="jira-key-prompt-input" type="text"
+               placeholder="e.g. EAMDM-1234"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();submitUpdateFromJiraKey()} if(event.key==='Escape'){closeAllDropdowns()}" />
+        <button class="btn-jira-key" onclick="submitUpdateFromJiraKey()">→</button>
+      </div>
+    </div>`;
+  // Keep dropdown open and focus the input
+  setTimeout(() => document.getElementById('jira-update-key-input')?.focus(), 30);
+}
+
+function submitUpdateFromJiraKey() {
+  const input = document.getElementById('jira-update-key-input');
+  if (!input) return;
+  const key = input.value.trim().toUpperCase();
+  if (!key) { input.focus(); return; }
+  closeAllDropdowns();
+  updateFromJira(key);
 }
 
 async function pushToJira() {
@@ -149,12 +234,7 @@ async function pushToJira() {
       if (currentFilename) openDoc(currentFilename, currentDocType);
     } else {
       showJiraToast('success', `✅ ${data.action === 'created' ? 'Created' : 'Synced'} ${data.key} in JIRA`);
-      if (data.action === 'created') {
-        currentJiraId = data.key;
-        document.getElementById('status-select').value = 'Created in JIRA';
-        const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
-        if (doc) { doc.status = 'Created in JIRA'; doc.jiraId = data.key; }
-      }
+      if (currentFilename) openDoc(currentFilename, currentDocType);
     }
 
     // Push selected children
@@ -393,21 +473,28 @@ async function offerChildrenDownload(parentIssues) {
 
   if (allChildren.length === 0) return;
 
-  const selected = await showJiraSelectModal(
-    `${allChildren.length} linked child issue(s) found in JIRA`,
-    allChildren,
-    'Download selected'
-  );
+  const newCount    = allChildren.filter(c => !c.localExists).length;
+  const updateCount = allChildren.filter(c =>  c.localExists).length;
+  const parts = [];
+  if (newCount)    parts.push(`${newCount} new`);
+  if (updateCount) parts.push(`${updateCount} to update`);
+  const modalTitle = `Children in JIRA: ${parts.join(', ')}`;
+
+  const selected = await showJiraSelectModal(modalTitle, allChildren, 'Import / Update selected');
 
   if (!selected.length) return;
 
-  // Pull each group of children with their parent link so Epic_ID / Feature_ID is set
+  // Pull each group of children with their parent link so Epic_ID / Feature_ID is set.
+  // Pre-include existing children in overwriteKeys so no second conflict dialog fires.
   for (const parent of parentIssues) {
-    const childKeys = selected
+    const childKeys     = selected
       .filter(c => childToParent.get(c.key)?.key === parent.key)
       .map(c => c.key);
+    const overwriteKeys = selected
+      .filter(c => childToParent.get(c.key)?.key === parent.key && c.localExists)
+      .map(c => c.key);
     if (childKeys.length) {
-      await performJiraPull(childKeys, [], [], {
+      await performJiraPull(childKeys, overwriteKeys, [], {
         filename: parent.filename,
         docType:  parent.docType,
       });

@@ -15,7 +15,7 @@ export default function docsRoutes({ rootDir, TYPE_CONFIG, INBOX_DIR, broadcast,
   // ── POST /api/generate ─────────────────────────────────────────────────────
   router.post('/api/generate', async (req, res) => {
     try {
-      const { title, idea, priority = 'Medium', type = 'epic', parentFeature } = req.body;
+      const { title, idea, priority = 'Medium', type = 'epic', parentFeature, parentEpic, fixVersion } = req.body;
       if (!idea?.trim()) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'Idea is required');
       }
@@ -59,6 +59,12 @@ ${idea.trim()}
         if (normalizedType === 'epic' && parentFeature) {
           finalContent = setFrontmatterField(finalContent, 'Feature_ID', parentFeature);
         }
+        if (['story', 'spike', 'bug'].includes(normalizedType) && parentEpic) {
+          finalContent = setFrontmatterField(finalContent, 'Epic_ID', parentEpic);
+        }
+        if (fixVersion && fixVersion !== 'TBD') {
+          finalContent = setFrontmatterField(finalContent, 'Fix_Version', fixVersion);
+        }
         fs.writeFileSync(path.join(destDir, filename), finalContent);
       } finally {
         _apiInFlight.delete(filename);
@@ -76,7 +82,7 @@ ${idea.trim()}
   // ── POST /api/docs/draft ── save a draft without AI ────────────────────────
   router.post('/api/docs/draft', (req, res) => {
     try {
-      const { title, idea, type = 'epic', priority = 'Medium' } = req.body;
+      const { title, idea, type = 'epic', priority = 'Medium', parentEpic, parentFeature, fixVersion } = req.body;
       if (!title?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'Title is required');
 
       const normalizedType = assertDocType(type, TYPE_CONFIG);
@@ -89,15 +95,24 @@ ${idea.trim()}
 
       const notesLine = idea?.trim() ? `\n${idea.trim()}\n` : '\n';
 
+      // Build extra frontmatter lines for parent links
+      const epicIdLine     = (['story','spike','bug'].includes(normalizedType) && parentEpic)
+        ? `\nEpic_ID: ${parentEpic}` : '';
+      const featureIdLine  = (normalizedType === 'epic' && parentFeature)
+        ? `\nFeature_ID: ${parentFeature}` : '';
+      const fixVersionLine = (fixVersion && fixVersion !== 'TBD')
+        ? fixVersion : 'TBD';
+
       const content = `---
 JIRA_ID: TBD
 Story_Points: TBD
 Status: Draft
 Priority: ${priority}
+Fix_Version: ${fixVersionLine}
 Squad: TBD
 PI: TBD
 Sprint: TBD
-Created: ${date}
+Created: ${date}${epicIdLine}${featureIdLine}
 ---
 
 ## ${title.trim()}
@@ -152,6 +167,16 @@ ${notesLine}`;
             sprint: sprint && sprint !== 'TBD' ? sprint : null,
             parentFilename,
             parentType,
+            hasDescription: (() => {
+              let body = content;
+              if (body.startsWith('---')) {
+                const end = body.indexOf('\n---', 3);
+                if (end > -1) body = body.slice(end + 4);
+              }
+              body = body.replace(/^#{1,2}\s+.+$/m, '').trim();
+              body = body.replace(/_No description in JIRA\._/gi, '').replace(/\bTBD\b/g, '').trim();
+              return body.length > 30;
+            })(),
           });
         }
       }
