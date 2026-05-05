@@ -137,10 +137,17 @@ async function executeQuickCreate() {
 
   try {
     const body = { idea, title, type, priority: 'Medium' };
-    // Pass parentFeature when creating an Epic from within a Feature view
+
+    // Inherit parent link and PI from the open doc
     if (type === 'epic' && currentDocType === 'feature' && currentFilename) {
       body.parentFeature = currentFilename;
     }
+    if (['story', 'spike', 'bug'].includes(type) && currentDocType === 'epic' && currentFilename) {
+      body.parentEpic = currentFilename;
+      const parentDoc = allDocs.find(d => d.filename === currentFilename && d.docType === 'epic');
+      if (parentDoc?.fixVersion) body.fixVersion = parentDoc.fixVersion;
+    }
+
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -151,8 +158,8 @@ async function executeQuickCreate() {
 
     closeQuickCreate();
     await loadDocs();
-    if (type === 'epic' && currentDocType === 'feature' && currentFilename) {
-      loadHierarchy(currentFilename, 'feature');
+    if (currentFilename && (currentDocType === 'feature' || currentDocType === 'epic')) {
+      loadHierarchy(currentFilename, currentDocType);
     }
     showJiraToast('success', `✅ ${TYPE_LABEL[type]} created: ${data.filename}`);
   } catch (e) {

@@ -75,24 +75,38 @@
   line-height: 1.45;
 }
 
-.epic-dot {
-  width: 6px;
-  height: 6px;
-  background: var(--accent);
+/* ── Readiness traffic-light dot ─────────────────────────────── */
+.readiness-dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  margin-top: 6px;
+  flex-shrink: 0;
+  margin-top: 5px;
+  transition: box-shadow 0.15s;
+}
+.readiness-dot.ready-green { background: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.18); }
+.readiness-dot.ready-amber { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.18); }
+.readiness-dot.ready-red   { background: #ef4444; box-shadow: 0 0 0 2px rgba(239,68,68,0.18); }
+.epic-item:hover .readiness-dot { box-shadow: 0 0 0 3px rgba(0,0,0,0.12); }
+
+/* ── Collapse spacer (same size as collapse-btn) ─────────────── */
+.collapse-spacer {
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
 /* ── Type & Status badges ────────────────────────────────────── */
 .type-badge {
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 2px 7px;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
   border-radius: 20px;
   flex-shrink: 0;
+  white-space: nowrap;
+  align-self: center;
 }
 
 .type-badge.feature { background: var(--type-feature-bg); color: var(--type-feature-color); }
@@ -225,20 +239,23 @@
   opacity: 0.55;
 }
 
-/* ── Hierarchy indentation in list ───────────────────────────── */
+/* ── Fixed type-based indentation ────────────────────────────── */
+/* indent=0 → feature: no extra indent (default padding)         */
+/* indent=1 → epic: one level in                                 */
+/* indent=2 → story / spike / bug: two levels in                 */
+
 .epic-item[data-indent="1"] {
-  padding-left: 36px;
-  border-left-color: transparent;
-  border-left-width: 3px;
+  padding-left: 32px;
 }
 .epic-item[data-indent="1"]:hover { border-left-color: var(--accent); }
 
 .epic-item[data-indent="2"] {
-  padding-left: 52px;
+  padding-left: 48px;
 }
 
-.epic-item[data-indent="1"] .epic-dot,
-.epic-item[data-indent="2"] .epic-dot { opacity: 0.45; }
+/* Slightly dim the readiness dot for nested items */
+.epic-item[data-indent="1"] .readiness-dot,
+.epic-item[data-indent="2"] .readiness-dot { opacity: 0.85; }
 
 .tree-connector {
   font-size: 0.72rem;

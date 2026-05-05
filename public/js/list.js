@@ -10,7 +10,7 @@ async function loadDocs() {
   try {
     const res = await fetch('/api/docs');
     allDocs = await res.json();
-    renderSwimlanes(allDocs);
+    applyFilters();
   } catch (e) {
     console.warn('Could not load docs:', e.message);
   }
@@ -80,6 +80,10 @@ function categorizeDocs(docs) {
 }
 
 function renderSwimlanes(docs) {
+  // Rebuild global readiness lookup tables from all docs (cross-section)
+  _readinessAllDocsMap  = new Map(allDocs.map(d => [d.filename, d]));
+  _readinessChildrenMap = buildChildrenMap(allDocs);
+
   const list  = document.getElementById('epic-list');
   const count = document.getElementById('epic-count');
   count.textContent = docs.length;
@@ -166,11 +170,53 @@ function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
     </div>`;
 }
 
+// ── Readiness helpers ─────────────────────────────────────────
+var _readinessAllDocsMap    = new Map();
+var _readinessChildrenMap   = new Map();
+
+function getAllLeaves(filename, childrenMap, docsMap) {
+  const children = childrenMap.get(filename) || [];
+  if (!children.length) {
+    const doc = docsMap.get(filename);
+    return doc ? [doc] : [];
+  }
+  return children.flatMap(c => getAllLeaves(c.filename, childrenMap, docsMap));
+}
+
+function computeReadiness(doc, childrenMap, docsMap) {
+  const children = childrenMap.get(doc.filename) || [];
+  const isLeaf   = doc.docType === 'story' || doc.docType === 'spike' || doc.docType === 'bug';
+  const scores   = [];
+
+  // 1. Has children (features/epics only)
+  if (doc.docType === 'feature' || doc.docType === 'epic') {
+    scores.push(children.length > 0 ? 1 : 0);
+  }
+
+  // 2. Story points coverage
+  if (isLeaf) {
+    scores.push(doc.storyPoints != null ? 1 : 0);
+  } else {
+    const leaves = getAllLeaves(doc.filename, childrenMap, docsMap);
+    if (leaves.length > 0) {
+      const withSP = leaves.filter(l => l.storyPoints != null).length;
+      scores.push(withSP / leaves.length);
+    }
+  }
+
+  // 3. Has a proper description
+  scores.push(doc.hasDescription ? 1 : 0);
+
+  if (!scores.length) return 0;
+  return (scores.reduce((a, b) => a + b, 0) / scores.length) * 100;
+}
+
 function renderDocItem(d, indent, childrenMap) {
   const statusClass = (d.status || 'Draft').replace(/\s+/g, '-');
+  // Connector shows when item has a parent in the current tree view
   const connector   = indent > 0 ? `<span class="tree-connector">└</span>` : '';
 
-  const hasChildren = (childrenMap && (childrenMap.get(d.filename) || []).length > 0);
+  const hasChildren   = (childrenMap && (childrenMap.get(d.filename) || []).length > 0);
   const isCollapsible = hasChildren && (d.docType === 'feature' || d.docType === 'epic');
   const isCollapsed   = _collapsedItems.has(d.filename);
   const collapseBtn   = isCollapsible
@@ -179,9 +225,14 @@ function renderDocItem(d, indent, childrenMap) {
                title="${isCollapsed ? 'Expand children' : 'Collapse children'}">
          <svg viewBox="0 0 10 10" width="10" height="10"><polyline points="2,3 5,7 8,3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
        </button>`
-    : '';
+    : '<div class="collapse-spacer"></div>';
 
-  const selKey = `${d.docType}:${d.filename}`;
+  // Readiness traffic light
+  const pct    = computeReadiness(d, _readinessChildrenMap, _readinessAllDocsMap);
+  const rdCls  = pct >= 80 ? 'ready-green' : pct >= 40 ? 'ready-amber' : 'ready-red';
+  const rdTip  = `Readiness: ${Math.round(pct)}%`;
+
+  const selKey  = `${d.docType}:${d.filename}`;
   const multiSel = selectedItems.has(selKey) ? ' multi-selected' : '';
 
   return `
@@ -192,15 +243,15 @@ function renderDocItem(d, indent, childrenMap) {
          onclick="handleItemClick(event,'${escHtml(d.filename)}','${d.docType}')"
          oncontextmenu="handleItemContextMenu(event,'${escHtml(d.filename)}','${d.docType}')">
       <div class="drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="readiness-dot ${rdCls}" title="${rdTip}"></div>
       ${collapseBtn}
       ${connector}
-      ${isCollapsible ? '' : '<div class="epic-dot"></div>'}
-      <div style="flex:1">
+      <span class="type-badge ${d.docType}">${TYPE_LABEL[d.docType] || d.docType}</span>
+      <div style="flex:1;min-width:0">
         <div class="epic-title-text">${escHtml(d.title)}</div>
       </div>
       ${d.sprint ? `<span class="sprint-badge">${escHtml(d.sprint)}</span>` : ''}
       <span class="status-badge ${statusClass}">${STATUS_LABEL[d.status] || d.status || 'Draft'}</span>
-      <span class="type-badge ${d.docType}">${TYPE_LABEL[d.docType] || d.docType}</span>
       <div class="epic-date">${d.date}</div>
     </div>`;
 }

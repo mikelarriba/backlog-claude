@@ -9,14 +9,10 @@
 #roadmap-view.show { display: flex; }
 
 /* ── Roadmap + detail split ─────────────────────────────────── */
-/* When roadmap is open, .right becomes a row: board (left) | detail (right).
-   #detail-view appears earlier in the DOM than #roadmap-view, so we use
-   CSS order to force the roadmap board left and the detail panel right.    */
 .right.roadmap-mode {
   flex-direction: row;
 }
 
-/* Roadmap board — always order: 1 (left side) */
 .right.roadmap-mode #roadmap-view {
   order: 1;
   flex: 1 1 auto;
@@ -24,12 +20,10 @@
   height: 100%;
 }
 
-/* Shrink board to 60% when detail is open */
 .right.roadmap-mode.has-selection #roadmap-view {
   flex: 0 0 60%;
 }
 
-/* Detail panel — order: 2 (right side), hidden until card is clicked */
 .right.roadmap-mode #detail-view {
   order: 2;
   display: none;
@@ -44,12 +38,10 @@
   display: flex;
 }
 
-/* Hide ← Back button in detail header (roadmap "Back" handles navigation) */
 .right.roadmap-mode .detail-header-left > .btn-ghost:first-child {
   display: none;
 }
 
-/* Narrow detail toolbar in 40% panel */
 .right.roadmap-mode .detail-toolbar {
   flex-wrap: wrap;
   gap: 4px;
@@ -87,35 +79,243 @@
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+  align-items: center;
 }
 
-/* ── Board body ────────────────────────────────────────────── */
-.roadmap-body {
+/* PI filter select */
+.rm-pi-filter {
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.rm-pi-filter:focus { border-color: var(--accent); }
+
+/* ── Two-panel container ──────────────────────────────────── */
+.roadmap-panels {
   display: flex;
+  flex-direction: column;
   flex: 1;
-  gap: 12px;
-  padding: 16px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  align-items: flex-start;
+  overflow: hidden;
 }
 
-.roadmap-empty {
+/* ── Panel (epics / stories) ──────────────────────────────── */
+.rm-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   flex: 1;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+
+.rm-panel:last-child { border-bottom: none; }
+
+.rm-panel-header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+.rm-panel-header:hover { background: var(--surface2); }
+
+.rm-panel-chevron {
+  font-size: 0.7rem;
   color: var(--muted);
-  font-size: 0.85rem;
-  font-style: italic;
+  width: 14px;
   text-align: center;
-  padding: 40px;
 }
 
-/* ── Column ────────────────────────────────────────────────── */
+.rm-panel-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rm-panel-count {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface2);
+  padding: 1px 7px;
+  border-radius: 20px;
+}
+
+.rm-panel-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+  transition: max-height 0.2s;
+}
+
+.rm-panel-body.collapsed {
+  max-height: 0 !important;
+  overflow: hidden;
+  flex: 0;
+  padding: 0;
+}
+
+/* ── Epic panel: timeline board ───────────────────────────── */
+.rm-board-header {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.rm-name-col-header {
+  width: 200px;
+  min-width: 200px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+}
+
+.rm-sprint-headers {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
+.rm-sprint-header-cell {
+  flex: 1;
+  min-width: 80px;
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text);
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Epic card row ────────────────────────────────────────── */
+.rm-epic-card {
+  display: flex;
+  align-items: stretch;
+  min-height: 50px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s, opacity 0.15s;
+}
+.rm-epic-card:hover { background: var(--surface2); }
+.rm-epic-card:last-child { border-bottom: none; }
+
+.rm-epic-card.rm-focused {
+  background: var(--accent-subtle);
+  border-left: 3px solid var(--accent);
+}
+
+.rm-epic-card.rm-dimmed { opacity: 0.35; }
+
+.rm-epic-unlinked { opacity: 0.6; font-style: italic; }
+
+.rm-epic-name-col {
+  width: 200px;
+  min-width: 200px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-right: 1px solid var(--border);
+}
+
+.rm-epic-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rm-epic-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.rm-epic-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.rm-epic-meta {
+  font-size: 0.6rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ── Epic timeline area (grid + bar) ──────────────────────── */
+.rm-epic-timeline {
+  flex: 1;
+  display: flex;
+  position: relative;
+  min-width: 0;
+}
+
+.rm-grid-cell {
+  flex: 1;
+  min-width: 80px;
+  height: 100%;
+  border-left: 1px solid var(--border);
+}
+
+.rm-epic-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 24px;
+  border-radius: 5px;
+  opacity: 0.85;
+  transition: opacity 0.12s, box-shadow 0.12s;
+}
+.rm-epic-card:hover .rm-epic-bar {
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* ── Story panel: sprint columns ──────────────────────────── */
+.rm-story-columns {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  overflow-x: auto;
+  align-items: flex-start;
+  min-height: 100%;
+}
+
+/* ── Shared column (reused from old roadmap) ──────────────── */
 .roadmap-column {
-  min-width: 240px;
-  max-width: 300px;
+  min-width: 220px;
+  max-width: 280px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -135,18 +335,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px 8px;
+  padding: 9px 10px 7px;
   flex-shrink: 0;
 }
 
 .roadmap-col-name {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--text);
 }
 
 .roadmap-col-stats {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 600;
   color: var(--muted);
 }
@@ -154,7 +354,7 @@
 /* ── Capacity bar ──────────────────────────────────────────── */
 .roadmap-capacity-bar {
   height: 4px;
-  margin: 0 12px 6px;
+  margin: 0 10px 5px;
   background: var(--surface2);
   border-radius: 2px;
   overflow: hidden;
@@ -175,11 +375,11 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px 8px 10px;
+  gap: 5px;
+  padding: 5px 7px 8px;
   overflow-y: auto;
-  min-height: 60px;
-  transition: background 0.12s, border-color 0.12s;
+  min-height: 50px;
+  transition: background 0.12s;
   border-radius: 0 0 9px 9px;
 }
 
@@ -189,20 +389,20 @@
 
 .roadmap-card-empty {
   text-align: center;
-  padding: 16px 0;
-  font-size: 0.75rem;
+  padding: 14px 0;
+  font-size: 0.72rem;
   color: var(--muted);
   font-style: italic;
 }
 
-/* ── Card ──────────────────────────────────────────────────── */
+/* ── Story card ───────────────────────────────────────────── */
 .roadmap-card {
-  padding: 8px 10px;
+  padding: 7px 9px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 7px;
   background: var(--bg);
   cursor: grab;
-  transition: border-color 0.12s, box-shadow 0.12s, opacity 0.12s;
+  transition: border-color 0.12s, box-shadow 0.12s, opacity 0.15s;
   user-select: none;
 }
 .roadmap-card:hover {
@@ -211,22 +411,33 @@
 }
 .roadmap-card:active { cursor: grabbing; }
 .roadmap-card.dragging { opacity: 0.35; }
+.roadmap-card.rm-dimmed { opacity: 0.15; pointer-events: none; }
 
 .roadmap-card-parent {
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   color: var(--muted);
   margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rm-parent-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .roadmap-card-title {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 500;
   color: var(--text);
-  line-height: 1.35;
-  margin-bottom: 5px;
+  line-height: 1.3;
+  margin-bottom: 4px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -241,7 +452,7 @@
 
 /* ── Card badges ───────────────────────────────────────────── */
 .rm-badge {
-  font-size: 0.56rem;
+  font-size: 0.54rem;
   font-weight: 700;
   padding: 1px 5px;
   border-radius: 20px;
@@ -277,85 +488,17 @@
   font-size: 0.75rem;
 }
 
-/* ── Split-candidate card (spans 2 sprints) ─────────────────── */
-.rm-split-candidate-card {
-  border-color: rgba(245,158,11,0.5);
-  border-left: 3px solid #F59E0B;
-  position: relative;
-}
-
-.rm-split-candidate-card::after {
-  content: '';
-  position: absolute;
-  right: -13px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 10px;
-  height: 2px;
-  background: #F59E0B;
-  z-index: 1;
-}
-
-.rm-badge.rm-split-candidate {
-  background: rgba(245,158,11,0.15);
-  color: #F59E0B;
-  font-style: normal;
-}
-
-/* ── Ghost continuation card ────────────────────────────────── */
-.rm-ghost-card {
-  opacity: 0.45;
-  border-style: dashed;
-  border-color: rgba(245,158,11,0.4);
-  border-left: 3px dashed #F59E0B;
-  cursor: default;
-  position: relative;
-}
-.rm-ghost-card::before {
-  content: '';
-  position: absolute;
-  left: -13px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 10px;
-  height: 2px;
-  background: #F59E0B;
-  z-index: 1;
-}
-.rm-ghost-card:hover {
-  opacity: 0.65;
-  border-color: rgba(245,158,11,0.6);
-  box-shadow: none;
-}
-
-.rm-ghost-label {
-  font-size: 0.6rem;
-  color: #F59E0B;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 4px;
-}
-
-/* ── Split with AI button on card ───────────────────────────── */
-.rm-split-btn {
-  margin-top: 6px;
-  width: 100%;
-  background: transparent;
-  border: 1px solid rgba(245,158,11,0.4);
-  border-radius: 5px;
-  padding: 3px 8px;
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: #F59E0B;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.12s, border-color 0.12s;
+/* ── Empty state ───────────────────────────────────────────── */
+.roadmap-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-style: italic;
   text-align: center;
-}
-.rm-split-btn:hover {
-  background: rgba(245,158,11,0.1);
-  border-color: #F59E0B;
+  padding: 32px;
 }
 
 /* ── AI Split modal ─────────────────────────────────────────── */
@@ -480,220 +623,5 @@
 .pi-config-split-unit {
   font-size: 0.7rem;
   color: var(--muted);
-  font-weight: 600;
-}
-
-/* ── View toggle (Stories / Epics) ──────────────────────────── */
-.roadmap-view-toggle {
-  display: flex;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 2px;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.rm-toggle-btn {
-  padding: 4px 16px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.12s, color 0.12s;
-  white-space: nowrap;
-}
-.rm-toggle-btn:hover  { color: var(--text); }
-.rm-toggle-btn.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 1px 3px var(--shadow);
-}
-
-/* ── Roadmap body — Epic Timeline mode ──────────────────────── */
-.roadmap-body.et-mode {
-  flex-direction: column;
-  align-items: stretch;
-  overflow-x: auto;
-  overflow-y: auto;
-  padding: 0;
-  gap: 0;
-}
-
-/* ── Epic Timeline Layout ────────────────────────────────────── */
-.et-timeline {
-  min-width: 600px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Sticky header row */
-.et-header-row {
-  display: flex;
-  align-items: stretch;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--surface);
-  border-bottom: 2px solid var(--border);
-  flex-shrink: 0;
-}
-
-/* Shared: name column */
-.et-name-col {
-  width: 220px;
-  min-width: 220px;
-  flex-shrink: 0;
-  padding: 8px 14px 8px 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-right: 1px solid var(--border);
-}
-
-.et-header-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-/* Sprint columns area */
-.et-sprints-row {
-  flex: 1;
-  display: flex;
-  position: relative;
-  min-width: 0;
-}
-
-/* Header sprint cells */
-.et-header-sprints { align-items: flex-end; }
-
-.et-sprint-header {
-  flex: 1;
-  padding: 6px 4px 7px;
-  border-left: 1px solid var(--border);
-  text-align: center;
-  min-width: 80px;
-}
-
-.et-sprint-name {
-  font-size: 0.73rem;
-  font-weight: 700;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.et-sprint-cap {
-  font-size: 0.6rem;
-  color: var(--muted);
-  margin-top: 1px;
-}
-
-/* ── Epic row ───────────────────────────────────────────────── */
-.et-epic-row {
-  display: flex;
-  align-items: stretch;
-  min-height: 58px;
-  border-bottom: 1px solid var(--border);
-  transition: background 0.1s;
-}
-.et-epic-row:hover { background: var(--surface2); }
-
-/* Colour dot + text block */
-.et-epic-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.et-name-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.et-epic-title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.3;
-}
-
-.et-epic-meta {
-  font-size: 0.62rem;
-  color: var(--muted);
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Background grid cells (vertical lines per sprint) */
-.et-sprint-cell {
-  flex: 1;
-  min-width: 80px;
-  height: 100%;
-  border-left: 1px solid var(--border);
-}
-.et-sprint-cell.et-last { border-right: 1px solid var(--border); }
-
-/* ── The timeline bar ───────────────────────────────────────── */
-.et-bar {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 30px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  cursor: pointer;
-  overflow: hidden;
-  transition: filter 0.12s, box-shadow 0.12s;
-  box-sizing: border-box;
-}
-.et-bar:hover {
-  filter: brightness(1.12);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
-}
-
-.et-bar-label {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
-  letter-spacing: 0.01em;
-}
-
-/* Unscheduled bar (dashed, full-width) */
-.et-bar-unscheduled {
-  left: 4px !important;
-  right: 4px !important;
-  width: auto !important;
-  background: transparent !important;
-  border: 1.5px dashed var(--border);
-  cursor: default;
-}
-.et-bar-unscheduled .et-bar-label {
-  color: var(--muted);
-  font-style: italic;
-  text-shadow: none;
   font-weight: 600;
 }

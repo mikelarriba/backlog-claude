@@ -194,12 +194,7 @@
         <div class="list-header-top">
           <span class="list-title">Your Issues</span>
           <span class="epic-count" id="epic-count">0</span>
-          <div class="dropdown-wrap" id="roadmap-dropdown-wrap">
-            <button class="btn-toolbar btn-toolbar-roadmap" onclick="toggleDropdown('roadmap-dropdown-menu')">
-              Roadmap <span class="toolbar-caret">▾</span>
-            </button>
-            <div class="dropdown-menu" id="roadmap-dropdown-menu"></div>
-          </div>
+          <button class="btn-toolbar btn-toolbar-roadmap" onclick="openRoadmapView()">Roadmap</button>
         </div>
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
@@ -329,6 +324,12 @@
               <button class="dropdown-item" id="jira-sync-status-btn" onclick="syncJiraStatus();closeDropdown('jira-dropdown-menu')">
                 <span class="di-badge">Pull</span>Sync Status
               </button>
+              <button class="dropdown-item" id="jira-update-from-btn" onclick="updateFromJira()">
+                <span class="di-badge">↓</span>Update from JIRA
+              </button>
+              <button class="dropdown-item" id="jira-get-children-btn" onclick="retrieveChildrenFromJira();closeDropdown('jira-dropdown-menu')">
+                <span class="di-badge">⬇</span>Retrieve Children
+              </button>
             </div>
           </div>
           <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">Delete</button>
@@ -409,17 +410,32 @@
     <div id="roadmap-view">
       <div class="roadmap-header">
         <button class="btn-ghost" onclick="closeRoadmapView()">← Back</button>
-        <span class="roadmap-title">📊 PI Roadmap: <span id="roadmap-pi-name"></span></span>
-        <!-- View toggle -->
-        <div class="roadmap-view-toggle">
-          <button id="rm-view-stories" class="rm-toggle-btn active" onclick="setRoadmapView('stories')">Stories</button>
-          <button id="rm-view-epics"   class="rm-toggle-btn"        onclick="setRoadmapView('epics')">Epics</button>
-        </div>
+        <span class="roadmap-title">Roadmap</span>
         <div class="roadmap-header-right">
-          <button class="btn-toolbar" onclick="openDistributionModal(_roadmapPiName)">Distribute</button>
+          <select id="roadmap-pi-filter" class="rm-pi-filter" onchange="filterRoadmapByPi(this.value)">
+            <option value="">All Sprints</option>
+          </select>
+          <button class="btn-toolbar" onclick="openDistributionModal(_roadmapPiName)" title="Select a PI filter first to distribute">Distribute</button>
         </div>
       </div>
-      <div class="roadmap-body" id="roadmap-body"></div>
+      <div class="roadmap-panels" id="roadmap-panels">
+        <div class="rm-panel rm-panel-epics" id="rm-panel-epics">
+          <div class="rm-panel-header" onclick="toggleRoadmapPanel('epics')">
+            <span class="rm-panel-chevron" id="rm-chevron-epics">▼</span>
+            <span class="rm-panel-label">Epics</span>
+            <span class="rm-panel-count" id="rm-count-epics">0</span>
+          </div>
+          <div class="rm-panel-body" id="rm-body-epics"></div>
+        </div>
+        <div class="rm-panel rm-panel-stories" id="rm-panel-stories">
+          <div class="rm-panel-header" onclick="toggleRoadmapPanel('stories')">
+            <span class="rm-panel-chevron" id="rm-chevron-stories">▼</span>
+            <span class="rm-panel-label">Stories</span>
+            <span class="rm-panel-count" id="rm-count-stories">0</span>
+          </div>
+          <div class="rm-panel-body" id="rm-body-stories"></div>
+        </div>
+      </div>
     </div>
 
   </div>

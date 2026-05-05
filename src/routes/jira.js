@@ -68,7 +68,8 @@ export default function jiraRoutes({
   async function pushSingleIssue({ filename, filepath, content, type }) {
     const jiraId      = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
     const summary     = extractJiraSummary(content);
-    const description = markdownToJira(stripFrontmatter(content));
+    const _bodyOnly = stripFrontmatter(content).replace(/^#{1,2}\s+.+\n?/, '').trim();
+    const description = markdownToJira(_bodyOnly);
     const jiraType    = LOCAL_TO_JIRA_TYPE[type] || 'Story';
     const localFixVersion  = extractFrontmatterField(content, 'Fix_Version');
     const localStoryPoints = extractFrontmatterField(content, 'Story_Points');
@@ -253,6 +254,56 @@ export default function jiraRoutes({
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('GET /api/jira/search', apiErr.message, apiErr.details || {});
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── POST /api/jira/update-from-jira/:docType/:filename ────────────────────
+  // Updates an existing local file with fresh data from JIRA.
+  // Keeps Sprint, Squad, PI, Feature_ID, Epic_ID — overwrites JIRA-sourced fields.
+  router.post('/api/jira/update-from-jira/:docType/:filename', async (req, res) => {
+    try {
+      if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+      const docType  = assertDocType(req.params.docType, TYPE_CONFIG);
+      const filename = assertFilename(req.params.filename);
+      const cfg      = TYPE_CONFIG[docType];
+      const filepath = path.join(cfg.dir(), filename);
+
+      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+
+      const existing  = fs.readFileSync(filepath, 'utf-8');
+      let   jiraKey   = (req.body?.jiraKey || '').trim().toUpperCase() || extractFrontmatterField(existing, 'JIRA_ID');
+
+      if (!jiraKey || jiraKey === 'TBD') {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'No JIRA key provided and JIRA_ID in file is TBD');
+      }
+
+      // Fetch from JIRA
+      const issue = await jiraRequest(
+        'GET',
+        `/issue/${jiraKey}?fields=summary,issuetype,status,priority,description,fixVersions,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`
+      );
+
+      // Build fresh content from JIRA data
+      const { content: freshContent } = jiraIssueToMarkdown(issue);
+
+      // Preserve local-only frontmatter fields
+      const LOCAL_FIELDS = ['Sprint', 'Squad', 'PI', 'Feature_ID', 'Epic_ID', 'Created'];
+      let merged = freshContent;
+      for (const field of LOCAL_FIELDS) {
+        const localVal = extractFrontmatterField(existing, field);
+        if (localVal) merged = setFrontmatterField(merged, field, localVal);
+      }
+
+      fs.writeFileSync(filepath, merged);
+      broadcast({ type: `${docType}_created`, filename, docType });
+
+      logInfo(`Updated ${filename} from JIRA ${jiraKey}`);
+      res.json({ key: jiraKey, filename, docType });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/update-from-jira', apiErr.message, apiErr.details || {});
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });

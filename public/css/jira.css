@@ -106,6 +106,8 @@
 .jira-badge.type-Story  { background: var(--type-story-bg);   color: var(--type-story-color); }
 .jira-badge.type-Task   { background: var(--type-spike-bg);   color: var(--type-spike-color); }
 .jira-badge.local       { background: var(--success-bg);      color: var(--success-text); border: 1px solid var(--success-border); }
+.jira-badge.local-new    { background: var(--accent-subtle);   color: var(--accent-hover); border: 1px solid rgba(0,150,214,0.25); }
+.jira-badge.local-update { background: rgba(245,158,11,0.12);  color: #d97706; border: 1px solid rgba(245,158,11,0.3); }
 .jira-badge.status      { background: var(--surface2);        color: var(--muted); }
 
 .jira-empty {
@@ -191,6 +193,40 @@
 
 .btn-jira-key:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
 .btn-jira-key:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Update-from-JIRA inline key prompt (inside dropdown) ────── */
+.jira-key-prompt {
+  padding: 8px 10px;
+  min-width: 220px;
+}
+
+.jira-key-prompt-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 6px;
+}
+
+.jira-key-prompt-row {
+  display: flex;
+  gap: 5px;
+}
+
+.jira-key-prompt-input {
+  flex: 1;
+  font-size: 0.8rem;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.jira-key-prompt-input:focus { border-color: var(--accent); }
 
 /* ── JIRA selection modal ────────────────────────────────────── */
 .jira-select-dialog {

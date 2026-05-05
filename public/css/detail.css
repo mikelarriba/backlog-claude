@@ -606,6 +606,27 @@
   font-style: italic;
 }
 
+.btn-link-existing {
+  margin-top: 8px;
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.btn-link-existing:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
 /* ── Stories: stream wrap (visible only during Refine) ───────── */
 .stories-stream-wrap {
   border: 1px solid var(--border);
