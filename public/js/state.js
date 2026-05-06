@@ -8,7 +8,6 @@ var currentFilename     = null;
 var currentDocType      = null;
 var activeTypeFilter    = 'all';
 var activeStatusFilter  = 'all';
-var currentStoriesFilename = null;
 var currentJiraId       = null;
 var _justDragged        = false;
 var _quickCreateType    = null;
@@ -70,6 +69,46 @@ function setJiraStatus(type, message) {
   el.textContent = message || '';
 }
 
+// ── Shared JSON fetch helper ─────────────────────────────────
+// Replaces the 50+ copy-paste try/fetch/res.json/!res.ok blocks.
+// Returns parsed JSON on success; throws a descriptive Error on failure.
+async function fetchJSON(url, opts = {}) {
+  const res = await fetch(url, opts);
+  let data;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok) throw new Error(getErrorMessage(data?.error, `Request failed (${res.status})`));
+  return data;
+}
+
+// POST/PUT/PATCH/DELETE convenience wrappers
+async function postJSON(url, body) {
+  return fetchJSON(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function patchJSON(url, body) {
+  return fetchJSON(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function putJSON(url, body) {
+  return fetchJSON(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function deleteJSON(url) {
+  return fetchJSON(url, { method: 'DELETE' });
+}
+
 // ── Shared streaming SSE fetch helper ─────────────────────────
 // Replaces duplicated streaming logic in upgrade.js, stories.js,
 // refine.js, and quickcreate.js.
@@ -103,6 +142,15 @@ async function streamSSE(url, body, { onText, onDone, onError }) {
       }
     }
   }
+}
+
+// ── Debounce utility ──────────────────────────────────────────
+function debounce(fn, ms) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
 }
 
 // ── Cascade helpers for swimlane drag-drop ────────────────────

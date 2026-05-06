@@ -18,13 +18,7 @@ async function saveDraft() {
   setStatus('loading', 'Saving draft…');
 
   try {
-    const res = await fetch('/api/docs/draft', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, idea, type, priority }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Save failed'));
+    const data = await postJSON('/api/docs/draft', { title, idea, type, priority });
 
     clearForm();
     setStatus('success', `✅ Draft saved: ${data.filename}`);
@@ -56,14 +50,7 @@ async function generateDoc() {
   setBtnState(true);
 
   try {
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idea: prompt, title, priority, type })
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Request failed'));
+    const data = await postJSON('/api/generate', { idea: prompt, title, priority, type });
 
     clearForm();
     setStatus('success', `✅ ${TYPE_LABEL[type]} created: ${data.filename}`);
@@ -148,13 +135,7 @@ async function executeQuickCreate() {
       if (parentDoc?.fixVersion) body.fixVersion = parentDoc.fixVersion;
     }
 
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Generation failed'));
+    const data = await postJSON('/api/generate', body);
 
     closeQuickCreate();
     await loadDocs();

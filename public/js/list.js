@@ -8,8 +8,7 @@ var _collapsedItems = new Set(); // filenames of collapsed epics/features
 
 async function loadDocs() {
   try {
-    const res = await fetch('/api/docs');
-    allDocs = await res.json();
+    allDocs = await fetchJSON('/api/docs');
     applyFilters();
   } catch (e) {
     console.warn('Could not load docs:', e.message);
@@ -18,15 +17,13 @@ async function loadDocs() {
 
 async function loadPiSettings() {
   try {
-    const res = await fetch('/api/settings/pi');
-    piSettings = await res.json();
-  } catch {}
+    piSettings = await fetchJSON('/api/settings/pi');
+  } catch (e) { console.warn('Failed to load PI settings:', e.message); }
 }
 
 async function loadJiraVersions() {
   try {
-    const res = await fetch('/api/jira/versions');
-    const data = await res.json();
+    const data = await fetchJSON('/api/jira/versions');
     jiraVersions = data.versions || [];
   } catch {
     jiraVersions = [];
@@ -287,15 +284,9 @@ async function updatePiVersion(sectionKey, versionName) {
   if (sectionKey === 'nextPi')    update.nextPi    = versionName || null;
 
   try {
-    const res = await fetch('/api/settings/pi', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(update),
-    });
-    if (res.ok) {
-      piSettings = update;
-      applyFilters();
-    }
+    await putJSON('/api/settings/pi', update);
+    piSettings = update;
+    applyFilters();
   } catch (e) {
     console.error('Failed to save PI settings:', e.message);
   }
@@ -326,6 +317,8 @@ function applyFilters() {
   if (q) filtered = filtered.filter(d => d.title.toLowerCase().includes(q) || d.filename.toLowerCase().includes(q));
   renderSwimlanes(filtered);
 }
+
+var applyFiltersDebounced = debounce(applyFilters, 200);
 
 // ── Multi-select ─────────────────────────────────────────────
 function itemKey(filename, docType) { return `${docType}:${filename}`; }
@@ -506,19 +499,11 @@ async function contextMoveToPI(section) {
   }
 
   try {
-    const res = await fetch('/api/docs/batch-fix-version', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fixVersion: newFixVersion,
-        docs: allToMove.map(d => ({ type: d.docType, filename: d.filename })),
-      }),
+    await postJSON('/api/docs/batch-fix-version', {
+      fixVersion: newFixVersion,
+      docs: allToMove.map(d => ({ type: d.docType, filename: d.filename })),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Move failed'));
-
-    const label = SECTION_LABELS[section];
-    showJiraToast('success', `Moved ${allToMove.length} item(s) to ${label}`);
+    showJiraToast('success', `Moved ${allToMove.length} item(s) to ${SECTION_LABELS[section]}`);
     clearSelection();
   } catch (err) {
     showJiraToast('error', err.message);
@@ -544,14 +529,9 @@ async function contextDeleteSelected() {
     btn.disabled = true;
     btn.textContent = 'Deleting…';
     try {
-      const res = await fetch('/api/docs/batch-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docs: docs.map(d => ({ type: d.docType, filename: d.filename })) }),
+      const data = await postJSON('/api/docs/batch-delete', {
+        docs: docs.map(d => ({ type: d.docType, filename: d.filename })),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Delete failed'));
-
       closeDeleteDialog();
       clearSelection();
       showJiraToast('success', `Deleted ${data.deleted} item(s)`);

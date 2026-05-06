@@ -55,34 +55,26 @@ function toggleModelSection() {
 
 async function loadAppConfig() {
   try {
-    const res = await fetch('/api/config');
-    const cfg = await res.json();
+    const cfg = await fetchJSON('/api/config');
     if (cfg.jiraBase) jiraBase = cfg.jiraBase;
-  } catch {}
+  } catch (e) { console.warn('Failed to load app config:', e.message); }
 }
 
 async function loadModelSetting() {
   try {
-    const res = await fetch('/api/settings/model');
-    const { model } = await res.json();
+    const { model } = await fetchJSON('/api/settings/model');
     const sel = document.getElementById('model-select');
     if (sel) sel.value = model || '';
-  } catch {}
+  } catch (e) { console.warn('Failed to load model setting:', e.message); }
 }
 
 async function updateModelSetting(model) {
   const statusEl = document.getElementById('model-status');
   try {
-    const res = await fetch('/api/settings/model', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: model || null }),
-    });
-    if (res.ok) {
-      statusEl.className = 'model-status show success';
-      statusEl.textContent = model ? `Using ${model}` : 'Using default model';
-      setTimeout(() => { statusEl.className = 'model-status'; }, 3000);
-    }
+    await putJSON('/api/settings/model', { model: model || null });
+    statusEl.className = 'model-status show success';
+    statusEl.textContent = model ? `Using ${model}` : 'Using default model';
+    setTimeout(() => { statusEl.className = 'model-status'; }, 3000);
   } catch (e) {
     statusEl.className = 'model-status show error';
     statusEl.textContent = 'Failed to save';
@@ -93,30 +85,30 @@ async function updateModelSetting(model) {
 (async () => {
   await Promise.all([loadPiSettings(), loadJiraVersions(), loadModelSetting(), loadAppConfig()]);
   await loadAllSprintConfigs();
-  populateRoadmapDropdown();
   loadDocs();
 })();
 initDragDrop();
 updateSplitMode();
 
-// SSE: auto-refresh on doc changes
+// SSE: auto-refresh on doc changes — debounced to collapse burst events
+const _loadDocsDebounced = debounce(loadDocs, 100);
+
 const evtSource = new EventSource('/api/events');
 evtSource.onmessage = (e) => {
   try {
     const payload = JSON.parse(e.data);
     if (['feature_created','epic_created','story_created','spike_created','bug_created','status_updated','title_updated','doc_deleted','batch_deleted','batch_fix_version_updated','link_updated'].includes(payload.type)) {
-      loadDocs();
+      _loadDocsDebounced();
     }
     if (payload.type === 'pi_settings_updated') {
       piSettings = { currentPi: payload.currentPi, nextPi: payload.nextPi };
-      populateRoadmapDropdown();
-      loadAllSprintConfigs().then(() => { loadDocs(); refreshRoadmapView(); });
+      loadAllSprintConfigs().then(() => { _loadDocsDebounced(); refreshRoadmapView(); });
     }
     if (payload.type === 'sprint_settings_updated') {
-      loadAllSprintConfigs().then(() => { loadDocs(); refreshRoadmapView(); });
+      loadAllSprintConfigs().then(() => { _loadDocsDebounced(); refreshRoadmapView(); });
     }
     if (payload.type === 'batch_sprint_updated') {
-      loadDocs();
+      _loadDocsDebounced();
       refreshRoadmapView();
     }
     if (payload.type === 'split_threshold_updated') {
@@ -125,7 +117,7 @@ evtSource.onmessage = (e) => {
       if (el) el.value = splitThreshold;
       refreshRoadmapView();
     }
-  } catch {}
+  } catch (e) { console.warn('SSE handler error:', e.message); }
 };
 
 // Close delete dialog on overlay click

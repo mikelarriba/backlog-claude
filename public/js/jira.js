@@ -82,13 +82,9 @@ async function syncJiraStatus() {
   const btn = document.getElementById('jira-push-btn');
   btn.disabled = true;
   try {
-    const res = await fetch(
+    const data = await postJSON(
       `/api/jira/sync-status/${currentDocType}/${encodeURIComponent(currentFilename)}`,
-      { method: 'POST' }
     );
-    let data;
-    try { data = await res.json(); } catch { data = {}; }
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Sync failed'));
 
     if (data.jiraStatus) updateJiraStatus(data.jiraStatus);
 
@@ -130,16 +126,10 @@ async function updateFromJira(jiraKeyOverride) {
   closeAllDropdowns();
 
   try {
-    const res = await fetch(
+    const data = await postJSON(
       `/api/jira/update-from-jira/${currentDocType}/${encodeURIComponent(currentFilename)}`,
-      {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(key !== currentJiraId ? { jiraKey: key } : {}),
-      }
+      key !== currentJiraId ? { jiraKey: key } : {},
     );
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Update failed'));
     showJiraToast('success', `✅ Updated from ${data.key}`);
     // Reload the open doc to show new content
     if (currentFilename) openDoc(currentFilename, currentDocType);
@@ -188,26 +178,23 @@ async function pushToJira() {
   let selectedChildren = [];
   if (currentDocType === 'feature' || currentDocType === 'epic') {
     try {
-      const linksRes = await fetch(`/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`);
-      if (linksRes.ok) {
-        const linksData  = await linksRes.json();
-        const localChildren = linksData.children || [];
-        if (localChildren.length > 0) {
-          const modalItems = localChildren.map(c => ({
-            key:      c.jiraId && c.jiraId !== 'TBD' ? c.jiraId : 'New',
-            summary:  c.title,
-            type:     TYPE_LABEL[c.docType] || c.docType,
-            filename: c.filename,
-            docType:  c.docType,
-          }));
-          selectedChildren = await showJiraSelectModal(
-            `${localChildren.length} linked child issue(s) — select to push`,
-            modalItems,
-            'Push selected'
-          );
-        }
+      const linksData = await fetchJSON(`/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`);
+      const localChildren = linksData.children || [];
+      if (localChildren.length > 0) {
+        const modalItems = localChildren.map(c => ({
+          key:      c.jiraId && c.jiraId !== 'TBD' ? c.jiraId : 'New',
+          summary:  c.title,
+          type:     TYPE_LABEL[c.docType] || c.docType,
+          filename: c.filename,
+          docType:  c.docType,
+        }));
+        selectedChildren = await showJiraSelectModal(
+          `${localChildren.length} linked child issue(s) — select to push`,
+          modalItems,
+          'Push selected'
+        );
       }
-    } catch (_) { /* continue without children */ }
+    } catch (e) { console.warn('Failed to load children for push:', e.message); }
   }
 
   const btn = document.getElementById('jira-push-btn');
@@ -216,13 +203,9 @@ async function pushToJira() {
 
   try {
     // Push the parent doc
-    const res = await fetch(
+    const data = await postJSON(
       `/api/jira/push/${currentDocType}/${encodeURIComponent(currentFilename)}`,
-      { method: 'POST' }
     );
-    let data;
-    try { data = await res.json(); } catch { data = { error: await res.text().catch(() => 'Failed to parse response') }; }
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Push failed'));
 
     if (data.type === 'multi-story') {
       const created = data.results.filter(r => r.action === 'created').length;
@@ -243,16 +226,11 @@ async function pushToJira() {
       for (const child of selectedChildren) {
         try {
           btn.textContent = `⏳ Pushing ${child.summary}…`;
-          const childRes  = await fetch(
+          const childData = await postJSON(
             `/api/jira/push/${child.docType}/${encodeURIComponent(child.filename)}`,
-            { method: 'POST' }
           );
-          let childData;
-          try { childData = await childRes.json(); } catch { childData = {}; }
-          if (childRes.ok && childData.key) {
-            childResults.push({ key: childData.key, action: childData.action });
-          }
-        } catch (_) { /* continue with remaining children */ }
+          if (childData.key) childResults.push({ key: childData.key, action: childData.action });
+        } catch (e) { console.warn(`Failed to push child ${child.filename}:`, e.message); }
       }
       if (childResults.length > 0) {
         const created = childResults.filter(r => r.action === 'created').length;
@@ -295,9 +273,7 @@ async function searchJira() {
   try {
     const params = new URLSearchParams({ type });
     if (text) params.set('text', text);
-    const res  = await fetch(`/api/jira/search?${params}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Search failed'));
+    const data = await fetchJSON(`/api/jira/search?${params}`);
 
     jiraSearchResults = data.issues || [];
     renderJiraResults(jiraSearchResults);
@@ -366,13 +342,7 @@ async function performJiraPull(keys, overwriteKeys, _allPulled = [], parentLink 
   setJiraStatus('loading', `Downloading ${keys.length} issue(s)…`);
 
   try {
-    const res  = await fetch('/api/jira/pull', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys, overwriteKeys, parentLink })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Download failed'));
+    const data = await postJSON('/api/jira/pull', { keys, overwriteKeys, parentLink });
 
     const accumulatedPulled = [..._allPulled, ...(data.pulled || [])];
 
@@ -404,12 +374,11 @@ async function performJiraPull(keys, overwriteKeys, _allPulled = [], parentLink 
       if (parents.length > 0) await offerChildrenDownload(parents);
 
       // Refresh search results
-      const updatedRes = await fetch(`/api/jira/search?type=${document.getElementById('jira-type').value}&text=${encodeURIComponent(document.getElementById('jira-text').value)}`);
-      if (updatedRes.ok) {
-        const updatedData = await updatedRes.json();
+      try {
+        const updatedData = await fetchJSON(`/api/jira/search?type=${document.getElementById('jira-type').value}&text=${encodeURIComponent(document.getElementById('jira-text').value)}`);
         jiraSearchResults = updatedData.issues || [];
         renderJiraResults(jiraSearchResults);
-      }
+      } catch { /* non-critical: search refresh after pull */ }
     } else {
       setJiraStatus('success', 'No new issues downloaded.');
     }
@@ -453,9 +422,7 @@ async function offerChildrenDownload(parentIssues) {
 
   for (const parent of parentIssues) {
     try {
-      const res = await fetch(`/api/jira/children/${encodeURIComponent(parent.key)}`);
-      if (!res.ok) continue;
-      const data = await res.json();
+      const data = await fetchJSON(`/api/jira/children/${encodeURIComponent(parent.key)}`);
       for (const child of (data.children || [])) {
         if (!seen.has(child.key)) {
           seen.add(child.key);
@@ -468,7 +435,7 @@ async function offerChildrenDownload(parentIssues) {
           childToParent.set(child.key, parent);
         }
       }
-    } catch (_) { /* skip on error */ }
+    } catch (e) { console.warn(`Failed to fetch children for ${parent.key}:`, e.message); }
   }
 
   if (allChildren.length === 0) return;

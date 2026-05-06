@@ -98,12 +98,8 @@ async function saveStoryPoints() {
   const orig   = input.dataset.original || '';
   if (newVal === orig || !currentFilename || !currentDocType) return;
   try {
-    const res = await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storyPoints: newVal === '' ? null : Number(newVal) }),
-    });
-    if (!res.ok) { input.value = orig; return; }
+    await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+      { storyPoints: newVal === '' ? null : Number(newVal) });
     input.dataset.original = newVal;
     const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
     if (doc) doc.storyPoints = newVal === '' ? null : Number(newVal);
@@ -138,16 +134,12 @@ function updateSprintSelect(docType, fixVersion, currentSprint) {
 async function updateDocSprint(sprint) {
   if (!currentFilename || !currentDocType) return;
   try {
-    const res = await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sprint: sprint || null }),
-    });
-    if (!res.ok) return;
+    await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+      { sprint: sprint || null });
     const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
     if (doc) doc.sprint = sprint || null;
     applyFilters();
-  } catch {}
+  } catch (e) { console.warn('Failed to save sprint:', e.message); }
 }
 
 function updateDocButtons(docType) {
@@ -166,8 +158,7 @@ function updateDocButtons(docType) {
 async function openDoc(filename, docType) {
   if (_justDragged) return;
   try {
-    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
-    const { content } = await res.json();
+    const { content } = await fetchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     currentFilename = filename;
     currentDocType  = docType;
 
@@ -211,9 +202,7 @@ async function loadOriginal(filename) {
   document.getElementById('original-chevron').style.transform = '';
 
   try {
-    const res = await fetch(`/api/inbox/${encodeURIComponent(filename)}`);
-    if (!res.ok) { section.style.display = 'none'; return; }
-    const { content } = await res.json();
+    const { content } = await fetchJSON(`/api/inbox/${encodeURIComponent(filename)}`);
     container.innerHTML = `<div class="original-content">${escHtml(content)}</div>`;
     section.style.display = 'block';
   } catch {
@@ -244,12 +233,8 @@ async function saveTitle() {
   const newTitle = input.value.trim();
   if (!newTitle || newTitle === input.dataset.original || !currentFilename || !currentDocType) return;
   try {
-    const res = await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle })
-    });
-    if (!res.ok) { input.value = input.dataset.original; return; }
+    await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+      { title: newTitle });
     input.dataset.original = newTitle;
     // Re-render the heading inside the detail content without a full reload
     const contentEl = document.getElementById('detail-content');
@@ -275,9 +260,7 @@ async function loadHierarchy(filename, docType) {
   body.innerHTML = '';
 
   try {
-    const res = await fetch(`/api/links/${docType}/${encodeURIComponent(filename)}`);
-    if (!res.ok) return;
-    const { parent, children } = await res.json();
+    const { parent, children } = await fetchJSON(`/api/links/${docType}/${encodeURIComponent(filename)}`);
 
     const rows = [];
 
@@ -338,12 +321,9 @@ async function linkExistingChildren() {
   // Find already-linked children so we can exclude them
   const linkedFilenames = new Set();
   try {
-    const res = await fetch(`/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`);
-    if (res.ok) {
-      const { children } = await res.json();
-      for (const c of (children || [])) linkedFilenames.add(c.filename);
-    }
-  } catch (_) {}
+    const linkData = await fetchJSON(`/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`);
+    for (const c of (linkData.children || [])) linkedFilenames.add(c.filename);
+  } catch (e) { console.warn('Failed to load linked children:', e.message); }
 
   // Build candidates: items of the right type that aren't already linked here
   const candidates = allDocs
@@ -374,18 +354,14 @@ async function linkExistingChildren() {
   let linked = 0;
   for (const item of selected) {
     try {
-      const res = await fetch('/api/link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceType:     item.docType,
-          sourceFilename: item.filename,
-          targetType:     currentDocType,
-          targetFilename: currentFilename,
-        }),
+      await postJSON('/api/link', {
+        sourceType:     item.docType,
+        sourceFilename: item.filename,
+        targetType:     currentDocType,
+        targetFilename: currentFilename,
       });
-      if (res.ok) linked++;
-    } catch (_) {}
+      linked++;
+    } catch (e) { console.warn(`Failed to link ${child.filename}:`, e.message); }
   }
 
   if (linked > 0) {
@@ -420,8 +396,7 @@ async function toggleHierarchyChild(rowEl) {
   body.innerHTML = '<div class="hierarchy-loading">Loading…</div>';
 
   try {
-    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
-    const { content } = await res.json();
+    const { content } = await fetchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     body.innerHTML = `<div class="markdown hierarchy-doc-content">${marked.parse(stripFrontmatter(content))}</div>`;
     body.dataset.loaded = '1';
   } catch {
@@ -448,11 +423,7 @@ function toggleOriginal() {
 async function updateDocStatus(status) {
   if (!currentFilename || !currentDocType) return;
   try {
-    await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    });
+    await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, { status });
     const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
     if (doc) doc.status = status;
   } catch (e) {
@@ -470,7 +441,6 @@ function showList() {
   resetStoriesSection();
   currentFilename = null;
   currentDocType  = null;
-  currentStoriesFilename = null;
   currentJiraId   = null;
   updateJiraLink(null, null);
   updateJiraStatus(null);
@@ -509,10 +479,7 @@ async function executeDelete() {
   btn.disabled = true;
   btn.textContent = 'Deleting…';
   try {
-    const res = await fetch(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
-      method: 'DELETE'
-    });
-    if (!res.ok) throw new Error(getErrorMessage((await res.json()).error, 'Delete failed'));
+    await deleteJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`);
     closeDeleteDialog();
     showList();
   } catch (e) {
