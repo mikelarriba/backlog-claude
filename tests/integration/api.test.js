@@ -4,13 +4,14 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { startTestApp } from '../helpers/testApp.js';
 
-let api, stop, docsRoot;
+let api, stop, docsRoot, baseUrl;
 
 before(async () => {
-  ({ api, stop, docsRoot } = await startTestApp());
+  ({ api, stop, docsRoot, baseUrl } = await startTestApp());
 });
 
 after(async () => {
@@ -367,4 +368,65 @@ describe('PATCH /api/doc/:type/:filename — fixVersion update', () => {
     const { data: doc } = await api('GET', `/api/doc/epic/${encodeURIComponent(filename)}`);
     assert.match(doc.content, /^Fix_Version: TBD$/m);
   });
+});
+
+// ── SSE /api/events — event types on doc creation (regression: issue #15) ────
+// Verifies the server broadcasts the correct event type for each doc type so
+// the client-side SSE handler can call loadDocs() → applyFilters() rather than
+// bypassing applyFilters() with a direct renderSwimlanes(allDocs) call.
+describe('SSE /api/events — event type per doc type', () => {
+  function openSseConnection(url) {
+    const events = [];
+    let connectedResolve;
+    const connectedPromise = new Promise(r => { connectedResolve = r; });
+
+    const req = http.request(url, (res) => {
+      let buffer = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => {
+        buffer += chunk;
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              events.push(event);
+              if (event.type === 'connected') connectedResolve();
+            } catch {}
+          }
+        }
+      });
+    });
+    req.on('error', () => {});
+    req.end();
+    return { events, waitConnected: () => connectedPromise, close: () => req.destroy() };
+  }
+
+  for (const [type, expectedEvent] of [
+    ['feature', 'feature_created'],
+    ['epic',    'epic_created'],
+    ['story',   'story_created'],
+    ['spike',   'spike_created'],
+  ]) {
+    test(`broadcasts ${expectedEvent} when creating a ${type}`, async () => {
+      const sse = openSseConnection(`${baseUrl}/api/events`);
+      await sse.waitConnected();
+
+      const { status, data } = await api('POST', '/api/generate', {
+        idea: `SSE regression test for ${type}`,
+        title: `SSE ${type} test`,
+        type,
+      });
+      assert.equal(status, 200);
+
+      await new Promise(r => setTimeout(r, 150));
+      sse.close();
+
+      const created = sse.events.find(e => e.type === expectedEvent);
+      assert.ok(created, `expected ${expectedEvent} SSE event`);
+      assert.equal(created.docType, type);
+      assert.equal(created.filename, data.filename);
+    });
+  }
 });

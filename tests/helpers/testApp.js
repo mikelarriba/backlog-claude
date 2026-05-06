@@ -56,5 +56,5 @@ export async function startTestApp() {
     delete process.env.JIRA_API_TOKEN;
   }
 
-  return { api, stop, docsRoot, inboxDir };
+  return { api, stop, docsRoot, inboxDir, baseUrl: `http://localhost:${port}` };
 }
