@@ -19,6 +19,12 @@ export default function docsRoutes({ rootDir, TYPE_CONFIG, INBOX_DIR, broadcast,
       if (!idea?.trim()) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'Idea is required');
       }
+      if (title && title.length > 200) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
+      }
+      if (idea.length > 5000) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'Idea must be 5000 characters or fewer');
+      }
 
       const normalizedType = assertDocType(type, TYPE_CONFIG);
       const cfg = TYPE_CONFIG[normalizedType];
@@ -84,6 +90,8 @@ ${idea.trim()}
     try {
       const { title, idea, type = 'epic', priority = 'Medium', parentEpic, parentFeature, fixVersion } = req.body;
       if (!title?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'Title is required');
+      if (title.length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
+      if (idea && idea.length > 5000) return sendError(res, 400, 'VALIDATION_ERROR', 'Idea must be 5000 characters or fewer');
 
       const normalizedType = assertDocType(type, TYPE_CONFIG);
       const cfg  = TYPE_CONFIG[normalizedType];

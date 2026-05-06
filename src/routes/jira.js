@@ -29,6 +29,7 @@ export default function jiraRoutes({
     }
 
     const results         = [];
+    const errors          = [];
     const updatedSections = [];
 
     for (let section of sections) {
@@ -38,30 +39,35 @@ export default function jiraRoutes({
         ? headerMatch[1].replace(/^## Story \d+:\s*/, '').trim()
         : extractJiraSummary(section);
 
-      let key;
-      if (existingKey) {
-        await jiraRequest('PUT', `/issue/${existingKey}`, {
-          fields: { description: markdownToJira(section) }
-        });
-        key = existingKey;
-        results.push({ action: 'updated', key });
-      } else {
-        const fields = {
-          project: { key: JIRA_PROJECT }, summary: storyTitle,
-          description: markdownToJira(section), issuetype: { name: 'Story' }, labels: [JIRA_LABEL],
-        };
-        if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
-        const created = await jiraRequest('POST', '/issue', { fields });
-        key = created.key;
-        results.push({ action: 'created', key });
-        section = section.replace(/^(## Story \d+:\s*.+?)(\s*)$/m, `$1 <!-- JIRA:${key} -->`);
+      try {
+        let key;
+        if (existingKey) {
+          await jiraRequest('PUT', `/issue/${existingKey}`, {
+            fields: { description: markdownToJira(section) }
+          });
+          key = existingKey;
+          results.push({ action: 'updated', key });
+        } else {
+          const fields = {
+            project: { key: JIRA_PROJECT }, summary: storyTitle,
+            description: markdownToJira(section), issuetype: { name: 'Story' }, labels: [JIRA_LABEL],
+          };
+          if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
+          const created = await jiraRequest('POST', '/issue', { fields });
+          key = created.key;
+          results.push({ action: 'created', key });
+          section = section.replace(/^(## Story \d+:\s*.+?)(\s*)$/m, `$1 <!-- JIRA:${key} -->`);
+        }
+      } catch (e) {
+        errors.push({ story: storyTitle, error: e.message });
+        logWarn('jira/pushMultiStory', `Failed to push story "${storyTitle}": ${e.message}`);
       }
       updatedSections.push(section);
     }
 
     fs.writeFileSync(filepath, serializeStoryFile(frontmatter, updatedSections));
     broadcast({ type: 'story_created', filename, docType: type });
-    return { type: 'multi-story', results };
+    return { type: 'multi-story', results, errors };
   }
 
   // ── Single-issue push helper ──────────────────────────────────────────────

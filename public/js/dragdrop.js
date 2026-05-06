@@ -33,16 +33,10 @@ async function executeLinkDrop(srcFilename, srcDocType, dropTarget) {
     for (const d of dragDocs) {
       const valid = DRAG_TARGETS[d.docType] || [];
       if (!valid.includes(tgtDocType)) continue;
-      const res = await fetch('/api/link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceType: d.docType, sourceFilename: d.filename,
-          targetType: tgtDocType, targetFilename: tgtFilename,
-        }),
+      await postJSON('/api/link', {
+        sourceType: d.docType, sourceFilename: d.filename,
+        targetType: tgtDocType, targetFilename: tgtFilename,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(getErrorMessage(data.error, 'Link failed'));
       linked++;
     }
 
@@ -84,16 +78,10 @@ async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
   }
 
   try {
-    const res = await fetch('/api/docs/batch-fix-version', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fixVersion: newFixVersion,
-        docs: allToMove.map(d => ({ type: d.docType, filename: d.filename })),
-      }),
+    await postJSON('/api/docs/batch-fix-version', {
+      fixVersion: newFixVersion,
+      docs: allToMove.map(d => ({ type: d.docType, filename: d.filename })),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Move failed'));
 
     const label    = SECTION_LABELS[targetSection];
     const countMsg = allToMove.length > 1 ? ` (${allToMove.length} items)` : '';

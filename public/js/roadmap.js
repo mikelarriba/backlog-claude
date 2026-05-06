@@ -417,18 +417,13 @@ function initRoadmapDragDrop() {
         const toSprint = zone.dataset.sprint || null;
         if (data.fromSprint === (toSprint || '')) return;
 
-        const res = await fetch(`/api/doc/${data.docType}/${encodeURIComponent(data.filename)}`, {
-          method:  'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ sprint: toSprint }),
-        });
-        if (!res.ok) return;
+        await patchJSON(`/api/doc/${data.docType}/${encodeURIComponent(data.filename)}`, { sprint: toSprint });
 
         const doc = allDocs.find(d => d.filename === data.filename && d.docType === data.docType);
         if (doc) doc.sprint = toSprint;
 
         renderRoadmapBoard();
-      } catch {}
+      } catch (e) { console.warn('Failed to update sprint assignment:', e.message); }
     });
   });
 }

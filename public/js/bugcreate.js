@@ -100,9 +100,7 @@ async function submitBugReport() {
       formData.append('attachments', file);
     }
 
-    const res = await fetch('/api/bugs/create', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Bug creation failed'));
+    const data = await fetchJSON('/api/bugs/create', { method: 'POST', body: formData });
 
     closeBugModal();
     showJiraToast('success', `✅ Bug created: ${data.title}`);

@@ -15,13 +15,7 @@ async function openDistributionModal(piName) {
   overlay.classList.add('show');
 
   try {
-    const res = await fetch('/api/docs/distribute', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ piName }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Distribution failed'));
+    const data = await postJSON('/api/docs/distribute', { piName });
 
     _distributionData = data;
     renderDistributionPreview(data);
@@ -148,13 +142,7 @@ async function applyDistribution() {
   btn.textContent = 'Applying…';
 
   try {
-    const res = await fetch('/api/docs/apply-distribution', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assignments }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(getErrorMessage(data.error, 'Apply failed'));
+    const data = await postJSON('/api/docs/apply-distribution', { assignments });
 
     closeDistributionModal();
     showJiraToast('success', `Distributed ${data.updated} item(s) across sprints.`);

@@ -42,8 +42,7 @@ async function selectPiConfigTab(piName) {
 
 async function loadSprintConfigForPi(piName) {
   try {
-    const res = await fetch(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
-    const data = await res.json();
+    const data = await fetchJSON(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
     const sprints = data.sprints && data.sprints.length ? data.sprints : [
       { name: 'Sprint 1', capacity: 40 },
       { name: 'Sprint 2', capacity: 40 },
@@ -114,13 +113,7 @@ async function saveSprintConfig() {
   btn.textContent = 'Saving…';
 
   try {
-    const res = await fetch(`/api/settings/pi/sprints/${encodeURIComponent(_piConfigActivePi)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sprints }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Save failed');
+    const data = await putJSON(`/api/settings/pi/sprints/${encodeURIComponent(_piConfigActivePi)}`, { sprints });
     sprintConfig[_piConfigActivePi] = data.sprints;
     renderSprintRows(data.sprints);
     setPiConfigStatus('success', 'Sprint configuration saved.');
@@ -139,42 +132,40 @@ function setPiConfigStatus(type, message) {
   if (type === 'success') setTimeout(() => { el.className = 'pi-config-status'; }, 3000);
 }
 
-// Load sprint config for both PIs (called during init)
+// Load sprint config for both PIs (called during init) — parallel fetches
 async function loadAllSprintConfigs() {
   const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
-  for (const piName of pis) {
-    try {
-      const res = await fetch(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
-      const data = await res.json();
-      if (data.sprints && data.sprints.length) {
-        sprintConfig[piName] = data.sprints;
-      }
-    } catch {}
-  }
-  try {
-    const res = await fetch('/api/settings/pi/split-threshold');
-    const data = await res.json();
-    splitThreshold = data.splitThreshold ?? 8;
+
+  const [, thresholdRes] = await Promise.all([
+    // Fetch all PI sprint configs in parallel
+    Promise.all(pis.map(async (piName) => {
+      try {
+        const data = await fetchJSON(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
+        if (data.sprints && data.sprints.length) {
+          sprintConfig[piName] = data.sprints;
+        }
+      } catch (e) { console.warn(`Failed to load sprint config for ${piName}:`, e.message); }
+    })),
+    // Fetch split threshold in parallel with sprint configs
+    fetchJSON('/api/settings/pi/split-threshold').catch(() => null),
+  ]);
+
+  if (thresholdRes) {
+    splitThreshold = thresholdRes.splitThreshold ?? 8;
     const el = document.getElementById('split-threshold-input');
     if (el) el.value = splitThreshold;
-  } catch {}
+  }
 }
 
 async function saveSplitThreshold(value) {
   const val = parseInt(value, 10);
   if (!val || val < 1) return;
   try {
-    const res = await fetch('/api/settings/pi/split-threshold', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ splitThreshold: val }),
-    });
-    if (res.ok) {
-      splitThreshold = val;
-      refreshRoadmapView();
-      setPiConfigStatus('success', `Split threshold set to ${val} SP`);
-    }
-  } catch {}
+    await putJSON('/api/settings/pi/split-threshold', { splitThreshold: val });
+    splitThreshold = val;
+    refreshRoadmapView();
+    setPiConfigStatus('success', `Split threshold set to ${val} SP`);
+  } catch (e) { console.warn('Failed to save split threshold:', e.message); }
 }
 
 // Get sprint names for a given PI version name
