@@ -321,6 +321,15 @@ export default function jiraRoutes({
       if (!Array.isArray(keys)) return sendError(res, 400, 'VALIDATION_ERROR', 'keys must be an array');
       if (!keys.length) return sendError(res, 400, 'VALIDATION_ERROR', 'No keys provided');
 
+      if (parentLink !== null) {
+        if (!['epic', 'feature'].includes(String(parentLink.docType || '').toLowerCase())) {
+          return sendError(res, 400, 'VALIDATION_ERROR', 'parentLink.docType must be "epic" or "feature"');
+        }
+        try { assertFilename(parentLink.filename); } catch {
+          return sendError(res, 400, 'INVALID_FILENAME', 'parentLink.filename is invalid');
+        }
+      }
+
       if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
       // Determine which frontmatter field links a child to its parent

@@ -61,6 +61,9 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     if (!Number.isInteger(val) || val < 1) {
       return res.status(400).json({ error: 'splitThreshold must be a positive integer' });
     }
+    if (val > 50) {
+      return res.status(400).json({ error: 'splitThreshold must not exceed 50' });
+    }
     const settings = loadPiSettings();
     settings.splitThreshold = val;
     savePiSettings(settings);
@@ -78,16 +81,22 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
 
   router.put('/api/settings/pi/sprints/:piName', (req, res) => {
     const piName = decodeURIComponent(req.params.piName);
+    if (!piName || !piName.trim()) {
+      return res.status(400).json({ error: 'piName must be a non-empty string' });
+    }
     const { sprints } = req.body;
     if (!Array.isArray(sprints) || sprints.length < 1) {
       return res.status(400).json({ error: 'At least one sprint is required' });
+    }
+    if (sprints.length > 10) {
+      return res.status(400).json({ error: 'Sprint count must not exceed 10' });
     }
     for (const s of sprints) {
       if (!s.name || typeof s.name !== 'string' || !s.name.trim()) {
         return res.status(400).json({ error: 'Each sprint must have a non-empty name' });
       }
-      if (typeof s.capacity !== 'number' || s.capacity < 0) {
-        return res.status(400).json({ error: `Sprint "${s.name}" must have a capacity >= 0` });
+      if (typeof s.capacity !== 'number' || s.capacity < 0 || s.capacity > 999) {
+        return res.status(400).json({ error: `Sprint "${s.name}" capacity must be between 0 and 999` });
       }
     }
     const settings = loadPiSettings();

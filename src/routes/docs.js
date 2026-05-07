@@ -234,6 +234,9 @@ ${notesLine}`;
       }
 
       if (storyPoints !== undefined) {
+        if (storyPoints !== null && storyPoints !== '' && Number(storyPoints) < 0) {
+          return sendError(res, 400, 'VALIDATION_ERROR', 'storyPoints must be non-negative');
+        }
         const val = storyPoints === null || storyPoints === '' ? 'TBD' : String(Number(storyPoints) || storyPoints);
         content = setFrontmatterField(content, 'Story_Points', val);
       }
@@ -489,6 +492,10 @@ ${notesLine}`;
 
       for (const entry of assignments) {
         try {
+          if (typeof entry.docType !== 'string' || typeof entry.filename !== 'string' || typeof entry.sprint !== 'string') {
+            skipped.push({ filename: entry.filename, reason: 'missing required string fields: docType, filename, sprint' });
+            continue;
+          }
           const docType = assertDocType(entry.docType, TYPE_CONFIG);
           const filename = assertFilename(entry.filename);
           const cfg = TYPE_CONFIG[docType];
@@ -588,6 +595,10 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
     try {
       const { filename: fn, docType: dt, targetCount = 2, sprints = [] } = req.body;
       if (!fn || !dt) return sendError(res, 400, 'VALIDATION_ERROR', 'filename and docType are required');
+      if (sprints !== undefined && !Array.isArray(sprints)) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'sprints must be an array');
+      }
+      if (isNaN(Number(targetCount))) return sendError(res, 400, 'VALIDATION_ERROR', 'targetCount must be a number');
       docType  = assertDocType(dt, TYPE_CONFIG);
       cfg      = TYPE_CONFIG[docType];
       filename = assertFilename(fn);

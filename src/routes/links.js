@@ -105,6 +105,11 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
 
       if (!fs.existsSync(srcPath)) return sendError(res, 404, 'NOT_FOUND', 'Source document not found');
 
+      const tgtCfg = TYPE_CONFIG[normalizeType(targetType)];
+      if (tgtCfg && !fs.existsSync(path.join(tgtCfg.dir(), tgtFile))) {
+        return sendError(res, 404, 'NOT_FOUND', 'Target document not found');
+      }
+
       const content = fs.readFileSync(srcPath, 'utf-8');
       const updated = setFrontmatterField(content, rule.field, tgtFile);
       fs.writeFileSync(srcPath, updated);

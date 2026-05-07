@@ -17,6 +17,16 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
     try {
       const { id, title, description } = req.body;
       if (!id || !title) return sendError(res, 400, 'VALIDATION_ERROR', 'ID and Title are required');
+      if (String(id).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'ID must be 200 characters or fewer');
+      if (String(title).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
+
+      const ALLOWED_MIME_TYPES = /^(image\/|application\/pdf$|message\/rfc822$)/;
+      const files = req.files || [];
+      for (const file of files) {
+        if (!ALLOWED_MIME_TYPES.test(file.mimetype)) {
+          return sendError(res, 400, 'INVALID_FILE_TYPE', `File type not allowed: ${file.mimetype}`);
+        }
+      }
 
       // Concatenate id + title, translate if needed
       const rawTitle = `${id} ${title}`;
@@ -28,7 +38,6 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       const filename = `${isoDate()}-${slug}.md`;
 
       // Process attachments
-      const files = req.files || [];
       const processed = [];
       for (const file of files) {
         try {
