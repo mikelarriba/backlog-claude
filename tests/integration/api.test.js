@@ -25,6 +25,31 @@ describe('GET /api/docs', () => {
     assert.equal(status, 200);
     assert.ok(Array.isArray(data));
   });
+
+  test('index invalidation: create doc → GET /api/docs includes it', async () => {
+    const { status: cs, data: cd } = await api('POST', '/api/docs/draft', {
+      title: 'Index Invalidation Test',
+      type: 'story',
+    });
+    assert.equal(cs, 200);
+    const { filename } = cd;
+
+    const { data: docs } = await api('GET', '/api/docs');
+    assert.ok(docs.some(d => d.filename === filename), 'new doc should appear in index');
+  });
+
+  test('index invalidation: delete doc → GET /api/docs excludes it', async () => {
+    const { data: cd } = await api('POST', '/api/docs/draft', {
+      title: 'Index Delete Test',
+      type: 'spike',
+    });
+    const { filename } = cd;
+
+    await api('DELETE', `/api/doc/spike/${encodeURIComponent(filename)}`);
+
+    const { data: docs } = await api('GET', '/api/docs');
+    assert.ok(!docs.some(d => d.filename === filename), 'deleted doc should be absent from index');
+  });
 });
 
 // ── POST /api/generate ────────────────────────────────────────────────────────
