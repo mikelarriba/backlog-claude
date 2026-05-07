@@ -40,7 +40,12 @@ New Feature  (strategic capability — this document)
 
 ## Output Format
 
-Output ONLY the markdown content — do not write any files, do not ask for permissions.
+**CRITICAL — output rules (no exceptions):**
+- Output ONLY the raw markdown document — nothing before the opening `---` and nothing after the last section
+- Do NOT write any preamble, analysis, or commentary before the frontmatter
+- Do NOT wrap the output in a code fence (no ` ```yaml ` or ` ``` `)
+- Do NOT append observations, next steps, questions, or any conversational text after the document ends
+- Do NOT write any files — output only to the chat response
 
 Start with YAML frontmatter:
 
@@ -91,6 +96,7 @@ If the user adds feedback after seeing the Feature (e.g. "add more Epics", "shar
 - Update only the relevant section(s)
 - Re-output the full document with changes applied
 - Do not ask clarifying questions unless the feedback is genuinely ambiguous
+- Follow the same output rules — no preamble, no code fences, no trailing commentary
 
 ## Input
 
