@@ -370,6 +370,89 @@ describe('PATCH /api/doc/:type/:filename — fixVersion update', () => {
   });
 });
 
+// ── Phase 3 & 4 validation tests ─────────────────────────────────────────────
+
+describe('POST /api/link — target document validation', () => {
+  let epicFilename;
+
+  before(async () => {
+    const { data } = await api('POST', '/api/generate', { idea: 'Link target epic v2', type: 'epic' });
+    epicFilename = data.filename;
+  });
+
+  test('returns 404 when target document does not exist', async () => {
+    const { data: story } = await api('POST', '/api/generate', { idea: 'Link source story v2', type: 'story' });
+    const { status, data } = await api('POST', '/api/link', {
+      sourceType: 'story', sourceFilename: story.filename,
+      targetType: 'epic',  targetFilename: 'nonexistent-target.md',
+    });
+    assert.equal(status, 404);
+    assert.equal(data.error.code, 'NOT_FOUND');
+  });
+});
+
+describe('PUT /api/settings/pi/split-threshold — upper bound validation', () => {
+  test('returns 400 when splitThreshold exceeds 50', async () => {
+    const { status, data } = await api('PUT', '/api/settings/pi/split-threshold', { splitThreshold: 999 });
+    assert.equal(status, 400);
+    assert.ok(data.error, 'should return an error');
+  });
+
+  test('accepts a valid splitThreshold within range', async () => {
+    const { status } = await api('PUT', '/api/settings/pi/split-threshold', { splitThreshold: 10 });
+    assert.equal(status, 200);
+  });
+});
+
+describe('PUT /api/settings/pi/sprints/:piName — sprint count validation', () => {
+  test('returns 400 when more than 10 sprints are provided', async () => {
+    const sprints = Array.from({ length: 11 }, (_, i) => ({ name: `Sprint ${i + 1}`, capacity: 10 }));
+    const { status, data } = await api('PUT', '/api/settings/pi/sprints/myPI', { sprints });
+    assert.equal(status, 400);
+    assert.ok(data.error, 'should return an error');
+  });
+});
+
+describe('PATCH /api/doc/:type/:filename — storyPoints validation', () => {
+  let filename;
+
+  before(async () => {
+    const { data } = await api('POST', '/api/generate', { idea: 'Story points test', type: 'story' });
+    filename = data.filename;
+  });
+
+  test('returns 400 when storyPoints is negative', async () => {
+    const { status, data } = await api('PATCH', `/api/doc/story/${encodeURIComponent(filename)}`, {
+      storyPoints: -5,
+    });
+    assert.equal(status, 400);
+    assert.equal(data.error.code, 'VALIDATION_ERROR');
+  });
+
+  test('accepts storyPoints of 0', async () => {
+    const { status } = await api('PATCH', `/api/doc/story/${encodeURIComponent(filename)}`, { storyPoints: 0 });
+    assert.equal(status, 200);
+  });
+});
+
+describe('POST /api/docs/apply-distribution — entry validation', () => {
+  test('returns 400 when an entry is missing the sprint field', async () => {
+    const { status, data } = await api('POST', '/api/docs/apply-distribution', {
+      assignments: [{ docType: 'story', filename: 'some-story.md' }],
+    });
+    assert.equal(status, 400);
+    assert.equal(data.error.code, 'VALIDATION_ERROR');
+  });
+
+  test('returns 400 when sprint is not a string', async () => {
+    const { status, data } = await api('POST', '/api/docs/apply-distribution', {
+      assignments: [{ docType: 'story', filename: 'some-story.md', sprint: 42 }],
+    });
+    assert.equal(status, 400);
+    assert.equal(data.error.code, 'VALIDATION_ERROR');
+  });
+});
+
 // ── SSE /api/events — event types on doc creation (regression: issue #15) ────
 // Verifies the server broadcasts the correct event type for each doc type so
 // the client-side SSE handler can call loadDocs() → applyFilters() rather than
