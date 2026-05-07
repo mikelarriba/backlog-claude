@@ -9,7 +9,7 @@ import {
   setFrontmatterField, extractFrontmatterField, stripFrontmatter,
 } from '../utils/transforms.js';
 
-export default function docsRoutes({ rootDir, TYPE_CONFIG, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logError }) {
+export default function docsRoutes({ rootDir, TYPE_CONFIG, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logError, docIndex }) {
   const router = Router();
 
   // ── POST /api/generate ─────────────────────────────────────────────────────
@@ -72,6 +72,7 @@ ${idea.trim()}
           finalContent = setFrontmatterField(finalContent, 'Fix_Version', fixVersion);
         }
         fs.writeFileSync(path.join(destDir, filename), finalContent);
+        docIndex.invalidate(normalizedType, filename);
       } finally {
         _apiInFlight.delete(filename);
       }
@@ -127,6 +128,7 @@ Created: ${date}${epicIdLine}${featureIdLine}
 ${notesLine}`;
 
       fs.writeFileSync(path.join(destDir, filename), content);
+      docIndex.invalidate(normalizedType, filename);
       broadcast({ type: cfg.event, filename, docType: normalizedType });
       logInfo('POST /api/docs/draft', `Created draft ${filename}`);
       res.json({ success: true, filename, docType: normalizedType });
@@ -139,57 +141,9 @@ ${notesLine}`;
   // ── GET /api/docs ──────────────────────────────────────────────────────────
   router.get('/api/docs', (req, res) => {
     try {
-      const entries = [];
-      for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
-        const dir = cfg.dir();
-        ensureDir(dir);
-        for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md') && f !== '.gitkeep')) {
-          const content = fs.readFileSync(path.join(dir, f), 'utf-8');
-          const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/);
-          let parentFilename = null;
-          let parentType     = null;
-          if (docType === 'epic') {
-            const val = extractFrontmatterField(content, 'Feature_ID');
-            if (val && val !== 'TBD') { parentFilename = val; parentType = 'feature'; }
-          } else if (docType === 'story' || docType === 'spike' || docType === 'bug') {
-            const val = extractFrontmatterField(content, 'Epic_ID');
-            if (val && val !== 'TBD') { parentFilename = val; parentType = 'epic'; }
-          }
-
-          const fixVersion  = extractFrontmatterField(content, 'Fix_Version');
-          const jiraId      = extractFrontmatterField(content, 'JIRA_ID');
-          const jiraUrl     = extractFrontmatterField(content, 'JIRA_URL');
-          const storyPoints = extractFrontmatterField(content, 'Story_Points');
-          const sprint      = extractFrontmatterField(content, 'Sprint');
-
-          entries.push({
-            filename: f,
-            docType,
-            title: extractTitle(content) || f.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''),
-            date: dateMatch ? dateMatch[1] : '',
-            status: extractWorkflowStatus(content),
-            fixVersion: fixVersion && fixVersion !== 'TBD' ? fixVersion : null,
-            jiraId:  jiraId  && jiraId  !== 'TBD' ? jiraId  : null,
-            jiraUrl: jiraUrl || null,
-            storyPoints: storyPoints && storyPoints !== 'TBD' ? Number(storyPoints) || null : null,
-            sprint: sprint && sprint !== 'TBD' ? sprint : null,
-            parentFilename,
-            parentType,
-            hasDescription: (() => {
-              let body = content;
-              if (body.startsWith('---')) {
-                const end = body.indexOf('\n---', 3);
-                if (end > -1) body = body.slice(end + 4);
-              }
-              body = body.replace(/^#{1,2}\s+.+$/m, '').trim();
-              body = body.replace(/_No description in JIRA\._/gi, '').replace(/\bTBD\b/g, '').trim();
-              return body.length > 30;
-            })(),
-          });
-        }
-      }
-      entries.sort((a, b) => b.filename.localeCompare(a.filename));
-      res.json(entries);
+      // Ensure all doc dirs exist so newly-started servers don't return 500
+      for (const cfg of Object.values(TYPE_CONFIG)) ensureDir(cfg.dir());
+      res.json(docIndex.getAll());
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
@@ -264,6 +218,7 @@ ${notesLine}`;
       }
 
       fs.writeFileSync(filepath, content);
+      docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
       res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }) });
     } catch (err) {
@@ -286,6 +241,7 @@ ${notesLine}`;
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
       fs.unlinkSync(filepath);
+      docIndex.invalidate(docType, filename);
       broadcast({ type: 'doc_deleted', filename, docType });
       res.json({ success: true });
     } catch (err) {
@@ -325,6 +281,7 @@ ${notesLine}`;
       }
 
       if (deleted.length) {
+        docIndex.invalidateAll();
         broadcast({ type: 'batch_deleted', filenames: deleted.map(d => d.filename) });
       }
 
@@ -370,6 +327,7 @@ ${notesLine}`;
       }
 
       if (updated.length) {
+        docIndex.invalidateAll();
         broadcast({ type: 'batch_fix_version_updated', fixVersion: newValue, filenames: updated.map(u => u.filename) });
       }
 
@@ -396,34 +354,20 @@ ${notesLine}`;
       } catch {}
       if (!sprintCfg.length) return sendError(res, 400, 'NO_SPRINTS', 'No sprints configured for this PI');
 
-      // Collect leaf docs in this PI
+      // Collect leaf docs in this PI using the index
       const PRIORITY_RANK = { Critical: 0, Major: 0, High: 1, Medium: 2, Low: 3 };
-      const leafTypes = ['story', 'spike', 'bug'];
-      const leafDocs = [];
-
-      for (const docType of leafTypes) {
-        const cfg = TYPE_CONFIG[docType];
-        if (!cfg) continue;
-        const dir = cfg.dir();
-        if (!fs.existsSync(dir)) continue;
-        for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
-          const content = fs.readFileSync(path.join(dir, f), 'utf-8');
-          const fv = extractFrontmatterField(content, 'Fix_Version');
-          if (fv !== piName) continue;
-          const sp = extractFrontmatterField(content, 'Story_Points');
-          const sprint = extractFrontmatterField(content, 'Sprint');
-          const priority = extractFrontmatterField(content, 'Priority') || 'Medium';
-          leafDocs.push({
-            filename: f,
-            docType,
-            title: extractTitle(content) || f.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''),
-            storyPoints: sp && sp !== 'TBD' ? Number(sp) || 0 : 0,
-            hasEstimate: !!(sp && sp !== 'TBD' && Number(sp)),
-            priority,
-            sprint: sprint && sprint !== 'TBD' ? sprint : null,
-          });
-        }
-      }
+      const leafTypes = new Set(['story', 'spike', 'bug']);
+      const leafDocs = docIndex.getAll()
+        .filter(e => leafTypes.has(e.docType) && e.fixVersion === piName)
+        .map(e => ({
+          filename:    e.filename,
+          docType:     e.docType,
+          title:       e.title,
+          storyPoints: e.storyPoints || 0,
+          hasEstimate: !!(e.storyPoints),
+          priority:    e.priority || 'Medium',
+          sprint:      e.sprint || null,
+        }));
 
       // Partition: already-assigned vs unassigned
       const assigned = leafDocs.filter(d => d.sprint);
@@ -517,6 +461,7 @@ ${notesLine}`;
       }
 
       if (updated.length) {
+        docIndex.invalidateAll();
         broadcast({ type: 'batch_sprint_updated', filenames: updated.map(u => u.filename) });
       }
 
@@ -578,6 +523,7 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
       fullContent = normalizeOutput(fullContent);
       fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
       fs.writeFileSync(filepath, fullContent);
+      docIndex.invalidate(docType, filename);
 
       if (inboxExists) {
         const note = `\n\n---\n\n## Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}\n\n${feedback.trim()}\n`;
@@ -700,6 +646,7 @@ Created: ${isoDate()}
 
       // Delete the original story
       fs.unlinkSync(filepath);
+      docIndex.invalidateAll();
       broadcast({ type: 'doc_deleted', filename, docType });
 
       logInfo('POST /api/docs/split-story', `Split ${filename} into ${createdFiles.length} parts`);

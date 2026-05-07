@@ -14,7 +14,7 @@ export default function jiraRoutes({
   TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, BUGS_DIR, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE,
   FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
   jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary,
-  broadcast, logInfo, logWarn, logError,
+  broadcast, logInfo, logWarn, logError, docIndex,
 }) {
   const router = Router();
 
@@ -133,6 +133,7 @@ export default function jiraRoutes({
       updated     = setFrontmatterField(updated,  'JIRA_URL', `${JIRA_BASE}/browse/${key}`);
       updated     = setFrontmatterField(updated,  'Status',   'Created in JIRA');
       fs.writeFileSync(filepath, updated);
+      docIndex.invalidate(type, filename);
       broadcast({ type: 'status_updated', filename, docType: type, status: 'Created in JIRA' });
     }
 
@@ -209,6 +210,7 @@ export default function jiraRoutes({
       if (jiraStatus) updated = setFrontmatterField(updated, 'JIRA_Status', jiraStatus);
       if (jiraSp !== null) updated = setFrontmatterField(updated, 'Story_Points', String(jiraSp));
       fs.writeFileSync(filepath, updated);
+      docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
 
       logInfo('POST /api/jira/sync-status', `Synced status for ${jiraId}: ${jiraStatus}, SP: ${jiraSp}`);
@@ -242,7 +244,7 @@ export default function jiraRoutes({
       const data = await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`);
 
       const issues = (data.issues || []).map(issue => {
-        const existing = findLocalFileByJiraId(issue.key);
+        const existing = docIndex.findByJiraId(issue.key) || findLocalFileByJiraId(issue.key);
         return {
           key:         issue.key,
           summary:     issue.fields.summary || '',
@@ -303,6 +305,7 @@ export default function jiraRoutes({
       }
 
       fs.writeFileSync(filepath, merged);
+      docIndex.invalidate(docType, filename);
       broadcast({ type: `${docType}_created`, filename, docType });
 
       logInfo(`Updated ${filename} from JIRA ${jiraKey}`);
@@ -339,7 +342,7 @@ export default function jiraRoutes({
       const conflicts = [];
 
       for (const key of keys) {
-        const existing = findLocalFileByJiraId(key);
+        const existing = docIndex.findByJiraId(key) || findLocalFileByJiraId(key);
         if (existing && !overwriteKeys.includes(key)) {
           conflicts.push({ key, existingFilename: existing.filename, existingDocType: existing.docType });
           continue;
@@ -364,6 +367,7 @@ export default function jiraRoutes({
         const destDir = TYPE_CONFIG[docType].dir();
         ensureDir(destDir);
         fs.writeFileSync(path.join(destDir, filename), content);
+        docIndex.invalidate(docType, filename);
 
         pulled.push({ key, filename, docType });
         broadcast({ type: `${docType}_created`, filename, docType });
@@ -391,7 +395,7 @@ export default function jiraRoutes({
       function addChild(child) {
         if (seen.has(child.key)) return;
         seen.add(child.key);
-        const existing = findLocalFileByJiraId(child.key);
+        const existing = docIndex.findByJiraId(child.key) || findLocalFileByJiraId(child.key);
         children.push({
           key: child.key,
           summary: child.fields?.summary || '',

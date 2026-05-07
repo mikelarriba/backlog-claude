@@ -3,9 +3,9 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename, normalizeType } from '../utils/routeHelpers.js';
-import { extractTitle, setFrontmatterField, extractFrontmatterField } from '../utils/transforms.js';
+import { setFrontmatterField } from '../utils/transforms.js';
 
-export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, broadcast, logInfo }) {
+export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, broadcast, logInfo, docIndex }) {
   const router = Router();
 
   // ── GET /api/links/:type/:filename ─────────────────────────────────────────
@@ -18,55 +18,40 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
       let children = [];
 
       if (docType === 'epic') {
-        const filepath = path.join(EPICS_DIR, filename);
-        if (fs.existsSync(filepath)) {
-          const content = fs.readFileSync(filepath, 'utf-8');
-          const featureFilename = extractFrontmatterField(content, 'Feature_ID');
-          if (featureFilename && featureFilename !== 'TBD') {
-            const featurePath = path.join(FEATURES_DIR, featureFilename);
-            if (fs.existsSync(featurePath)) {
-              const fc = fs.readFileSync(featurePath, 'utf-8');
-              parent = {
-                docType: 'feature',
-                filename: featureFilename,
-                title: extractTitle(fc) || featureFilename,
-                jiraId: extractFrontmatterField(fc, 'JIRA_ID') || 'TBD',
-                status: extractFrontmatterField(fc, 'Status') || 'Draft',
-              };
-            }
+        // Resolve parent feature from the index
+        const epicEntry = docIndex.get(filename);
+        if (epicEntry?.parentFilename) {
+          const parentEntry = docIndex.get(epicEntry.parentFilename);
+          if (parentEntry) {
+            parent = {
+              docType: 'feature',
+              filename: epicEntry.parentFilename,
+              title:  parentEntry.title,
+              jiraId: parentEntry.jiraId || 'TBD',
+              status: parentEntry.status || 'Draft',
+            };
           }
         }
 
-        for (const [childType, childDir] of [['story', STORIES_DIR], ['spike', SPIKES_DIR], ['bug', BUGS_DIR]]) {
-          if (!fs.existsSync(childDir)) continue;
-          for (const f of fs.readdirSync(childDir).filter(f => f.endsWith('.md'))) {
-            const c = fs.readFileSync(path.join(childDir, f), 'utf-8');
-            const epicId = extractFrontmatterField(c, 'Epic_ID');
-            if (epicId === filename) {
-              children.push({
-                docType: childType, filename: f,
-                title:  extractTitle(c) || f,
-                jiraId: extractFrontmatterField(c, 'JIRA_ID') || 'TBD',
-                status: extractFrontmatterField(c, 'Status') || 'Draft',
-              });
-            }
-          }
-        }
+        // Resolve children (stories, spikes, bugs) from the index
+        children = docIndex.getAll()
+          .filter(e => ['story', 'spike', 'bug'].includes(e.docType) && e.parentFilename === filename)
+          .map(e => ({
+            docType: e.docType, filename: e.filename,
+            title:  e.title,
+            jiraId: e.jiraId || 'TBD',
+            status: e.status || 'Draft',
+          }));
       } else if (docType === 'feature') {
-        if (fs.existsSync(EPICS_DIR)) {
-          for (const f of fs.readdirSync(EPICS_DIR).filter(f => f.endsWith('.md'))) {
-            const c = fs.readFileSync(path.join(EPICS_DIR, f), 'utf-8');
-            const featureId = extractFrontmatterField(c, 'Feature_ID');
-            if (featureId === filename) {
-              children.push({
-                docType: 'epic', filename: f,
-                title:  extractTitle(c) || f,
-                jiraId: extractFrontmatterField(c, 'JIRA_ID') || 'TBD',
-                status: extractFrontmatterField(c, 'Status') || 'Draft',
-              });
-            }
-          }
-        }
+        // Resolve children (epics) from the index
+        children = docIndex.getAll()
+          .filter(e => e.docType === 'epic' && e.parentFilename === filename)
+          .map(e => ({
+            docType: 'epic', filename: e.filename,
+            title:  e.title,
+            jiraId: e.jiraId || 'TBD',
+            status: e.status || 'Draft',
+          }));
       }
 
       res.json({ parent, children });
@@ -110,6 +95,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
       const content = fs.readFileSync(srcPath, 'utf-8');
       const updated = setFrontmatterField(content, rule.field, tgtFile);
       fs.writeFileSync(srcPath, updated);
+      docIndex.invalidate(normalizeType(sourceType), srcFile);
 
       broadcast({ type: 'link_updated', sourceType, sourceFilename: srcFile, targetType, targetFilename: tgtFile });
       logInfo('POST /api/link', `${srcFile} → ${tgtFile} (${rule.field})`);
