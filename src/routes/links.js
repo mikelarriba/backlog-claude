@@ -79,10 +79,10 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
   // ── POST /api/link ─────────────────────────────────────────────────────────
   router.post('/api/link', (req, res) => {
     const LINK_RULES = {
-      'epic→feature': { field: 'Feature_ID', sourceDir: () => EPICS_DIR    },
-      'story→epic':   { field: 'Epic_ID',    sourceDir: () => STORIES_DIR  },
-      'spike→epic':   { field: 'Epic_ID',    sourceDir: () => SPIKES_DIR   },
-      'bug→epic':     { field: 'Epic_ID',    sourceDir: () => BUGS_DIR     },
+      'epic→feature': { field: 'Feature_ID', sourceDir: () => EPICS_DIR,   targetDir: () => FEATURES_DIR },
+      'story→epic':   { field: 'Epic_ID',    sourceDir: () => STORIES_DIR, targetDir: () => EPICS_DIR    },
+      'spike→epic':   { field: 'Epic_ID',    sourceDir: () => SPIKES_DIR,  targetDir: () => EPICS_DIR    },
+      'bug→epic':     { field: 'Epic_ID',    sourceDir: () => BUGS_DIR,    targetDir: () => EPICS_DIR    },
     };
 
     try {
@@ -102,8 +102,10 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
       const srcFile = assertFilename(sourceFilename);
       const tgtFile = assertFilename(targetFilename);
       const srcPath = path.join(rule.sourceDir(), srcFile);
+      const tgtPath = path.join(rule.targetDir(), tgtFile);
 
       if (!fs.existsSync(srcPath)) return sendError(res, 404, 'NOT_FOUND', 'Source document not found');
+      if (!fs.existsSync(tgtPath)) return sendError(res, 404, 'NOT_FOUND', 'Target document not found');
 
       const content = fs.readFileSync(srcPath, 'utf-8');
       const updated = setFrontmatterField(content, rule.field, tgtFile);

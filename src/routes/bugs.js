@@ -17,6 +17,12 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
     try {
       const { id, title, description } = req.body;
       if (!id || !title) return sendError(res, 400, 'VALIDATION_ERROR', 'ID and Title are required');
+      if (String(id).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'ID must be 200 characters or fewer');
+      if (String(title).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
+
+      const ALLOWED_MIME = [/^image\//, /^application\/pdf$/, /^message\/rfc822$/];
+      const badFile = (req.files || []).find(f => !ALLOWED_MIME.some(p => p.test(f.mimetype)));
+      if (badFile) return sendError(res, 400, 'VALIDATION_ERROR', `Unsupported file type: ${badFile.mimetype}`);
 
       // Concatenate id + title, translate if needed
       const rawTitle = `${id} ${title}`;

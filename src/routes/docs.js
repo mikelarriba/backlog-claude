@@ -234,6 +234,12 @@ ${notesLine}`;
       }
 
       if (storyPoints !== undefined) {
+        if (storyPoints !== null && storyPoints !== '') {
+          const numVal = Number(storyPoints);
+          if (!Number.isNaN(numVal) && numVal < 0) {
+            return sendError(res, 400, 'VALIDATION_ERROR', 'storyPoints must be non-negative');
+          }
+        }
         const val = storyPoints === null || storyPoints === '' ? 'TBD' : String(Number(storyPoints) || storyPoints);
         content = setFrontmatterField(content, 'Story_Points', val);
       }
@@ -484,6 +490,12 @@ ${notesLine}`;
         return sendError(res, 400, 'VALIDATION_ERROR', 'assignments array is required');
       }
 
+      for (const entry of assignments) {
+        if (typeof entry.docType !== 'string' || typeof entry.filename !== 'string' || typeof entry.sprint !== 'string') {
+          return sendError(res, 400, 'VALIDATION_ERROR', 'Each assignment must have docType, filename, and sprint as strings');
+        }
+      }
+
       const updated = [];
       const skipped = [];
 
@@ -584,10 +596,14 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
 
   // ── POST /api/docs/split-story ── AI-powered story split (SSE) ───────────────
   router.post('/api/docs/split-story', async (req, res) => {
-    let docType, cfg, filename, filepath;
+    let docType, cfg, filename, filepath, rawCount, sprints;
     try {
-      const { filename: fn, docType: dt, targetCount = 2, sprints = [] } = req.body;
+      const { filename: fn, docType: dt, targetCount = 2, sprints: sprintsRaw = [] } = req.body;
       if (!fn || !dt) return sendError(res, 400, 'VALIDATION_ERROR', 'filename and docType are required');
+      sprints = sprintsRaw;
+      if (!Array.isArray(sprints)) return sendError(res, 400, 'VALIDATION_ERROR', 'sprints must be an array');
+      rawCount = Number(targetCount);
+      if (Number.isNaN(rawCount)) return sendError(res, 400, 'VALIDATION_ERROR', 'targetCount must be a number');
       docType  = assertDocType(dt, TYPE_CONFIG);
       cfg      = TYPE_CONFIG[docType];
       filename = assertFilename(fn);
@@ -604,7 +620,7 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
     const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
-      const count = Math.max(2, Math.min(Number(targetCount) || 2, 6));
+      const count = Math.max(2, Math.min(rawCount || 2, 6));
       const content = fs.readFileSync(filepath, 'utf-8');
 
       // Extract key frontmatter fields to forward to child stories
