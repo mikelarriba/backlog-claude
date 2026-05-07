@@ -112,6 +112,5 @@ ${description || '_No description in JIRA._'}
     findLocalFileByJiraId,
     jiraIssueToMarkdown,
     extractJiraSummary,
-    stripFrontmatter,
   };
 }

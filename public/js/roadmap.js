@@ -537,6 +537,3 @@ async function executeSplit() {
   }
 }
 
-// ── Deprecated (no-op stubs for backward compat) ─────────────
-function populateRoadmapDropdown() {}
-function setRoadmapView() {}

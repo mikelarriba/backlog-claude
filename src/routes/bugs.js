@@ -3,7 +3,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
-import { sendError, ensureDir, parseApiError } from '../utils/routeHelpers.js';
+import { sendError, ensureDir, parseApiError, assertFilename } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { translateToEnglish, processAttachment } from '../services/bugService.js';
 
@@ -85,7 +85,14 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
 
   // ── GET /api/bugs/attachments/:slug/:file ─────────────────────────────────
   router.get('/api/bugs/attachments/:slug/:file', (req, res) => {
-    const filePath = path.join(BUGS_DIR, 'attachments', req.params.slug, req.params.file);
+    let slug, file;
+    try {
+      slug = assertFilename(req.params.slug);
+      file = assertFilename(req.params.file);
+    } catch {
+      return sendError(res, 400, 'INVALID_FILENAME', 'Invalid attachment path');
+    }
+    const filePath = path.join(BUGS_DIR, 'attachments', slug, file);
     if (!fs.existsSync(filePath)) return sendError(res, 404, 'NOT_FOUND', 'Attachment not found');
     res.sendFile(filePath);
   });
