@@ -604,7 +604,6 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
     const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
-      const { targetCount = 2, sprints = [] } = req.body;
       const count = Math.max(2, Math.min(Number(targetCount) || 2, 6));
       const content = fs.readFileSync(filepath, 'utf-8');
 
