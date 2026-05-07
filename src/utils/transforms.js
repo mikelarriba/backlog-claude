@@ -1,7 +1,7 @@
 // ── Pure transformation utilities ─────────────────────────────────────────────
 // Extracted from server.js so they can be unit-tested independently.
 
-export function pad(n) {
+function pad(n) {
   return String(n).padStart(2, '0');
 }
 

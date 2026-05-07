@@ -32,7 +32,7 @@ if (fs.existsSync(envPath)) {
 }
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const LOG_PREFIX = '[backlog-claude]';
 function nowIso() { return new Date().toISOString(); }

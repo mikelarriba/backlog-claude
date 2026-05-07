@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createJiraService, LOCAL_TO_JIRA_TYPE, JIRA_TO_LOCAL_TYPE } from '../../src/services/jiraService.js';
-import { isoDate, slugify } from '../../src/utils/transforms.js';
+import { isoDate, slugify, stripFrontmatter } from '../../src/utils/transforms.js';
 
 let jiraService, tmpRoot;
 
@@ -162,11 +162,11 @@ describe('extractJiraSummary', () => {
 // ── stripFrontmatter ────────────────────────────────────────────────────────
 describe('stripFrontmatter', () => {
   test('removes YAML frontmatter', () => {
-    const result = jiraService.stripFrontmatter('---\nStatus: Draft\n---\n\n## Title\n');
+    const result = stripFrontmatter('---\nStatus: Draft\n---\n\n## Title\n');
     assert.equal(result, '## Title');
   });
 
   test('returns content unchanged when no frontmatter', () => {
-    assert.equal(jiraService.stripFrontmatter('Just text'), 'Just text');
+    assert.equal(stripFrontmatter('Just text'), 'Just text');
   });
 });

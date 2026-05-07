@@ -234,6 +234,12 @@ ${notesLine}`;
       }
 
       if (storyPoints !== undefined) {
+        if (storyPoints !== null && storyPoints !== '') {
+          const num = Number(storyPoints);
+          if (!isNaN(num) && num < 0) {
+            return sendError(res, 400, 'VALIDATION_ERROR', 'storyPoints must be non-negative');
+          }
+        }
         const val = storyPoints === null || storyPoints === '' ? 'TBD' : String(Number(storyPoints) || storyPoints);
         content = setFrontmatterField(content, 'Story_Points', val);
       }
@@ -484,6 +490,12 @@ ${notesLine}`;
         return sendError(res, 400, 'VALIDATION_ERROR', 'assignments array is required');
       }
 
+      for (const entry of assignments) {
+        if (typeof entry.docType !== 'string' || typeof entry.filename !== 'string' || typeof entry.sprint !== 'string') {
+          return sendError(res, 400, 'VALIDATION_ERROR', 'Each assignment must have docType, filename, and sprint as strings');
+        }
+      }
+
       const updated = [];
       const skipped = [];
 
@@ -584,14 +596,19 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
 
   // ── POST /api/docs/split-story ── AI-powered story split (SSE) ───────────────
   router.post('/api/docs/split-story', async (req, res) => {
-    let docType, cfg, filename, filepath;
+    let docType, cfg, filename, filepath, splitTargetCount = 2, splitSprints = [];
     try {
       const { filename: fn, docType: dt, targetCount = 2, sprints = [] } = req.body;
       if (!fn || !dt) return sendError(res, 400, 'VALIDATION_ERROR', 'filename and docType are required');
+      if (!Array.isArray(sprints)) return sendError(res, 400, 'VALIDATION_ERROR', 'sprints must be an array');
+      const rawCount = Number(targetCount);
+      if (isNaN(rawCount)) return sendError(res, 400, 'VALIDATION_ERROR', 'targetCount must be a number');
       docType  = assertDocType(dt, TYPE_CONFIG);
       cfg      = TYPE_CONFIG[docType];
       filename = assertFilename(fn);
       filepath = path.join(cfg.dir(), filename);
+      splitTargetCount = rawCount;
+      splitSprints = sprints;
     } catch (err) {
       const apiErr = parseApiError(err);
       return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
@@ -604,8 +621,7 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
     const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
-      const { targetCount = 2, sprints = [] } = req.body;
-      const count = Math.max(2, Math.min(Number(targetCount) || 2, 6));
+      const count = Math.max(2, Math.min(splitTargetCount, 6));
       const content = fs.readFileSync(filepath, 'utf-8');
 
       // Extract key frontmatter fields to forward to child stories
@@ -615,8 +631,8 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
       const currentSP   = Number(extractFrontmatterField(content, 'Story_Points')) || 0;
       const perStorySP  = currentSP ? Math.round(currentSP / count) : 'TBD';
 
-      const sprintList = sprints.length
-        ? sprints.map((s, i) => `Part ${i + 1} → sprint: "${s}"`).join(', ')
+      const sprintList = splitSprints.length
+        ? splitSprints.map((s, i) => `Part ${i + 1} → sprint: "${s}"`).join(', ')
         : `assign all parts to the same sprint as the original`;
 
       const splitPrompt = `You are splitting a user story that is too large for a single sprint into exactly ${count} smaller, independently deliverable user stories.
@@ -669,8 +685,8 @@ Created: ${isoDate()}
         let part = normalizeOutput(parts[i]);
 
         // Apply sprint from the sprints array if provided
-        if (sprints[i]) {
-          part = setFrontmatterField(part, 'Sprint', sprints[i]);
+        if (splitSprints[i]) {
+          part = setFrontmatterField(part, 'Sprint', splitSprints[i]);
         }
 
         const title    = extractTitle(part) || `Part ${i + 1} of ${filename.replace(/\.md$/, '')}`;
@@ -680,7 +696,7 @@ Created: ${isoDate()}
 
         fs.writeFileSync(destPath, part);
         broadcast({ type: `${docType}_created`, filename: newName, docType });
-        createdFiles.push({ filename: newName, title, sprint: sprints[i] || null });
+        createdFiles.push({ filename: newName, title, sprint: splitSprints[i] || null });
       }
 
       // Delete the original story
