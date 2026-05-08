@@ -362,6 +362,12 @@ function renderRoadmapCard(d, sprintName) {
     }
   }
 
+  // Dependency badges
+  const blocksCnt    = (d.blocks    || []).length;
+  const blockedByCnt = (d.blockedBy || []).length;
+  const blocksHtml    = blocksCnt    ? `<span class="rm-badge rm-dep-blocks" title="Blocks ${blocksCnt} stor${blocksCnt!==1?'ies':'y'}">→ ${blocksCnt}</span>` : '';
+  const blockedByHtml = blockedByCnt ? `<span class="rm-badge rm-dep-blocked" title="Blocked by ${blockedByCnt} stor${blockedByCnt!==1?'ies':'y'}">🔒 ${blockedByCnt}</span>` : '';
+
   return `
     <div class="roadmap-card" draggable="true"
          onclick="openDoc('${escHtml(d.filename)}','${d.docType}')"
@@ -375,7 +381,10 @@ function renderRoadmapCard(d, sprintName) {
         <span class="rm-badge rm-type-${d.docType}">${TYPE_LABEL[d.docType] || d.docType}</span>
         <span class="rm-badge rm-priority-${priorityClass}">${escHtml(d.priority || 'Medium')}</span>
         <span class="${spClass}">${spLabel}</span>
+        ${blocksHtml}${blockedByHtml}
       </div>
+      <button class="rm-dep-btn" title="Manage dependencies"
+              onclick="event.stopPropagation();openDepModal('${escHtml(d.filename)}','${d.docType}')">⛓</button>
     </div>`;
 }
 
@@ -426,6 +435,129 @@ function initRoadmapDragDrop() {
       } catch (e) { console.warn('Failed to update sprint assignment:', e.message); }
     });
   });
+}
+
+// ── Dependency modal ─────────────────────────────────────────
+let _depModalFilename = null;
+let _depModalDocType  = null;
+
+async function openDepModal(filename, docType) {
+  _depModalFilename = filename;
+  _depModalDocType  = docType;
+
+  const doc = allDocs.find(d => d.filename === filename);
+  document.getElementById('dep-modal-subtitle').textContent = doc?.title || filename;
+
+  // Reset state
+  document.getElementById('dep-blocks-list').innerHTML   = '<div class="dep-loading">Loading…</div>';
+  document.getElementById('dep-blockedby-list').innerHTML = '';
+
+  document.getElementById('dep-overlay').classList.add('show');
+
+  try {
+    const data = await fetch(`/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`).then(r => r.json());
+    renderDepLists(data);
+    populateDepTargetSelect(filename, data);
+  } catch (e) {
+    document.getElementById('dep-blocks-list').innerHTML = `<div class="dep-error">${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderDepLists(data) {
+  function depItemHtml(item, direction) {
+    return `
+      <div class="dep-item">
+        <span class="dep-item-title">${escHtml(item.title || item.filename)}</span>
+        <button class="btn-ghost btn-xs dep-remove-btn"
+                onclick="removeDepLink('${escHtml(item.filename)}','${escHtml(item.docType || _depModalDocType)}','${direction}')"
+                title="Remove">&times;</button>
+      </div>`;
+  }
+
+  const blocksList    = document.getElementById('dep-blocks-list');
+  const blockedByList = document.getElementById('dep-blockedby-list');
+
+  blocksList.innerHTML = (data.blocks || []).length
+    ? (data.blocks || []).map(item => depItemHtml(item, 'blocks')).join('')
+    : '<div class="dep-empty">None</div>';
+
+  blockedByList.innerHTML = (data.blockedBy || []).length
+    ? (data.blockedBy || []).map(item => depItemHtml(item, 'blockedBy')).join('')
+    : '<div class="dep-empty">None</div>';
+}
+
+function populateDepTargetSelect(excludeFilename, currentData) {
+  const select = document.getElementById('dep-target-select');
+  const leafTypes = new Set(['story', 'spike', 'bug']);
+  const alreadyBlocks = new Set((currentData.blocks || []).map(b => b.filename));
+  alreadyBlocks.add(excludeFilename);
+
+  const candidates = allDocs
+    .filter(d => leafTypes.has(d.docType) && !alreadyBlocks.has(d.filename))
+    .sort((a, b) => (a.title || a.filename).localeCompare(b.title || b.filename));
+
+  select.innerHTML = candidates.length
+    ? candidates.map(d => `<option value="${escHtml(d.filename)}" data-doctype="${d.docType}">${escHtml(d.title || d.filename)}</option>`).join('')
+    : '<option value="" disabled>No candidates</option>';
+}
+
+async function addDepLink() {
+  const select = document.getElementById('dep-target-select');
+  const targetFilename = select.value;
+  if (!targetFilename) return;
+  const targetDocType  = select.selectedOptions[0]?.dataset.doctype || 'story';
+
+  try {
+    await postJSON('/api/link', {
+      linkType: 'blocks',
+      sourceType: _depModalDocType, sourceFilename: _depModalFilename,
+      targetType: targetDocType,    targetFilename,
+    });
+    // Refresh modal
+    const data = await fetch(`/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`).then(r => r.json());
+    renderDepLists(data);
+    populateDepTargetSelect(_depModalFilename, data);
+    // Update allDocs entry
+    const srcDoc = allDocs.find(d => d.filename === _depModalFilename);
+    if (srcDoc) { srcDoc.blocks = srcDoc.blocks || []; if (!srcDoc.blocks.includes(targetFilename)) srcDoc.blocks.push(targetFilename); }
+    const tgtDoc = allDocs.find(d => d.filename === targetFilename);
+    if (tgtDoc) { tgtDoc.blockedBy = tgtDoc.blockedBy || []; if (!tgtDoc.blockedBy.includes(_depModalFilename)) tgtDoc.blockedBy.push(_depModalFilename); }
+    renderRoadmapBoard();
+  } catch (e) { showJiraToast('error', e.message); }
+}
+
+async function removeDepLink(targetFilename, targetDocType, direction) {
+  try {
+    let srcFilename, srcDocType, tgtFilename, tgtDocType;
+    if (direction === 'blocks') {
+      srcFilename = _depModalFilename; srcDocType = _depModalDocType;
+      tgtFilename = targetFilename;    tgtDocType = targetDocType;
+    } else {
+      srcFilename = targetFilename;    srcDocType = targetDocType;
+      tgtFilename = _depModalFilename; tgtDocType = _depModalDocType;
+    }
+    await fetch('/api/link', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linkType: 'blocks', sourceType: srcDocType, sourceFilename: srcFilename, targetType: tgtDocType, targetFilename: tgtFilename }),
+    });
+    // Refresh modal
+    const data = await fetch(`/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`).then(r => r.json());
+    renderDepLists(data);
+    populateDepTargetSelect(_depModalFilename, data);
+    // Update allDocs entries
+    const srcDoc = allDocs.find(d => d.filename === srcFilename);
+    if (srcDoc) srcDoc.blocks = (srcDoc.blocks || []).filter(f => f !== tgtFilename);
+    const tgtDoc = allDocs.find(d => d.filename === tgtFilename);
+    if (tgtDoc) tgtDoc.blockedBy = (tgtDoc.blockedBy || []).filter(f => f !== srcFilename);
+    renderRoadmapBoard();
+  } catch (e) { showJiraToast('error', e.message); }
+}
+
+function closeDepModal() {
+  document.getElementById('dep-overlay').classList.remove('show');
+  _depModalFilename = null;
+  _depModalDocType  = null;
 }
 
 // ── Split modal (kept from old roadmap) ──────────────────────

@@ -239,6 +239,38 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         }
       }
 
+      // Build sprint → index map from the order sprints first appear in assignments
+      const sprintOrder = [];
+      const sprintIdx   = new Map();
+      for (const entry of assignments) {
+        if (entry.sprint && !sprintIdx.has(entry.sprint)) {
+          sprintIdx.set(entry.sprint, sprintOrder.length);
+          sprintOrder.push(entry.sprint);
+        }
+      }
+
+      // Build filename → sprint map from assignments
+      const assignMap = new Map(assignments.map(e => [e.filename, e.sprint]));
+
+      // Check dependency ordering: blocker must be in an earlier sprint than blocked
+      const depWarnings = [];
+      for (const entry of assignments) {
+        const indexEntry = docIndex.get(entry.filename);
+        for (const blockedFn of (indexEntry?.blocks || [])) {
+          const blockedSprint = assignMap.get(blockedFn);
+          if (!blockedSprint) continue;
+          const blockerIdx = sprintIdx.get(entry.sprint) ?? -1;
+          const blockedIdx = sprintIdx.get(blockedSprint) ?? -1;
+          if (blockedIdx !== -1 && blockerIdx !== -1 && blockedIdx <= blockerIdx) {
+            depWarnings.push({
+              blocker: entry.filename,
+              blocked: blockedFn,
+              message: `"${indexEntry?.title || entry.filename}" (${entry.sprint}) must be in an earlier sprint than "${docIndex.get(blockedFn)?.title || blockedFn}" (${blockedSprint})`,
+            });
+          }
+        }
+      }
+
       const updated = [];
       const skipped = [];
 
@@ -265,7 +297,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       logInfo('POST /api/docs/apply-distribution', `Assigned ${updated.length} item(s), skipped ${skipped.length}`);
-      res.json({ success: true, updated: updated.length, skipped });
+      res.json({ success: true, updated: updated.length, skipped, depWarnings });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);

@@ -145,7 +145,13 @@ async function applyDistribution() {
     const data = await postJSON('/api/docs/apply-distribution', { assignments });
 
     closeDistributionModal();
-    showJiraToast('success', `Distributed ${data.updated} item(s) across sprints.`);
+
+    if (data.depWarnings && data.depWarnings.length) {
+      const msgs = data.depWarnings.map(w => w.message).join('\n');
+      showJiraToast('warning', `Distributed ${data.updated} item(s). Dependency order warnings:\n${msgs}`);
+    } else {
+      showJiraToast('success', `Distributed ${data.updated} item(s) across sprints.`);
+    }
   } catch (e) {
     showJiraToast('error', e.message);
   } finally {

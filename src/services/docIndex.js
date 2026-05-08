@@ -25,13 +25,15 @@ export function createDocIndex({ TYPE_CONFIG }) {
       if (val && val !== 'TBD') { parentFilename = val; parentType = 'epic'; }
     }
 
-    const fixVersion  = extractFrontmatterField(content, 'Fix_Version');
-    const jiraId      = extractFrontmatterField(content, 'JIRA_ID');
-    const jiraUrl     = extractFrontmatterField(content, 'JIRA_URL');
-    const storyPoints = extractFrontmatterField(content, 'Story_Points');
-    const sprint      = extractFrontmatterField(content, 'Sprint');
-    const priority    = extractFrontmatterField(content, 'Priority') || 'Medium';
-    const rankRaw     = extractFrontmatterField(content, 'Rank');
+    const fixVersion   = extractFrontmatterField(content, 'Fix_Version');
+    const jiraId       = extractFrontmatterField(content, 'JIRA_ID');
+    const jiraUrl      = extractFrontmatterField(content, 'JIRA_URL');
+    const storyPoints  = extractFrontmatterField(content, 'Story_Points');
+    const sprint       = extractFrontmatterField(content, 'Sprint');
+    const priority     = extractFrontmatterField(content, 'Priority') || 'Medium';
+    const rankRaw      = extractFrontmatterField(content, 'Rank');
+    const blocksRaw    = extractFrontmatterField(content, 'Blocks');
+    const blockedByRaw = extractFrontmatterField(content, 'Blocked_By');
 
     let body = content;
     if (body.startsWith('---')) {
@@ -56,6 +58,8 @@ export function createDocIndex({ TYPE_CONFIG }) {
       priority,
       parentFilename,
       parentType,
+      blocks:    blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(Boolean)    : [],
+      blockedBy: blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
       hasDescription: body.length > 30,
     };
   }
