@@ -184,6 +184,47 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
     }
   });
 
+  // ── POST /api/docs/rerank ── batch assign Rank fields ──────────────────────
+  router.post('/api/docs/rerank', (req, res) => {
+    try {
+      const { type, orderedFilenames } = req.body;
+      if (!type) return sendError(res, 400, 'VALIDATION_ERROR', 'type is required');
+      if (!Array.isArray(orderedFilenames) || !orderedFilenames.length) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'orderedFilenames array is required and must not be empty');
+      }
+
+      const docType = assertDocType(type, TYPE_CONFIG);
+      const cfg     = TYPE_CONFIG[docType];
+      const updated = [];
+      const skipped = [];
+
+      for (let i = 0; i < orderedFilenames.length; i++) {
+        try {
+          const filename = assertFilename(orderedFilenames[i]);
+          const filepath = path.join(cfg.dir(), filename);
+          if (!fs.existsSync(filepath)) { skipped.push({ filename, reason: 'not found' }); continue; }
+          const content = fs.readFileSync(filepath, 'utf-8');
+          const patched = setFrontmatterField(content, 'Rank', String(i + 1));
+          fs.writeFileSync(filepath, patched);
+          updated.push(filename);
+        } catch (entryErr) {
+          skipped.push({ filename: orderedFilenames[i], reason: entryErr.message || 'invalid' });
+        }
+      }
+
+      if (updated.length) {
+        docIndex.invalidateAll();
+        broadcast({ type: 'title_updated', docType });
+      }
+
+      logInfo('POST /api/docs/rerank', `Ranked ${updated.length} ${docType}(s), skipped ${skipped.length}`);
+      res.json({ success: true, updated: updated.length, skipped });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      sendError(res, ['VALIDATION_ERROR', 'INVALID_TYPE'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
   // ── POST /api/docs/apply-distribution ── batch assign sprints ──────────────
   router.post('/api/docs/apply-distribution', (req, res) => {
     try {

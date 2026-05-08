@@ -39,7 +39,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const { status, title, fixVersion, storyPoints, sprint } = req.body;
+      const { status, title, fixVersion, storyPoints, sprint, rank } = req.body;
       let content = fs.readFileSync(filepath, 'utf-8');
 
       if (status !== undefined) {
@@ -66,6 +66,14 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
         content = setFrontmatterField(content, 'Sprint', sprint || 'TBD');
       }
 
+      if (rank !== undefined) {
+        const numRank = Number(rank);
+        if (!Number.isInteger(numRank) || numRank < 1) {
+          return sendError(res, 400, 'VALIDATION_ERROR', 'rank must be a positive integer');
+        }
+        content = setFrontmatterField(content, 'Rank', String(numRank));
+      }
+
       if (title !== undefined) {
         const trimmed = title.trim();
         if (!trimmed) return sendError(res, 400, 'INVALID_TITLE', 'Title cannot be empty');
@@ -84,7 +92,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       fs.writeFileSync(filepath, content);
       docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
-      res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }) });
+      res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }), ...(rank !== undefined && { rank }) });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(
