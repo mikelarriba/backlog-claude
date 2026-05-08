@@ -1,12 +1,9 @@
 // ── PI Sprint Configuration ────────────────────────────────────
-var _piConfigActivePi = null;
+let _piConfigActivePi = null;
 
 function togglePiConfigSection() {
-  const body    = document.getElementById('pi-config-body');
-  const chevron = document.getElementById('pi-config-chevron');
-  const isOpen  = body.classList.toggle('open');
-  chevron.style.transform = isOpen ? 'rotate(90deg)' : '';
-  if (isOpen && !_piConfigActivePi) {
+  toggleSection('pi-config-body', 'pi-config-chevron');
+  if (document.getElementById('pi-config-body').classList.contains('open') && !_piConfigActivePi) {
     renderPiConfigTabs();
   }
 }

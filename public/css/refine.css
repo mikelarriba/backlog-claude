@@ -49,17 +49,6 @@
   background: var(--bg);
 }
 
-/* ── Graph empty state ───────────────────────────────────────── */
-.refine-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  font-size: 0.85rem;
-  color: var(--muted);
-  font-style: italic;
-}
-
 /* ── Slide-in panel ──────────────────────────────────────────── */
 .refine-panel {
   width: 0;

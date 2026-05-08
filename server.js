@@ -8,10 +8,15 @@ import { createJiraService } from './src/services/jiraService.js';
 import { watchInbox } from './src/services/inboxWatcher.js';
 import { isoDate, slugify } from './src/utils/transforms.js';
 import { ensureDir } from './src/utils/routeHelpers.js';
-import docsRoutes from './src/routes/docs.js';
+import { createDocIndex } from './src/services/docIndex.js';
+import docsCrudRoutes from './src/routes/docs-crud.js';
+import docsAiRoutes from './src/routes/docs-ai.js';
+import docsBatchRoutes from './src/routes/docs-batch.js';
 import linksRoutes from './src/routes/links.js';
 import storiesRoutes from './src/routes/stories.js';
-import jiraRoutes from './src/routes/jira.js';
+import jiraPushRoutes from './src/routes/jira-push.js';
+import jiraSyncRoutes from './src/routes/jira-sync.js';
+import jiraSearchRoutes from './src/routes/jira-search.js';
 import settingsRoutes from './src/routes/settings.js';
 import bugRoutes from './src/routes/bugs.js';
 
@@ -71,6 +76,9 @@ const FIELD_STORY_POINTS = 'customfield_10006'; // VW Group JIRA story points fi
 const { jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } =
   createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIELD_STORY_POINTS, TYPE_CONFIG, isoDate, slugify });
 
+const docIndex = createDocIndex({ TYPE_CONFIG });
+docIndex.build();
+
 // ── Middleware & SSE ─────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -83,12 +91,18 @@ const callClaude   = prompt => callClaudeService(__dirname, prompt);
 const streamClaude = (prompt, onChunk) => streamClaudeService(__dirname, prompt, onChunk);
 
 // ── Mount route modules ──────────────────────────────────────────────────────
-const shared = { rootDir: __dirname, TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logWarn, logError };
+const shared = { rootDir: __dirname, TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logWarn, logError, docIndex };
 
-app.use(docsRoutes(shared));
+const jiraShared = { ...shared, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS, jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary };
+
+app.use(docsCrudRoutes(shared));
+app.use(docsAiRoutes(shared));
+app.use(docsBatchRoutes(shared));
 app.use(linksRoutes(shared));
 app.use(storiesRoutes(shared));
-app.use(jiraRoutes({ ...shared, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS, jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary }));
+app.use(jiraPushRoutes(jiraShared));
+app.use(jiraSyncRoutes(jiraShared));
+app.use(jiraSearchRoutes(jiraShared));
 app.use(settingsRoutes({ rootDir: __dirname, broadcast, logInfo, jiraBase: JIRA_BASE }));
 app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError }));
 

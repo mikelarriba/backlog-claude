@@ -1,7 +1,7 @@
 // ── Roadmap View (Two-Panel: Epics + Stories) ─────────────────
-var _roadmapPiName       = null;  // selected PI filter (null = all)
-var _roadmapPanelState   = { epics: true, stories: true }; // expanded/collapsed
-var _roadmapFocusedEpic  = null;  // filename of clicked epic (focus mode)
+let _roadmapPiName       = null;  // selected PI filter (null = all)
+let _roadmapPanelState   = { epics: true, stories: true }; // expanded/collapsed
+let _roadmapFocusedEpic  = null;  // filename of clicked epic (focus mode)
 
 // Palette for epic cards — consistent hash-based colour
 const _EPIC_COLORS = [
@@ -429,10 +429,10 @@ function initRoadmapDragDrop() {
 }
 
 // ── Split modal (kept from old roadmap) ──────────────────────
-var _splitModalFilename = null;
-var _splitModalDocType  = null;
-var _splitModalSprint1  = null;
-var _splitModalSprint2  = null;
+let _splitModalFilename = null;
+let _splitModalDocType  = null;
+let _splitModalSprint1  = null;
+let _splitModalSprint2  = null;
 
 function openSplitModal(filename, docType, sprint1, sprint2) {
   _splitModalFilename = filename;

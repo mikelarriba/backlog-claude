@@ -1,5 +1,5 @@
 // ── Bug Report Creation Modal ─────────────────────────────────
-var _bugFiles = [];
+let _bugFiles = [];
 
 function openBugModal() {
   _bugFiles = [];

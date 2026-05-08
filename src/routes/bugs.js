@@ -17,18 +17,12 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
     try {
       const { id, title, description } = req.body;
       if (!id || !title) return sendError(res, 400, 'VALIDATION_ERROR', 'ID and Title are required');
-      if (String(id).length > 200 || String(title).length > 200) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'ID and Title must be at most 200 characters');
-      }
+      if (String(id).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'ID must be 200 characters or fewer');
+      if (String(title).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
 
-      const files = req.files || [];
-      const ALLOWED_MIME_TYPES = ['application/pdf', 'message/rfc822'];
-      for (const file of files) {
-        const mime = file.mimetype || '';
-        if (!mime.startsWith('image/') && !ALLOWED_MIME_TYPES.includes(mime)) {
-          return sendError(res, 400, 'VALIDATION_ERROR', `File "${file.originalname}" has disallowed type: ${mime}`);
-        }
-      }
+      const ALLOWED_MIME = [/^image\//, /^application\/pdf$/, /^message\/rfc822$/];
+      const badFile = (req.files || []).find(f => !ALLOWED_MIME.some(p => p.test(f.mimetype)));
+      if (badFile) return sendError(res, 400, 'VALIDATION_ERROR', `Unsupported file type: ${badFile.mimetype}`);
 
       // Concatenate id + title, translate if needed
       const rawTitle = `${id} ${title}`;
@@ -96,15 +90,16 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
 
   // ── GET /api/bugs/attachments/:slug/:file ─────────────────────────────────
   router.get('/api/bugs/attachments/:slug/:file', (req, res) => {
+    let slug, file;
     try {
-      const slug = assertFilename(req.params.slug);
-      const file = assertFilename(req.params.file);
-      const filePath = path.join(BUGS_DIR, 'attachments', slug, file);
-      if (!fs.existsSync(filePath)) return sendError(res, 404, 'NOT_FOUND', 'Attachment not found');
-      res.sendFile(filePath);
+      slug = assertFilename(req.params.slug);
+      file = assertFilename(req.params.file);
     } catch {
       return sendError(res, 400, 'INVALID_FILENAME', 'Invalid attachment path');
     }
+    const filePath = path.join(BUGS_DIR, 'attachments', slug, file);
+    if (!fs.existsSync(filePath)) return sendError(res, 404, 'NOT_FOUND', 'Attachment not found');
+    res.sendFile(filePath);
   });
 
   return router;

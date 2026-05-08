@@ -144,6 +144,16 @@ async function streamSSE(url, body, { onText, onDone, onError }) {
   }
 }
 
+// ── Shared section toggle ─────────────────────────────────────
+// Toggles a collapsible section: adds/removes 'open' on the body and
+// rotates the chevron. rotateDeg: degrees when open (90 or 180).
+function toggleSection(bodyId, chevronId, rotateDeg = 90) {
+  const body    = document.getElementById(bodyId);
+  const chevron = document.getElementById(chevronId);
+  const isOpen  = body.classList.toggle('open');
+  chevron.style.transform = isOpen ? `rotate(${rotateDeg}deg)` : '';
+}
+
 // ── Debounce utility ──────────────────────────────────────────
 function debounce(fn, ms) {
   let timer;
