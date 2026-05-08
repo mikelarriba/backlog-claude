@@ -40,6 +40,7 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       const filename = `${isoDate()}-${slug}.md`;
 
       // Process attachments
+      const files = req.files || [];
       const processed = [];
       for (const file of files) {
         try {
