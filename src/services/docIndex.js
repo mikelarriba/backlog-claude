@@ -31,6 +31,7 @@ export function createDocIndex({ TYPE_CONFIG }) {
     const storyPoints = extractFrontmatterField(content, 'Story_Points');
     const sprint      = extractFrontmatterField(content, 'Sprint');
     const priority    = extractFrontmatterField(content, 'Priority') || 'Medium';
+    const rankRaw     = extractFrontmatterField(content, 'Rank');
 
     let body = content;
     if (body.startsWith('---')) {
@@ -51,6 +52,7 @@ export function createDocIndex({ TYPE_CONFIG }) {
       jiraUrl:        jiraUrl     || null,
       storyPoints:    storyPoints && storyPoints !== 'TBD' ? Number(storyPoints) || null : null,
       sprint:         sprint      && sprint      !== 'TBD' ? sprint      : null,
+      rank:           rankRaw && !isNaN(Number(rankRaw)) ? Number(rankRaw) : null,
       priority,
       parentFilename,
       parentType,

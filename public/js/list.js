@@ -6,6 +6,48 @@ var jiraVersions  = [];
 var _swimlanesCollapsed = { currentPi: false, nextPi: false, backlog: false };
 var _collapsedItems = new Set(); // filenames of collapsed epics/features
 
+// ── Rank helpers ──────────────────────────────────────────────
+// Map<filename, {index, total}> — position of each doc in its per-type rank order.
+var _rankPositions = new Map();
+
+function _rankSortFn(a, b) {
+  if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
+  if (a.rank !== null) return -1;
+  if (b.rank !== null) return 1;
+  return b.filename.localeCompare(a.filename); // default: date-desc
+}
+
+function computeRankPositions(docs) {
+  _rankPositions.clear();
+  const byType = {};
+  for (const d of docs) {
+    if (!byType[d.docType]) byType[d.docType] = [];
+    byType[d.docType].push(d);
+  }
+  for (const group of Object.values(byType)) {
+    const sorted = [...group].sort(_rankSortFn);
+    sorted.forEach((d, i) => _rankPositions.set(d.filename, { index: i, total: sorted.length }));
+  }
+}
+
+async function moveDocRank(filename, docType, delta) {
+  const group  = allDocs.filter(d => d.docType === docType);
+  const sorted = [...group].sort(_rankSortFn);
+  const idx    = sorted.findIndex(d => d.filename === filename);
+  if (idx < 0) return;
+  const newIdx = idx + delta;
+  if (newIdx < 0 || newIdx >= sorted.length) return;
+
+  // Swap the two items in the ordered list
+  [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
+
+  try {
+    await postJSON('/api/docs/rerank', { type: docType, orderedFilenames: sorted.map(d => d.filename) });
+  } catch (e) {
+    showJiraToast('error', e.message);
+  }
+}
+
 async function loadDocs() {
   try {
     allDocs = await fetchJSON('/api/docs');
@@ -94,6 +136,10 @@ function renderSwimlanes(docs) {
     return;
   }
 
+  // Compute rank positions from the full unfiltered doc set so ↑/↓ buttons
+  // reflect global order rather than the currently filtered subset.
+  computeRankPositions(allDocs);
+
   const { currentPi, nextPi, backlog } = categorizeDocs(docs);
 
   const html = [
@@ -142,8 +188,8 @@ function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
     distributeBtn = `<button class="btn-distribute" onclick="event.stopPropagation(); openDistributionModal('${escHtml(versionName)}')" title="Auto-distribute stories into sprints">Distribute</button>`;
   }
 
-  // Render items
-  const { ordered, childrenMap } = buildTreeOrder(docs);
+  // Render items — sort by rank (nulls last) within each swimlane section
+  const { ordered, childrenMap } = buildTreeOrder([...docs].sort(_rankSortFn));
   const itemsHtml = ordered.length
     ? ordered.map(({ doc: d, indent }) => renderDocItem(d, indent, childrenMap)).join('')
     : `<div class="swimlane-empty">No issues in this section</div>`;
@@ -232,6 +278,15 @@ function renderDocItem(d, indent, childrenMap) {
   const selKey  = `${d.docType}:${d.filename}`;
   const multiSel = selectedItems.has(selKey) ? ' multi-selected' : '';
 
+  const rp      = _rankPositions.get(d.filename);
+  const canUp   = rp && rp.index > 0;
+  const canDown = rp && rp.index < rp.total - 1;
+  const rankBtns = `
+    <div class="rank-btns">
+      <button class="rank-btn" ${canUp   ? '' : 'disabled'} title="Move up"   onclick="event.stopPropagation();moveDocRank('${escHtml(d.filename)}','${d.docType}',-1)">▲</button>
+      <button class="rank-btn" ${canDown ? '' : 'disabled'} title="Move down" onclick="event.stopPropagation();moveDocRank('${escHtml(d.filename)}','${d.docType}',1)">▼</button>
+    </div>`;
+
   return `
     <div class="epic-item${multiSel}"
          data-filename="${escHtml(d.filename)}"
@@ -250,6 +305,7 @@ function renderDocItem(d, indent, childrenMap) {
       ${d.sprint ? `<span class="sprint-badge">${escHtml(d.sprint)}</span>` : ''}
       <span class="status-badge ${statusClass}">${STATUS_LABEL[d.status] || d.status || 'Draft'}</span>
       <div class="epic-date">${d.date}</div>
+      ${rankBtns}
     </div>`;
 }
 

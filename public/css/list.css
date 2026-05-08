@@ -219,6 +219,30 @@
 }
 .epic-item:hover .drag-handle { opacity: 1; }
 
+/* ── Rank buttons (↑ / ↓) ────────────────────────────────────── */
+.rank-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.epic-item:hover .rank-btns { opacity: 1; }
+.rank-btn {
+  background: none;
+  border: none;
+  padding: 1px 4px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.2;
+  border-radius: 2px;
+  transition: color 0.1s, background 0.1s;
+}
+.rank-btn:hover:not(:disabled) { color: var(--text); background: var(--surface2); }
+.rank-btn:disabled { opacity: 0.25; cursor: default; }
+
 /* ── Multi-select highlight ─────────────────────────────────── */
 .epic-item.multi-selected {
   background: var(--accent-subtle);
