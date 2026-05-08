@@ -72,7 +72,12 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
 
     try {
       const { sourceType, sourceFilename, targetType, targetFilename } = req.body;
-      if (!sourceType || !sourceFilename || !targetType || !targetFilename) {
+      if (
+        typeof sourceType !== 'string' || !sourceType ||
+        typeof sourceFilename !== 'string' || !sourceFilename ||
+        typeof targetType !== 'string' || !targetType ||
+        typeof targetFilename !== 'string' || !targetFilename
+      ) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'sourceType, sourceFilename, targetType and targetFilename are required');
       }
 

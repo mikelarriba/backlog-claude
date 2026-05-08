@@ -273,6 +273,16 @@ describe('POST /api/link', () => {
     });
     assert.equal(status, 404);
   });
+
+  test('returns 404 when target document does not exist', async () => {
+    const { data: story } = await api('POST', '/api/generate', { idea: 'Link target check story', type: 'story' });
+    const { status, data } = await api('POST', '/api/link', {
+      sourceType: 'story', sourceFilename: story.filename,
+      targetType: 'epic',  targetFilename: 'nonexistent-epic.md',
+    });
+    assert.equal(status, 404);
+    assert.equal(data.error.code, 'NOT_FOUND');
+  });
 });
 
 // ── GET /api/links with linked documents ─────────────────────────────────────
@@ -398,13 +408,6 @@ describe('PATCH /api/doc/:type/:filename — fixVersion update', () => {
 // ── Phase 3 & 4 validation tests ─────────────────────────────────────────────
 
 describe('POST /api/link — target document validation', () => {
-  let epicFilename;
-
-  before(async () => {
-    const { data } = await api('POST', '/api/generate', { idea: 'Link target epic v2', type: 'epic' });
-    epicFilename = data.filename;
-  });
-
   test('returns 404 when target document does not exist', async () => {
     const { data: story } = await api('POST', '/api/generate', { idea: 'Link source story v2', type: 'story' });
     const { status, data } = await api('POST', '/api/link', {
@@ -436,7 +439,14 @@ describe('PUT /api/settings/pi/sprints/:piName — sprint count validation', () 
     assert.equal(status, 400);
     assert.ok(data.error, 'should return an error');
   });
+
+  test('accepts exactly 10 sprints', async () => {
+    const sprints = Array.from({ length: 10 }, (_, i) => ({ name: `Sprint ${i + 1}`, capacity: 10 }));
+    const { status } = await api('PUT', '/api/settings/pi/sprints/myPI', { sprints });
+    assert.equal(status, 200);
+  });
 });
+
 
 describe('PATCH /api/doc/:type/:filename — storyPoints validation', () => {
   let filename;
@@ -458,6 +468,11 @@ describe('PATCH /api/doc/:type/:filename — storyPoints validation', () => {
     const { status } = await api('PATCH', `/api/doc/story/${encodeURIComponent(filename)}`, { storyPoints: 0 });
     assert.equal(status, 200);
   });
+
+  test('accepts positive storyPoints', async () => {
+    const { status } = await api('PATCH', `/api/doc/story/${encodeURIComponent(filename)}`, { storyPoints: 5 });
+    assert.equal(status, 200);
+  });
 });
 
 describe('POST /api/docs/apply-distribution — entry validation', () => {
@@ -475,6 +490,16 @@ describe('POST /api/docs/apply-distribution — entry validation', () => {
     });
     assert.equal(status, 400);
     assert.equal(data.error.code, 'VALIDATION_ERROR');
+  });
+
+  test('applies valid assignments successfully', async () => {
+    const { data: doc } = await api('POST', '/api/generate', { idea: 'Apply dist success test', type: 'story' });
+    const { status, data } = await api('POST', '/api/docs/apply-distribution', {
+      assignments: [{ docType: 'story', filename: doc.filename, sprint: 'Sprint 1' }],
+    });
+    assert.equal(status, 200);
+    assert.equal(data.success, true);
+    assert.equal(data.updated, 1);
   });
 });
 

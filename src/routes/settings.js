@@ -95,8 +95,8 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
       if (!s.name || typeof s.name !== 'string' || !s.name.trim()) {
         return res.status(400).json({ error: 'Each sprint must have a non-empty name' });
       }
-      if (typeof s.capacity !== 'number' || s.capacity < 0) {
-        return res.status(400).json({ error: `Sprint "${s.name}" must have a capacity >= 0` });
+      if (typeof s.capacity !== 'number' || s.capacity < 0 || s.capacity > 999) {
+        return res.status(400).json({ error: `Sprint "${s.name}" capacity must be between 0 and 999` });
       }
       if (s.capacity > 999) {
         return res.status(400).json({ error: `Sprint "${s.name}" capacity cannot exceed 999` });
