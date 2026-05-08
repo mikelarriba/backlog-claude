@@ -134,6 +134,7 @@ button:active:not(:disabled) { transform: scale(0.97); }
 
 /* ── Spinner ─────────────────────────────────────────────────── */
 .spinner {
+  display: inline-block;
   width: 14px;
   height: 14px;
   border: 2px solid var(--accent-subtle);

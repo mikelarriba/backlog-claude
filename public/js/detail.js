@@ -6,10 +6,10 @@ function updateJiraLink(jiraId, jiraUrl) {
     const resolvedUrl = jiraUrl || (jiraBase ? `${jiraBase}/browse/${jiraId}` : null);
     el.textContent = jiraId;
     el.href        = resolvedUrl || '#';
-    el.style.display = '';
+    el.classList.remove('hidden');
     el.style.pointerEvents = resolvedUrl ? '' : 'none';
   } else {
-    el.style.display = 'none';
+    el.classList.add('hidden');
   }
 }
 
@@ -18,9 +18,9 @@ function updateJiraStatus(jiraStatus) {
   if (!el) return;
   if (jiraStatus) {
     el.textContent = jiraStatus;
-    el.style.display = '';
+    el.classList.remove('hidden');
   } else {
-    el.style.display = 'none';
+    el.classList.add('hidden');
   }
 }
 
@@ -77,18 +77,18 @@ function updateStoryPointsUI(docType, sp) {
   const spSum     = document.getElementById('sp-sum');
 
   if (isLeaf) {
-    spWrap.style.display    = '';
-    spSumWrap.style.display = 'none';
+    spWrap.classList.remove('hidden');
+    spSumWrap.classList.add('hidden');
     spInput.value           = sp != null ? sp : '';
     spInput.dataset.original = sp != null ? sp : '';
   } else if (isAggr) {
-    spWrap.style.display    = 'none';
-    spSumWrap.style.display = '';
+    spWrap.classList.add('hidden');
+    spSumWrap.classList.remove('hidden');
     const sum = computeChildPoints(currentFilename, docType);
     spSum.textContent = sum !== null ? sum : '—';
   } else {
-    spWrap.style.display    = 'none';
-    spSumWrap.style.display = 'none';
+    spWrap.classList.add('hidden');
+    spSumWrap.classList.add('hidden');
   }
 }
 
@@ -115,20 +115,20 @@ function updateSprintSelect(docType, fixVersion, currentSprint) {
 
   // Only show for leaf items that belong to a PI
   if (!isLeaf || !fixVersion) {
-    sel.style.display = 'none';
+    sel.classList.add('hidden');
     return;
   }
 
   const sprints = getSprintsForPi(fixVersion);
   if (!sprints.length) {
-    sel.style.display = 'none';
+    sel.classList.add('hidden');
     return;
   }
 
   sel.innerHTML = '<option value="">No Sprint</option>' +
     sprints.map(s => `<option value="${escHtml(s.name)}"${s.name === currentSprint ? ' selected' : ''}>${escHtml(s.name)}</option>`).join('');
   sel.value = currentSprint || '';
-  sel.style.display = '';
+  sel.classList.remove('hidden');
 }
 
 async function updateDocSprint(sprint) {
@@ -145,12 +145,12 @@ async function updateDocSprint(sprint) {
 function updateDocButtons(docType) {
   const isEpic    = docType === 'epic';
   const isFeature = docType === 'feature';
-  document.getElementById('create-dropdown-wrap').style.display = (isEpic || isFeature) ? '' : 'none';
-  document.getElementById('create-epic-btn').style.display  = isFeature ? '' : 'none';
-  document.getElementById('create-story-btn').style.display = isEpic    ? '' : 'none';
-  document.getElementById('create-spike-btn').style.display = isEpic    ? '' : 'none';
-  document.getElementById('create-bug-btn').style.display   = isEpic    ? '' : 'none';
-  document.getElementById('refine-dropdown-wrap').style.display = (isEpic || isFeature) ? '' : 'none';
+  document.getElementById('create-dropdown-wrap').classList.toggle('hidden', !(isEpic || isFeature));
+  document.getElementById('create-epic-btn').classList.toggle('hidden', !isFeature);
+  document.getElementById('create-story-btn').classList.toggle('hidden', !isEpic);
+  document.getElementById('create-spike-btn').classList.toggle('hidden', !isEpic);
+  document.getElementById('create-bug-btn').classList.toggle('hidden', !isEpic);
+  document.getElementById('refine-dropdown-wrap').classList.toggle('hidden', !(isEpic || isFeature));
   const storiesBtn = document.getElementById('stories-btn');
   if (storiesBtn) { storiesBtn.disabled = false; storiesBtn.textContent = 'AI Story Generation'; }
 }
@@ -186,7 +186,7 @@ async function openDoc(filename, docType) {
     }
 
     if (docType === 'epic' || docType === 'feature') loadHierarchy(filename, docType);
-    else document.getElementById('hierarchy-section').style.display = 'none';
+    else document.getElementById('hierarchy-section').classList.add('hidden');
     loadOriginal(filename);
   } catch (e) {
     console.error(e);
@@ -204,9 +204,9 @@ async function loadOriginal(filename) {
   try {
     const { content } = await fetchJSON(`/api/inbox/${encodeURIComponent(filename)}`);
     container.innerHTML = `<div class="original-content">${escHtml(content)}</div>`;
-    section.style.display = 'block';
+    section.classList.remove('hidden');
   } catch {
-    section.style.display = 'none';
+    section.classList.add('hidden');
   }
 }
 
@@ -256,7 +256,7 @@ async function loadHierarchy(filename, docType) {
   const section = document.getElementById('hierarchy-section');
   const body    = document.getElementById('hierarchy-body');
   const label   = document.getElementById('hierarchy-label');
-  section.style.display = 'none';
+  section.classList.add('hidden');
   body.innerHTML = '';
 
   try {
@@ -305,7 +305,7 @@ async function loadHierarchy(filename, docType) {
 
     if (rows.length || isParent) {
       body.innerHTML = rows.join('') + linkBtn;
-      section.style.display = 'block';
+      section.classList.remove('hidden');
     }
   } catch (e) {
     console.warn('Could not load hierarchy:', e.message);
@@ -405,18 +405,11 @@ async function toggleHierarchyChild(rowEl) {
 }
 
 function toggleHierarchy() {
-  const body    = document.getElementById('hierarchy-body');
-  const chevron = document.getElementById('hierarchy-chevron');
-  const isOpen  = body.classList.toggle('open');
-  body.style.display  = isOpen ? 'block' : 'none';
-  chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+  toggleSection('hierarchy-body', 'hierarchy-chevron', 180);
 }
 
 function toggleOriginal() {
-  const body    = document.getElementById('original-body');
-  const chevron = document.getElementById('original-chevron');
-  const isOpen  = body.classList.toggle('open');
-  chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+  toggleSection('original-body', 'original-chevron', 180);
 }
 
 // ── Update status ──────────────────────────────────────────────
@@ -435,7 +428,7 @@ function showList() {
   document.getElementById('detail-view').classList.remove('show');
   document.querySelector('.right').classList.remove('has-selection');
   document.getElementById('upgrade-panel').classList.remove('open');
-  document.getElementById('original-section').style.display = 'none';
+  document.getElementById('original-section').classList.add('hidden');
   resetUpgradePanel();
   closeQuickCreate();
   resetStoriesSection();
@@ -444,8 +437,8 @@ function showList() {
   currentJiraId   = null;
   updateJiraLink(null, null);
   updateJiraStatus(null);
-  document.getElementById('sp-wrap').style.display    = 'none';
-  document.getElementById('sp-sum-wrap').style.display = 'none';
+  document.getElementById('sp-wrap').classList.add('hidden');
+  document.getElementById('sp-sum-wrap').classList.add('hidden');
 
   if (isRoadmapOpen()) {
     // Roadmap stays visible; just clear the selection highlight

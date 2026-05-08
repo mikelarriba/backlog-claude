@@ -1,5 +1,5 @@
 // ── Sprint Distribution Engine ─────────────────────────────────
-var _distributionData = null;
+let _distributionData = null;
 
 async function openDistributionModal(piName) {
   if (!piName) return;

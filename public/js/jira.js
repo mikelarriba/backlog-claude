@@ -1,6 +1,6 @@
 // ── JIRA selection modal ─────────────────────────────────────
-var _jiraSelectResolve = null;
-var _jiraSelectItems   = [];
+let _jiraSelectResolve = null;
+let _jiraSelectItems   = [];
 
 function showJiraSelectModal(title, items, confirmLabel) {
   return new Promise(function(resolve) {
@@ -252,10 +252,7 @@ async function pushToJira() {
 
 // ── JIRA Import ───────────────────────────────────────────────
 function toggleJiraSection() {
-  const body    = document.getElementById('jira-section-body');
-  const chevron = document.getElementById('jira-chevron');
-  const isOpen  = body.classList.toggle('open');
-  chevron.style.transform = isOpen ? 'rotate(90deg)' : '';
+  toggleSection('jira-section-body', 'jira-chevron');
 }
 
 async function searchJira() {
@@ -268,7 +265,7 @@ async function searchJira() {
   btn.textContent = 'Searching…';
   setJiraStatus('loading', 'Querying JIRA…');
   resultsEl.innerHTML = '';
-  document.getElementById('jira-download-btn').style.display = 'none';
+  document.getElementById('jira-download-btn').classList.add('hidden');
 
   try {
     const params = new URLSearchParams({ type });
@@ -291,7 +288,7 @@ function renderJiraResults(issues) {
   const el = document.getElementById('jira-results');
   if (!issues.length) {
     el.innerHTML = '<div class="jira-empty">No results</div>';
-    document.getElementById('jira-download-btn').style.display = 'none';
+    document.getElementById('jira-download-btn').classList.add('hidden');
     return;
   }
 
@@ -323,7 +320,7 @@ function toggleJiraItem(index) {
 function updateDownloadBtn() {
   const count = document.querySelectorAll('#jira-results input[type=checkbox]:checked').length;
   const btn   = document.getElementById('jira-download-btn');
-  btn.style.display = count > 0 ? 'block' : 'none';
+  btn.classList.toggle('hidden', count === 0);
   btn.textContent   = `⬇ Download ${count} issue${count !== 1 ? 's' : ''}`;
 }
 

@@ -178,3 +178,6 @@ body {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Visibility utility ──────────────────────────────────────── */
+.hidden { display: none !important; }
