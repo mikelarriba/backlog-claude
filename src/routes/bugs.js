@@ -20,9 +20,9 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       if (String(id).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'ID must be 200 characters or fewer');
       if (String(title).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
 
-      const ALLOWED_MIME = [/^image\//, /^application\/pdf$/, /^message\/rfc822$/, /^application\/vnd\.ms-outlook$/];
-      // .msg files are reported as application/octet-stream by most browsers — allow by extension
-      const ALLOWED_EXT = new Set(['.msg']);
+      const ALLOWED_MIME = [/^image\//, /^application\/pdf$/, /^message\/rfc822$/, /^application\/vnd\.ms-outlook$/, /^text\//];
+      // These formats are sent as application/octet-stream by browsers — allow by extension
+      const ALLOWED_EXT = new Set(['.msg', '.log', '.txt', '.csv']);
       const badFile = (req.files || []).find(f => {
         if (ALLOWED_MIME.some(p => p.test(f.mimetype))) return false;
         if (f.mimetype === 'application/octet-stream' && ALLOWED_EXT.has(path.extname(f.originalname).toLowerCase())) return false;
