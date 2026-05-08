@@ -64,3 +64,20 @@ export function assertFilename(filename) {
   }
   return cleaned;
 }
+
+// Sets the three SSE response headers. Call before writing any SSE frames.
+export function setupSSE(res) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+}
+
+// Validates :type and :filename route params and resolves the absolute filepath.
+// Throws INVALID_TYPE / INVALID_FILENAME on bad input (same as assertDocType/assertFilename).
+export function resolveDocPath(req, TYPE_CONFIG) {
+  const docType  = assertDocType(req.params.type, TYPE_CONFIG);
+  const cfg      = TYPE_CONFIG[docType];
+  const filename = assertFilename(req.params.filename);
+  const filepath = path.join(cfg.dir(), filename);
+  return { docType, cfg, filename, filepath };
+}

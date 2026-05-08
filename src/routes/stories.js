@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { sendError, ensureDir, parseApiError, assertFilename } from '../utils/routeHelpers.js';
+import { sendError, ensureDir, parseApiError, assertFilename, setupSSE } from '../utils/routeHelpers.js';
 import { extractTitle, setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
 import { parseStorySections, serializeStoryFile, extractStoryTitle } from '../services/storyService.js';
 import { normalizeOutput } from '../services/claudeService.js';
@@ -40,10 +40,8 @@ export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INB
     }
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    const send = p => res.write(`data: ${JSON.stringify(p)}\n\n`);
+    setupSSE(res);
+    const send =p => res.write(`data: ${JSON.stringify(p)}\n\n`);
 
     try {
       const { storyIndex, feedback } = req.body;
@@ -130,10 +128,8 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
     }
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    setupSSE(res);
+    const send =(payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
       const epicContent = fs.readFileSync(filepath, 'utf-8');
