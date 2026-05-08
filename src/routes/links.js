@@ -3,7 +3,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename, normalizeType } from '../utils/routeHelpers.js';
-import { setFrontmatterField, extractFrontmatterField } from '../utils/transforms.js';
+import { setFrontmatterField, extractFrontmatterField, removeFrontmatterField } from '../utils/transforms.js';
 
 export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, broadcast, logInfo, docIndex }) {
   const router = Router();
@@ -209,8 +209,10 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
       if (srcPath && fs.existsSync(srcPath)) {
         const srcContent = fs.readFileSync(srcPath, 'utf-8');
         const existing   = extractFrontmatterField(srcContent, 'Blocks') || '';
-        const filtered   = existing.split(',').map(s => s.trim()).filter(s => s && s !== tgtFile);
-        const updated    = setFrontmatterField(srcContent, 'Blocks', filtered.length ? filtered.join(', ') : 'TBD');
+        const filtered   = existing.split(',').map(s => s.trim()).filter(s => s && s !== tgtFile && s !== 'TBD');
+        const updated    = filtered.length
+          ? setFrontmatterField(srcContent, 'Blocks', filtered.join(', '))
+          : removeFrontmatterField(srcContent, 'Blocks');
         fs.writeFileSync(srcPath, updated);
         docIndex.invalidate(srcType, srcFile);
       }
@@ -219,8 +221,10 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
       if (tgtPath && fs.existsSync(tgtPath)) {
         const tgtContent = fs.readFileSync(tgtPath, 'utf-8');
         const existing   = extractFrontmatterField(tgtContent, 'Blocked_By') || '';
-        const filtered   = existing.split(',').map(s => s.trim()).filter(s => s && s !== srcFile);
-        const updated    = setFrontmatterField(tgtContent, 'Blocked_By', filtered.length ? filtered.join(', ') : 'TBD');
+        const filtered   = existing.split(',').map(s => s.trim()).filter(s => s && s !== srcFile && s !== 'TBD');
+        const updated    = filtered.length
+          ? setFrontmatterField(tgtContent, 'Blocked_By', filtered.join(', '))
+          : removeFrontmatterField(tgtContent, 'Blocked_By');
         fs.writeFileSync(tgtPath, updated);
         docIndex.invalidate(tgtType, tgtFile);
       }

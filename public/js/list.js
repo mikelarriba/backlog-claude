@@ -278,23 +278,25 @@ function renderDocItem(d, indent, childrenMap) {
   const selKey  = `${d.docType}:${d.filename}`;
   const multiSel = selectedItems.has(selKey) ? ' multi-selected' : '';
 
-  const rp      = _rankPositions.get(d.filename);
-  const canUp   = rp && rp.index > 0;
-  const canDown = rp && rp.index < rp.total - 1;
-  const rankBtns = `
-    <div class="rank-btns">
-      <button class="rank-btn" ${canUp   ? '' : 'disabled'} title="Move up"   onclick="event.stopPropagation();moveDocRank('${escHtml(d.filename)}','${d.docType}',-1)">▲</button>
-      <button class="rank-btn" ${canDown ? '' : 'disabled'} title="Move down" onclick="event.stopPropagation();moveDocRank('${escHtml(d.filename)}','${d.docType}',1)">▼</button>
-    </div>`;
+  // Dependency badges (leaf types only)
+  const isLeaf       = ['story', 'spike', 'bug'].includes(d.docType);
+  const blocksCnt    = isLeaf ? (d.blocks    || []).length : 0;
+  const blockedByCnt = isLeaf ? (d.blockedBy || []).length : 0;
+  const depBadges = [
+    blocksCnt    ? `<span class="dep-badge dep-badge-blocks" title="Blocks ${blocksCnt} stor${blocksCnt !== 1 ? 'ies' : 'y'}">→ ${blocksCnt}</span>` : '',
+    blockedByCnt ? `<span class="dep-badge dep-badge-blocked" title="Blocked by ${blockedByCnt} stor${blockedByCnt !== 1 ? 'ies' : 'y'}">🔒 ${blockedByCnt}</span>` : '',
+  ].join('');
+  // Extra visual indentation for blocked items (clearly deeper than normal child indent)
+  const depIndentClass = blockedByCnt > 0 ? ' dep-indented' : '';
 
   return `
-    <div class="epic-item${multiSel}"
+    <div class="epic-item${multiSel}${depIndentClass}"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
          data-indent="${indent}"
          onclick="handleItemClick(event,'${escHtml(d.filename)}','${d.docType}')"
          oncontextmenu="handleItemContextMenu(event,'${escHtml(d.filename)}','${d.docType}')">
-      <div class="drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="drag-handle" title="Drag to reorder or link"><span></span><span></span><span></span><span></span><span></span><span></span></div>
       <div class="readiness-dot ${rdCls}" title="${rdTip}"></div>
       ${collapseBtn}
       ${connector}
@@ -302,10 +304,10 @@ function renderDocItem(d, indent, childrenMap) {
       <div style="flex:1;min-width:0">
         <div class="epic-title-text">${escHtml(d.title)}</div>
       </div>
+      ${depBadges}
       ${d.sprint ? `<span class="sprint-badge">${escHtml(d.sprint)}</span>` : ''}
       <span class="status-badge ${statusClass}">${STATUS_LABEL[d.status] || d.status || 'Draft'}</span>
       <div class="epic-date">${d.date}</div>
-      ${rankBtns}
     </div>`;
 }
 

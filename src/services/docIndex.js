@@ -58,8 +58,8 @@ export function createDocIndex({ TYPE_CONFIG }) {
       priority,
       parentFilename,
       parentType,
-      blocks:    blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(Boolean)    : [],
-      blockedBy: blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
+      blocks:    blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD')    : [],
+      blockedBy: blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [],
       hasDescription: body.length > 30,
     };
   }
