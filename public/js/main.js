@@ -47,10 +47,7 @@ window.addEventListener('resize', updateSplitMode);
 
 // ── Model settings ────────────────────────────────────────────
 function toggleModelSection() {
-  const body    = document.getElementById('model-section-body');
-  const chevron = document.getElementById('model-chevron');
-  const isOpen  = body.classList.toggle('open');
-  chevron.style.transform = isOpen ? 'rotate(90deg)' : '';
+  toggleSection('model-section-body', 'model-chevron');
 }
 
 async function loadAppConfig() {
