@@ -239,6 +239,51 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         }
       }
 
+      // Build a global sprint order from .pi-settings.json so we can enforce dependency ordering
+      const piSettingsPath = path.join(rootDir, '.pi-settings.json');
+      let sprintOrder = [];
+      try {
+        const settings = JSON.parse(fs.readFileSync(piSettingsPath, 'utf-8'));
+        for (const piSprints of Object.values(settings.sprints || {})) {
+          for (const s of piSprints) {
+            if (!sprintOrder.includes(s.name)) sprintOrder.push(s.name);
+          }
+        }
+      } catch { /* no pi-settings, skip dependency enforcement */ }
+
+      // Mutable sprint map: filename → sprint
+      const sprintMap = new Map(assignments.map(a => [a.filename, a.sprint]));
+      const depWarnings = [];
+
+      if (sprintOrder.length) {
+        const sprintIdx = new Map(sprintOrder.map((s, i) => [s, i]));
+        let changed = true;
+        let iter = 0;
+        while (changed && iter++ < 30) {
+          changed = false;
+          for (const [filename, sprint] of sprintMap) {
+            const entry = docIndex.get(filename);
+            if (!entry?.blocks?.length) continue;
+            const aIdx = sprintIdx.get(sprint) ?? -1;
+            for (const blockedFn of entry.blocks) {
+              if (!sprintMap.has(blockedFn)) continue;
+              const bIdx = sprintIdx.get(sprintMap.get(blockedFn)) ?? -1;
+              if (aIdx >= bIdx && aIdx !== -1) {
+                const newIdx = aIdx + 1;
+                if (newIdx < sprintOrder.length) {
+                  const newSprint = sprintOrder[newIdx];
+                  depWarnings.push({ blocker: filename, blocked: blockedFn, message: `Moved ${blockedFn} to ${newSprint} to maintain dependency order` });
+                  sprintMap.set(blockedFn, newSprint);
+                  changed = true;
+                } else {
+                  depWarnings.push({ blocker: filename, blocked: blockedFn, message: `Cannot move ${blockedFn} — no later sprint available` });
+                }
+              }
+            }
+          }
+        }
+      }
+
       const updated = [];
       const skipped = [];
 
@@ -250,10 +295,11 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           const filepath = path.join(cfg.dir(), filename);
           if (!fs.existsSync(filepath)) { skipped.push({ filename, reason: 'not found' }); continue; }
 
+          const adjustedSprint = sprintMap.get(filename) || entry.sprint;
           const content = fs.readFileSync(filepath, 'utf-8');
-          const patched = setFrontmatterField(content, 'Sprint', entry.sprint || 'TBD');
+          const patched = setFrontmatterField(content, 'Sprint', adjustedSprint || 'TBD');
           fs.writeFileSync(filepath, patched);
-          updated.push({ filename, docType, sprint: entry.sprint });
+          updated.push({ filename, docType, sprint: adjustedSprint });
         } catch (entryErr) {
           skipped.push({ filename: entry.filename, reason: entryErr.message || 'invalid' });
         }
@@ -265,7 +311,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       logInfo('POST /api/docs/apply-distribution', `Assigned ${updated.length} item(s), skipped ${skipped.length}`);
-      res.json({ success: true, updated: updated.length, skipped });
+      res.json({ success: true, updated: updated.length, skipped, assignments: updated, warnings: depWarnings });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);

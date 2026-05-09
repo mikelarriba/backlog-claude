@@ -363,6 +363,12 @@ function renderRoadmapCard(d, sprintName) {
     }
   }
 
+  const blocks    = d.blocks    || [];
+  const blockedBy = d.blockedBy || [];
+  let depHtml = '';
+  if (blockedBy.length) depHtml += `<div class="dep-badge dep-blocked">⬅ blocked by ${blockedBy.length}</div>`;
+  if (blocks.length)    depHtml += `<div class="dep-badge dep-blocks">→ blocks ${blocks.length}</div>`;
+
   return `
     <div class="roadmap-card" draggable="true"
          onclick="openDoc('${escHtml(d.filename)}','${d.docType}')"
@@ -372,6 +378,7 @@ function renderRoadmapCard(d, sprintName) {
          data-sprint="${d.sprint ? escHtml(d.sprint) : ''}">
       ${parentHtml}
       <div class="roadmap-card-title">${escHtml(d.title)}</div>
+      ${depHtml}
       <div class="roadmap-card-meta">
         <span class="rm-badge rm-type-${d.docType}">${TYPE_LABEL[d.docType] || d.docType}</span>
         <span class="rm-badge rm-priority-${priorityClass}">${escHtml(d.priority || 'Medium')}</span>
