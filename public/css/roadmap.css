@@ -625,3 +625,20 @@
   color: var(--muted);
   font-weight: 600;
 }
+
+/* ── Ghost cards (cross-PI story indicators) ─────────────────── */
+.roadmap-card.ghost-card {
+  opacity: 0.5;
+  border-style: dashed;
+  border-color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.roadmap-card.ghost-card:hover { opacity: 0.8; }
+.ghost-card-label {
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-top: 4px;
+  font-style: italic;
+}
