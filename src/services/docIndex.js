@@ -25,17 +25,17 @@ export function createDocIndex({ TYPE_CONFIG }) {
       if (val && val !== 'TBD') { parentFilename = val; parentType = 'epic'; }
     }
 
-    const fixVersion  = extractFrontmatterField(content, 'Fix_Version');
-    const jiraId      = extractFrontmatterField(content, 'JIRA_ID');
-    const jiraUrl     = extractFrontmatterField(content, 'JIRA_URL');
-    const storyPoints = extractFrontmatterField(content, 'Story_Points');
-    const sprint      = extractFrontmatterField(content, 'Sprint');
-    const priority    = extractFrontmatterField(content, 'Priority') || 'Medium';
-    const rankRaw     = extractFrontmatterField(content, 'Rank');
-    const blocksRaw     = extractFrontmatterField(content, 'Blocks');
-    const blockedByRaw  = extractFrontmatterField(content, 'Blocked_By');
-    const blocks    = blocksRaw   ? blocksRaw.split(',').map(s => s.trim()).filter(Boolean)   : [];
-    const blockedBy = blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const fixVersion   = extractFrontmatterField(content, 'Fix_Version');
+    const jiraId       = extractFrontmatterField(content, 'JIRA_ID');
+    const jiraUrl      = extractFrontmatterField(content, 'JIRA_URL');
+    const storyPoints  = extractFrontmatterField(content, 'Story_Points');
+    const sprint       = extractFrontmatterField(content, 'Sprint');
+    const priority     = extractFrontmatterField(content, 'Priority') || 'Medium';
+    const rankRaw      = extractFrontmatterField(content, 'Rank');
+    const blocksRaw    = extractFrontmatterField(content, 'Blocks');
+    const blockedByRaw = extractFrontmatterField(content, 'Blocked_By');
+    const blocks    = blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
+    const blockedBy = blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
 
     let body = content;
     if (body.startsWith('---')) {

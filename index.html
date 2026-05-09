@@ -564,6 +564,37 @@
   </div>
 </div>
 
+<!-- Dependency modal -->
+<div class="dialog-overlay" id="dep-overlay">
+  <div class="dialog dep-dialog">
+    <div class="dep-header">
+      <h3 id="dep-modal-title">Manage Dependencies</h3>
+      <button class="btn-ghost btn-xs" onclick="closeDepModal()">&times;</button>
+    </div>
+    <div class="dep-modal-body">
+      <p class="dep-modal-subtitle" id="dep-modal-subtitle"></p>
+      <div class="dep-section">
+        <div class="dep-section-label">This story blocks (must come before):</div>
+        <div id="dep-blocks-list" class="dep-list"></div>
+      </div>
+      <div class="dep-section">
+        <div class="dep-section-label">This story is blocked by (must come after):</div>
+        <div id="dep-blockedby-list" class="dep-list"></div>
+      </div>
+      <div class="dep-section dep-add-section">
+        <div class="dep-section-label">Add dependency — this story blocks:</div>
+        <div class="dep-add-row">
+          <select id="dep-target-select" class="dep-select"></select>
+          <button class="btn-primary btn-sm" onclick="addDepLink()">Add Block</button>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn-secondary" onclick="closeDepModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── External JS (load order matters — state first, main last) ── -->
 <script src="/public/js/state.js"></script>
 <script src="/public/js/list.js"></script>

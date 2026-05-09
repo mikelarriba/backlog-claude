@@ -643,7 +643,7 @@
   font-style: italic;
 }
 
-/* ── Dependency badges on story cards ───────────────────────── */
+/* ── Dependency badges on roadmap cards ──────────────────────── */
 .dep-badge {
   font-size: 0.62rem;
   font-weight: 600;
@@ -654,3 +654,52 @@
 }
 .dep-blocked { background: rgba(239,68,68,0.12); color: #ef4444; }
 .dep-blocks  { background: rgba(59,130,246,0.12); color: #3b82f6; }
+
+/* ── Dependency modal ────────────────────────────────────────── */
+.dep-dialog {
+  max-width: 480px;
+  width: 100%;
+}
+.dep-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.dep-header h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.dep-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; max-height: 60vh; overflow-y: auto; }
+.dep-modal-subtitle { margin: 0; font-size: 0.82rem; color: var(--muted); }
+.dep-section { display: flex; flex-direction: column; gap: 6px; }
+.dep-section-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.dep-list { display: flex; flex-direction: column; gap: 4px; }
+.dep-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+.dep-item-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dep-remove-btn { flex-shrink: 0; margin-left: 8px; }
+.dep-empty, .dep-loading, .dep-error { font-size: 0.8rem; color: var(--muted); padding: 4px 0; }
+.dep-error { color: var(--error, #ef4444); }
+.dep-add-section { border-top: 1px solid var(--border); padding-top: 12px; }
+.dep-add-row { display: flex; gap: 8px; align-items: center; }
+.dep-select {
+  flex: 1; font-size: 0.82rem; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text);
+  font-family: inherit; outline: none;
+}
+.dep-select:focus { border-color: var(--accent); }
+.roadmap-card { position: relative; }
+.rm-dep-btn {
+  position: absolute; top: 6px; right: 6px;
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; color: var(--muted);
+  opacity: 0; transition: opacity 0.12s;
+  padding: 2px 4px; border-radius: 4px;
+}
+.roadmap-card:hover .rm-dep-btn { opacity: 1; }
+.rm-dep-btn:hover { background: var(--surface2); color: var(--text); }

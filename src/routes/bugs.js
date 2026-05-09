@@ -20,8 +20,14 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       if (String(id).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'ID must be 200 characters or fewer');
       if (String(title).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
 
-      const ALLOWED_MIME = [/^image\//, /^application\/pdf$/, /^message\/rfc822$/];
-      const badFile = (req.files || []).find(f => !ALLOWED_MIME.some(p => p.test(f.mimetype)));
+      const ALLOWED_MIME = [/^image\//, /^application\/pdf$/, /^message\/rfc822$/, /^application\/vnd\.ms-outlook$/, /^text\//];
+      // These formats are sent as application/octet-stream by browsers — allow by extension
+      const ALLOWED_EXT = new Set(['.msg', '.log', '.txt', '.csv']);
+      const badFile = (req.files || []).find(f => {
+        if (ALLOWED_MIME.some(p => p.test(f.mimetype))) return false;
+        if (f.mimetype === 'application/octet-stream' && ALLOWED_EXT.has(path.extname(f.originalname).toLowerCase())) return false;
+        return true;
+      });
       if (badFile) return sendError(res, 400, 'VALIDATION_ERROR', `Unsupported file type: ${badFile.mimetype}`);
 
       // Concatenate id + title, translate if needed
@@ -34,6 +40,7 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       const filename = `${isoDate()}-${slug}.md`;
 
       // Process attachments
+      const files = req.files || [];
       const processed = [];
       for (const file of files) {
         try {

@@ -39,6 +39,10 @@ export function setFrontmatterField(content, field, value) {
   return content.replace(/^---\n/, `---\n${field}: ${value}\n`);
 }
 
+export function removeFrontmatterField(content, field) {
+  return content.replace(new RegExp(`^${field}:.*\n?`, 'm'), '');
+}
+
 export function extractFrontmatterField(content, field) {
   const m = content.match(new RegExp(`^${field}:\\s*(.+)$`, 'm'));
   return m ? m[1].trim() : null;

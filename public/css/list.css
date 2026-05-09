@@ -219,29 +219,51 @@
 }
 .epic-item:hover .drag-handle { opacity: 1; }
 
-/* ── Rank buttons (↑ / ↓) ────────────────────────────────────── */
-.rank-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-.epic-item:hover .rank-btns { opacity: 1; }
-.rank-btn {
-  background: none;
-  border: none;
-  padding: 1px 4px;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 9px;
-  line-height: 1.2;
+/* ── Drag-to-reorder: insertion line marker ──────────────────── */
+.rank-insert-line {
+  position: fixed;
+  height: 2px;
+  background: var(--accent);
   border-radius: 2px;
-  transition: color 0.1s, background 0.1s;
+  pointer-events: none;
+  z-index: 9999;
+  display: none;
 }
-.rank-btn:hover:not(:disabled) { color: var(--text); background: var(--surface2); }
-.rank-btn:disabled { opacity: 0.25; cursor: default; }
+.rank-insert-line::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+/* ── Dependency badges ────────────────────────────────────────── */
+.dep-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  align-self: center;
+}
+.dep-badge-blocks  { background: #dcfce7; color: #15803d; }
+.dep-badge-blocked { background: #fee2e2; color: #b91c1c; }
+
+/* ── Dep-indented items (blocked by another story) ───────────── */
+/* Extra left offset on top of whatever indent level applies.      */
+/* At indent=2 (48px), this adds 36px more = 84px total.          */
+/* Normal child indent is 16px step — dep indent is ~2.5× larger. */
+.epic-item.dep-indented {
+  margin-left: 36px;
+  border-left-color: #fca5a5;
+}
+.epic-item.dep-indented:hover {
+  border-left-color: #ef4444;
+}
 
 /* ── Multi-select highlight ─────────────────────────────────── */
 .epic-item.multi-selected {
@@ -255,13 +277,58 @@
 
 /* ── Drag states ─────────────────────────────────────────────── */
 .epic-item.drag-source { opacity: 0.3; }
-.epic-item.drag-target-valid {
+.epic-item.drag-target-hover {
   background: var(--type-story-bg);
   border-left-color: var(--type-story-color);
+  outline: 2px solid var(--type-story-color);
+  outline-offset: -2px;
 }
-.epic-list.dragging-active .epic-item:not(.drag-source):not(.drag-target-valid) {
+.epic-list.dragging-active .epic-item:not(.drag-source):not(.drag-target-hover) {
   opacity: 0.55;
 }
+
+/* ── Drop action popup ───────────────────────────────────────── */
+.drop-action-popup {
+  position: fixed;
+  z-index: 10001;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 8px 28px var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 210px;
+}
+.drop-action-popup-title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 2px 8px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.drop-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.1s;
+}
+.drop-action-btn:hover     { background: var(--surface2); }
+.drop-link-btn:hover       { background: var(--type-epic-bg); color: var(--type-epic-color); }
+.drop-dep-btn:hover        { background: #fee2e2; color: #b91c1c; }
+.drop-action-btn-icon      { font-size: 1rem; flex-shrink: 0; }
 
 /* ── Fixed type-based indentation ────────────────────────────── */
 /* indent=0 → feature: no extra indent (default padding)         */
