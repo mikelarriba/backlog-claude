@@ -110,40 +110,36 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
         if (!fs.existsSync(srcPath)) return sendError(res, 404, 'NOT_FOUND', 'Source document not found');
         if (!fs.existsSync(tgtPath)) return sendError(res, 404, 'NOT_FOUND', 'Target document not found');
 
-        // Cycle detection: DFS from tgtFile following Blocks links; error if we reach srcFile
-        function detectCycle(startFile, searchFor, visited = new Set()) {
-          if (visited.has(startFile)) return false;
-          visited.add(startFile);
-          const entry = docIndex.get(startFile);
-          for (const blocked of (entry?.blocks || [])) {
-            if (blocked === searchFor) return true;
-            if (detectCycle(blocked, searchFor, visited)) return true;
+        // Cycle detection: BFS from tgtFile following Blocks links; error if we reach srcFile
+        const visited = new Set();
+        const queue   = [tgtFile];
+        while (queue.length) {
+          const fn = queue.shift();
+          if (fn === srcFile) {
+            return sendError(res, 400, 'CYCLE_DETECTED', `Adding this dependency would create a cycle: ${tgtFile} already (directly or transitively) blocks ${srcFile}`);
           }
-          return false;
-        }
-        if (detectCycle(tgtFile, srcFile)) {
-          return sendError(res, 400, 'CYCLE_DETECTED', `Adding this dependency would create a cycle: ${tgtFile} already (directly or transitively) blocks ${srcFile}`);
+          if (visited.has(fn)) continue;
+          visited.add(fn);
+          for (const blocked of (docIndex.get(fn)?.blocks || [])) queue.push(blocked);
         }
 
-        // Update Blocks on source (append if not already present)
-        const srcContent  = fs.readFileSync(srcPath, 'utf-8');
-        const existBlocks = extractFrontmatterField(srcContent, 'Blocks') || '';
-        const blocksList  = existBlocks.split(',').map(s => s.trim()).filter(Boolean);
-        if (!blocksList.includes(tgtFile)) {
-          blocksList.push(tgtFile);
-          const updatedSrc = setFrontmatterField(srcContent, 'Blocks', blocksList.join(', '));
-          fs.writeFileSync(srcPath, updatedSrc);
+        // Append tgtFile to source's Blocks field
+        const srcContent = fs.readFileSync(srcPath, 'utf-8');
+        const existingBlocks = extractFrontmatterField(srcContent, 'Blocks');
+        const blocksArr = existingBlocks ? existingBlocks.split(',').map(s => s.trim()).filter(Boolean) : [];
+        if (!blocksArr.includes(tgtFile)) {
+          blocksArr.push(tgtFile);
+          fs.writeFileSync(srcPath, setFrontmatterField(srcContent, 'Blocks', blocksArr.join(', ')));
           docIndex.invalidate(srcType, srcFile);
         }
 
-        // Update Blocked_By on target (append if not already present)
-        const tgtContent     = fs.readFileSync(tgtPath, 'utf-8');
-        const existBlockedBy = extractFrontmatterField(tgtContent, 'Blocked_By') || '';
-        const blockedByList  = existBlockedBy.split(',').map(s => s.trim()).filter(Boolean);
-        if (!blockedByList.includes(srcFile)) {
-          blockedByList.push(srcFile);
-          const updatedTgt = setFrontmatterField(tgtContent, 'Blocked_By', blockedByList.join(', '));
-          fs.writeFileSync(tgtPath, updatedTgt);
+        // Append srcFile to target's Blocked_By field
+        const tgtContent = fs.readFileSync(tgtPath, 'utf-8');
+        const existingBlockedBy = extractFrontmatterField(tgtContent, 'Blocked_By');
+        const blockedByArr = existingBlockedBy ? existingBlockedBy.split(',').map(s => s.trim()).filter(Boolean) : [];
+        if (!blockedByArr.includes(srcFile)) {
+          blockedByArr.push(srcFile);
+          fs.writeFileSync(tgtPath, setFrontmatterField(tgtContent, 'Blocked_By', blockedByArr.join(', ')));
           docIndex.invalidate(tgtType, tgtFile);
         }
 
@@ -152,7 +148,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
         return res.json({ success: true, linkType: 'blocks', sourceFilename: srcFile, targetFilename: tgtFile });
       }
 
-      // ── Hierarchy link (existing behaviour) ────────────────────────────────
+      // ── Hierarchy link ────────────────────────────────────────────────────
       const key  = `${normalizeType(sourceType)}→${normalizeType(targetType)}`;
       const rule = LINK_RULES[key];
       if (!rule) {

@@ -34,6 +34,8 @@ export function createDocIndex({ TYPE_CONFIG }) {
     const rankRaw      = extractFrontmatterField(content, 'Rank');
     const blocksRaw    = extractFrontmatterField(content, 'Blocks');
     const blockedByRaw = extractFrontmatterField(content, 'Blocked_By');
+    const blocks    = blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
+    const blockedBy = blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
 
     let body = content;
     if (body.startsWith('---')) {
@@ -58,8 +60,8 @@ export function createDocIndex({ TYPE_CONFIG }) {
       priority,
       parentFilename,
       parentType,
-      blocks:    blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD')    : [],
-      blockedBy: blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [],
+      blocks,
+      blockedBy,
       hasDescription: body.length > 30,
     };
   }

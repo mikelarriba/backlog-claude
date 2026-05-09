@@ -154,6 +154,7 @@ function renderRoadmapBoard() {
 
   renderEpicPanel(sprints);
   renderStoryPanel(sprints);
+  injectGhostCards();
   applyEpicFocus();
 }
 
@@ -363,10 +364,13 @@ function renderRoadmapCard(d, sprintName) {
   }
 
   // Dependency badges
-  const blocksCnt    = (d.blocks    || []).length;
-  const blockedByCnt = (d.blockedBy || []).length;
-  const blocksHtml    = blocksCnt    ? `<span class="rm-badge rm-dep-blocks" title="Blocks ${blocksCnt} stor${blocksCnt!==1?'ies':'y'}">→ ${blocksCnt}</span>` : '';
-  const blockedByHtml = blockedByCnt ? `<span class="rm-badge rm-dep-blocked" title="Blocked by ${blockedByCnt} stor${blockedByCnt!==1?'ies':'y'}">🔒 ${blockedByCnt}</span>` : '';
+  const blocks    = d.blocks    || [];
+  const blockedBy = d.blockedBy || [];
+  let depHtml = '';
+  if (blockedBy.length) depHtml += `<div class="dep-badge dep-blocked">⬅ blocked by ${blockedBy.length}</div>`;
+  if (blocks.length)    depHtml += `<div class="dep-badge dep-blocks">→ blocks ${blocks.length}</div>`;
+  const blocksHtml    = '';
+  const blockedByHtml = '';
 
   return `
     <div class="roadmap-card" draggable="true"
@@ -377,6 +381,7 @@ function renderRoadmapCard(d, sprintName) {
          data-sprint="${d.sprint ? escHtml(d.sprint) : ''}">
       ${parentHtml}
       <div class="roadmap-card-title">${escHtml(d.title)}</div>
+      ${depHtml}
       <div class="roadmap-card-meta">
         <span class="rm-badge rm-type-${d.docType}">${TYPE_LABEL[d.docType] || d.docType}</span>
         <span class="rm-badge rm-priority-${priorityClass}">${escHtml(d.priority || 'Medium')}</span>
@@ -386,6 +391,45 @@ function renderRoadmapCard(d, sprintName) {
       <button class="rm-dep-btn" title="Manage dependencies"
               onclick="event.stopPropagation();openDepModal('${escHtml(d.filename)}','${d.docType}')">⛓</button>
     </div>`;
+}
+
+// ── Ghost cards for stories split across PIs ─────────────────
+function injectGhostCards() {
+  const leafTypes = new Set(['story', 'spike', 'bug']);
+
+  // Find stories whose PI (fixVersion) differs from their parent epic's PI
+  const crossPiStories = allDocs.filter(d => {
+    if (!leafTypes.has(d.docType) || !d.parentFilename || !d.fixVersion) return false;
+    const parent = allDocs.find(p => p.filename === d.parentFilename);
+    return parent && parent.fixVersion && parent.fixVersion !== d.fixVersion;
+  });
+
+  for (const story of crossPiStories) {
+    const parent = allDocs.find(p => p.filename === story.parentFilename);
+    if (!parent || !parent.fixVersion) continue;
+
+    // Find the first rendered sprint column belonging to the parent's PI
+    const parentSprints = (typeof sprintConfig !== 'undefined' && sprintConfig[parent.fixVersion]) || [];
+    let targetList = null;
+    for (const s of parentSprints) {
+      targetList = document.querySelector(`.roadmap-card-list[data-sprint="${CSS.escape(s.name)}"]`);
+      if (targetList) break;
+    }
+    if (!targetList) continue;
+
+    const color = epicColor(parent.filename);
+    const ghostHtml = `
+      <div class="roadmap-card ghost-card"
+           onclick="openDoc('${escHtml(story.filename)}','${story.docType}')"
+           title="Story is in ${escHtml(story.fixVersion)}; parent epic is in ${escHtml(parent.fixVersion)}">
+        <div class="roadmap-card-parent">
+          <span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}
+        </div>
+        <div class="roadmap-card-title">${escHtml(story.title)}</div>
+        <div class="ghost-card-label">⤵ Split to ${escHtml(story.fixVersion)}</div>
+      </div>`;
+    targetList.insertAdjacentHTML('beforeend', ghostHtml);
+  }
 }
 
 // ── Drag and drop (story cards between sprint columns) ────────

@@ -626,19 +626,34 @@
   font-weight: 600;
 }
 
-/* ── Dependency badges on roadmap cards ──────────────────────── */
-.rm-dep-blocks  { background: #dcfce7; color: #166534; }
-.rm-dep-blocked { background: #fee2e2; color: #991b1b; }
-.rm-dep-btn {
-  position: absolute; top: 6px; right: 6px;
-  background: none; border: none; cursor: pointer;
-  font-size: 11px; color: var(--muted);
-  opacity: 0; transition: opacity 0.12s;
-  padding: 2px 4px; border-radius: 4px;
+/* ── Ghost cards (cross-PI story indicators) ─────────────────── */
+.roadmap-card.ghost-card {
+  opacity: 0.5;
+  border-style: dashed;
+  border-color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
 }
-.roadmap-card { position: relative; }
-.roadmap-card:hover .rm-dep-btn { opacity: 1; }
-.rm-dep-btn:hover { background: var(--surface2); color: var(--text); }
+.roadmap-card.ghost-card:hover { opacity: 0.8; }
+.ghost-card-label {
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* ── Dependency badges on roadmap cards ──────────────────────── */
+.dep-badge {
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-top: 3px;
+  display: inline-block;
+}
+.dep-blocked { background: rgba(239,68,68,0.12); color: #ef4444; }
+.dep-blocks  { background: rgba(59,130,246,0.12); color: #3b82f6; }
 
 /* ── Dependency modal ────────────────────────────────────────── */
 .dep-dialog {
@@ -678,3 +693,13 @@
   font-family: inherit; outline: none;
 }
 .dep-select:focus { border-color: var(--accent); }
+.roadmap-card { position: relative; }
+.rm-dep-btn {
+  position: absolute; top: 6px; right: 6px;
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; color: var(--muted);
+  opacity: 0; transition: opacity 0.12s;
+  padding: 2px 4px; border-radius: 4px;
+}
+.roadmap-card:hover .rm-dep-btn { opacity: 1; }
+.rm-dep-btn:hover { background: var(--surface2); color: var(--text); }
