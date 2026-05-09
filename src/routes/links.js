@@ -3,7 +3,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename, normalizeType } from '../utils/routeHelpers.js';
-import { setFrontmatterField } from '../utils/transforms.js';
+import { setFrontmatterField, extractFrontmatterField } from '../utils/transforms.js';
 
 export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, broadcast, logInfo, docIndex }) {
   const router = Router();
@@ -54,7 +54,18 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
           }));
       }
 
-      res.json({ parent, children });
+      // Resolve blocks and blockedBy from the index
+      const entry = docIndex.get(filename);
+      const blocks    = (entry?.blocks    || []).map(fn => {
+        const e = docIndex.get(fn);
+        return { filename: fn, title: e?.title || fn, docType: e?.docType || 'story' };
+      });
+      const blockedBy = (entry?.blockedBy || []).map(fn => {
+        const e = docIndex.get(fn);
+        return { filename: fn, title: e?.title || fn, docType: e?.docType || 'story' };
+      });
+
+      res.json({ parent, children, blocks, blockedBy });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(res, ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
@@ -71,7 +82,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
     };
 
     try {
-      const { sourceType, sourceFilename, targetType, targetFilename } = req.body;
+      const { sourceType, sourceFilename, targetType, targetFilename, linkType } = req.body;
       if (
         typeof sourceType !== 'string' || !sourceType ||
         typeof sourceFilename !== 'string' || !sourceFilename ||
@@ -81,6 +92,59 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
         return sendError(res, 400, 'VALIDATION_ERROR', 'sourceType, sourceFilename, targetType and targetFilename are required');
       }
 
+      // ── blocks dependency link ─────────────────────────────────────────────
+      if (linkType === 'blocks') {
+        const srcType = assertDocType(normalizeType(sourceType), TYPE_CONFIG);
+        const tgtType = assertDocType(normalizeType(targetType), TYPE_CONFIG);
+        const srcFile = assertFilename(sourceFilename);
+        const tgtFile = assertFilename(targetFilename);
+        const srcPath = path.join(TYPE_CONFIG[srcType].dir(), srcFile);
+        const tgtPath = path.join(TYPE_CONFIG[tgtType].dir(), tgtFile);
+
+        if (!fs.existsSync(srcPath)) return sendError(res, 404, 'NOT_FOUND', 'Source document not found');
+        if (!fs.existsSync(tgtPath)) return sendError(res, 404, 'NOT_FOUND', 'Target document not found');
+        if (srcFile === tgtFile) return sendError(res, 400, 'INVALID_LINK', 'A story cannot block itself');
+
+        // Cycle detection: BFS from target following Blocks links
+        // If we reach source, this new link would create a cycle
+        const visited = new Set();
+        const queue   = [tgtFile];
+        while (queue.length) {
+          const fn = queue.shift();
+          if (fn === srcFile) {
+            return sendError(res, 400, 'CYCLE_DETECTED', `This dependency would create a cycle: ${srcFile} → … → ${srcFile}`);
+          }
+          if (visited.has(fn)) continue;
+          visited.add(fn);
+          for (const blocked of (docIndex.get(fn)?.blocks || [])) queue.push(blocked);
+        }
+
+        // Append tgtFile to source's Blocks field
+        const srcContent = fs.readFileSync(srcPath, 'utf-8');
+        const existingBlocks = extractFrontmatterField(srcContent, 'Blocks');
+        const blocksArr = existingBlocks ? existingBlocks.split(',').map(s => s.trim()).filter(Boolean) : [];
+        if (!blocksArr.includes(tgtFile)) {
+          blocksArr.push(tgtFile);
+          fs.writeFileSync(srcPath, setFrontmatterField(srcContent, 'Blocks', blocksArr.join(', ')));
+          docIndex.invalidate(srcType, srcFile);
+        }
+
+        // Append srcFile to target's Blocked_By field
+        const tgtContent = fs.readFileSync(tgtPath, 'utf-8');
+        const existingBlockedBy = extractFrontmatterField(tgtContent, 'Blocked_By');
+        const blockedByArr = existingBlockedBy ? existingBlockedBy.split(',').map(s => s.trim()).filter(Boolean) : [];
+        if (!blockedByArr.includes(srcFile)) {
+          blockedByArr.push(srcFile);
+          fs.writeFileSync(tgtPath, setFrontmatterField(tgtContent, 'Blocked_By', blockedByArr.join(', ')));
+          docIndex.invalidate(tgtType, tgtFile);
+        }
+
+        broadcast({ type: 'link_updated', linkType: 'blocks', sourceType, sourceFilename: srcFile, targetType, targetFilename: tgtFile });
+        logInfo('POST /api/link', `${srcFile} blocks ${tgtFile}`);
+        return res.json({ success: true, linkType: 'blocks', sourceFilename: srcFile, targetFilename: tgtFile });
+      }
+
+      // ── parent-child hierarchy link ────────────────────────────────────────
       const key  = `${normalizeType(sourceType)}→${normalizeType(targetType)}`;
       const rule = LINK_RULES[key];
       if (!rule) {
