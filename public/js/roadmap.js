@@ -154,6 +154,7 @@ function renderRoadmapBoard() {
 
   renderEpicPanel(sprints);
   renderStoryPanel(sprints);
+  injectGhostCards();
   applyEpicFocus();
 }
 
@@ -377,6 +378,45 @@ function renderRoadmapCard(d, sprintName) {
         <span class="${spClass}">${spLabel}</span>
       </div>
     </div>`;
+}
+
+// ── Ghost cards for stories split across PIs ─────────────────
+function injectGhostCards() {
+  const leafTypes = new Set(['story', 'spike', 'bug']);
+
+  // Find stories whose PI (fixVersion) differs from their parent epic's PI
+  const crossPiStories = allDocs.filter(d => {
+    if (!leafTypes.has(d.docType) || !d.parentFilename || !d.fixVersion) return false;
+    const parent = allDocs.find(p => p.filename === d.parentFilename);
+    return parent && parent.fixVersion && parent.fixVersion !== d.fixVersion;
+  });
+
+  for (const story of crossPiStories) {
+    const parent = allDocs.find(p => p.filename === story.parentFilename);
+    if (!parent || !parent.fixVersion) continue;
+
+    // Find the first rendered sprint column belonging to the parent's PI
+    const parentSprints = (typeof sprintConfig !== 'undefined' && sprintConfig[parent.fixVersion]) || [];
+    let targetList = null;
+    for (const s of parentSprints) {
+      targetList = document.querySelector(`.roadmap-card-list[data-sprint="${CSS.escape(s.name)}"]`);
+      if (targetList) break;
+    }
+    if (!targetList) continue;
+
+    const color = epicColor(parent.filename);
+    const ghostHtml = `
+      <div class="roadmap-card ghost-card"
+           onclick="openDoc('${escHtml(story.filename)}','${story.docType}')"
+           title="Story is in ${escHtml(story.fixVersion)}; parent epic is in ${escHtml(parent.fixVersion)}">
+        <div class="roadmap-card-parent">
+          <span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}
+        </div>
+        <div class="roadmap-card-title">${escHtml(story.title)}</div>
+        <div class="ghost-card-label">⤵ Split to ${escHtml(story.fixVersion)}</div>
+      </div>`;
+    targetList.insertAdjacentHTML('beforeend', ghostHtml);
+  }
 }
 
 // ── Drag and drop (story cards between sprint columns) ────────
