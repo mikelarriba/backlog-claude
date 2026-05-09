@@ -5,3 +5,5 @@ inbox/
 .DS_Store
 .pi-settings.json
 .model-settings.json
+playwright-report/
+test-results/
