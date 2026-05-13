@@ -156,6 +156,7 @@ function renderRoadmapBoard() {
   renderStoryPanel(sprints);
   injectGhostCards();
   applyEpicFocus();
+  attachRoadmapDepHoverListeners();
 }
 
 // ── Epic panel rendering ─────────────────────────────────────
@@ -478,6 +479,17 @@ function initRoadmapDragDrop() {
         renderRoadmapBoard();
       } catch (e) { console.warn('Failed to update sprint assignment:', e.message); }
     });
+  });
+}
+
+// ── Roadmap dep hover listeners ──────────────────────────────
+function attachRoadmapDepHoverListeners() {
+  document.querySelectorAll('.roadmap-card[data-filename]').forEach(el => {
+    const doc = allDocs.find(d => d.filename === el.dataset.filename);
+    if (!doc) return;
+    if (!(doc.blocks || []).length && !(doc.blockedBy || []).length) return;
+    el.addEventListener('mouseenter', () => showDepConnectors(doc.filename));
+    el.addEventListener('mouseleave', hideDepConnectors);
   });
 }
 

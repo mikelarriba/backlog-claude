@@ -149,6 +149,8 @@ function renderSwimlanes(docs) {
   ].join('');
 
   list.innerHTML = html;
+  applyDepCascade();
+  attachDepHoverListeners();
 }
 
 function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
@@ -286,11 +288,8 @@ function renderDocItem(d, indent, childrenMap) {
     blocksCnt    ? `<span class="dep-badge dep-badge-blocks" title="Blocks ${blocksCnt} stor${blocksCnt !== 1 ? 'ies' : 'y'}">→ ${blocksCnt}</span>` : '',
     blockedByCnt ? `<span class="dep-badge dep-badge-blocked" title="Blocked by ${blockedByCnt} stor${blockedByCnt !== 1 ? 'ies' : 'y'}">🔒 ${blockedByCnt}</span>` : '',
   ].join('');
-  // Extra visual indentation for blocked items (clearly deeper than normal child indent)
-  const depIndentClass = blockedByCnt > 0 ? ' dep-indented' : '';
-
   return `
-    <div class="epic-item${multiSel}${depIndentClass}"
+    <div class="epic-item${multiSel}"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
          data-indent="${indent}"
@@ -309,6 +308,113 @@ function renderDocItem(d, indent, childrenMap) {
       <span class="status-badge ${statusClass}">${STATUS_LABEL[d.status] || d.status || 'Draft'}</span>
       <div class="epic-date">${d.date}</div>
     </div>`;
+}
+
+// ── Cascade indent (post-render) ─────────────────────────────
+/**
+ * After the list is rendered, find the earliest blocked sibling within each
+ * parent group and add .dep-cascade to it and all siblings after it.
+ */
+function applyDepCascade() {
+  // Clear any previous cascade classes
+  document.querySelectorAll('#epic-list .epic-item.dep-cascade')
+    .forEach(el => el.classList.remove('dep-cascade'));
+
+  const docsMap = new Map(allDocs.map(d => [d.filename, d]));
+  const LEAF = new Set(['story', 'spike', 'bug']);
+
+  // Collect items in DOM order grouped by parentFilename
+  const groups = new Map(); // parentFn → [{el, doc}]
+  document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach(el => {
+    const doc = docsMap.get(el.dataset.filename);
+    if (!doc || !LEAF.has(doc.docType)) return;
+    const key = doc.parentFilename || '__none__';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ el, doc });
+  });
+
+  for (const siblings of groups.values()) {
+    const firstIdx = siblings.findIndex(({ doc }) => (doc.blockedBy || []).length > 0);
+    if (firstIdx < 0) continue;
+    for (let i = firstIdx; i < siblings.length; i++) {
+      siblings[i].el.classList.add('dep-cascade');
+    }
+  }
+}
+
+// ── Dependency connector lines ────────────────────────────────
+var _depHighlightedEls = [];
+
+/** Find the first visible element matching data-filename (handles hidden views). */
+function _findVisibleDepEl(filename) {
+  const els = document.querySelectorAll(`[data-filename="${CSS.escape(filename)}"]`);
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 || r.height > 0) return el;
+  }
+  return null;
+}
+
+function hideDepConnectors() {
+  const svg = document.getElementById('dep-connector-svg');
+  if (svg) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+  }
+  _depHighlightedEls.forEach(el => el.classList.remove('dep-hover-highlight'));
+  _depHighlightedEls = [];
+}
+
+function showDepConnectors(filename) {
+  hideDepConnectors();
+  const doc = allDocs.find(d => d.filename === filename);
+  if (!doc) return;
+
+  const svg = document.getElementById('dep-connector-svg');
+  if (!svg) return;
+
+  // Build pairs: blocker → blocked
+  const pairs = [];
+  for (const blockedFn of (doc.blocks || [])) {
+    pairs.push({ blockerFn: filename, blockedFn });
+  }
+  for (const blockerFn of (doc.blockedBy || [])) {
+    pairs.push({ blockerFn, blockedFn: filename });
+  }
+
+  for (const { blockerFn, blockedFn } of pairs) {
+    const blockerEl = _findVisibleDepEl(blockerFn);
+    const blockedEl = _findVisibleDepEl(blockedFn);
+    if (!blockerEl || !blockedEl) continue;
+
+    blockerEl.classList.add('dep-hover-highlight');
+    blockedEl.classList.add('dep-hover-highlight');
+    _depHighlightedEls.push(blockerEl, blockedEl);
+
+    const br = blockerEl.getBoundingClientRect();
+    const bd = blockedEl.getBoundingClientRect();
+    const x1 = br.right;
+    const y1 = br.top + br.height / 2;
+    const x2 = bd.left;
+    const y2 = bd.top + bd.height / 2;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    line.setAttribute('class', 'dep-connector-line');
+    svg.appendChild(line);
+  }
+}
+
+function attachDepHoverListeners() {
+  document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach(el => {
+    const doc = allDocs.find(d => d.filename === el.dataset.filename);
+    if (!doc) return;
+    if (!(doc.blocks || []).length && !(doc.blockedBy || []).length) return;
+    el.addEventListener('mouseenter', () => showDepConnectors(doc.filename));
+    el.addEventListener('mouseleave', hideDepConnectors);
+  });
 }
 
 function toggleItemCollapse(filename, e) {

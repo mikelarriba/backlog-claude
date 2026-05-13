@@ -1,0 +1,61 @@
+[2026-05-13 09:15:14,125] INFO in __main__: starting ... POST /mgmt_datapools/datapool_access/request dzairjx
+DATAPOOLS MGMT SERVICE - 2026-05-13 09:15:14,125 src.server.security_controller INFO: Checking headers for path request /mgmt_datapools/datapool_access/request  [RequestID: def64bde-9512-497d-a212-8bdfdd5b65fb]
+result {'allowed': None, 'system_roles': ['USER'], 'allowed_function_keys': ['DATAPOOL_MGMT', 'METADATA_DOWNLOAD_FILE', 'SRCH_APP', 'SRCH_APP_UPLOAD_TO_TEST_FE', 'SRCH_APP_VIEW_TEST_DETAILS', 'SRCH_APP_SET_LH_TESTS', 'UPLOAD_FE', 'SRCH_APP_SRCH_TEST', 'SRCH_APP_UPLOAD_TO_TEST', 'UPLOAD_API', 'SRCH_APP_RATE_TEST', 'SRCH_APP_DEL_TEST', 'SRCH_APP_NEW_META_TO_TEST', 'SRCH_APP_SENDTO', 'SRCH_APP_CHG_META_OF_TEST', 'SRCH_APP_UPLOAD_TO_TEST_API', 'LOGIN', 'CLL_MANAGE_OWN', 'UPLOAD_APP', 'CLL_SEND_CUSTOM'], 'current_user': 'dzairjx', 'autz_identifier_keys': ['dzairjx', 'ZA - EAC2'], 'extra_data': {'HEADER_KEY_GROUPS': ['VWAG_MIDAS_APP_P_USER'], 'HEADER_KEY_UID': 'dzairjx', 'HEADER_KEY_OU': 'ZA - EAC2', 'HEADER_KEY_ROLES': '<no value>', 'HEADER_KEY_EMAIL': 'extern.jone.roberts@vwsa.co.za', 'HEADER_KEY_UNAME': 'Jone Roberts', 'HEADER_KEY_PHONE': '<no value>', 'HEADER_KEY_COST_CENTER': '2100'}, 'uid': 'dzairjx'}
+DATAPOOLS MGMT SERVICE - 2026-05-13 09:15:14,192 eamdmmidas.utils.rr_internal_calls_svc ERROR: received status code 404, Service returned code 404 You have requested this URI [/i_authentication/internal_validate/datapool_access/72] but did you mean /i_authentication/internal_validate/datapool_access/<int:datapool_id> or /i_authentication/internal_info/datapools_list/<data_right_keys> or /i_authentication/internal_info/datapool_rights/<int:datapool_id> ? [RequestID: def64bde-9512-497d-a212-8bdfdd5b65fb]
+[2026-05-13 09:15:14,192] INFO in __main__: ... done POST /mgmt_datapools/datapool_access/request dzairjx
+DATAPOOLS MGMT SERVICE - 2026-05-13 09:15:14,192 src.server.__main__ INFO: ... done POST /mgmt_datapools/datapool_access/request dzairjx [RequestID: def64bde-9512-497d-a212-8bdfdd5b65fb]
+[2026-05-13 09:15:14,192] INFO in __main__: Handled request in 0.0674 seconds
+DATAPOOLS MGMT SERVICE - 2026-05-13 09:15:14,192 src.server.__main__ INFO: Handled request in 0.0674 seconds [RequestID: def64bde-9512-497d-a212-8bdfdd5b65fb]
+DATAPOOLS MGMT SERVICE - 2026-05-13 09:15:14,194 waitress ERROR: Exception when servicing <waitress.channel.HTTPChannel connected 100.70.14.3:55478 at 0x7f9138676150> [RequestID: None]
+Traceback (most recent call last):
+  File "/code/.venv/lib/python3.11/site-packages/waitress/task.py", line 83, in handler_thread
+    task.service()
+  File "/code/.venv/lib/python3.11/site-packages/waitress/channel.py", line 430, in service
+    task.service()
+  File "/code/.venv/lib/python3.11/site-packages/waitress/task.py", line 167, in service
+    self.execute()
+  File "/code/.venv/lib/python3.11/site-packages/waitress/task.py", line 435, in execute
+    app_iter = self.channel.server.application(environ, start_response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/waitress/proxy_headers.py", line 64, in translate_proxy_headers
+    return app(environ, start_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/paste/translogger.py", line 76, in __call__
+    return self.application(environ, replacement_start_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/flask/app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/werkzeug/middleware/proxy_fix.py", line 183, in __call__
+    return self.app(environ, start_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/flask_restx/api.py", line 404, in wrapper
+    resp = resource(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/flask/views.py", line 110, in view
+    return current_app.ensure_sync(self.dispatch_request)(**kwargs)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/flask_restx/resource.py", line 41, in dispatch_request
+    resp = meth(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/api/datapool_access.py", line 182, in post
+    datapool_data = get_datapool_data(datapool_id=datapool_id)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/api/datapool.py", line 667, in get_datapool_data
+    result = context_provider.ctx.rr_internal_caller.get_data_pool_rights(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/eamdmmidas/utils/rr_internal_calls_svc.py", line 102, in get_data_pool_rights
+    return self.make_request(
+           ^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/eamdmmidas/utils/rr_internal_calls_svc.py", line 184, in make_request
+    raise InternalRightsAndRolesCallException(
+eamdmmidas.utils.rr_internal_calls_svc.InternalRightsAndRolesCallException: (404, 'Service returned code 404 You have requested this URI [/i_authentication/internal_validate/datapool_access/72] but did you mean /i_authentication/internal_validate/datapool_access/<int:datapool_id> or /i_authentication/internal_info/datapools_list/<data_right_keys> or /i_authentication/internal_info/datapool_rights/<int:datapool_id> ?')

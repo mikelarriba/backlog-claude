@@ -1,0 +1,157 @@
+Using SQLALCHEMY_ENGINE_OPTIONS: {'pool_size': 3, 'max_overflow': 4, 'pool_timeout': 30, 'pool_recycle': 1800, 'pool_pre_ping': True, 'echo_pool': True}
+Initializing S3 client.
+Initializing S3 client.
+Initializing S3 client.
+Active partners found:['IAV_Merida_Hub', 'PartnerBridge2.0', 'PHEV_TwinDrive_LC_LK2', 'test_registration_support', 'test_registration_support_2', 'test_registration_support_3', 'test_registration_support_4', 'Volkswagen_Kassel_Prüffeld', 'VW_EAAE2_Schweneker', 'VW_EAEA3_Jenert', 'VW_EAEA3_koertje', 'VW_EAEA3_Sarow_Andre', 'VW_EAEA3_Scheibel', 'VW_WOB_PEMS_Messungen', 'VW_Wolfsburg_EATS2', 'VW_Wolfsburg_Wiedenbeck']
+Polling partner IAV_Merida_Hub initiated.
+Start handling compressed source: IAV_Merida_Hub
+No compressed files found for source: IAV_Merida_Hub
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/IAV_Merida_Hub
+No errors found on execution.
+Polling partner PartnerBridge2.0 initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/PartnerBridge2.0
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/PartnerBridge2.0
+No errors found on execution.
+Polling partner PHEV_TwinDrive_LC_LK2 initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/PHEV_TwinDrive_LC_LK2
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/PHEV_TwinDrive_LC_LK2
+No errors found on execution.
+Polling partner test_registration_support initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/test_registration_support
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/test_registration_support
+No errors found on execution.
+Polling partner test_registration_support_2 initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/test_registration_support_2
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/test_registration_support_2
+No errors found on execution.
+Polling partner test_registration_support_3 initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/test_registration_support_3
+Failed to poll partner test_registration_support_3: AttributeError: 'dict' object has no attribute 'name'
+Traceback (most recent call last):
+  File "/code/src/retrieve_int_partner_data_processor.py", line 260, in run
+    errors = self.poll_partner(source)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 56, in poll_partner
+    return self.poll_uncompressed_partner(source)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 81, in poll_uncompressed_partner
+    real_partner_items = list(
+                         ^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 83, in <lambda>
+    lambda x: not x.name.startswith(REPORT_FILE_PREFIX)
+                  ^^^^^^
+AttributeError: 'dict' object has no attribute 'name'
+Continuing with next partner...
+Polling partner test_registration_support_4 initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/test_registration_support_4
+Failed to poll partner test_registration_support_4: AttributeError: 'dict' object has no attribute 'name'
+Traceback (most recent call last):
+  File "/code/src/retrieve_int_partner_data_processor.py", line 260, in run
+    errors = self.poll_partner(source)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 56, in poll_partner
+    return self.poll_uncompressed_partner(source)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 81, in poll_uncompressed_partner
+    real_partner_items = list(
+                         ^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 83, in <lambda>
+    lambda x: not x.name.startswith(REPORT_FILE_PREFIX)
+                  ^^^^^^
+AttributeError: 'dict' object has no attribute 'name'
+Continuing with next partner...
+Polling partner Volkswagen_Kassel_Prüffeld initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/Volkswagen_Kassel_Prüffeld
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/Volkswagen_Kassel_Prüffeld
+No errors found on execution.
+Polling partner VW_EAAE2_Schweneker initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_EAAE2_Schweneker
+Failed to poll partner VW_EAAE2_Schweneker: AttributeError: 'dict' object has no attribute 'name'
+Traceback (most recent call last):
+  File "/code/src/retrieve_int_partner_data_processor.py", line 260, in run
+    errors = self.poll_partner(source)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 56, in poll_partner
+    return self.poll_uncompressed_partner(source)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 81, in poll_uncompressed_partner
+    real_partner_items = list(
+                         ^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 83, in <lambda>
+    lambda x: not x.name.startswith(REPORT_FILE_PREFIX)
+                  ^^^^^^
+AttributeError: 'dict' object has no attribute 'name'
+Continuing with next partner...
+Polling partner VW_EAEA3_Jenert initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_EAEA3_Jenert
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_EAEA3_Jenert
+No errors found on execution.
+Polling partner VW_EAEA3_koertje initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_EAEA3_koertje
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_EAEA3_koertje
+No errors found on execution.
+Polling partner VW_EAEA3_Sarow_Andre initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_EAEA3_Sarow_Andre
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_EAEA3_Sarow_Andre
+No errors found on execution.
+Polling partner VW_EAEA3_Scheibel initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_EAEA3_Scheibel
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_EAEA3_Scheibel
+No errors found on execution.
+Polling partner VW_WOB_PEMS_Messungen initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_WOB_PEMS_Messungen
+Partner is not ready to poll
+partner_path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_WOB_PEMS_Messungen
+No errors found on execution.
+Polling partner VW_Wolfsburg_EATS2 initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_Wolfsburg_EATS2
+Failed to poll partner VW_Wolfsburg_EATS2: AttributeError: 'dict' object has no attribute 'name'
+Traceback (most recent call last):
+  File "/code/src/retrieve_int_partner_data_processor.py", line 260, in run
+    errors = self.poll_partner(source)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 56, in poll_partner
+    return self.poll_uncompressed_partner(source)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 81, in poll_uncompressed_partner
+    real_partner_items = list(
+                         ^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 83, in <lambda>
+    lambda x: not x.name.startswith(REPORT_FILE_PREFIX)
+                  ^^^^^^
+AttributeError: 'dict' object has no attribute 'name'
+Continuing with next partner...
+Polling partner VW_Wolfsburg_Wiedenbeck initiated.
+Fetching folders for - network share path: /ifs/dapcore-p/midas/minio/midas-data/landing/int_partner_shares/VW_Wolfsburg_Wiedenbeck
+Failed to poll partner VW_Wolfsburg_Wiedenbeck: AttributeError: 'dict' object has no attribute 'name'
+Traceback (most recent call last):
+  File "/code/src/retrieve_int_partner_data_processor.py", line 260, in run
+    errors = self.poll_partner(source)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 56, in poll_partner
+    return self.poll_uncompressed_partner(source)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 81, in poll_uncompressed_partner
+    real_partner_items = list(
+                         ^^^^^
+  File "/code/src/retrieve_int_partner_data_processor.py", line 83, in <lambda>
+    lambda x: not x.name.startswith(REPORT_FILE_PREFIX)
+                  ^^^^^^
+AttributeError: 'dict' object has no attribute 'name'
+Continuing with next partner...
+Finished processing partners. Successful: 11, Failed: 5
+Successful partners: ['IAV_Merida_Hub', 'PartnerBridge2.0', 'PHEV_TwinDrive_LC_LK2', 'test_registration_support', 'test_registration_support_2', 'Volkswagen_Kassel_Prüffeld', 'VW_EAEA3_Jenert', 'VW_EAEA3_koertje', 'VW_EAEA3_Sarow_Andre', 'VW_EAEA3_Scheibel', 'VW_WOB_PEMS_Messungen']
+Failed partners: ['test_registration_support_3', 'test_registration_support_4', 'VW_EAAE2_Schweneker', 'VW_Wolfsburg_EATS2', 'VW_Wolfsburg_Wiedenbeck']
+Using SQLALCHEMY_ENGINE_OPTIONS: {'pool_size': 3, 'max_overflow': 4, 'pool_timeout': 30, 'pool_recycle': 1800, 'pool_pre_ping': True, 'echo_pool': True}
+Initializing S3 client.
+Started Internal Partner Data Importer Caller
+time="2026-05-13T12:05:51.734Z" level=info msg="sub-process exited" argo=true error="<nil>"

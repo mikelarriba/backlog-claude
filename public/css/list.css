@@ -253,16 +253,39 @@
 .dep-badge-blocks  { background: #dcfce7; color: #15803d; }
 .dep-badge-blocked { background: #fee2e2; color: #b91c1c; }
 
-/* ── Dep-indented items (blocked by another story) ───────────── */
-/* Extra left offset on top of whatever indent level applies.      */
-/* At indent=2 (48px), this adds 36px more = 84px total.          */
-/* Normal child indent is 16px step — dep indent is ~2.5× larger. */
-.epic-item.dep-indented {
-  margin-left: 36px;
+/* ── Cascaded dep indent ─────────────────────────────────────── */
+/* Applied post-render by applyDepCascade() to all siblings from  */
+/* the earliest blocked item onwards within the same parent epic.  */
+.epic-item.dep-cascade {
+  margin-left: 28px;
   border-left-color: #fca5a5;
 }
-.epic-item.dep-indented:hover {
+.epic-item.dep-cascade:hover {
   border-left-color: #ef4444;
+}
+
+/* ── Dep hover highlight (list + roadmap) ────────────────────── */
+.dep-hover-highlight {
+  outline: 2px solid rgba(239, 68, 68, 0.55) !important;
+  outline-offset: 1px;
+}
+
+/* ── SVG dependency connector overlay ───────────────────────── */
+#dep-connector-svg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 5000;
+  overflow: visible;
+}
+.dep-connector-line {
+  stroke: #ef4444;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+  opacity: 0.65;
 }
 
 /* ── Multi-select highlight ─────────────────────────────────── */

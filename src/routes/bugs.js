@@ -9,7 +9,7 @@ import { translateToEnglish, processAttachment } from '../services/bugService.js
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError }) {
+export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex }) {
   const router = Router();
 
   // ── POST /api/bugs/create ─────────────────────────────────────────────────
@@ -83,6 +83,7 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
 
       ensureDir(BUGS_DIR);
       fs.writeFileSync(path.join(BUGS_DIR, filename), content);
+      docIndex.invalidate('bug', filename);
 
       broadcast({ type: 'bug_created', filename, docType: 'bug' });
       logInfo('POST /api/bugs/create', `Bug created: ${filename}`, { attachments: processed.length });

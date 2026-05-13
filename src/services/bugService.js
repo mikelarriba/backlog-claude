@@ -76,6 +76,36 @@ function htmlToSegments(html, inlineImages) {
   return segments;
 }
 
+// ── Plain-text body → segments ────────────────────────────────────────────────
+/**
+ * Convert an Outlook plain-text email body into an ordered array of text and
+ * image segments by replacing [cid:filename@domain] bracket references with
+ * actual image buffers from the inlineImages map.
+ */
+function plainTextToSegments(text, inlineImages) {
+  const segments = [];
+  if (!text) return segments;
+
+  // Outlook plain-text bodies reference inline images as [cid:filename@domain]
+  const parts = text.split(/\[cid:([^\]]+)\]/gi);
+
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      // Text chunk
+      const value = parts[i].replace(/\n{3,}/g, '\n\n').trim();
+      if (value) segments.push({ type: 'text', value });
+    } else {
+      // CID reference — same lookup strategy as htmlToSegments
+      const rawCid = parts[i].trim();
+      const imgBuf = inlineImages.get(rawCid)
+        || inlineImages.get(rawCid.replace(/^<|>$/g, ''))
+        || inlineImages.get(`<${rawCid}>`);
+      if (imgBuf) segments.push({ type: 'image', buffer: imgBuf });
+    }
+  }
+  return segments;
+}
+
 // ── Translation ───────────────────────────────────────────────────────────────
 /**
  * Translate text to English using Claude. Returns the text unchanged if already English.
@@ -208,7 +238,7 @@ export async function processAttachment(file, callClaude) {
 
     let segments = [];
 
-    if (msgData.bodyHtml) {
+    if (msgData.bodyHtml && msgData.bodyHtml.trim()) {
       // Parse HTML → text + image segments; translate each text segment
       segments = htmlToSegments(msgData.bodyHtml, msgData.inlineImages);
       for (const seg of segments) {
@@ -217,9 +247,13 @@ export async function processAttachment(file, callClaude) {
         }
       }
     } else {
-      // Fallback: translate plain text body
-      const translated = await translateToEnglish(callClaude, msgData.body);
-      segments = [{ type: 'text', value: translated }];
+      // Fallback: plain text body (Outlook RTF emails) — resolve [cid:...] inline images
+      segments = plainTextToSegments(msgData.body, msgData.inlineImages);
+      for (const seg of segments) {
+        if (seg.type === 'text') {
+          seg.value = await translateToEnglish(callClaude, seg.value);
+        }
+      }
     }
 
     // Prepend email header
