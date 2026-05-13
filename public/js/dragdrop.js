@@ -34,7 +34,9 @@ function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY
 
   const tgtFilename = targetEl.dataset.filename;
   const tgtDocType  = targetEl.dataset.doctype;
-  const tgtTitle    = targetEl.querySelector('.epic-title-text')?.textContent || tgtFilename;
+  const tgtTitle    = targetEl.querySelector('.epic-title-text')?.textContent
+                   || targetEl.querySelector('.roadmap-card-title')?.textContent
+                   || tgtFilename;
 
   const canLink = (DRAG_TARGETS[srcDocType] || []).includes(tgtDocType);
   const canDep  = LEAF_TYPES.has(srcDocType) && LEAF_TYPES.has(tgtDocType);

@@ -703,3 +703,26 @@
 }
 .roadmap-card:hover .rm-dep-btn { opacity: 1; }
 .rm-dep-btn:hover { background: var(--surface2); color: var(--text); }
+
+/* ── Dep-blocked card indicator ────────────────────────────── */
+.roadmap-card.rm-dep-blocked {
+  border-left: 3px solid rgba(239,68,68,0.45);
+  padding-left: 6px;
+}
+
+/* ── In-column drag zones ───────────────────────────────────── */
+/* Center zone: highlight as dep/link target */
+.roadmap-card.rm-drop-center {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  background: var(--accent-subtle);
+}
+/* Edge zones: insertion line before/after */
+.roadmap-card.rm-insert-before {
+  box-shadow: 0 -3px 0 0 var(--accent);
+  margin-top: 3px;
+}
+.roadmap-card.rm-insert-after {
+  box-shadow: 0 3px 0 0 var(--accent);
+  margin-bottom: 3px;
+}

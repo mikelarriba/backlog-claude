@@ -3,6 +3,57 @@ let _roadmapPiName       = null;  // selected PI filter (null = all)
 let _roadmapPanelState   = { epics: true, stories: true }; // expanded/collapsed
 let _roadmapFocusedEpic  = null;  // filename of clicked epic (focus mode)
 
+// ── Story-point card heights (Fibonacci scale) ────────────────
+const SP_HEIGHTS = { 0:56, 1:64, 2:72, 3:80, 5:96, 8:112, 13:132, 21:160 };
+function spCardHeight(sp) {
+  const n = Number(sp) || 0;
+  const keys = Object.keys(SP_HEIGHTS).map(Number);
+  const closest = keys.reduce((p, c) => Math.abs(c - n) < Math.abs(p - n) ? c : p);
+  return SP_HEIGHTS[closest];
+}
+
+// ── Priority ordering ─────────────────────────────────────────
+const PRIO_ORDER = { critical:0, major:0, high:1, medium:2, low:3 };
+
+// ── Topological sort: priority/rank first, then dep-order ─────
+// Ensures blockers always appear before the items they block within
+// the same sprint column. Uses a stable bubble-pass approach.
+function topoSortCards(docs) {
+  if (!docs.length) return docs;
+
+  // First sort by rank, then priority
+  const sorted = [...docs].sort((a, b) => {
+    const ra = a.rank != null ? a.rank : 9999;
+    const rb = b.rank != null ? b.rank : 9999;
+    if (ra !== rb) return ra - rb;
+    const pa = PRIO_ORDER[(a.priority || 'medium').toLowerCase()] ?? 2;
+    const pb = PRIO_ORDER[(b.priority || 'medium').toLowerCase()] ?? 2;
+    return pa - pb;
+  });
+
+  // Enforce dep ordering: blocked item must come after its blocker
+  const filenameSet = new Set(docs.map(d => d.filename));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < sorted.length; i++) {
+      const blockers = (sorted[i].blockedBy || []).filter(f => filenameSet.has(f));
+      for (const bf of blockers) {
+        const bi = sorted.findIndex(d => d.filename === bf);
+        if (bi > i) {
+          // Blocker sits below blocked item — move blocked item to after blocker
+          const [item] = sorted.splice(i, 1);
+          sorted.splice(bi, 0, item);
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+  }
+  return sorted;
+}
+
 // Palette for epic cards — consistent hash-based colour
 const _EPIC_COLORS = [
   '#3B82F6','#8B5CF6','#10B981','#14B8A6',
@@ -330,8 +381,9 @@ function renderStoryColumn(sprintName, docs, capacity) {
     statsHtml = `<span class="roadmap-col-stats">${docs.length} item(s)</span>`;
   }
 
-  const cardsHtml = docs.length
-    ? docs.map(d => renderRoadmapCard(d, sprintName)).join('')
+  const sortedDocs = topoSortCards(docs);
+  const cardsHtml = sortedDocs.length
+    ? sortedDocs.map(d => renderRoadmapCard(d, sprintName)).join('')
     : '<div class="roadmap-card-empty">No items</div>';
 
   return `
@@ -352,6 +404,7 @@ function renderRoadmapCard(d, sprintName) {
   const sp      = Number(d.storyPoints) || 0;
   const spLabel = sp ? `${sp} SP` : 'No SP';
   const spClass = sp ? 'rm-badge rm-sp' : 'rm-badge rm-no-sp';
+  const cardHeight = spCardHeight(sp);
 
   // Find parent epic for focus feature
   const parentFn = d.parentFilename || '';
@@ -370,16 +423,18 @@ function renderRoadmapCard(d, sprintName) {
   let depHtml = '';
   if (blockedBy.length) depHtml += `<div class="dep-badge dep-blocked">⬅ blocked by ${blockedBy.length}</div>`;
   if (blocks.length)    depHtml += `<div class="dep-badge dep-blocks">→ blocks ${blocks.length}</div>`;
-  const blocksHtml    = '';
-  const blockedByHtml = '';
+
+  const depBlockedClass = blockedBy.length ? ' rm-dep-blocked' : '';
 
   return `
-    <div class="roadmap-card" draggable="true"
+    <div class="roadmap-card${depBlockedClass}" draggable="true"
          onclick="openDoc('${escHtml(d.filename)}','${d.docType}')"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
+         data-sp="${sp}"
          data-parent="${escHtml(parentFn)}"
-         data-sprint="${d.sprint ? escHtml(d.sprint) : ''}">
+         data-sprint="${d.sprint ? escHtml(d.sprint) : ''}"
+         style="min-height:${cardHeight}px">
       ${parentHtml}
       <div class="roadmap-card-title">${escHtml(d.title)}</div>
       ${depHtml}
@@ -387,7 +442,6 @@ function renderRoadmapCard(d, sprintName) {
         <span class="rm-badge rm-type-${d.docType}">${TYPE_LABEL[d.docType] || d.docType}</span>
         <span class="rm-badge rm-priority-${priorityClass}">${escHtml(d.priority || 'Medium')}</span>
         <span class="${spClass}">${spLabel}</span>
-        ${blocksHtml}${blockedByHtml}
       </div>
       <button class="rm-dep-btn" title="Manage dependencies"
               onclick="event.stopPropagation();openDepModal('${escHtml(d.filename)}','${d.docType}')">⛓</button>
@@ -433,10 +487,15 @@ function injectGhostCards() {
   }
 }
 
-// ── Drag and drop (story cards between sprint columns) ────────
+// ── Drag and drop (sprint move + in-column rerank + dep popup) ─
 function initRoadmapDragDrop() {
   const cards     = document.querySelectorAll('.roadmap-card[draggable]');
   const dropZones = document.querySelectorAll('.roadmap-card-list');
+
+  function clearCardDropClasses() {
+    document.querySelectorAll('.roadmap-card').forEach(c =>
+      c.classList.remove('rm-drop-center', 'rm-insert-before', 'rm-insert-after'));
+  }
 
   cards.forEach(card => {
     card.addEventListener('dragstart', (e) => {
@@ -450,10 +509,72 @@ function initRoadmapDragDrop() {
     });
     card.addEventListener('dragend', () => {
       card.classList.remove('dragging');
+      clearCardDropClasses();
       dropZones.forEach(z => z.classList.remove('drag-over'));
+    });
+
+    // ── Per-card zone detection ──
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // prevent bubbling to card-list drag-over
+      const rect = card.getBoundingClientRect();
+      const relY = e.clientY - rect.top;
+      const zone = relY < rect.height * 0.3 ? 'before'
+                 : relY > rect.height * 0.7 ? 'after'
+                 : 'center';
+      card.classList.remove('rm-drop-center', 'rm-insert-before', 'rm-insert-after');
+      if (zone === 'center')       card.classList.add('rm-drop-center');
+      else if (zone === 'before')  card.classList.add('rm-insert-before');
+      else                         card.classList.add('rm-insert-after');
+      e.dataTransfer.dropEffect = 'move';
+    });
+
+    card.addEventListener('dragleave', (e) => {
+      if (!card.contains(e.relatedTarget))
+        card.classList.remove('rm-drop-center', 'rm-insert-before', 'rm-insert-after');
+    });
+
+    card.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = card.getBoundingClientRect();
+      const relY = e.clientY - rect.top;
+      const zone = relY < rect.height * 0.3 ? 'before'
+                 : relY > rect.height * 0.7 ? 'after'
+                 : 'center';
+      clearCardDropClasses();
+
+      try {
+        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+        if (data.filename === card.dataset.filename) return;
+
+        if (zone === 'center') {
+          // Dep / link popup (reuses dragdrop.js global)
+          showDropActionPopup(data.filename, data.docType, card, e.clientX, e.clientY);
+        } else {
+          // Rerank: determine insertBefore filename
+          let insertBeforeFilename;
+          if (zone === 'before') {
+            insertBeforeFilename = card.dataset.filename;
+          } else {
+            // Insert after = insert before the next card in the same column
+            const list = card.closest('.roadmap-card-list');
+            const allCards = list
+              ? [...list.querySelectorAll('.roadmap-card[data-filename]')]
+              : [];
+            const idx = allCards.indexOf(card);
+            insertBeforeFilename = (idx >= 0 && idx + 1 < allCards.length)
+              ? allCards[idx + 1].dataset.filename
+              : null;
+          }
+          await executeRerankDrop(data.filename, data.docType, insertBeforeFilename);
+          renderRoadmapBoard();
+        }
+      } catch (err) { console.warn('Roadmap card drop failed:', err.message); }
     });
   });
 
+  // ── Column-level drop (cross-sprint move) ────────────────────
   dropZones.forEach(zone => {
     zone.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -466,18 +587,17 @@ function initRoadmapDragDrop() {
     zone.addEventListener('drop', async (e) => {
       e.preventDefault();
       zone.classList.remove('drag-over');
+      // Card drops stop propagation so this only fires for empty-area drops
       try {
         const data     = JSON.parse(e.dataTransfer.getData('text/plain'));
         const toSprint = zone.dataset.sprint || null;
         if (data.fromSprint === (toSprint || '')) return;
 
         await patchJSON(`/api/doc/${data.docType}/${encodeURIComponent(data.filename)}`, { sprint: toSprint });
-
         const doc = allDocs.find(d => d.filename === data.filename && d.docType === data.docType);
         if (doc) doc.sprint = toSprint;
-
         renderRoadmapBoard();
-      } catch (e) { console.warn('Failed to update sprint assignment:', e.message); }
+      } catch (err) { console.warn('Failed to update sprint assignment:', err.message); }
     });
   });
 }
