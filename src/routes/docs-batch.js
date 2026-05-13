@@ -112,49 +112,111 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       } catch {}
       if (!sprintCfg.length) return sendError(res, 400, 'NO_SPRINTS', 'No sprints configured for this PI');
 
-      // Collect leaf docs in this PI using the index
+      // Collect leaf docs in this PI using the index (includes rank, blockedBy, parentFilename)
       const PRIORITY_RANK = { Critical: 0, Major: 0, High: 1, Medium: 2, Low: 3 };
       const leafTypes = new Set(['story', 'spike', 'bug']);
       const leafDocs = docIndex.getAll()
         .filter(e => leafTypes.has(e.docType) && e.fixVersion === piName)
         .map(e => ({
-          filename:    e.filename,
-          docType:     e.docType,
-          title:       e.title,
-          storyPoints: e.storyPoints || 0,
-          hasEstimate: !!(e.storyPoints),
-          priority:    e.priority || 'Medium',
-          sprint:      e.sprint || null,
+          filename:       e.filename,
+          docType:        e.docType,
+          title:          e.title,
+          storyPoints:    e.storyPoints || 0,
+          hasEstimate:    !!(e.storyPoints),
+          priority:       e.priority || 'Medium',
+          sprint:         e.sprint || null,
+          rank:           e.rank != null ? e.rank : 9999,
+          parentFilename: e.parentFilename || null,
+          blockedBy:      e.blockedBy || [],
+          blocks:         e.blocks    || [],
         }));
 
       // Partition: already-assigned vs unassigned
       const assigned   = leafDocs.filter(d => d.sprint);
       const unassigned = leafDocs.filter(d => !d.sprint);
 
-      // Sort unassigned: priority rank asc, then SP desc (big items first)
-      unassigned.sort((a, b) => {
+      // ── Comparator: rank first, then priority, then SP desc ─────────────────
+      function sortByRankPriority(a, b) {
+        if (a.rank !== b.rank) return a.rank - b.rank;
         const pa = PRIORITY_RANK[a.priority] ?? 2;
         const pb = PRIORITY_RANK[b.priority] ?? 2;
         if (pa !== pb) return pa - pb;
         return b.storyPoints - a.storyPoints;
+      }
+
+      // ── Group unassigned by parent epic to maximise epic completion ──────────
+      // Strategy: sort epic groups by their best-priority story, then emit all
+      // stories from that epic before moving to the next group.
+      const epicGroups  = new Map(); // parentFilename → doc[]
+      const standalones = [];
+      for (const doc of unassigned) {
+        if (doc.parentFilename) {
+          if (!epicGroups.has(doc.parentFilename)) epicGroups.set(doc.parentFilename, []);
+          epicGroups.get(doc.parentFilename).push(doc);
+        } else {
+          standalones.push(doc);
+        }
+      }
+
+      // Sort each epic group internally
+      for (const [, docs] of epicGroups) docs.sort(sortByRankPriority);
+
+      // Sort epic groups by their highest-priority story, then by total SP desc
+      const sortedGroups = [...epicGroups.values()].sort((docsA, docsB) => {
+        const pa = PRIORITY_RANK[docsA[0].priority] ?? 2;
+        const pb = PRIORITY_RANK[docsB[0].priority] ?? 2;
+        if (pa !== pb) return pa - pb;
+        // Same top priority: group with higher rank story first
+        if (docsA[0].rank !== docsB[0].rank) return docsA[0].rank - docsB[0].rank;
+        // Same rank: prefer the group that finishes an epic (fewer remaining stories)
+        return docsA.length - docsB.length;
       });
 
-      // Build sprint buckets, pre-fill with assigned docs
-      const buckets = sprintCfg.map(s => ({
-        name: s.name,
-        capacity: s.capacity,
-        assigned: assigned.filter(d => d.sprint === s.name).map(d => ({ ...d, wasAlreadyAssigned: true })),
+      standalones.sort(sortByRankPriority);
+
+      // Build ordered work queue: grouped epics first, then standalones
+      const workQueue = [];
+      for (const docs of sortedGroups) workQueue.push(...docs);
+      workQueue.push(...standalones);
+
+      // ── Build buckets; pre-fill with already-assigned docs ───────────────────
+      const buckets = sprintCfg.map((s, idx) => ({
+        name:       s.name,
+        capacity:   s.capacity,
+        idx,
+        assigned:   assigned.filter(d => d.sprint === s.name).map(d => ({ ...d, wasAlreadyAssigned: true })),
         usedPoints: assigned.filter(d => d.sprint === s.name).reduce((sum, d) => sum + d.storyPoints, 0),
       }));
 
-      // Greedy fill
+      const sprintIdx    = new Map(buckets.map(b => [b.name, b.idx]));
+      // Track placed sprint for dep constraint computation (seed with already-assigned)
+      const placementMap = new Map(assigned.map(d => [d.filename, d.sprint]));
+      const depAdjusted  = []; // warnings for items bumped due to deps
+
+      // ── Greedy fill with dep-constraint floor ────────────────────────────────
       const overflow = [];
-      for (const doc of unassigned) {
+      for (const doc of workQueue) {
+        // Compute the minimum allowed sprint index from dependency constraints
+        let minIdx = 0;
+        for (const blockerFn of doc.blockedBy) {
+          const blockerSprint = placementMap.get(blockerFn);
+          if (blockerSprint !== undefined) {
+            const bi = sprintIdx.get(blockerSprint) ?? -1;
+            if (bi + 1 > minIdx) minIdx = bi + 1;
+          }
+        }
+
+        // Place in the first bucket at or after minIdx with enough capacity
         let placed = false;
         for (const bucket of buckets) {
+          if (bucket.idx < minIdx) continue;
           if (bucket.usedPoints + doc.storyPoints <= bucket.capacity) {
+            if (minIdx > 0 && bucket.idx > 0) {
+              depAdjusted.push(`"${doc.title}" placed in ${bucket.name} due to dependency ordering`);
+            }
             bucket.assigned.push({ ...doc, wasAlreadyAssigned: false });
             bucket.usedPoints += doc.storyPoints;
+            placementMap.set(doc.filename, bucket.name);
             placed = true;
             break;
           }
@@ -162,19 +224,20 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         if (!placed) overflow.push(doc);
       }
 
-      // Generate warnings and suggestions
+      // ── Warnings and suggestions ─────────────────────────────────────────────
       const warnings    = [];
       const suggestions = [];
       const noEstimate  = leafDocs.filter(d => !d.hasEstimate);
-      if (noEstimate.length) warnings.push(`${noEstimate.length} item(s) have no story point estimates`);
+      if (noEstimate.length) warnings.push(`${noEstimate.length} item(s) have no story point estimate and are treated as 0 SP`);
+      if (depAdjusted.length) warnings.push(...depAdjusted);
       if (overflow.length) {
         const overflowSP = overflow.reduce((s, d) => s + d.storyPoints, 0);
-        warnings.push(`${overflow.length} item(s) (${overflowSP} SP) exceed total capacity`);
+        warnings.push(`${overflow.length} item(s) (${overflowSP} SP) exceed total sprint capacity`);
       }
       for (const bucket of buckets) {
         const pct = bucket.capacity > 0 ? Math.round((bucket.usedPoints / bucket.capacity) * 100) : 0;
-        if (pct > 100) suggestions.push(`${bucket.name} is at ${pct}% capacity — consider moving items to a later sprint`);
-        else if (pct < 50 && bucket.capacity > 0) suggestions.push(`${bucket.name} has ${bucket.capacity - bucket.usedPoints} SP free capacity`);
+        if (pct > 100) suggestions.push(`${bucket.name} is over capacity at ${pct}% — consider moving items to a later sprint`);
+        else if (pct < 50 && bucket.capacity > 0) suggestions.push(`${bucket.name} has ${bucket.capacity - bucket.usedPoints} SP of free capacity`);
       }
 
       res.json({ piName, sprints: buckets, overflow, warnings, suggestions });
