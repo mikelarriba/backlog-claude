@@ -235,20 +235,21 @@
         <span>Select an issue to preview it here</span>
       </div>
       <div class="detail-header">
-        <div class="detail-header-left">
+        <!-- Row 1: back button + title -->
+        <div class="detail-header-title-row">
           <button class="btn-ghost" onclick="showList()">← Back</button>
-          <div class="detail-title-wrap">
-            <input class="detail-title-input" id="detail-title-input"
-                   type="text" placeholder="Title…"
-                   onblur="saveTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelTitleEdit()}">
-            <div class="detail-meta-row">
-              <span class="detail-filename" id="detail-filename"></span>
-              <a id="detail-jira-link" class="detail-jira-link hidden" href="#" target="_blank" rel="noopener"></a>
-              <span id="detail-jira-status" class="detail-jira-status hidden"></span>
-            </div>
-          </div>
+          <input class="detail-title-input" id="detail-title-input"
+                 type="text" placeholder="Title…"
+                 onblur="saveTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelTitleEdit()}">
         </div>
-        <div class="detail-toolbar">
+        <!-- Row 2: meta (filename / JIRA) + action toolbar -->
+        <div class="detail-header-actions-row">
+          <div class="detail-meta-row">
+            <span class="detail-filename" id="detail-filename"></span>
+            <a id="detail-jira-link" class="detail-jira-link hidden" href="#" target="_blank" rel="noopener"></a>
+            <span id="detail-jira-status" class="detail-jira-status hidden"></span>
+          </div>
+          <div class="detail-toolbar">
           <!-- Story points (editable for stories/spikes/bugs; sum for epics/features) -->
           <div id="sp-wrap" class="sp-wrap hidden">
             <label class="sp-label">SP</label>
@@ -333,8 +334,9 @@
             </div>
           </div>
           <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">Delete</button>
-        </div>
-      </div>
+          </div><!-- /.detail-toolbar -->
+        </div><!-- /.detail-header-actions-row -->
+      </div><!-- /.detail-header -->
 
       <!-- Upgrade panel -->
       <div id="upgrade-panel">

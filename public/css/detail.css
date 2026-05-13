@@ -9,19 +9,32 @@
 #detail-view.show { display: flex; }
 
 .detail-header {
-  padding: 14px 20px;
+  padding: 10px 16px 8px;
   border-bottom: 1px solid var(--border);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 4px;
   flex-shrink: 0;
   background: var(--surface);
 }
 
-.detail-header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* ── Row 1: back button + title ──────────────────────────────── */
+.detail-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 
-.detail-title-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* ── Row 2: meta chips + toolbar ─────────────────────────────── */
+.detail-header-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;         /* toolbar wraps below meta on very narrow panels */
+}
 
 .detail-title-input {
   font-size: 0.9rem;
@@ -32,9 +45,8 @@
   border-radius: 6px;
   padding: 3px 7px;
   margin: -3px -7px;
-  width: 100%;
-  min-width: 200px;
-  max-width: 500px;
+  flex: 1;
+  min-width: 0;
   transition: border-color 0.15s, background 0.15s;
   outline: none;
 }
@@ -47,6 +59,7 @@
   flex-wrap: wrap;
   gap: 0;
   min-width: 0;
+  flex: 1;
 }
 
 .detail-filename {
@@ -288,7 +301,9 @@
 .detail-toolbar {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   flex-shrink: 0;
 }
 
@@ -693,36 +708,33 @@
 
 /* ── Responsive: Narrow screens ──────────────────────────────── */
 @media (max-width: 768px) {
-  .detail-header {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 10px 16px;
-  }
+  .detail-header { padding: 8px 12px 6px; }
 
-  .detail-title-input {
-    min-width: 120px;
-    max-width: 100%;
-    font-size: 0.85rem;
-  }
-
-  .detail-toolbar {
-    order: 3;
-    width: 100%;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
+  .detail-title-input { font-size: 0.85rem; }
 
   .btn-toolbar {
-    padding: 0 8px;
+    padding: 0 7px;
     height: 28px;
     font-size: 0.7rem;
   }
 
   .toolbar-sep { display: none; }
 
-  .status-select {
+  .status-select, .sprint-select {
     font-size: 0.7rem;
     padding: 0 6px;
     height: 28px;
   }
+}
+
+/* Very narrow right panel — compress toolbar further */
+@media (max-width: 560px) {
+  .detail-header-actions-row { gap: 4px; }
+
+  .btn-toolbar {
+    padding: 0 6px;
+    font-size: 0.68rem;
+  }
+
+  .detail-toolbar { gap: 3px; }
 }
