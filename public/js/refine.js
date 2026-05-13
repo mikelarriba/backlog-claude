@@ -77,16 +77,82 @@ async function buildRefineGraph(filename, docType) {
   const nodes = [];
   const edges = [];
 
+  // ── Parent node (Feature above Epic, if any) ─────────────────
   if (parent) {
     nodes.push(makeNode(parent, false));
-    edges.push({ data: { id: `${parent.filename}→${filename}`, source: parent.filename, target: filename } });
+    edges.push({ data: { id: `${parent.filename}→${filename}`, source: parent.filename, target: filename, edgeType: 'hierarchy' } });
   }
 
+  // ── Current (root) node ──────────────────────────────────────
   nodes.push(makeNode({ filename, docType, title: epic?.title || filename, status: epic?.status || 'Draft' }, true));
 
+  // ── Child nodes ──────────────────────────────────────────────
+  const childFilenames = new Set();
   for (const child of children) {
     nodes.push(makeNode(child, false));
-    edges.push({ data: { id: `${filename}→${child.filename}`, source: filename, target: child.filename } });
+    childFilenames.add(child.filename);
+  }
+
+  // ── Collect dep edges among children ─────────────────────────
+  const depEdgeSet = new Set(); // "src→tgt"
+  for (const child of children) {
+    const doc = allDocs.find(d => d.filename === child.filename);
+    if (!doc) continue;
+    for (const blockedFn of (doc.blocks || [])) {
+      if (childFilenames.has(blockedFn)) depEdgeSet.add(`${child.filename}→${blockedFn}`);
+    }
+  }
+
+  // ── Sort children: rank → priority, then topo-enforce deps ───
+  const PRIO = { Critical: 0, Major: 0, High: 1, Medium: 2, Low: 3 };
+  const sorted = [...children].sort((a, b) => {
+    const da = allDocs.find(d => d.filename === a.filename);
+    const db = allDocs.find(d => d.filename === b.filename);
+    const ra = da?.rank != null ? da.rank : 9999;
+    const rb = db?.rank != null ? db.rank : 9999;
+    if (ra !== rb) return ra - rb;
+    const pa = PRIO[(da?.priority || 'Medium')] ?? 2;
+    const pb = PRIO[(db?.priority || 'Medium')] ?? 2;
+    return pa - pb;
+  });
+  // Topological pass: blocked item must come after its blocker
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < sorted.length; i++) {
+      const doc = allDocs.find(d => d.filename === sorted[i].filename);
+      for (const bf of (doc?.blockedBy || []).filter(f => childFilenames.has(f))) {
+        const bi = sorted.findIndex(c => c.filename === bf);
+        if (bi > i) {
+          const [item] = sorted.splice(i, 1);
+          sorted.splice(bi, 0, item);
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+  }
+
+  // ── Build edges as a vertical chain ──────────────────────────
+  // Epic → first child → second child → … (top to bottom)
+  // Edges that also represent a dependency are styled differently.
+  if (sorted.length > 0) {
+    edges.push({ data: { id: `${filename}→${sorted[0].filename}`, source: filename, target: sorted[0].filename, edgeType: 'hierarchy' } });
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const src = sorted[i].filename;
+      const tgt = sorted[i + 1].filename;
+      const isDep = depEdgeSet.has(`${src}→${tgt}`);
+      edges.push({ data: { id: `${src}→${tgt}`, source: src, target: tgt, edgeType: isDep ? 'dependency' : 'sequence' } });
+      depEdgeSet.delete(`${src}→${tgt}`);
+    }
+
+    // Cross-chain dep edges (blocker and blocked aren't adjacent in the chain)
+    for (const key of depEdgeSet) {
+      const [src, tgt] = key.split('→');
+      edges.push({ data: { id: `dep-${src}→${tgt}`, source: src, target: tgt, edgeType: 'dependency' } });
+    }
   }
 
   _cy = cytoscape({
@@ -218,6 +284,17 @@ function buildCyStyle() {
         'target-arrow-shape': 'triangle',
         'curve-style':        'bezier',
         'arrow-scale':        1.1,
+      }
+    },
+    // Dependency edges: red dashed
+    {
+      selector: 'edge[edgeType="dependency"]',
+      style: {
+        'width':              2,
+        'line-color':         '#ef4444',
+        'target-arrow-color': '#ef4444',
+        'line-style':         'dashed',
+        'line-dash-pattern':  [6, 3],
       }
     },
     {
@@ -429,20 +506,10 @@ async function executeRpCreate(type) {
 
     stream.textContent += '\n✓ Linked successfully.';
 
-    // 3. Refresh allDocs and add node to live graph
+    // 3. Refresh allDocs and rebuild the full graph so the chain
+    //    recalculates correctly with the new node included
     await loadDocs();
-    const newDoc = allDocs.find(d => d.filename === newFilename && d.docType === type);
-    if (newDoc && _cy) {
-      _cy.add([
-        { data: makeNode(newDoc, false).data },
-        { data: { id: `${_refineEpicFilename}→${newFilename}`, source: _refineEpicFilename, target: newFilename } },
-      ]);
-      _cy.style(buildCyStyle()); // re-apply styles so new node gets type colours
-      _cy.layout({
-        name: 'dagre', rankDir: 'TB', nodeSep: 70, rankSep: 100,
-        padding: 50, animate: true, animationDuration: 280,
-      }).run();
-    }
+    await buildRefineGraph(_refineEpicFilename, _refineDocType);
 
     // 4. Open the new node's panel after a short delay
     setTimeout(() => {
