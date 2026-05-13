@@ -1,0 +1,315 @@
+WARNING:UserStaticExportProcessor:Starting run(user_id=vwl7c4r, task_key= STE~vwl7c4r~c99bb793-e912-4180-965c-85f2ef042210)
+INFO:UserStaticExportProcessor:Input attributes: ['test/general.name']
+INFO:UserStaticExportProcessor:Input datapool: {'Applikation - VWAG EA MEB ASG': ['T202604270723363978204']}
+INFO:src.dyn_export.isilon_connection.isilon_connector:Share(s) of user None already exist(s)
+/code/.venv/lib/python3.11/site-packages/opensearchpy/connection/http_urllib3.py:163: UserWarning: When using `ssl_context`, all other SSL related kwargs are ignored
+  warnings.warn(
+INFO:src.common.search_service:Initialise Service with Elasticsearch engine
+INFO:DbStaticExpConnector:bck_pending_task.status updated to P for task_key STE~vwl7c4r~c99bb793-e912-4180-965c-85f2ef042210. Affected rows: 1
+INFO:src.common.search_service:Getting document from index 'esr_applikation-vwageamebasg' with test_id: T202604270723363978204
+INFO:UserStaticExportProcessor:Start exporting for test:T202604270723363978204, metadata: {'environment': {'application': {'metadata_catalogue_version': '20250724135149', 'metadata_catalogue_version_update': '20250724135149-UpdLive', 'attribute': {'datapool': 'Applikation - VWAG EA MEB ASG'}, 'events': []}, 'atfx_file': {'version': 'atfx_file: V1.3.1', 'xml_ns': 'http://www.asam.net/ODS/6.0.1/Schema'}, 'base_model_version': 'asam34', 'classification': {'testversion': 1, 'update_number': 1, 'test_version_id': 702950, 'created_on': '2026-04-27T07:23:36.398072', 'modified_on': '2026-04-29T06:32:36.752516', 'processing_period': '2026-07-28', 'purge_date': '2031-04-29', 'attribute': {'is_locked': False, 'csd_class': '5.1', 'legal_hold': [], 'created_on': '2026-04-24T21:32:24.699000', 'modified_on': '2026-04-29T06:32:20.935690+00:00'}, 'legal_hold_on_datapool': [], 'midas_test_id': 'T202604270723363978204', 'meta_file_version_number': 3}}, 'test': {'assignment': {'attribute': {'client_department': 'EATS/5', 'client_costcenter': '1788'}}, 'general': {'attribute': {'starttime': '2026-04-27T05:22:00', 'endtime': '2026-04-27T05:22:00', 'name': 'BEV_STP1_50402_EFS3_20260424_163620977_24-04-2026'}}}, 'testequipment': {'INCA': [{'ao_file_children': [5713520], 'id': 5}], 'Other_Test_Equipment': {'id': 10, 'ao_file_children': [5737312]}}, 'file': [{'id': 5713520, 'version_id': 6532091, 'version_number': 1, 'name': 'BEV_STP1_50402_EFS3_20260424_163620977_24-04-2026.mf4', 'relative_path': 'raw/Applikation - VWAG EA MEB ASG/2026/T202604270723363978204/files/BEV_STP1_50402_EFS3_20260424_163620977_24-04-2026.mf4', 'created_on': '2026-04-24T21:32:24.699000Z', 'modified_on': '2026-04-24T21:32:24.699000Z', 'size': 35720941664, 'mimetype': 'DEFAULT MDF (INCA)', 'test_equipment': 'INCA', 'hash': '1ac82984f2fa1076aba4134c92cc3146', 'hashtype': 'md5', 'description': '<HDcomment>\n<TX>Datenbank: MEB-ASG\nExperiment: Experiment_Allgemein_SE1I70_V01\nArbeitsumgebung: Arbeitsumgebung_SE1I70\nGeräte: FETK:1,CAN-Monitoring:1,CalcDev\nProgrammbeschreibung: SE1I70_OEM, E3_1_1_UNECE_Gen2_E3V_ACANFD_KMatrix_V15.04.05.02F_20250114_BAm\nAS: ___0EA.906.018.FB_04_EFS_5705_SE1I70_60AE~4353_1\nRS: ___0EA.906.018.FB_04_EFS_5705_SE1I70_60AE~4353\nDatum: 24.04.2026\nZeit: 16:37:04\nTriggervorlaufzeit: 0[s]\nAufzeichnungsdauer: 06:55:13\nTriggernachlaufzeit: 0[s]\n§@\n</TX>\n<common_properties>\n<e name="subject">CPC075 HIL</e>\n<e name="project">MEB</e>\n<e name="department">EATS/5</e>\n<e name="author">Schmuck</e>\n</common_properties>\n<time_source>INCA PC Reference Time</time_source>\n</HDcomment>', 'department': 'EATS/5', 'project': 'MEB', 'version': '4.10', 'author': 'Schmuck', 'subject': 'CPC075 HIL', 'date': '2026-04-24', 'comment': ['subject=CPC075 HIL', 'project=MEB', 'department=EATS/5', 'author=Schmuck'], 'description_INCA': {'Datenbank': 'MEB-ASG', 'Experiment': 'Experiment_Allgemein_SE1I70_V01', 'Arbeitsumgebung': 'Arbeitsumgebung_SE1I70', 'Geräte': 'FETK:1,CAN-Monitoring:1,CalcDev', 'Programmbeschreibung': 'SE1I70_OEM, E3_1_1_UNECE_Gen2_E3V_ACANFD_KMatrix_V15.04.05.02F_20250114_BAm', 'AS': '___0EA.906.018.FB_04_EFS_5705_SE1I70_60AE~4353_1', 'RS': '___0EA.906.018.FB_04_EFS_5705_SE1I70_60AE~4353', 'Datum': '24.04.2026', 'Zeit': '16:37:04', 'Triggervorlaufzeit': '0', 'Aufzeichnungsdauer': '06:55:13', 'Triggernachlaufzeit': '0'}}, {'id': 5737312, 'version_id': 6558219, 'version_number': 1, 'name': 'BEV_STP1_50402_EFS3_20260424_163620977_24-04-2026_hil_bev_report.xlsx', 'relative_path': 'raw/Applikation - VWAG EA MEB ASG/2026/T202604270723363978204/files/645e0d69-421c-4196-ab4e-d0897e787654/BEV_STP1_50402_EFS3_20260424_163620977_24-04-2026_hil_bev_report.xlsx', 'relative_subfolder_path': 'T202604270723363978204', 'created_on': '2026-04-29T06:22:04.004268Z', 'modified_on': '2026-04-29T06:21:56.431203Z', 'size': 8978, 'mimetype': 'Other Test Equipment', 'test_equipment': 'Other_Test_Equipment', 'hash': 'a49abfbd8bf9c1d197e4b863ee66a6e2', 'hashtype': 'md5'}]}, folder_structure: [['test', 'general', 'attribute', 'name']]
+INFO:UserStaticExportProcessor:Extracting metadata attributes
+INFO:UserStaticExportProcessor:Start Isilon process
+INFO:src.dyn_export.isilon_connection.isilon_connector:Getting content of directory /ifs/dapcore-p/midas/minio/midas-data/raw/SMB_Clones/vwl7c4r/0x126d446300f5
+ERROR:src.dyn_export.isilon_connection.isilon_connector:Error getting content of directory /ifs/dapcore-p/midas/minio/midas-data/raw/SMB_Clones/vwl7c4r/0x126d446300f5: Error fetching directory contents for 'ifs/dapcore-p/midas/minio/midas-data/raw/SMB_Clones/vwl7c4r/0x126d446300f5'.
+INFO:UserStaticExportProcessor:Creating isilon directory: /ifs/dapcore-p/midas/minio/midas-data/raw/SMB_Clones/vwl7c4r/0x126d446300f5/bev_stp1_50402_efs3_20260424_163620977_24-04-2026
+INFO:UserStaticExportProcessor:Provide ACLs to: /ifs/dapcore-p/midas/minio/midas-data/raw/SMB_Clones/vwl7c4r
+INFO:UserStaticExportProcessor:Creating directory for file to path /ifs/dapcore-p/midas/minio/midas-data/raw/SMB_Clones/vwl7c4r/0x126d446300f5/bev_stp1_50402_efs3_20260424_163620977_24-04-2026/
+INFO:UserStaticExportProcessor:Recursively provide ACLs to ['/ifs/dapcore-p/midas/minio/midas-data/raw/SMB_Clones/vwl7c4r/0x126d446300f5/bev_stp1_50402_efs3_20260424_163620977_24-04-2026']
+INFO:UserStaticExportProcessor:Creating snapshot for /ifs/dapcore-p/midas/minio/midas-data/raw/Applikation - VWAG EA MEB ASG/2026/T202604270723363978204/files/BEV_STP1_50402_EFS3_20260424_163620977_24-04-2026.mf4 in Isilon
+INFO:UserStaticExportProcessor:Snapshot created: 8c764d80-2b75-42bc-bf19-3b7faa485b90
+INFO:UserStaticExportProcessor:Cloning file from /ifs/dapcore-p/midas/minio/midas-data/raw/Applikation - VWAG EA MEB ASG/2026/T202604270723363978204/files/BEV_STP1_50402_EFS3_20260424_163620977_24-04-2026.mf4 to /ifs/dapcore-p/midas/minio/midas-data/raw/SMB_Clones/vwl7c4r/0x126d446300f5/bev_stp1_50402_efs3_20260424_163620977_24-04-2026. File name: BEV_STP1_50402_EFS3_20260424_163620977_24-04-2026.mf4, snapshot name: 8c764d80-2b75-42bc-bf19-3b7faa485b90
+ERROR:UserStaticExportProcessor:Missing source file in Isilon
+Traceback (most recent call last):
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/http/client.py", line 1415, in getresponse
+    response.begin()
+  File "/usr/lib64/python3.11/http/client.py", line 330, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/http/client.py", line 291, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/socket.py", line 718, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/ssl.py", line 1314, in recv_into
+    return self.read(nbytes, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/ssl.py", line 1166, in read
+    return self._sslobj.read(len, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/code/.venv/lib/python3.11/site-packages/requests/adapters.py", line 645, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/util/retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/util/util.py", line 39, in reraise
+    raise value
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='vwagwof00p000-management.wob.vw.vwg', port=8080): Read timed out. (read timeout=60)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/code/src/static_export/user_static_export_processor.py", line 640, in export_to_isilon
+    self.isilon_conn.clone_file(
+  File "/code/src/dyn_export/isilon_connection/isilon_connector.py", line 193, in clone_file
+    return file_operations.clone_file(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/midas_storage_manager/services/isilon/file_operations.py", line 284, in clone_file
+    response = requests.put(
+               ^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/api.py", line 130, in put
+    return request("put", url, data=data, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/sessions.py", line 592, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/sessions.py", line 706, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/adapters.py", line 691, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='vwagwof00p000-management.wob.vw.vwg', port=8080): Read timed out. (read timeout=60)
+ERROR:UserStaticExportProcessor:Exporting and uploading data to Isilon share /ifs/dapcore-p/midas/minio/midas-data/raw/SMB_Clones/vwl7c4r failed.
+Traceback (most recent call last):
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/http/client.py", line 1415, in getresponse
+    response.begin()
+  File "/usr/lib64/python3.11/http/client.py", line 330, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/http/client.py", line 291, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/socket.py", line 718, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/ssl.py", line 1314, in recv_into
+    return self.read(nbytes, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/ssl.py", line 1166, in read
+    return self._sslobj.read(len, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/code/.venv/lib/python3.11/site-packages/requests/adapters.py", line 645, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/util/retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/util/util.py", line 39, in reraise
+    raise value
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='vwagwof00p000-management.wob.vw.vwg', port=8080): Read timed out. (read timeout=60)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/code/src/static_export/user_static_export_processor.py", line 640, in export_to_isilon
+    self.isilon_conn.clone_file(
+  File "/code/src/dyn_export/isilon_connection/isilon_connector.py", line 193, in clone_file
+    return file_operations.clone_file(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/midas_storage_manager/services/isilon/file_operations.py", line 284, in clone_file
+    response = requests.put(
+               ^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/api.py", line 130, in put
+    return request("put", url, data=data, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/sessions.py", line 592, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/sessions.py", line 706, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/adapters.py", line 691, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='vwagwof00p000-management.wob.vw.vwg', port=8080): Read timed out. (read timeout=60)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/code/src/static_export/user_static_export_processor.py", line 650, in export_to_isilon
+    raise MissingSourceFileInIsilon(msg)
+src.static_export.static_export_utils.user_static_export_error.MissingSourceFileInIsilon: Missing source file in Isilon
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/code/src/static_export/user_static_export_processor.py", line 652, in export_to_isilon
+    self.isilon_conn.delete_snapshot(snapshot_name)
+  File "/code/src/dyn_export/isilon_connection/isilon_connector.py", line 184, in delete_snapshot
+    snapshots.delete_snapshot(snapshot_name=snapshot_name)
+  File "/code/.venv/lib/python3.11/site-packages/midas_storage_manager/services/isilon/snapshots.py", line 113, in delete_snapshot
+    raise err
+  File "/code/.venv/lib/python3.11/site-packages/midas_storage_manager/services/isilon/snapshots.py", line 108, in delete_snapshot
+    response.raise_for_status()
+  File "/code/.venv/lib/python3.11/site-packages/requests/models.py", line 1028, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://vwagwof00p000-management.wob.vw.vwg:8080/platform/snapshot/snapshots/8c764d80-2b75-42bc-bf19-3b7faa485b90
+ERROR:UserStaticExportProcessor:Exporting Midas Test ID: T202604270723363978204, datapool: Applikation - VWAG EA MEB ASG failed.
+Traceback (most recent call last):
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/http/client.py", line 1415, in getresponse
+    response.begin()
+  File "/usr/lib64/python3.11/http/client.py", line 330, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/http/client.py", line 291, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/socket.py", line 718, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/ssl.py", line 1314, in recv_into
+    return self.read(nbytes, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.11/ssl.py", line 1166, in read
+    return self._sslobj.read(len, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/code/.venv/lib/python3.11/site-packages/requests/adapters.py", line 645, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/util/retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/util/util.py", line 39, in reraise
+    raise value
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/code/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='vwagwof00p000-management.wob.vw.vwg', port=8080): Read timed out. (read timeout=60)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/code/src/static_export/user_static_export_processor.py", line 640, in export_to_isilon
+    self.isilon_conn.clone_file(
+  File "/code/src/dyn_export/isilon_connection/isilon_connector.py", line 193, in clone_file
+    return file_operations.clone_file(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/midas_storage_manager/services/isilon/file_operations.py", line 284, in clone_file
+    response = requests.put(
+               ^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/api.py", line 130, in put
+    return request("put", url, data=data, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/sessions.py", line 592, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/sessions.py", line 706, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/.venv/lib/python3.11/site-packages/requests/adapters.py", line 691, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='vwagwof00p000-management.wob.vw.vwg', port=8080): Read timed out. (read timeout=60)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/code/src/static_export/user_static_export_processor.py", line 650, in export_to_isilon
+    raise MissingSourceFileInIsilon(msg)
+src.static_export.static_export_utils.user_static_export_error.MissingSourceFileInIsilon: Missing source file in Isilon
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/code/src/static_export/user_static_export_processor.py", line 423, in _export_multiple_midas_tests
+    self.export_to_isilon(
+  File "/code/src/static_export/user_static_export_processor.py", line 720, in export_to_isilon
+    raise err
+  File "/code/src/static_export/user_static_export_processor.py", line 652, in export_to_isilon
+    self.isilon_conn.delete_snapshot(snapshot_name)
+  File "/code/src/dyn_export/isilon_connection/isilon_connector.py", line 184, in delete_snapshot
+    snapshots.delete_snapshot(snapshot_name=snapshot_name)
+  File "/code/.venv/lib/python3.11/site-packages/midas_storage_manager/services/isilon/snapshots.py", line 113, in delete_snapshot
+    raise err
+  File "/code/.venv/lib/python3.11/site-packages/midas_storage_manager/services/isilon/snapshots.py", line 108, in delete_snapshot
+    response.raise_for_status()
+  File "/code/.venv/lib/python3.11/site-packages/requests/models.py", line 1028, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://vwagwof00p000-management.wob.vw.vwg:8080/platform/snapshot/snapshots/8c764d80-2b75-42bc-bf19-3b7faa485b90
+INFO:UserStaticExportProcessor:Finishing vwl7c4r: success=False Notification_key=EXPSTATICERR, do_notify=True
+INFO:DbStaticExpConnector:bck_pending_task.status updated to E for task_key STE~vwl7c4r~c99bb793-e912-4180-965c-85f2ef042210. Affected rows: 1
+ERROR:UserStaticExportProcessor:error occurred
+Traceback (most recent call last):
+  File "/code/src/static_export/user_static_export_processor.py", line 259, in run
+    self._run_internal(attributes_datapool)
+  File "/code/src/static_export/user_static_export_processor.py", line 302, in _run_internal
+    raise ExportMidasTestsError(reason)
+src.static_export.static_export_utils.user_static_export_error.ExportMidasTestsError: Exporting Midas Test ID: T202604270723363978204, datapool: Applikation - VWAG EA MEB ASG failed.
+WARNING:UserStaticExportProcessor:Finished run(user_id=vwl7c4r, task_key= STE~vwl7c4r~c99bb793-e912-4180-965c-85f2ef042210)  Static export failed - The following exception occurred: Exporting Midas Test ID: T202604270723363978204, datapool: Applikation - VWAG EA MEB ASG failed.
+Traceback (most recent call last):
+  File "/code/src/static_export/user_static_export.py", line 41, in <module>
+    user_static_export_proc.run(
+  File "/code/src/static_export/user_static_export_processor.py", line 287, in run
+    raise StaticExpNotDone(failure_msg)
+src.static_export.static_export_utils.user_static_export_error.StaticExpNotDone: Static export failed - The following exception occurred: Exporting Midas Test ID: T202604270723363978204, datapool: Applikation - VWAG EA MEB ASG failed.
+time="2026-05-08T07:43:31.855Z" level=info msg="sub-process exited" argo=true error="<nil>"
+Error: exit status 1

@@ -104,7 +104,7 @@ app.use(jiraPushRoutes(jiraShared));
 app.use(jiraSyncRoutes(jiraShared));
 app.use(jiraSearchRoutes(jiraShared));
 app.use(settingsRoutes({ rootDir: __dirname, broadcast, logInfo, jiraBase: JIRA_BASE }));
-app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError }));
+app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex }));
 
 // ── Startup ──────────────────────────────────────────────────────────────────
 function validateStartupConfig() {
