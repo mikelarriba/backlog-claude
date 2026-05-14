@@ -127,6 +127,44 @@
 .status-badge.Created-in-JIRA { background: var(--type-epic-bg); color: var(--type-epic-color); }
 .status-badge.Archived        { background: var(--surface2); color: var(--muted); opacity: 0.7; }
 
+/* ── Team & Work Category badges ────────────────────────────── */
+.team-badge,
+.work-cat-badge {
+  font-size: 0.63rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Team variants */
+.team-badge--backend  { background: #dbeafe; color: #1d4ed8; }
+.team-badge--frontend { background: #ede9fe; color: #6d28d9; }
+.team-badge--platform { background: #ccfbf1; color: #0f766e; }
+.team-badge--testing  { background: #fef3c7; color: #b45309; }
+
+/* Work Category variants */
+.work-cat-badge--user-features        { background: #dcfce7; color: #15803d; }
+.work-cat-badge--platform-features    { background: #cffafe; color: #0e7490; }
+.work-cat-badge--testing-features     { background: #fef3c7; color: #b45309; }
+.work-cat-badge--platform-maintenance { background: #f1f5f9; color: #475569; }
+.work-cat-badge--technical-debt       { background: #fee2e2; color: #b91c1c; }
+
+/* Dark-mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .team-badge--backend  { background: #1e3a5f; color: #93c5fd; }
+  .team-badge--frontend { background: #2e1a4f; color: #c4b5fd; }
+  .team-badge--platform { background: #0f2f2b; color: #5eead4; }
+  .team-badge--testing  { background: #3b2502; color: #fcd34d; }
+
+  .work-cat-badge--user-features        { background: #052e16; color: #86efac; }
+  .work-cat-badge--platform-features    { background: #083344; color: #67e8f9; }
+  .work-cat-badge--testing-features     { background: #3b2502; color: #fcd34d; }
+  .work-cat-badge--platform-maintenance { background: #1e293b; color: #94a3b8; }
+  .work-cat-badge--technical-debt       { background: #3f0d0d; color: #fca5a5; }
+}
+
 /* ── Filter row & Pills ──────────────────────────────────────── */
 .filter-row {
   padding: 7px 16px;

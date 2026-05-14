@@ -288,6 +288,11 @@ function renderDocItem(d, indent, childrenMap) {
     blocksCnt    ? `<span class="dep-badge dep-badge-blocks" title="Blocks ${blocksCnt} stor${blocksCnt !== 1 ? 'ies' : 'y'}">→ ${blocksCnt}</span>` : '',
     blockedByCnt ? `<span class="dep-badge dep-badge-blocked" title="Blocked by ${blockedByCnt} stor${blockedByCnt !== 1 ? 'ies' : 'y'}">🔒 ${blockedByCnt}</span>` : '',
   ].join('');
+  const teamSlug    = d.team        ? d.team.toLowerCase().replace(/\s+/g, '-')        : null;
+  const workCatSlug = d.workCategory ? d.workCategory.toLowerCase().replace(/\s+/g, '-') : null;
+  const teamBadge    = teamSlug    ? `<span class="team-badge team-badge--${teamSlug}">${escHtml(d.team)}</span>`               : '';
+  const workCatBadge = workCatSlug ? `<span class="work-cat-badge work-cat-badge--${workCatSlug}">${escHtml(d.workCategory)}</span>` : '';
+
   return `
     <div class="epic-item${multiSel}"
          data-filename="${escHtml(d.filename)}"
@@ -304,6 +309,8 @@ function renderDocItem(d, indent, childrenMap) {
         <div class="epic-title-text">${escHtml(d.title)}</div>
       </div>
       ${depBadges}
+      ${teamBadge}
+      ${workCatBadge}
       ${d.sprint ? `<span class="sprint-badge">${escHtml(d.sprint)}</span>` : ''}
       <span class="status-badge ${statusClass}">${STATUS_LABEL[d.status] || d.status || 'Draft'}</span>
       <div class="epic-date">${d.date}</div>
