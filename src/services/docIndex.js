@@ -36,6 +36,8 @@ export function createDocIndex({ TYPE_CONFIG }) {
     const blockedByRaw = extractFrontmatterField(content, 'Blocked_By');
     const blocks    = blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
     const blockedBy = blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
+    const teamRaw       = extractFrontmatterField(content, 'Team');
+    const workCatRaw    = extractFrontmatterField(content, 'Work_Category');
 
     let body = content;
     if (body.startsWith('---')) {
@@ -62,6 +64,8 @@ export function createDocIndex({ TYPE_CONFIG }) {
       parentType,
       blocks,
       blockedBy,
+      team:         teamRaw    && teamRaw    !== 'TBD' ? teamRaw    : null,
+      workCategory: workCatRaw && workCatRaw !== 'TBD' ? workCatRaw : null,
       hasDescription: body.length > 30,
     };
   }
