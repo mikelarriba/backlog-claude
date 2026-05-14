@@ -46,6 +46,99 @@ function jiraSelectConfirm() {
   if (_jiraSelectResolve) { _jiraSelectResolve(selected); _jiraSelectResolve = null; }
 }
 
+// ── Sync preview confirmation modal ──────────────────────────
+let _syncPreviewResolve = null;
+let _syncPreviewItems   = [];
+
+function showSyncPreviewModal(title, items, confirmLabel) {
+  return new Promise(function(resolve) {
+    _syncPreviewResolve = resolve;
+    _syncPreviewItems   = items;
+
+    document.getElementById('sync-preview-title').textContent       = title;
+    document.getElementById('sync-preview-confirm-btn').textContent = confirmLabel || 'Confirm';
+
+    const createCount = items.filter(i => i.action === 'create').length;
+    const updateCount = items.filter(i => i.action === 'update').length;
+    const parts = [];
+    if (createCount) parts.push(`${createCount} new`);
+    if (updateCount) parts.push(`${updateCount} update`);
+    document.getElementById('sync-preview-counts').textContent = parts.join(' · ');
+
+    const list = document.getElementById('sync-preview-list');
+    list.innerHTML = items.map(function(item, idx) {
+      const isCreate = item.action === 'create';
+      const keyLabel = item.jiraKey || item.jiraId || '';
+      const titleText = item.jiraTitle || item.title || '';
+
+      let changesHtml = '';
+      if (item.changes && item.changes.length > 0) {
+        changesHtml = '<div class="sync-preview-changes">' +
+          item.changes.map(function(c) {
+            if (c.field === 'error') return '<div class="sync-preview-change"><span class="sync-preview-field">error</span><span class="sync-preview-to" style="color:var(--error-text)">' + escHtml(c.message) + '</span></div>';
+            if (c.field === 'description') return '<div class="sync-preview-change"><span class="sync-preview-field">description</span><span class="sync-preview-to">' + (isCreate ? 'new' : 'will sync') + '</span></div>';
+            const fromHtml = c.from !== undefined && c.from !== null
+              ? '<span class="sync-preview-from">' + escHtml(String(c.from)) + '</span><span class="sync-preview-arrow">→</span>'
+              : '';
+            const toHtml = c.to !== undefined && c.to !== null
+              ? '<span class="sync-preview-to">' + escHtml(String(c.to)) + '</span>'
+              : '<span class="sync-preview-to" style="color:var(--muted)">—</span>';
+            return '<div class="sync-preview-change"><span class="sync-preview-field">' + escHtml(c.field) + '</span>' + fromHtml + toHtml + '</div>';
+          }).join('') +
+        '</div>';
+      } else if (!isCreate) {
+        changesHtml = '<div class="sync-preview-no-changes">No field changes detected</div>';
+      }
+
+      const typeLabel = item.docType || item.localDocType || '';
+      const typeBadge = typeLabel ? '<span class="type-badge ' + escHtml(typeLabel) + '" style="font-size:0.6rem;padding:1px 6px">' + escHtml((TYPE_LABEL && TYPE_LABEL[typeLabel]) || typeLabel) + '</span>' : '';
+
+      return '<div class="sync-preview-item">' +
+        '<label class="sync-preview-item-header">' +
+          '<input type="checkbox" checked data-idx="' + idx + '" class="sync-preview-cb" />' +
+          '<span class="sync-preview-action ' + (isCreate ? 'create' : 'update') + '">' + (isCreate ? '+ Create' : '↺ Update') + '</span>' +
+          typeBadge +
+          '<span class="sync-preview-item-title">' + escHtml(titleText) + '</span>' +
+          (keyLabel ? '<span class="sync-preview-item-key">' + escHtml(keyLabel) + '</span>' : '') +
+        '</label>' +
+        changesHtml +
+      '</div>';
+    }).join('');
+
+    document.getElementById('sync-preview-overlay').classList.add('show');
+    document.querySelectorAll('#sync-preview-list .sync-preview-cb').forEach(function(cb) {
+      cb.addEventListener('change', _syncPreviewUpdateCount);
+    });
+    _syncPreviewUpdateCount();
+  });
+}
+
+function _syncPreviewUpdateCount() {
+  const total   = document.querySelectorAll('#sync-preview-list .sync-preview-cb').length;
+  const checked = document.querySelectorAll('#sync-preview-list .sync-preview-cb:checked').length;
+  const btn = document.getElementById('sync-preview-confirm-btn');
+  btn.textContent = `Confirm (${checked}/${total})`;
+  btn.disabled = checked === 0;
+}
+
+function syncPreviewSelectAll(checked) {
+  document.querySelectorAll('#sync-preview-list .sync-preview-cb').forEach(function(cb) { cb.checked = checked; });
+  _syncPreviewUpdateCount();
+}
+
+function syncPreviewCancel() {
+  document.getElementById('sync-preview-overlay').classList.remove('show');
+  if (_syncPreviewResolve) { _syncPreviewResolve(null); _syncPreviewResolve = null; }
+}
+
+function syncPreviewConfirm() {
+  const selected = Array.from(
+    document.querySelectorAll('#sync-preview-list .sync-preview-cb:checked')
+  ).map(function(cb) { return _syncPreviewItems[parseInt(cb.dataset.idx)]; });
+  document.getElementById('sync-preview-overlay').classList.remove('show');
+  if (_syncPreviewResolve) { _syncPreviewResolve(selected); _syncPreviewResolve = null; }
+}
+
 // ── Push to JIRA ──────────────────────────────────────────────
 const JIRA_CARET = ' <span class="toolbar-caret">▾</span>';
 
@@ -121,21 +214,66 @@ async function updateFromJira(jiraKeyOverride) {
 
   const key = jiraKeyOverride || currentJiraId;
   const btn = document.getElementById('jira-push-btn');
-  btn.disabled    = true;
-  btn.textContent = '⏳ Updating…';
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Loading preview…' + JIRA_CARET;
   closeAllDropdowns();
 
+  // 1. Fetch pull preview (with children for epics/features)
+  const isParent = currentDocType === 'feature' || currentDocType === 'epic';
+  let previewItems;
   try {
-    const data = await postJSON(
-      `/api/jira/update-from-jira/${currentDocType}/${encodeURIComponent(currentFilename)}`,
-      key !== currentJiraId ? { jiraKey: key } : {},
-    );
-    showJiraToast('success', `✅ Updated from ${data.key}`);
-    // Reload the open doc to show new content
-    if (currentFilename) openDoc(currentFilename, currentDocType);
-    // Offer to sync children if this is a feature or epic
-    if (currentDocType === 'feature' || currentDocType === 'epic') {
-      await offerChildrenDownload([{ key: data.key, filename: currentFilename, docType: currentDocType }]);
+    const preview = await postJSON('/api/jira/pull-preview', {
+      jiraKey: key,
+      includeChildren: isParent,
+    });
+    previewItems = preview.items || [];
+  } catch (e) {
+    showJiraToast('error', `❌ Preview failed: ${e.message}`);
+    updateJiraPushBtn();
+    return;
+  }
+
+  // 2. Show confirmation popup with checkboxes
+  const selected = await showSyncPreviewModal(
+    '↓ Update from JIRA — Preview',
+    previewItems,
+    `Update ${previewItems.length} item${previewItems.length !== 1 ? 's' : ''}`
+  );
+
+  if (!selected || selected.length === 0) {
+    updateJiraPushBtn();
+    return;
+  }
+
+  // 3. Execute: update selected items
+  btn.innerHTML = '⏳ Updating…' + JIRA_CARET;
+  try {
+    // Check if parent (first preview item) was selected
+    const parentItem = previewItems[0];
+    const parentSelected = selected.some(s => s.jiraKey === parentItem.jiraKey);
+
+    if (parentSelected) {
+      const data = await postJSON(
+        `/api/jira/update-from-jira/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+        key !== currentJiraId ? { jiraKey: key } : {},
+      );
+      showJiraToast('success', `✅ Updated from ${data.key}`);
+      if (currentFilename) openDoc(currentFilename, currentDocType);
+    }
+
+    // 4. Pull/update selected children
+    const selectedChildren = selected.filter(s => s.jiraKey !== parentItem.jiraKey);
+    if (selectedChildren.length > 0) {
+      const childKeys     = selectedChildren.map(c => c.jiraKey);
+      const overwriteKeys = selectedChildren.filter(c => c.action === 'update').map(c => c.jiraKey);
+      btn.innerHTML = '⏳ Syncing children…' + JIRA_CARET;
+      await postJSON('/api/jira/pull', {
+        keys: childKeys,
+        overwriteKeys,
+        parentLink: { filename: currentFilename, docType: currentDocType },
+      });
+      showJiraToast('success', `✅ ${childKeys.length} child(ren) synced`);
+      await loadDocs();
     }
   } catch (e) {
     showJiraToast('error', `❌ ${e.message}`);
@@ -174,80 +312,143 @@ function submitUpdateFromJiraKey() {
 async function pushToJira() {
   if (!currentFilename || !currentDocType) return;
 
-  // For features/epics: let user select which children to also push
-  let selectedChildren = [];
+  const btn = document.getElementById('jira-push-btn');
+
+  // 1. Collect all items: parent + all linked children (no pre-selection modal)
+  const itemsToPush = [{ filename: currentFilename, docType: currentDocType }];
+
   if (currentDocType === 'feature' || currentDocType === 'epic') {
     try {
       const linksData = await fetchJSON(`/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`);
       const localChildren = linksData.children || [];
-      if (localChildren.length > 0) {
-        const modalItems = localChildren.map(c => ({
-          key:      c.jiraId && c.jiraId !== 'TBD' ? c.jiraId : 'New',
-          summary:  c.title,
-          type:     TYPE_LABEL[c.docType] || c.docType,
-          filename: c.filename,
-          docType:  c.docType,
-        }));
-        selectedChildren = await showJiraSelectModal(
-          `${localChildren.length} linked child issue(s) — select to push`,
-          modalItems,
-          'Push selected'
-        );
+      for (const c of localChildren) {
+        itemsToPush.push({ filename: c.filename, docType: c.docType });
       }
     } catch (e) { console.warn('Failed to load children for push:', e.message); }
   }
 
-  const btn = document.getElementById('jira-push-btn');
-  btn.disabled    = true;
-  btn.textContent = '⏳ Pushing…';
+  // 2. Fetch push preview for all items
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Loading preview…' + JIRA_CARET;
+  closeAllDropdowns();
 
+  let previewItems;
   try {
-    // Push the parent doc
-    const data = await postJSON(
-      `/api/jira/push/${currentDocType}/${encodeURIComponent(currentFilename)}`,
-    );
-
-    if (data.type === 'multi-story') {
-      const created = data.results.filter(r => r.action === 'created').length;
-      const updated = data.results.filter(r => r.action === 'updated').length;
-      const parts = [];
-      if (created) parts.push(`${created} created`);
-      if (updated) parts.push(`${updated} synced`);
-      showJiraToast('success', `✅ Stories pushed: ${parts.join(', ')}`);
-      if (currentFilename) openDoc(currentFilename, currentDocType);
-    } else {
-      showJiraToast('success', `✅ ${data.action === 'created' ? 'Created' : 'Synced'} ${data.key} in JIRA`);
-      if (currentFilename) openDoc(currentFilename, currentDocType);
-    }
-
-    // Push selected children
-    if (selectedChildren.length > 0) {
-      const childResults = [];
-      for (const child of selectedChildren) {
-        try {
-          btn.textContent = `⏳ Pushing ${child.summary}…`;
-          const childData = await postJSON(
-            `/api/jira/push/${child.docType}/${encodeURIComponent(child.filename)}`,
-          );
-          if (childData.key) childResults.push({ key: childData.key, action: childData.action });
-        } catch (e) { console.warn(`Failed to push child ${child.filename}:`, e.message); }
-      }
-      if (childResults.length > 0) {
-        const created = childResults.filter(r => r.action === 'created').length;
-        const updated = childResults.filter(r => r.action === 'updated').length;
-        const parts = [];
-        if (created) parts.push(`${created} created`);
-        if (updated) parts.push(`${updated} synced`);
-        showJiraToast('success', `✅ Children pushed: ${parts.join(', ')}`);
-      }
-    }
-
+    const preview = await postJSON('/api/jira/push-preview', { items: itemsToPush });
+    previewItems = preview.items || [];
+  } catch (e) {
+    showJiraToast('error', `❌ Preview failed: ${e.message}`);
     updateJiraPushBtn();
+    return;
+  }
+
+  // 3. Show unified confirmation popup with checkboxes
+  const selected = await showSyncPreviewModal(
+    '↑ Push to JIRA — Preview',
+    previewItems,
+    `Push ${previewItems.length} item${previewItems.length !== 1 ? 's' : ''}`
+  );
+
+  if (!selected) {
+    updateJiraPushBtn();
+    return;
+  }
+
+  // 4. Execute push for each selected item
+  btn.innerHTML = '⏳ Pushing…' + JIRA_CARET;
+
+  const results = [];
+  for (const item of selected) {
+    const fn = item.filename;
+    const dt = item.docType;
+    if (!fn || !dt) continue;
+    try {
+      btn.innerHTML = `⏳ Pushing ${escHtml(item.title || fn)}…` + JIRA_CARET;
+      const data = await postJSON(`/api/jira/push/${dt}/${encodeURIComponent(fn)}`);
+      if (data.type === 'multi-story') {
+        for (const r of (data.results || [])) results.push(r);
+      } else {
+        results.push({ key: data.key, action: data.action });
+      }
+    } catch (e) { console.warn(`Failed to push ${fn}:`, e.message); }
+  }
+
+  if (results.length > 0) {
+    const created = results.filter(r => r.action === 'created').length;
+    const updated = results.filter(r => r.action !== 'created').length;
+    const parts = [];
+    if (created) parts.push(`${created} created`);
+    if (updated) parts.push(`${updated} synced`);
+    showJiraToast('success', `✅ Pushed: ${parts.join(', ')}`);
+  }
+
+  if (currentFilename) openDoc(currentFilename, currentDocType);
+  updateJiraPushBtn();
+}
+
+// ── Check All JIRA ───────────────────────────────────────────
+async function checkAllJira() {
+  const btn = document.getElementById('jira-check-all-btn');
+  if (!btn) return;
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Checking…';
+
+  let data;
+  try {
+    data = await postJSON('/api/jira/check-all', {});
   } catch (e) {
     showJiraToast('error', `❌ ${e.message}`);
     btn.disabled = false;
-    updateJiraPushBtn();
+    btn.textContent = '↕ Check JIRA';
+    return;
   }
+
+  btn.disabled = false;
+  btn.textContent = '↕ Check JIRA';
+
+  const items = data.items || [];
+  if (items.length === 0) {
+    showJiraToast('success', `✅ All ${data.totalChecked || 0} JIRA-linked issues are up to date`);
+    return;
+  }
+
+  // Show preview modal with changes — reuse the sync preview
+  const selected = await showSyncPreviewModal(
+    `↕ JIRA Changes — ${items.length} of ${data.totalChecked} differ`,
+    items,
+    `Update ${items.length} item${items.length !== 1 ? 's' : ''}`
+  );
+
+  if (!selected || selected.length === 0) return;
+
+  // Execute sync-status for each selected item
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing…';
+  let synced = 0;
+
+  for (const item of selected) {
+    if (!item.filename || !item.docType) continue;
+    // Skip error-only items
+    if (item.changes.length === 1 && item.changes[0].field === 'error') continue;
+    try {
+      await postJSON(
+        `/api/jira/sync-status/${item.docType}/${encodeURIComponent(item.filename)}`,
+      );
+      synced++;
+    } catch (e) {
+      console.warn(`Failed to sync ${item.filename}:`, e.message);
+    }
+  }
+
+  if (synced > 0) {
+    showJiraToast('success', `✅ Synced ${synced} issue${synced !== 1 ? 's' : ''} from JIRA`);
+    await loadDocs();
+    if (currentFilename) openDoc(currentFilename, currentDocType);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '↕ Check JIRA';
 }
 
 // ── JIRA Import ───────────────────────────────────────────────

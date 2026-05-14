@@ -218,7 +218,12 @@
         <div class="list-header-top">
           <span class="list-title">Your Issues</span>
           <span class="epic-count" id="epic-count">0</span>
-          <button class="btn-toolbar btn-toolbar-roadmap" onclick="openRoadmapView()">Roadmap</button>
+          <div class="list-header-actions">
+            <button class="btn-toolbar" onclick="collapseAll()" title="Collapse all">▶ Collapse</button>
+            <button class="btn-toolbar" onclick="expandAll()" title="Expand all">▼ Expand</button>
+            <button class="btn-toolbar btn-toolbar-jira" id="jira-check-all-btn" onclick="checkAllJira()" title="Check all JIRA-linked issues for changes">↕ Check JIRA</button>
+            <button class="btn-toolbar btn-toolbar-roadmap" onclick="openRoadmapView()">Roadmap</button>
+          </div>
         </div>
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
@@ -278,107 +283,135 @@
         <span>Select an issue to preview it here</span>
       </div>
       <div class="detail-header">
-        <!-- Row 1: back button + title -->
-        <div class="detail-header-title-row">
+        <!-- Row 1: back + title + JIRA badge + SP -->
+        <div class="detail-row-1">
           <button class="btn-ghost" onclick="showList()">← Back</button>
           <input class="detail-title-input" id="detail-title-input"
                  type="text" placeholder="Title…"
                  onblur="saveTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelTitleEdit()}">
-        </div>
-        <!-- Row 2: meta (filename / JIRA) + action toolbar -->
-        <div class="detail-header-actions-row">
-          <div class="detail-meta-row">
-            <span class="detail-filename" id="detail-filename"></span>
-            <a id="detail-jira-link" class="detail-jira-link hidden" href="#" target="_blank" rel="noopener"></a>
-            <span id="detail-jira-status" class="detail-jira-status hidden"></span>
-          </div>
-          <div class="detail-toolbar">
-          <!-- Story points (editable for stories/spikes/bugs; sum for epics/features) -->
+          <a id="detail-jira-link" class="detail-jira-badge hidden" href="#" target="_blank" rel="noopener"></a>
+          <span id="detail-jira-status" class="detail-jira-status hidden"></span>
           <div id="sp-wrap" class="sp-wrap hidden">
-            <label class="sp-label">SP</label>
+            <span class="sp-label">SP:</span>
             <input id="sp-input" class="sp-input" type="number" min="0" max="999" placeholder="—"
                    onblur="saveStoryPoints()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){this.blur()}">
           </div>
           <div id="sp-sum-wrap" class="sp-sum-wrap hidden">
-            <span class="sp-label">SP</span>
+            <span class="sp-label">SP:</span>
             <span id="sp-sum" class="sp-sum">0</span>
           </div>
+        </div>
 
-          <select class="status-select" id="status-select" onchange="updateDocStatus(this.value)">
-            <option value="Draft">Draft</option>
-            <option value="Created in JIRA">Created in JIRA</option>
-            <option value="Archived">Archived</option>
-          </select>
-
-          <select class="sprint-select hidden" id="sprint-select"
-                  onchange="updateDocSprint(this.value)">
-            <option value="">No Sprint</option>
-          </select>
-
-          <div class="toolbar-sep"></div>
-
-          <!-- ＋ Create dropdown (shown for epics and features) -->
-          <div class="dropdown-wrap hidden" id="create-dropdown-wrap">
-            <button class="btn-toolbar btn-toolbar-create" onclick="toggleDropdown('create-dropdown-menu')">
-              ＋ Create <span class="toolbar-caret">▾</span>
-            </button>
-            <div class="dropdown-menu" id="create-dropdown-menu">
-              <button id="create-story-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('story');closeDropdown('create-dropdown-menu')">
-                <span class="di-badge story">Story</span>User Story
-              </button>
-              <button id="create-spike-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('spike');closeDropdown('create-dropdown-menu')">
-                <span class="di-badge spike">Spike</span>Research Spike
-              </button>
-              <button id="create-bug-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('bug');closeDropdown('create-dropdown-menu')">
-                <span class="di-badge bug">Bug</span>Bug Report
-              </button>
-              <button id="create-epic-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('epic');closeDropdown('create-dropdown-menu')">
-                <span class="di-badge epic">Epic</span>Epic
-              </button>
-            </div>
+        <!-- Row 2: 2x2 field grid (Status/Team, Sprint/Category) -->
+        <div class="detail-row-2">
+          <div class="detail-field-group">
+            <label class="detail-field-label">Status</label>
+            <select class="detail-field-select" id="status-select" onchange="updateDocStatus(this.value)">
+              <option value="Draft">Draft</option>
+              <option value="Created in JIRA">Created in JIRA</option>
+              <option value="Archived">Archived</option>
+            </select>
           </div>
-
-          <button class="btn-toolbar" onclick="toggleUpgradePanel()">↑ Upgrade</button>
-          <!-- Refine dropdown: Auto (AI) or Manual (graph editor) -->
-          <div class="dropdown-wrap hidden" id="refine-dropdown-wrap">
-            <button class="btn-toolbar" onclick="toggleDropdown('refine-dropdown-menu')">
-              ✨ Refine <span class="toolbar-caret">▾</span>
-            </button>
-            <div class="dropdown-menu" id="refine-dropdown-menu">
-              <button id="stories-btn" class="dropdown-item" onclick="generateStories();closeDropdown('refine-dropdown-menu')">
-                <span class="di-badge story">Auto</span>AI Story Generation
-              </button>
-              <button class="dropdown-item" onclick="openManualRefine(currentFilename,currentDocType);closeDropdown('refine-dropdown-menu')">
-                <span class="di-badge epic">Manual</span>Visual Refinement
-              </button>
-            </div>
+          <div class="detail-field-group">
+            <label class="detail-field-label">Team</label>
+            <select class="detail-field-select" id="detail-team-select" onchange="updateDocTeam(this.value)">
+              <option value="">No Team</option>
+              <option value="Backend">Backend</option>
+              <option value="Frontend">Frontend</option>
+              <option value="Platform">Platform</option>
+              <option value="Testing">Testing</option>
+            </select>
           </div>
+          <div class="detail-field-group">
+            <label class="detail-field-label">Sprint</label>
+            <select class="detail-field-select hidden" id="sprint-select"
+                    onchange="updateDocSprint(this.value)">
+              <option value="">No Sprint</option>
+            </select>
+          </div>
+          <div class="detail-field-group">
+            <label class="detail-field-label">Category</label>
+            <select class="detail-field-select" id="detail-workcat-select" onchange="updateDocWorkCategory(this.value)">
+              <option value="">No Category</option>
+              <option value="User Features">User Features</option>
+              <option value="Platform Features">Platform Features</option>
+              <option value="Testing Features">Testing Features</option>
+              <option value="Platform Maintenance">Platform Maintenance</option>
+              <option value="Technical Debt">Technical Debt</option>
+            </select>
+          </div>
+        </div>
 
-          <div class="toolbar-sep"></div>
+        <!-- Dependencies row (shown only when deps exist) -->
+        <div class="detail-deps-row hidden" id="detail-deps-row"></div>
 
-          <!-- JIRA dropdown: push or sync status -->
-          <div class="dropdown-wrap" id="jira-dropdown-wrap">
-            <button class="btn-toolbar btn-toolbar-jira" id="jira-push-btn" onclick="toggleDropdown('jira-dropdown-menu')">
-              ↑ JIRA <span class="toolbar-caret">▾</span>
-            </button>
-            <div class="dropdown-menu" id="jira-dropdown-menu">
-              <button class="dropdown-item" onclick="pushToJira();closeDropdown('jira-dropdown-menu')">
-                <span class="di-badge jira">Push</span>Sync to JIRA
+        <!-- Row 3: file reference -->
+        <div class="detail-row-3">
+          <span class="detail-file-label">File Reference:</span>
+          <span class="detail-filename" id="detail-filename"></span>
+        </div>
+
+        <!-- Row 4: action buttons -->
+        <div class="detail-row-4">
+          <div class="detail-toolbar">
+            <button class="btn-toolbar" onclick="toggleUpgradePanel()">↑ Upgrade</button>
+
+            <div class="dropdown-wrap hidden" id="create-dropdown-wrap">
+              <button class="btn-toolbar btn-toolbar-create" onclick="toggleDropdown('create-dropdown-menu')">
+                ＋ Create <span class="toolbar-caret">▾</span>
               </button>
-              <button class="dropdown-item" id="jira-sync-status-btn" onclick="syncJiraStatus();closeDropdown('jira-dropdown-menu')">
-                <span class="di-badge">Pull</span>Sync Status
+              <div class="dropdown-menu" id="create-dropdown-menu">
+                <button id="create-story-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('story');closeDropdown('create-dropdown-menu')">
+                  <span class="di-badge story">Story</span>User Story
+                </button>
+                <button id="create-spike-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('spike');closeDropdown('create-dropdown-menu')">
+                  <span class="di-badge spike">Spike</span>Research Spike
+                </button>
+                <button id="create-bug-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('bug');closeDropdown('create-dropdown-menu')">
+                  <span class="di-badge bug">Bug</span>Bug Report
+                </button>
+                <button id="create-epic-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('epic');closeDropdown('create-dropdown-menu')">
+                  <span class="di-badge epic">Epic</span>Epic
+                </button>
+              </div>
+            </div>
+
+            <div class="dropdown-wrap hidden" id="refine-dropdown-wrap">
+              <button class="btn-toolbar" onclick="toggleDropdown('refine-dropdown-menu')">
+                ✨ Refine <span class="toolbar-caret">▾</span>
               </button>
-              <button class="dropdown-item" id="jira-update-from-btn" onclick="updateFromJira()">
-                <span class="di-badge">↓</span>Update from JIRA
+              <div class="dropdown-menu" id="refine-dropdown-menu">
+                <button id="stories-btn" class="dropdown-item" onclick="generateStories();closeDropdown('refine-dropdown-menu')">
+                  <span class="di-badge story">Auto</span>AI Story Generation
+                </button>
+                <button class="dropdown-item" onclick="openManualRefine(currentFilename,currentDocType);closeDropdown('refine-dropdown-menu')">
+                  <span class="di-badge epic">Manual</span>Visual Refinement
+                </button>
+              </div>
+            </div>
+
+            <div class="dropdown-wrap" id="jira-dropdown-wrap">
+              <button class="btn-toolbar btn-toolbar-jira" id="jira-push-btn" onclick="toggleDropdown('jira-dropdown-menu')">
+                ✦ JIRA <span class="toolbar-caret">▾</span>
               </button>
-              <button class="dropdown-item" id="jira-get-children-btn" onclick="retrieveChildrenFromJira();closeDropdown('jira-dropdown-menu')">
-                <span class="di-badge">⬇</span>Retrieve Children
-              </button>
+              <div class="dropdown-menu" id="jira-dropdown-menu">
+                <button class="dropdown-item" onclick="pushToJira();closeDropdown('jira-dropdown-menu')">
+                  <span class="di-badge jira">Push</span>Sync to JIRA
+                </button>
+                <button class="dropdown-item" id="jira-sync-status-btn" onclick="syncJiraStatus();closeDropdown('jira-dropdown-menu')">
+                  <span class="di-badge">Pull</span>Sync Status
+                </button>
+                <button class="dropdown-item" id="jira-update-from-btn" onclick="updateFromJira()">
+                  <span class="di-badge">↓</span>Update from JIRA
+                </button>
+                <button class="dropdown-item" id="jira-get-children-btn" onclick="retrieveChildrenFromJira();closeDropdown('jira-dropdown-menu')">
+                  <span class="di-badge">⬇</span>Retrieve Children
+                </button>
+              </div>
             </div>
           </div>
           <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">Delete</button>
-          </div><!-- /.detail-toolbar -->
-        </div><!-- /.detail-header-actions-row -->
+        </div><!-- /.detail-row-4 -->
       </div><!-- /.detail-header -->
 
       <!-- Upgrade panel -->
@@ -563,6 +596,27 @@
     <div class="dialog-actions">
       <button class="btn-secondary" onclick="closeDeleteDialog()">Cancel</button>
       <button class="btn-delete" id="confirm-delete-btn" onclick="executeDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sync preview confirmation modal ─────────────────────────── -->
+<div class="dialog-overlay" id="sync-preview-overlay">
+  <div class="dialog sync-preview-dialog">
+    <div class="sync-preview-header">
+      <h3 id="sync-preview-title">Sync Preview</h3>
+      <div class="sync-preview-header-right">
+        <div class="sync-preview-bulk">
+          <button class="btn-ghost btn-xs" onclick="syncPreviewSelectAll(true)">All</button>
+          <button class="btn-ghost btn-xs" onclick="syncPreviewSelectAll(false)">None</button>
+        </div>
+        <span class="sync-preview-counts" id="sync-preview-counts"></span>
+      </div>
+    </div>
+    <div class="sync-preview-list" id="sync-preview-list"></div>
+    <div class="dialog-actions">
+      <button class="btn-secondary" onclick="syncPreviewCancel()">Cancel</button>
+      <button class="btn-primary" id="sync-preview-confirm-btn" onclick="syncPreviewConfirm()">Confirm</button>
     </div>
   </div>
 </div>

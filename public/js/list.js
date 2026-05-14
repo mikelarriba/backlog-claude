@@ -319,32 +319,56 @@ function renderDocItem(d, indent, childrenMap) {
 
 // ── Cascade indent (post-render) ─────────────────────────────
 /**
- * After the list is rendered, find the earliest blocked sibling within each
- * parent group and add .dep-cascade to it and all siblings after it.
+ * After the list is rendered, compute the dependency depth of each item
+ * within its sibling group and apply incremental indentation (up to 5 levels).
+ * Depth 0 = no blockedBy in the group, depth N = longest blocker chain.
  */
 function applyDepCascade() {
-  // Clear any previous cascade classes
-  document.querySelectorAll('#epic-list .epic-item.dep-cascade')
-    .forEach(el => el.classList.remove('dep-cascade'));
+  const MAX_DEPTH = 5;
+  const INDENT_PX = 28;
+
+  // Clear any previous cascade styles
+  document.querySelectorAll('#epic-list .epic-item[data-dep-level]').forEach(el => {
+    el.style.marginLeft = '';
+    el.removeAttribute('data-dep-level');
+    el.classList.remove('dep-cascade');
+  });
 
   const docsMap = new Map(allDocs.map(d => [d.filename, d]));
-  const LEAF = new Set(['story', 'spike', 'bug']);
 
   // Collect items in DOM order grouped by parentFilename
   const groups = new Map(); // parentFn → [{el, doc}]
   document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach(el => {
     const doc = docsMap.get(el.dataset.filename);
-    if (!doc || !LEAF.has(doc.docType)) return;
+    if (!doc) return;
     const key = doc.parentFilename || '__none__';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push({ el, doc });
   });
 
   for (const siblings of groups.values()) {
-    const firstIdx = siblings.findIndex(({ doc }) => (doc.blockedBy || []).length > 0);
-    if (firstIdx < 0) continue;
-    for (let i = firstIdx; i < siblings.length; i++) {
-      siblings[i].el.classList.add('dep-cascade');
+    const inGroup = new Set(siblings.map(s => s.doc.filename));
+    const visualDepth = new Map(); // filename → computed visual depth
+    let runningMax = 0;
+
+    // Single forward pass: blockers always appear before blocked items
+    // in rank order, so we can use their already-computed visual depth.
+    for (const { el, doc } of siblings) {
+      let ownDepth = 0;
+      for (const blockerFn of (doc.blockedBy || [])) {
+        if (inGroup.has(blockerFn)) {
+          ownDepth = Math.max(ownDepth, (visualDepth.get(blockerFn) || 0) + 1);
+        }
+      }
+      const effectiveDepth = Math.min(Math.max(ownDepth, runningMax), MAX_DEPTH);
+      visualDepth.set(doc.filename, effectiveDepth);
+      runningMax = effectiveDepth;
+
+      if (effectiveDepth > 0) {
+        el.setAttribute('data-dep-level', effectiveDepth);
+        el.style.marginLeft = `${effectiveDepth * INDENT_PX}px`;
+        el.classList.add('dep-cascade');
+      }
     }
   }
 }
@@ -397,20 +421,25 @@ function showDepConnectors(filename) {
     blockedEl.classList.add('dep-hover-highlight');
     _depHighlightedEls.push(blockerEl, blockedEl);
 
-    const br = blockerEl.getBoundingClientRect();
-    const bd = blockedEl.getBoundingClientRect();
-    const x1 = br.right;
-    const y1 = br.top + br.height / 2;
-    const x2 = bd.left;
-    const y2 = bd.top + bd.height / 2;
+    // Anchor at the readiness-dot (left side) of each item
+    const dot1 = blockerEl.querySelector('.readiness-dot');
+    const dot2 = blockedEl.querySelector('.readiness-dot');
+    if (!dot1 || !dot2) continue;
 
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', x1);
-    line.setAttribute('y1', y1);
-    line.setAttribute('x2', x2);
-    line.setAttribute('y2', y2);
-    line.setAttribute('class', 'dep-connector-line');
-    svg.appendChild(line);
+    const r1 = dot1.getBoundingClientRect();
+    const r2 = dot2.getBoundingClientRect();
+    const x1 = r1.left + r1.width / 2;
+    const y1 = r1.top + r1.height / 2;
+    const x2 = r2.left + r2.width / 2;
+    const y2 = r2.top + r2.height / 2;
+
+    // Draw a left-side bracket: go left, down, then right
+    const offset = 14;
+    const xMid = Math.min(x1, x2) - offset;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${x1},${y1} H${xMid} V${y2} H${x2}`);
+    path.setAttribute('class', 'dep-connector-line');
+    svg.appendChild(path);
   }
 }
 
@@ -431,6 +460,21 @@ function toggleItemCollapse(filename, e) {
   } else {
     _collapsedItems.add(filename);
   }
+  applyFilters();
+}
+
+function collapseAll() {
+  const childrenMap = buildChildrenMap(allDocs);
+  for (const d of allDocs) {
+    if ((d.docType === 'feature' || d.docType === 'epic') && (childrenMap.get(d.filename) || []).length > 0) {
+      _collapsedItems.add(d.filename);
+    }
+  }
+  applyFilters();
+}
+
+function expandAll() {
+  _collapsedItems.clear();
   applyFilters();
 }
 
