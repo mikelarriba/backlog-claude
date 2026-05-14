@@ -434,6 +434,21 @@ function toggleItemCollapse(filename, e) {
   applyFilters();
 }
 
+function collapseAll() {
+  const childrenMap = buildChildrenMap(allDocs);
+  for (const doc of allDocs) {
+    if ((doc.docType === 'feature' || doc.docType === 'epic') && (childrenMap.get(doc.filename) || []).length > 0) {
+      _collapsedItems.add(doc.filename);
+    }
+  }
+  applyFilters();
+}
+
+function expandAll() {
+  _collapsedItems.clear();
+  applyFilters();
+}
+
 function toggleSwimlane(sectionKey) {
   _swimlanesCollapsed[sectionKey] = !_swimlanesCollapsed[sectionKey];
   const section = document.querySelector(`.swimlane-section[data-section="${sectionKey}"]`);
