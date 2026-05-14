@@ -473,11 +473,29 @@ function setStatusFilter(status) {
   applyFilters();
 }
 
+function setTeamFilter(team) {
+  activeTeamFilter = team;
+  document.querySelectorAll('[data-team]').forEach(el => {
+    el.classList.toggle('active', el.dataset.team === team);
+  });
+  applyFilters();
+}
+
+function setWorkCatFilter(cat) {
+  activeWorkCatFilter = cat;
+  document.querySelectorAll('[data-workcat]').forEach(el => {
+    el.classList.toggle('active', el.dataset.workcat === cat);
+  });
+  applyFilters();
+}
+
 function applyFilters() {
   const q = document.getElementById('search').value.toLowerCase();
   let filtered = allDocs;
-  if (activeTypeFilter !== 'all')   filtered = filtered.filter(d => d.docType === activeTypeFilter);
-  if (activeStatusFilter !== 'all') filtered = filtered.filter(d => (d.status || 'Draft') === activeStatusFilter);
+  if (activeTypeFilter !== 'all')    filtered = filtered.filter(d => d.docType === activeTypeFilter);
+  if (activeStatusFilter !== 'all')  filtered = filtered.filter(d => (d.status || 'Draft') === activeStatusFilter);
+  if (activeTeamFilter !== 'all')    filtered = filtered.filter(d => d.team === activeTeamFilter);
+  if (activeWorkCatFilter !== 'all') filtered = filtered.filter(d => d.workCategory === activeWorkCatFilter);
   if (q) filtered = filtered.filter(d => d.title.toLowerCase().includes(q) || d.filename.toLowerCase().includes(q));
   renderSwimlanes(filtered);
 }
