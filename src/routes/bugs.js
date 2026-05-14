@@ -15,7 +15,7 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
   // ── POST /api/bugs/create ─────────────────────────────────────────────────
   router.post('/api/bugs/create', upload.array('attachments', 5), async (req, res) => {
     try {
-      const { id, title, description } = req.body;
+      const { id, title, description, team, workCategory } = req.body;
       if (!id || !title) return sendError(res, 400, 'VALIDATION_ERROR', 'ID and Title are required');
       if (String(id).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'ID must be 200 characters or fewer');
       if (String(title).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
@@ -65,12 +65,17 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
         }
       }
 
+      const bugTeam    = team        && team        !== 'TBD' ? team        : 'TBD';
+      const bugWorkCat = workCategory && workCategory !== 'TBD' ? workCategory : 'TBD';
+
       // Build markdown content
       const content = `---
 JIRA_ID: TBD
 Story_Points: TBD
 Status: Draft
 Priority: Medium
+Team: ${bugTeam}
+Work_Category: ${bugWorkCat}
 Created: ${isoDate()}
 ---
 

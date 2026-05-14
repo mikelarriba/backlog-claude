@@ -39,7 +39,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const { status, title, fixVersion, storyPoints, sprint, rank } = req.body;
+      const { status, title, fixVersion, storyPoints, sprint, rank, team, workCategory } = req.body;
       let content = fs.readFileSync(filepath, 'utf-8');
 
       if (status !== undefined) {
@@ -74,6 +74,14 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
         content = setFrontmatterField(content, 'Rank', String(numRank));
       }
 
+      if (team !== undefined) {
+        content = setFrontmatterField(content, 'Team', team || 'TBD');
+      }
+
+      if (workCategory !== undefined) {
+        content = setFrontmatterField(content, 'Work_Category', workCategory || 'TBD');
+      }
+
       if (title !== undefined) {
         const trimmed = title.trim();
         if (!trimmed) return sendError(res, 400, 'INVALID_TITLE', 'Title cannot be empty');
@@ -92,7 +100,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       fs.writeFileSync(filepath, content);
       docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
-      res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }), ...(rank !== undefined && { rank }) });
+      res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }), ...(rank !== undefined && { rank }), ...(team !== undefined && { team }), ...(workCategory !== undefined && { workCategory }) });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(
@@ -122,7 +130,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
   // ── POST /api/docs/draft ── save a draft without AI ────────────────────────
   router.post('/api/docs/draft', (req, res) => {
     try {
-      const { title, idea, type = 'epic', priority = 'Medium', parentEpic, parentFeature, fixVersion } = req.body;
+      const { title, idea, type = 'epic', priority = 'Medium', parentEpic, parentFeature, fixVersion, team, workCategory } = req.body;
       if (!title?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'Title is required');
       if (title.length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
       if (idea && idea.length > 5000) return sendError(res, 400, 'VALIDATION_ERROR', 'Idea must be 5000 characters or fewer');
@@ -145,6 +153,9 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       const fixVersionLine = (fixVersion && fixVersion !== 'TBD')
         ? fixVersion : 'TBD';
 
+      const teamLine     = team        && team        !== 'TBD' ? team        : 'TBD';
+      const workCatLine  = workCategory && workCategory !== 'TBD' ? workCategory : 'TBD';
+
       const content = `---
 JIRA_ID: TBD
 Story_Points: TBD
@@ -154,6 +165,8 @@ Fix_Version: ${fixVersionLine}
 Squad: TBD
 PI: TBD
 Sprint: TBD
+Team: ${teamLine}
+Work_Category: ${workCatLine}
 Created: ${date}${epicIdLine}${featureIdLine}
 ---
 
