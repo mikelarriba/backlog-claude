@@ -84,6 +84,30 @@
       </div>
     </div>
 
+    <div class="meta-row">
+      <div class="field">
+        <label for="team">Team</label>
+        <select id="team">
+          <option value="">— Select —</option>
+          <option value="Backend">Backend</option>
+          <option value="Frontend">Frontend</option>
+          <option value="Platform">Platform</option>
+          <option value="Testing">Testing</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="work-category">Work Category</label>
+        <select id="work-category">
+          <option value="">— Select —</option>
+          <option value="User Features">User Features</option>
+          <option value="Platform Features">Platform Features</option>
+          <option value="Testing Features">Testing Features</option>
+          <option value="Platform Maintenance">Platform Maintenance</option>
+          <option value="Technical Debt">Technical Debt</option>
+        </select>
+      </div>
+    </div>
+
     <div class="actions">
       <button class="btn-secondary" onclick="clearForm()">Clear</button>
       <button class="btn-draft" id="draft-btn" onclick="saveDraft()">Save Draft</button>
@@ -462,6 +486,29 @@
         <div class="field">
           <label for="bug-title">Title *</label>
           <input id="bug-title" type="text" placeholder="Short description…" />
+        </div>
+      </div>
+      <div class="meta-row">
+        <div class="field">
+          <label for="bug-team">Team</label>
+          <select id="bug-team">
+            <option value="">— Select —</option>
+            <option value="Backend">Backend</option>
+            <option value="Frontend">Frontend</option>
+            <option value="Platform">Platform</option>
+            <option value="Testing">Testing</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="bug-work-category">Work Category</label>
+          <select id="bug-work-category">
+            <option value="">— Select —</option>
+            <option value="User Features">User Features</option>
+            <option value="Platform Features">Platform Features</option>
+            <option value="Testing Features">Testing Features</option>
+            <option value="Platform Maintenance">Platform Maintenance</option>
+            <option value="Technical Debt">Technical Debt</option>
+          </select>
         </div>
       </div>
       <div class="field">

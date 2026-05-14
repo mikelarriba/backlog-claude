@@ -9,8 +9,10 @@ async function saveDraft() {
     return;
   }
 
-  const type     = document.getElementById('doc-type').value;
-  const priority = document.getElementById('priority').value;
+  const type         = document.getElementById('doc-type').value;
+  const priority     = document.getElementById('priority').value;
+  const team         = document.getElementById('team').value || undefined;
+  const workCategory = document.getElementById('work-category').value || undefined;
 
   const btn = document.getElementById('draft-btn');
   btn.disabled    = true;
@@ -18,7 +20,7 @@ async function saveDraft() {
   setStatus('loading', 'Saving draft…');
 
   try {
-    const data = await postJSON('/api/docs/draft', { title, idea, type, priority });
+    const data = await postJSON('/api/docs/draft', { title, idea, type, priority, team, workCategory });
 
     clearForm();
     setStatus('success', `✅ Draft saved: ${data.filename}`);
@@ -43,14 +45,16 @@ async function generateDoc() {
     setStatus('error', '❌ Add a title or notes so Claude has something to work with');
     return;
   }
-  const priority = document.getElementById('priority').value;
-  const type     = document.getElementById('doc-type').value;
+  const priority     = document.getElementById('priority').value;
+  const type         = document.getElementById('doc-type').value;
+  const team         = document.getElementById('team').value || undefined;
+  const workCategory = document.getElementById('work-category').value || undefined;
 
   setStatus('loading', `Claude is writing your ${TYPE_LABEL[type]}…`);
   setBtnState(true);
 
   try {
-    const data = await postJSON('/api/generate', { idea: prompt, title, priority, type });
+    const data = await postJSON('/api/generate', { idea: prompt, title, priority, type, team, workCategory });
 
     clearForm();
     setStatus('success', `✅ ${TYPE_LABEL[type]} created: ${data.filename}`);
@@ -68,6 +72,8 @@ function clearForm() {
   document.getElementById('doc-title').value = '';
   document.getElementById('doc-type').value = 'epic';
   document.getElementById('priority').value = 'Medium';
+  document.getElementById('team').value = '';
+  document.getElementById('work-category').value = '';
   setStatus('hidden');
 }
 
