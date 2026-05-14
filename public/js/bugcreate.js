@@ -6,6 +6,8 @@ function openBugModal() {
   document.getElementById('bug-id').value = '';
   document.getElementById('bug-title').value = '';
   document.getElementById('bug-description').value = '';
+  document.getElementById('bug-team').value = '';
+  document.getElementById('bug-work-category').value = '';
   document.getElementById('bug-files').value = '';
   document.getElementById('bug-file-list').innerHTML = '';
   document.getElementById('bug-dropzone-label').textContent = 'Drop files here or click to browse';
@@ -92,10 +94,15 @@ async function submitBugReport() {
   label.textContent = 'Creating…';
 
   try {
+    const team         = document.getElementById('bug-team').value;
+    const workCategory = document.getElementById('bug-work-category').value;
+
     const formData = new FormData();
     formData.append('id', id);
     formData.append('title', title);
     formData.append('description', desc);
+    if (team)         formData.append('team', team);
+    if (workCategory) formData.append('workCategory', workCategory);
     for (const file of _bugFiles) {
       formData.append('attachments', file);
     }
