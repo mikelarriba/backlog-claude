@@ -140,5 +140,101 @@ export default function jiraSyncRoutes({
     }
   });
 
+  // ── POST /api/jira/check-all ─────────────────────────────────────────────
+  // Compares every locally-stored JIRA-linked doc against live JIRA data and
+  // returns the subset where summary, status, story-points, or description differ.
+  router.post('/api/jira/check-all', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+    try {
+      // Scan filesystem directly so recently-written files are always included.
+      const linked = _scanLinkedDocs();
+      const fields = `summary,issuetype,status,description,${FIELD_STORY_POINTS}`;
+
+      const changed  = [];
+      const skipped  = [];
+      const errors   = [];
+
+      await Promise.allSettled(linked.map(async (entry) => {
+        try {
+          const issue = await jiraRequest('GET', `/issue/${entry.jiraId}?fields=${fields}`);
+          const item  = _buildPreviewItem(entry, issue);
+          if (item.hasChanges) changed.push(item);
+          else skipped.push(entry.jiraId);
+        } catch (e) {
+          errors.push({ jiraId: entry.jiraId, filename: entry.filename, error: e.message });
+        }
+      }));
+
+      logInfo('POST /api/jira/check-all', `Checked ${linked.length} items: ${changed.length} changed, ${skipped.length} unchanged, ${errors.length} errors`);
+      res.json({ changed, skipped, errors, total: linked.length });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/check-all', apiErr.message, apiErr.details || {});
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  function _scanLinkedDocs() {
+    const results = [];
+    for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
+      const dir = cfg.dir();
+      if (!fs.existsSync(dir)) continue;
+      for (const filename of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
+        try {
+          const content = fs.readFileSync(path.join(dir, filename), 'utf-8');
+          const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
+          if (!jiraId || jiraId === 'TBD') continue;
+          const title  = (content.match(/^## (.+)$/m) || [])[1] || filename;
+          const status = (content.match(/^Status:\s*(.+)$/m) || [])[1]?.trim() || null;
+          const spRaw  = extractFrontmatterField(content, 'Story_Points');
+          results.push({
+            filename, docType, jiraId, title,
+            status,
+            storyPoints: spRaw && spRaw !== 'TBD' ? Number(spRaw) || null : null,
+          });
+        } catch { /* skip unreadable files */ }
+      }
+    }
+    return results;
+  }
+
+  function _buildPreviewItem(entry, issue) {
+    const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
+    const jiraStatus  = issue.fields?.status?.name || null;
+    const jiraSp      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
+    const jiraDesc    = jiraToMarkdown(issue.fields?.description || '').trim();
+
+    const localSummary = entry.title || '';
+    const localStatus  = entry.status || null;
+    const localSp      = entry.storyPoints ?? null;
+
+    // Read local description body for comparison
+    let localDesc = '';
+    try {
+      const cfg  = TYPE_CONFIG[entry.docType];
+      const raw  = fs.readFileSync(path.join(cfg.dir(), entry.filename), 'utf-8');
+      localDesc  = _extractBodyText(raw);
+    } catch { /* file unreadable — treat as empty */ }
+
+    const summaryChanged = jiraSummary && jiraSummary !== localSummary;
+    const statusChanged  = jiraStatus  && jiraStatus  !== localStatus;
+    const spChanged      = jiraSp !== null && jiraSp !== localSp;
+    const descChanged    = jiraDesc !== localDesc;
+
+    return {
+      jiraId:   entry.jiraId,
+      filename: entry.filename,
+      docType:  entry.docType,
+      title:    localSummary,
+      hasChanges: summaryChanged || statusChanged || spChanged || descChanged,
+      changes: {
+        summary:     summaryChanged ? { local: localSummary, jira: jiraSummary } : null,
+        status:      statusChanged  ? { local: localStatus,  jira: jiraStatus  } : null,
+        storyPoints: spChanged      ? { local: localSp,      jira: jiraSp      } : null,
+        description: descChanged    ? { changed: true }                           : null,
+      },
+    };
+  }
+
   return router;
 }
