@@ -243,6 +243,25 @@
           <button class="pill"        data-status="Archived"         onclick="setStatusFilter('Archived')">Archived</button>
         </div>
       </div>
+      <div class="filter-row filter-row-secondary">
+        <div class="filter-group">
+          <span class="filter-label">Team</span>
+          <button class="pill active"  data-team="all"      onclick="setTeamFilter('all')">All</button>
+          <button class="pill"         data-team="Backend"  onclick="setTeamFilter('Backend')">Backend</button>
+          <button class="pill"         data-team="Frontend" onclick="setTeamFilter('Frontend')">Frontend</button>
+          <button class="pill"         data-team="Platform" onclick="setTeamFilter('Platform')">Platform</button>
+          <button class="pill"         data-team="Testing"  onclick="setTeamFilter('Testing')">Testing</button>
+        </div>
+        <div class="filter-group filter-group-workcat">
+          <span class="filter-label">Work Category</span>
+          <button class="pill active"  data-workcat="all"                  onclick="setWorkCatFilter('all')">All</button>
+          <button class="pill"         data-workcat="User Features"         onclick="setWorkCatFilter('User Features')">User Features</button>
+          <button class="pill"         data-workcat="Platform Features"     onclick="setWorkCatFilter('Platform Features')">Platform Features</button>
+          <button class="pill"         data-workcat="Testing Features"      onclick="setWorkCatFilter('Testing Features')">Testing Features</button>
+          <button class="pill"         data-workcat="Platform Maintenance"  onclick="setWorkCatFilter('Platform Maintenance')">Maint.</button>
+          <button class="pill"         data-workcat="Technical Debt"        onclick="setWorkCatFilter('Technical Debt')">Tech Debt</button>
+        </div>
+      </div>
       <div class="epic-list" id="epic-list">
         <div class="empty-state">
           <div class="icon">📋</div>
