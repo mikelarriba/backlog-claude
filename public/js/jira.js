@@ -148,18 +148,14 @@ function updateJiraPushBtn() {
   const isMultiStory = currentDocType === 'story' && currentFilename?.endsWith('-stories.md');
   btn.innerHTML = (isMultiStory ? '↑ Push Stories' : '↑ JIRA') + JIRA_CARET;
   btn.disabled = false;
+}
 
-  const hasJiraId     = !!(currentJiraId && currentJiraId !== 'TBD');
-  const isParentType  = currentDocType === 'epic' || currentDocType === 'feature';
-
-  const syncBtn = document.getElementById('jira-sync-status-btn');
-  if (syncBtn) syncBtn.disabled = !hasJiraId;
-
-  const childrenBtn = document.getElementById('jira-get-children-btn');
-  if (childrenBtn) {
-    childrenBtn.style.display = isParentType ? '' : 'none';
-    childrenBtn.disabled = !hasJiraId;
-  }
+// ── Pull from JIRA (consolidated: status + fields + children) ─
+async function pullFromJira() {
+  // Delegates to updateFromJira which already handles the full pull flow:
+  // preview modal → update title/desc/SP/status → retrieve children.
+  // When no JIRA_ID is set, it prompts the user to enter a key inline.
+  await updateFromJira();
 }
 
 async function retrieveChildrenFromJira() {
