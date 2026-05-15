@@ -293,6 +293,11 @@ function renderDocItem(d, indent, childrenMap) {
   const teamBadge    = teamSlug    ? `<span class="team-badge team-badge--${teamSlug}">${escHtml(d.team)}</span>`               : '';
   const workCatBadge = workCatSlug ? `<span class="work-cat-badge work-cat-badge--${workCatSlug}">${escHtml(d.workCategory)}</span>` : '';
 
+  const spVal = d.storyPoints;
+  const spBadge = (spVal != null && spVal !== 'TBD' && String(spVal).trim() !== '')
+    ? `<span class="sp-badge" title="Story Points">${escHtml(String(spVal))} SP</span>`
+    : '';
+
   return `
     <div class="epic-item${multiSel}"
          data-filename="${escHtml(d.filename)}"
@@ -311,6 +316,7 @@ function renderDocItem(d, indent, childrenMap) {
       ${depBadges}
       ${teamBadge}
       ${workCatBadge}
+      ${spBadge}
       ${d.sprint ? `<span class="sprint-badge">${escHtml(d.sprint)}</span>` : ''}
       <span class="status-badge ${statusClass}">${STATUS_LABEL[d.status] || d.status || 'Draft'}</span>
       <div class="epic-date">${d.date}</div>
