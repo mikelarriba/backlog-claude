@@ -41,7 +41,7 @@ async function executeUpgrade() {
   btn.disabled = true;
   btn.textContent = '⏳ Regenerating…';
   stream.textContent = '';
-  stream.style.display = 'block';
+  stream.style.display = 'none';
 
   try {
     let finalContent = null;
@@ -49,7 +49,7 @@ async function executeUpgrade() {
       `/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}/upgrade`,
       { feedback },
       {
-        onText:  (text) => { stream.textContent += text; },
+        onText:  (text) => { stream.style.display = 'block'; stream.textContent += text; },
         onDone:  (payload) => { finalContent = payload.content; },
         onError: (e) => { throw e; },
       }
