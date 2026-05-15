@@ -135,8 +135,59 @@ function syncPreviewConfirm() {
   const selected = Array.from(
     document.querySelectorAll('#sync-preview-list .sync-preview-cb:checked')
   ).map(function(cb) { return _syncPreviewItems[parseInt(cb.dataset.idx)]; });
-  document.getElementById('sync-preview-overlay').classList.remove('show');
+  _enterSyncProgressMode();
   if (_syncPreviewResolve) { _syncPreviewResolve(selected); _syncPreviewResolve = null; }
+}
+
+function _enterSyncProgressMode() {
+  document.getElementById('sync-preview-list').style.display = 'none';
+  const actionsEl = document.querySelector('#sync-preview-overlay .dialog-actions');
+  if (actionsEl) actionsEl.style.display = 'none';
+  const rightHeader = document.querySelector('.sync-preview-header .sync-preview-header-right');
+  if (rightHeader) rightHeader.style.display = 'none';
+  const progressArea = document.getElementById('sync-progress-area');
+  if (progressArea) progressArea.style.display = '';
+  const labelEl = document.getElementById('sync-progress-label');
+  if (labelEl) labelEl.textContent = 'Starting…';
+  const bar = document.getElementById('sync-progress-bar');
+  if (bar) bar.style.width = '0%';
+  const summary = document.getElementById('sync-progress-summary');
+  if (summary) { summary.textContent = ''; summary.className = 'sync-progress-summary'; }
+}
+
+function updateJiraProgress(current, total, label) {
+  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+  const bar = document.getElementById('sync-progress-bar');
+  if (bar) bar.style.width = pct + '%';
+  const labelEl = document.getElementById('sync-progress-label');
+  if (labelEl) labelEl.textContent = label;
+}
+
+function finishJiraProgress(summaryText, hasError) {
+  const bar = document.getElementById('sync-progress-bar');
+  if (bar) bar.style.width = '100%';
+  const labelEl = document.getElementById('sync-progress-label');
+  if (labelEl) labelEl.textContent = hasError ? 'Finished with errors' : 'All done ✅';
+  const summary = document.getElementById('sync-progress-summary');
+  if (summary) {
+    summary.textContent = summaryText;
+    summary.className = 'sync-progress-summary' + (hasError ? ' error' : ' success');
+  }
+  setTimeout(_resetSyncProgressModal, 2500);
+}
+
+function _resetSyncProgressModal() {
+  const overlay = document.getElementById('sync-preview-overlay');
+  if (overlay) overlay.classList.remove('show');
+  const list = document.getElementById('sync-preview-list');
+  if (list) list.style.display = '';
+  const actionsEl = document.querySelector('#sync-preview-overlay .dialog-actions');
+  if (actionsEl) actionsEl.style.display = '';
+  const rightHeader = document.querySelector('.sync-preview-header .sync-preview-header-right');
+  if (rightHeader) rightHeader.style.display = '';
+  const progressArea = document.getElementById('sync-progress-area');
+  if (progressArea) progressArea.style.display = 'none';
+  if (_syncPreviewResolve) { _syncPreviewResolve(null); _syncPreviewResolve = null; }
 }
 
 // ── Push to JIRA ──────────────────────────────────────────────
@@ -241,39 +292,48 @@ async function updateFromJira(jiraKeyOverride) {
     return;
   }
 
-  // 3. Execute: update selected items
-  btn.innerHTML = '⏳ Updating…' + JIRA_CARET;
-  try {
-    // Check if parent (first preview item) was selected
-    const parentItem = previewItems[0];
-    const parentSelected = selected.some(s => s.jiraKey === parentItem.jiraKey);
+  // 3. Execute: update selected items with progress tracking
+  const parentItem = previewItems[0];
+  const parentSelected = selected.some(s => s.jiraKey === parentItem.jiraKey);
+  const selectedChildren = selected.filter(s => s.jiraKey !== parentItem.jiraKey);
+  const totalSteps = (parentSelected ? 1 : 0) + (selectedChildren.length > 0 ? 1 : 0);
+  let pullErrors = 0;
+  let updatedKey = null;
+  let childrenSynced = 0;
+  let step = 0;
 
+  try {
     if (parentSelected) {
+      updateJiraProgress(step, totalSteps, `Fetching ${key}…`);
       const data = await postJSON(
         `/api/jira/update-from-jira/${currentDocType}/${encodeURIComponent(currentFilename)}`,
         key !== currentJiraId ? { jiraKey: key } : {},
       );
-      showJiraToast('success', `✅ Updated from ${data.key}`);
+      updatedKey = data.key;
       if (currentFilename) openDoc(currentFilename, currentDocType);
+      step++;
     }
 
-    // 4. Pull/update selected children
-    const selectedChildren = selected.filter(s => s.jiraKey !== parentItem.jiraKey);
     if (selectedChildren.length > 0) {
       const childKeys     = selectedChildren.map(c => c.jiraKey);
       const overwriteKeys = selectedChildren.filter(c => c.action === 'update').map(c => c.jiraKey);
-      btn.innerHTML = '⏳ Syncing children…' + JIRA_CARET;
+      updateJiraProgress(step, totalSteps, `Syncing ${childKeys.length} child(ren)…`);
       await postJSON('/api/jira/pull', {
         keys: childKeys,
         overwriteKeys,
         parentLink: { filename: currentFilename, docType: currentDocType },
       });
-      showJiraToast('success', `✅ ${childKeys.length} child(ren) synced`);
+      childrenSynced = childKeys.length;
       await loadDocs();
     }
   } catch (e) {
-    showJiraToast('error', `❌ ${e.message}`);
+    pullErrors++;
+    console.warn('Pull from JIRA failed:', e.message);
   } finally {
+    const pullParts = [];
+    if (updatedKey) pullParts.push(`Updated ${updatedKey}`);
+    if (childrenSynced) pullParts.push(`${childrenSynced} child(ren) synced`);
+    finishJiraProgress(pullParts.join(', ') || 'No changes applied', pullErrors > 0);
     updateJiraPushBtn();
   }
 }
@@ -350,35 +410,36 @@ async function pushToJira() {
     return;
   }
 
-  // 4. Execute push for each selected item
-  btn.innerHTML = '⏳ Pushing…' + JIRA_CARET;
-
+  // 4. Execute push for each selected item with progress tracking
   const results = [];
-  for (const item of selected) {
+  let pushErrors = 0;
+  for (let idx = 0; idx < selected.length; idx++) {
+    const item = selected[idx];
     const fn = item.filename;
     const dt = item.docType;
     if (!fn || !dt) continue;
+    const jiraKey = item.jiraKey || item.jiraId || item.title || fn;
+    updateJiraProgress(idx, selected.length, `Pushing ${jiraKey} (${idx + 1}/${selected.length})…`);
     try {
-      btn.innerHTML = `⏳ Pushing ${escHtml(item.title || fn)}…` + JIRA_CARET;
       const data = await postJSON(`/api/jira/push/${dt}/${encodeURIComponent(fn)}`);
       if (data.type === 'multi-story') {
         for (const r of (data.results || [])) results.push(r);
       } else {
         results.push({ key: data.key, action: data.action });
       }
-    } catch (e) { console.warn(`Failed to push ${fn}:`, e.message); }
+    } catch (e) {
+      console.warn(`Failed to push ${fn}:`, e.message);
+      pushErrors++;
+    }
   }
 
-  if (results.length > 0) {
-    const created = results.filter(r => r.action === 'created').length;
-    const updated = results.filter(r => r.action !== 'created').length;
-    const parts = [];
-    if (created) parts.push(`${created} created`);
-    if (updated) parts.push(`${updated} synced`);
-    showJiraToast('success', `✅ Pushed: ${parts.join(', ')}`);
-  }
-
+  const created = results.filter(r => r.action === 'created').length;
+  const updated = results.filter(r => r.action !== 'created').length;
+  const pushParts = [];
+  if (created) pushParts.push(`${created} created`);
+  if (updated) pushParts.push(`${updated} synced`);
   if (currentFilename) openDoc(currentFilename, currentDocType);
+  finishJiraProgress(pushParts.length ? `Pushed ${pushParts.join(', ')}` : 'Nothing pushed', pushErrors > 0);
   updateJiraPushBtn();
 }
 
@@ -425,25 +486,33 @@ async function checkAllJira() {
 
   if (!selected || selected.length === 0) return;
 
-  // Execute sync-status for each selected item
+  // Execute sync-status for each selected item with progress tracking
   btn.disabled = true;
-  btn.textContent = '⏳ Syncing…';
   let synced = 0;
+  let syncErrors = 0;
 
-  for (const item of selected) {
+  for (let i = 0; i < selected.length; i++) {
+    const item = selected[i];
     if (!item.filename || !item.docType) continue;
+    const jiraKey = item.jiraKey || item.filename;
+    updateJiraProgress(i, selected.length, `Syncing ${jiraKey} (${i + 1}/${selected.length})…`);
     try {
       await postJSON(
         `/api/jira/sync-status/${item.docType}/${encodeURIComponent(item.filename)}`,
       );
       synced++;
     } catch (e) {
+      syncErrors++;
       console.warn(`Failed to sync ${item.filename}:`, e.message);
     }
   }
 
+  finishJiraProgress(
+    `Synced ${synced} issue${synced !== 1 ? 's' : ''}` + (syncErrors ? `, ${syncErrors} error(s)` : ''),
+    syncErrors > 0,
+  );
+
   if (synced > 0) {
-    showJiraToast('success', `✅ Synced ${synced} issue${synced !== 1 ? 's' : ''} from JIRA`);
     await loadDocs();
     if (currentFilename) openDoc(currentFilename, currentDocType);
   }

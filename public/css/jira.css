@@ -502,3 +502,43 @@
 .model-status.show { display: block; }
 .model-status.success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
 .model-status.error   { background: var(--error-bg);   border: 1px solid var(--error-border);   color: var(--error-text); }
+
+/* ── JIRA operation progress bar (inside sync-preview modal) ─── */
+#sync-progress-area {
+  padding: 20px 20px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sync-progress-label {
+  font-size: 0.82rem;
+  color: var(--fg);
+  min-height: 1.2em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sync-progress-bar-wrap {
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sync-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent, #6366f1);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.sync-progress-summary {
+  font-size: 0.8rem;
+  min-height: 1.2em;
+  font-weight: 500;
+}
+.sync-progress-summary.success { color: #22c55e; }
+.sync-progress-summary.error   { color: var(--error-text, #ef4444); }
