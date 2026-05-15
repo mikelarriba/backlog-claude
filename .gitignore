@@ -2,6 +2,7 @@ node_modules/
 .env
 CLAUDE.md
 inbox/
+docs/
 .DS_Store
 .pi-settings.json
 .model-settings.json
