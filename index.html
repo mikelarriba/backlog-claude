@@ -396,16 +396,10 @@
               </button>
               <div class="dropdown-menu" id="jira-dropdown-menu">
                 <button class="dropdown-item" onclick="pushToJira();closeDropdown('jira-dropdown-menu')">
-                  <span class="di-badge jira">Push</span>Sync to JIRA
+                  <span class="di-badge jira">↑</span>Push to JIRA
                 </button>
-                <button class="dropdown-item" id="jira-sync-status-btn" onclick="syncJiraStatus();closeDropdown('jira-dropdown-menu')">
-                  <span class="di-badge">Pull</span>Sync Status
-                </button>
-                <button class="dropdown-item" id="jira-update-from-btn" onclick="updateFromJira()">
-                  <span class="di-badge">↓</span>Update from JIRA
-                </button>
-                <button class="dropdown-item" id="jira-get-children-btn" onclick="retrieveChildrenFromJira();closeDropdown('jira-dropdown-menu')">
-                  <span class="di-badge">⬇</span>Retrieve Children
+                <button class="dropdown-item" id="jira-pull-btn" onclick="pullFromJira()" title="Update title, description, story points, status and retrieve children from JIRA">
+                  <span class="di-badge">↓</span>Pull from JIRA
                 </button>
               </div>
             </div>
