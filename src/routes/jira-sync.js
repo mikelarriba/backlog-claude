@@ -236,37 +236,92 @@ export default function jiraSyncRoutes({
 
   // ── POST /api/jira/check-all ────────────────────────────────────────────────
   // Fetches JIRA state for all locally-linked issues and returns field-level diffs.
+  // Response: { changed: [...], skipped: [jiraId,...], errors: [...], total: N }
   router.post('/api/jira/check-all', async (req, res) => {
     if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
     try {
-      const allDocs = docIndex.getAll().filter(d => d.jiraId);
-      if (allDocs.length === 0) return res.json({ items: [] });
+      // Scan filesystem directly so freshly-written files are always included
+      const linkedDocs = [];
+      for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
+        const dir = cfg.dir();
+        if (!fs.existsSync(dir)) continue;
+        for (const filename of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
+          try {
+            const content = fs.readFileSync(path.join(dir, filename), 'utf-8');
+            const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
+            if (!jiraId || jiraId === 'TBD') continue;
+            linkedDocs.push({ filename, docType, jiraId });
+          } catch { /* skip unreadable */ }
+        }
+      }
+      if (linkedDocs.length === 0) return res.json({ changed: [], skipped: [], errors: [], total: 0 });
 
       const fields = `summary,issuetype,status,description,${FIELD_STORY_POINTS}`;
-      const items = [];
+      const changed = [];
+      const skipped = [];
+      const errors  = [];
 
-      for (const doc of allDocs) {
+      for (const doc of linkedDocs) {
         try {
-          const issue = await jiraRequest('GET', `/issue/${doc.jiraId}?fields=${fields}`);
-          const preview = _buildPreviewItem(issue);
-          // Include local filename/docType for the client to execute updates
-          preview.filename = doc.filename;
-          preview.docType  = doc.docType;
-          // Only include items with actual changes
-          if (preview.changes.length > 0) items.push(preview);
+          const issue      = await jiraRequest('GET', `/issue/${doc.jiraId}?fields=${fields}`);
+          const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
+          const jiraSp      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
+          const jiraDesc    = jiraToMarkdown(issue.fields?.description || '').trim();
+
+          // Read local content for accurate comparison
+          let localTitle = doc.title || '';
+          let localDesc  = '';
+          let localSp    = doc.storyPoints ?? null;
+          try {
+            const raw  = fs.readFileSync(path.join(TYPE_CONFIG[doc.docType].dir(), doc.filename), 'utf-8');
+            // Extract heading text directly — avoids extractJiraSummary's template-detection
+            // logic which misfires on headings like "## Stable Title" (treats any heading
+            // ending in "Title" as a placeholder and reads the next line instead).
+            const headingMatch = raw.match(/^## (.+)$/m);
+            localTitle = (headingMatch ? headingMatch[1].trim() : '') || localTitle;
+            localDesc  = _extractBodyText(raw);
+            const spRaw = extractFrontmatterField(raw, 'Story_Points');
+            localSp = spRaw && spRaw !== 'TBD' ? Number(spRaw) : null;
+          } catch { /* unreadable file — use index values */ }
+
+          const summaryChanged = jiraSummary && jiraSummary !== localTitle;
+          const spChanged      = jiraSp !== null && jiraSp !== localSp;
+          const descChanged    = jiraDesc !== localDesc;
+
+          if (summaryChanged || spChanged || descChanged) {
+            changed.push({
+              jiraId:   doc.jiraId,
+              jiraKey:  doc.jiraId,
+              jiraTitle: jiraSummary,
+              filename: doc.filename,
+              docType:  doc.docType,
+              localDocType: doc.docType,
+              title:    localTitle,
+              action:   'update',
+              // Object format for test assertions
+              changes: {
+                summary:     summaryChanged ? { local: localTitle, jira: jiraSummary } : null,
+                storyPoints: spChanged      ? { local: localSp,    jira: jiraSp      } : null,
+                description: descChanged    ? { changed: true }                         : null,
+              },
+              // Array format for showSyncPreviewModal
+              changesArray: [
+                ...(summaryChanged ? [{ field: 'title', from: localTitle, to: jiraSummary }] : []),
+                ...(descChanged    ? [{ field: 'description', changed: true }] : []),
+                ...(spChanged      ? [{ field: 'storyPoints', from: localSp, to: jiraSp }] : []),
+              ],
+            });
+          } else {
+            skipped.push(doc.jiraId);
+          }
         } catch (e) {
-          items.push({
-            jiraKey: doc.jiraId, jiraTitle: doc.title,
-            filename: doc.filename, docType: doc.docType,
-            localDocType: doc.docType, action: 'update',
-            changes: [{ field: 'error', message: e.message }],
-          });
+          errors.push({ jiraId: doc.jiraId, filename: doc.filename, docType: doc.docType, error: e.message });
         }
       }
 
-      logInfo('POST /api/jira/check-all', `Checked ${allDocs.length} issues, ${items.length} with changes`);
-      res.json({ items, totalChecked: allDocs.length });
+      logInfo('POST /api/jira/check-all', `Checked ${linkedDocs.length}: ${changed.length} changed, ${skipped.length} unchanged, ${errors.length} errors`);
+      res.json({ changed, skipped, errors, total: linkedDocs.length });
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/jira/check-all', apiErr.message, apiErr.details || {});

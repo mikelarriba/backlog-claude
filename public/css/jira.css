@@ -228,6 +228,21 @@
 }
 .jira-key-prompt-input:focus { border-color: var(--accent); }
 
+/* ── Sync preview dialog ─────────────────────────────────────── */
+.sync-preview-dialog {
+  width: 800px;
+  max-width: 94vw;
+}
+
+.sync-preview-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
 /* ── JIRA selection modal ────────────────────────────────────── */
 .jira-select-dialog {
   width: 700px;

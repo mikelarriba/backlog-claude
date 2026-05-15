@@ -407,17 +407,24 @@ async function checkAllJira() {
   btn.disabled = false;
   btn.textContent = '↕ Check JIRA';
 
-  const items = data.items || [];
-  if (items.length === 0) {
-    showJiraToast('success', `✅ All ${data.totalChecked || 0} JIRA-linked issues are up to date`);
+  // Response: { changed: [...], skipped: [...], errors: [...], total: N }
+  const changed = data.changed || [];
+  const total   = data.total   || 0;
+  if (changed.length === 0) {
+    showJiraToast('success', `✅ All ${total} JIRA-linked issues are up to date`);
     return;
   }
 
+  // Map to the array-changes format expected by showSyncPreviewModal
+  const modalItems = changed.map(function(item) {
+    return Object.assign({}, item, { changes: item.changesArray || [] });
+  });
+
   // Show preview modal with changes — reuse the sync preview
   const selected = await showSyncPreviewModal(
-    `↕ JIRA Changes — ${items.length} of ${data.totalChecked} differ`,
-    items,
-    `Update ${items.length} item${items.length !== 1 ? 's' : ''}`
+    `↕ JIRA Changes — ${changed.length} of ${total} differ`,
+    modalItems,
+    `Update ${changed.length} item${changed.length !== 1 ? 's' : ''}`
   );
 
   if (!selected || selected.length === 0) return;
@@ -429,8 +436,6 @@ async function checkAllJira() {
 
   for (const item of selected) {
     if (!item.filename || !item.docType) continue;
-    // Skip error-only items
-    if (item.changes.length === 1 && item.changes[0].field === 'error') continue;
     try {
       await postJSON(
         `/api/jira/sync-status/${item.docType}/${encodeURIComponent(item.filename)}`,
