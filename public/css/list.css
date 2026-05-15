@@ -171,6 +171,23 @@
   .work-cat-badge--technical-debt       { background: #3f0d0d; color: #fca5a5; }
 }
 
+/* ── Story Points badge ─────────────────────────────────────── */
+.sp-badge {
+  font-size: 0.63rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+}
+
+[data-theme="light"] .sp-badge {
+  background: rgba(99, 102, 241, 0.1);
+  color: #4f46e5;
+}
+
 /* ── Filter row & Pills ──────────────────────────────────────── */
 .filter-row {
   padding: 7px 16px;
