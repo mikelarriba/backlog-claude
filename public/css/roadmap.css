@@ -38,7 +38,7 @@
   display: flex;
 }
 
-.right.roadmap-mode .detail-header-left > .btn-ghost:first-child {
+.right.roadmap-mode .detail-row-1 > .btn-ghost:first-child {
   display: none;
 }
 

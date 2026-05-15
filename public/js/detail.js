@@ -24,6 +24,38 @@ function updateJiraStatus(jiraStatus) {
   }
 }
 
+function renderDetailDeps(doc) {
+  const row = document.getElementById('detail-deps-row');
+  if (!row) return;
+
+  const blocks    = (doc?.blocks    || []);
+  const blockedBy = (doc?.blockedBy || []);
+
+  if (!blocks.length && !blockedBy.length) {
+    row.classList.add('hidden');
+    row.innerHTML = '';
+    return;
+  }
+
+  const chips = [];
+
+  for (const fn of blockedBy) {
+    const d = allDocs.find(dd => dd.filename === fn);
+    const title = d ? d.title : fn.replace(/\.md$/, '');
+    const dtype = d ? d.docType : 'story';
+    chips.push(`<span class="dep-chip dep-chip-blocked" onclick="openDoc('${escHtml(fn)}','${dtype}')" title="Blocked by: ${escHtml(title)}">🔒 ${escHtml(title.length > 35 ? title.slice(0, 33) + '…' : title)}</span>`);
+  }
+  for (const fn of blocks) {
+    const d = allDocs.find(dd => dd.filename === fn);
+    const title = d ? d.title : fn.replace(/\.md$/, '');
+    const dtype = d ? d.docType : 'story';
+    chips.push(`<span class="dep-chip dep-chip-blocks" onclick="openDoc('${escHtml(fn)}','${dtype}')" title="Blocks: ${escHtml(title)}">→ ${escHtml(title.length > 35 ? title.slice(0, 33) + '…' : title)}</span>`);
+  }
+
+  row.innerHTML = chips.join('');
+  row.classList.remove('hidden');
+}
+
 function renderDocContent(doc, content) {
   document.getElementById('status-select').value = doc?.status || 'Draft';
   document.getElementById('detail-filename').textContent = doc?.filename || currentFilename;
@@ -111,17 +143,20 @@ async function saveStoryPoints() {
 // ── Sprint select helpers ─────────────────────────────────────
 function updateSprintSelect(docType, fixVersion, currentSprint) {
   const sel = document.getElementById('sprint-select');
+  const group = sel.closest('.detail-field-group');
   const isLeaf = docType === 'story' || docType === 'spike' || docType === 'bug';
 
   // Only show for leaf items that belong to a PI
   if (!isLeaf || !fixVersion) {
     sel.classList.add('hidden');
+    if (group) group.classList.add('hidden');
     return;
   }
 
   const sprints = getSprintsForPi(fixVersion);
   if (!sprints.length) {
     sel.classList.add('hidden');
+    if (group) group.classList.add('hidden');
     return;
   }
 
@@ -129,6 +164,7 @@ function updateSprintSelect(docType, fixVersion, currentSprint) {
     sprints.map(s => `<option value="${escHtml(s.name)}"${s.name === currentSprint ? ' selected' : ''}>${escHtml(s.name)}</option>`).join('');
   sel.value = currentSprint || '';
   sel.classList.remove('hidden');
+  if (group) group.classList.remove('hidden');
 }
 
 async function updateDocSprint(sprint) {
@@ -140,6 +176,34 @@ async function updateDocSprint(sprint) {
     if (doc) doc.sprint = sprint || null;
     applyFilters();
   } catch (e) { console.warn('Failed to save sprint:', e.message); }
+}
+
+// ── Team & Work Category helpers ──────────────────────────────
+function updateTeamWorkCatSelects(doc) {
+  document.getElementById('detail-team-select').value    = doc?.team || '';
+  document.getElementById('detail-workcat-select').value = doc?.workCategory || '';
+}
+
+async function updateDocTeam(team) {
+  if (!currentFilename || !currentDocType) return;
+  try {
+    await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+      { team: team || null });
+    const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
+    if (doc) doc.team = team || null;
+    applyFilters();
+  } catch (e) { console.warn('Failed to save team:', e.message); }
+}
+
+async function updateDocWorkCategory(workCategory) {
+  if (!currentFilename || !currentDocType) return;
+  try {
+    await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+      { workCategory: workCategory || null });
+    const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
+    if (doc) doc.workCategory = workCategory || null;
+    applyFilters();
+  } catch (e) { console.warn('Failed to save work category:', e.message); }
 }
 
 function updateDocButtons(docType) {
@@ -164,6 +228,7 @@ async function openDoc(filename, docType) {
 
     const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
     renderDocContent(doc, content);
+    renderDetailDeps(doc);
     resetStoriesSection();
     closeQuickCreate();
     updateDocButtons(docType);
@@ -175,6 +240,7 @@ async function openDoc(filename, docType) {
     updateJiraPushBtn();
     updateStoryPointsUI(docType, doc?.storyPoints ?? null);
     updateSprintSelect(docType, doc?.fixVersion, doc?.sprint);
+    updateTeamWorkCatSelects(doc);
 
     document.querySelector('.right').classList.add('has-selection');
     if (isSplitMode() || isRoadmapOpen()) {

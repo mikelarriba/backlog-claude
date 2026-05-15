@@ -83,7 +83,7 @@ export default function jiraPushRoutes({
     let key, action;
 
     if (jiraId !== 'TBD') {
-      const updateFields = { description };
+      const updateFields = { summary, description };
       if (localFixVersion && localFixVersion !== 'TBD') {
         updateFields.fixVersions = [{ name: localFixVersion }];
       }
@@ -155,6 +155,67 @@ export default function jiraPushRoutes({
 
     return { action, key, filename, docType: type };
   }
+
+  // ── POST /api/jira/push-preview ─────────────────────────────────────────────
+  // Returns a field-level diff for each item so the client can show a confirmation popup.
+  router.post('/api/jira/push-preview', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+    try {
+      const { items = [] } = req.body;
+      const previews = [];
+
+      for (const { filename, docType } of items) {
+        const cfg = TYPE_CONFIG[docType];
+        if (!cfg) continue;
+        const filepath = path.join(cfg.dir(), filename);
+        if (!fs.existsSync(filepath)) continue;
+
+        const content   = fs.readFileSync(filepath, 'utf-8');
+        const jiraId    = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
+        const localTitle = extractJiraSummary(content);
+        const localSP   = extractFrontmatterField(content, 'Story_Points');
+        const spValue   = localSP && localSP !== 'TBD' ? Number(localSP) : null;
+
+        const preview = {
+          filename, docType, title: localTitle,
+          jiraId: jiraId !== 'TBD' ? jiraId : null,
+          action: jiraId !== 'TBD' ? 'update' : 'create',
+          changes: [],
+        };
+
+        if (jiraId !== 'TBD') {
+          try {
+            const issue = await jiraRequest('GET', `/issue/${jiraId}?fields=summary,${FIELD_STORY_POINTS}`);
+            const jiraSummary = (issue.fields?.summary || '').trim();
+            const jiraSP      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
+
+            if (localTitle !== jiraSummary) {
+              preview.changes.push({ field: 'title', from: jiraSummary, to: localTitle });
+            }
+            preview.changes.push({ field: 'description', changed: true });
+            if (spValue !== null && spValue !== jiraSP) {
+              preview.changes.push({ field: 'storyPoints', from: jiraSP, to: spValue });
+            }
+          } catch (e) {
+            preview.changes.push({ field: 'error', message: e.message });
+          }
+        } else {
+          if (localTitle) preview.changes.push({ field: 'title', to: localTitle });
+          preview.changes.push({ field: 'description', changed: true });
+          if (spValue !== null) preview.changes.push({ field: 'storyPoints', to: spValue });
+        }
+
+        previews.push(preview);
+      }
+
+      res.json({ items: previews });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/push-preview', apiErr.message, apiErr.details || {});
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
 
   // ── POST /api/jira/push/:type/:filename ────────────────────────────────────
   router.post('/api/jira/push/:type/:filename', async (req, res) => {

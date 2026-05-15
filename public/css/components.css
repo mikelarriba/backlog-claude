@@ -191,23 +191,6 @@ button:active:not(:disabled) { transform: scale(0.97); }
 #jira-push-toast.success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
 #jira-push-toast.error   { background: var(--error-bg);   border: 1px solid var(--error-border);   color: var(--error-text); }
 
-/* ── Status selector in detail header ───────────────────────── */
-.status-select {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 0 10px;
-  height: 30px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.status-select:focus { outline: none; border-color: var(--accent); }
-
 /* ── Delete button (dialog) ──────────────────────────────────── */
 .btn-delete {
   background: var(--error-bg);

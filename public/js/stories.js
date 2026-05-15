@@ -43,8 +43,8 @@ async function generateStories() {
       stream.textContent = `✅ Created ${count} stor${count === 1 ? 'y' : 'ies'}:\n` +
         donePayload.files.map(f => `• ${f.title}`).join('\n');
       wrap.classList.remove('hidden');
-      setTimeout(() => { wrap.classList.add('hidden'); stream.textContent = ''; }, 4000);
       loadHierarchy(currentFilename, currentDocType);
+      await loadDocs();
     } else {
       wrap.classList.add('hidden');
     }

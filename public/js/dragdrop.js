@@ -39,7 +39,7 @@ function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY
                    || tgtFilename;
 
   const canLink = (DRAG_TARGETS[srcDocType] || []).includes(tgtDocType);
-  const canDep  = LEAF_TYPES.has(srcDocType) && LEAF_TYPES.has(tgtDocType);
+  const canDep  = srcFilename !== tgtFilename && !canLink;
 
   if (!canLink && !canDep) return; // nothing to offer
 
@@ -319,7 +319,7 @@ function resolveDropTargets(snap, e) {
       const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
       const tgtType  = itemUnder.dataset.doctype;
       const canLink  = (DRAG_TARGETS[snap.srcDocType] || []).includes(tgtType);
-      const canDep   = LEAF_TYPES.has(snap.srcDocType) && LEAF_TYPES.has(tgtType);
+      const canDep   = !canLink;
       if (inCenter && (canLink || canDep)) dropTarget = itemUnder;
     }
 
@@ -428,7 +428,7 @@ function initDragDrop() {
       const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
       const tgtType  = targetItem.dataset.doctype;
       const canLink  = (DRAG_TARGETS[state.srcDocType] || []).includes(tgtType);
-      const canDep   = LEAF_TYPES.has(state.srcDocType) && LEAF_TYPES.has(tgtType);
+      const canDep   = !canLink;
 
       if (inCenter && (canLink || canDep)) {
         // Center of a valid target → highlight for action popup

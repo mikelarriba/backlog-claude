@@ -19,6 +19,12 @@
   margin-bottom: 14px;
 }
 
+.list-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .list-title { font-size: 0.9rem; font-weight: 700; color: var(--text); }
 .epic-count { font-size: 0.72rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 20px; }
 
@@ -305,7 +311,6 @@
 /* Applied post-render by applyDepCascade() to all siblings from  */
 /* the earliest blocked item onwards within the same parent epic.  */
 .epic-item.dep-cascade {
-  margin-left: 28px;
   border-left-color: #fca5a5;
 }
 .epic-item.dep-cascade:hover {
@@ -334,6 +339,7 @@
   stroke-width: 1.5;
   stroke-dasharray: 5 3;
   opacity: 0.65;
+  fill: none;
 }
 
 /* ── Multi-select highlight ─────────────────────────────────── */

@@ -18,22 +18,12 @@
   background: var(--surface);
 }
 
-/* ── Row 1: back button + title ──────────────────────────────── */
-.detail-header-title-row {
+/* ── Row 1: back + title + JIRA badge + SP ──────────────────── */
+.detail-row-1 {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-
-/* ── Row 2: meta chips + toolbar ─────────────────────────────── */
-.detail-header-actions-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  flex-wrap: wrap;         /* toolbar wraps below meta on very narrow panels */
 }
 
 .detail-title-input {
@@ -53,30 +43,18 @@
 .detail-title-input:hover { border-color: var(--border); background: var(--surface2); }
 .detail-title-input:focus { border-color: var(--accent); background: var(--surface2); }
 
-.detail-meta-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0;
-  min-width: 0;
-  flex: 1;
-}
-
-.detail-filename {
-  font-size: 0.66rem;
-  color: var(--muted);
-  padding-left: 8px;
-}
-
-.detail-jira-link {
-  font-size: 0.66rem;
-  font-weight: 600;
-  color: var(--accent);
-  padding-left: 8px;
+.detail-jira-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 4px;
+  padding: 2px 8px;
   text-decoration: none;
   white-space: nowrap;
+  flex-shrink: 0;
 }
-.detail-jira-link:hover { text-decoration: underline; }
+.detail-jira-badge:hover { opacity: 0.85; }
 
 .detail-jira-status {
   font-size: 0.6rem;
@@ -86,10 +64,111 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1px 6px;
-  margin-left: 8px;
   white-space: nowrap;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* ── Row 2: 2×2 field grid ──────────────────────────────────── */
+.detail-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+
+.detail-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.detail-field-group.hidden { display: none; }
+
+.detail-field-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.detail-field-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.75rem;
+  padding: 0 8px;
+  height: 30px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.detail-field-select:focus { outline: none; border-color: var(--accent); }
+
+/* ── Dependencies row ────────────────────────────────────────── */
+.detail-deps-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 0;
+}
+.detail-deps-row.hidden { display: none; }
+
+.dep-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+  white-space: nowrap;
+}
+.dep-chip-blocked {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.dep-chip-blocked:hover { background: #fecaca; }
+.dep-chip-blocks {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+.dep-chip-blocks:hover { background: #bae6fd; }
+
+/* ── Row 3: file reference ──────────────────────────────────── */
+.detail-row-3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border-top: 1px solid var(--border);
+}
+
+.detail-file-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.detail-filename {
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-family: 'Fira Code', monospace;
+  word-break: break-all;
+}
+
+/* ── Row 4: action buttons ──────────────────────────────────── */
+.detail-row-4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 /* ── Story points ─────────────────────────────────────────────── */
@@ -372,13 +451,15 @@
 .btn-toolbar-jira:disabled { opacity: 0.38; cursor: not-allowed; }
 
 .btn-toolbar-danger {
-  color: var(--error-text);
-  border-color: transparent;
-  background: transparent;
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+  border-radius: 6px;
 }
 .btn-toolbar-danger:hover:not(:disabled) {
-  background: var(--error-bg);
-  border-color: var(--error-border);
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
 }
 
 .toolbar-caret { font-size: 0.58rem; opacity: 0.65; margin-left: 2px; }
@@ -714,22 +795,25 @@
 
   .btn-toolbar {
     padding: 0 7px;
-    height: 28px;
+    height: 26px;
     font-size: 0.7rem;
   }
 
   .toolbar-sep { display: none; }
 
-  .status-select, .sprint-select {
+  .detail-field-select {
     font-size: 0.7rem;
-    padding: 0 6px;
     height: 28px;
   }
+
+  .detail-row-2 { gap: 4px 8px; }
 }
 
-/* Very narrow right panel — compress toolbar further */
+/* Very narrow right panel — single-column fields */
 @media (max-width: 560px) {
-  .detail-header-actions-row { gap: 4px; }
+  .detail-row-1 { flex-wrap: wrap; }
+  .detail-row-2 { grid-template-columns: 1fr; }
+  .detail-row-4 { gap: 4px; }
 
   .btn-toolbar {
     padding: 0 6px;

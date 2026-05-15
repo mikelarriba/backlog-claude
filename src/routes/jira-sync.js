@@ -4,10 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
 import { setFrontmatterField, extractFrontmatterField, stripFrontmatter, jiraToMarkdown } from '../utils/transforms.js';
+import { JIRA_TO_LOCAL_TYPE } from '../services/jiraService.js';
 
 export default function jiraSyncRoutes({
-  TYPE_CONFIG, FIELD_EPIC_NAME, FIELD_STORY_POINTS, INBOX_DIR,
-  jiraRequest, jiraIssueToMarkdown,
+  TYPE_CONFIG, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS, INBOX_DIR,
+  JIRA_PROJECT,
+  jiraRequest, jiraIssueToMarkdown, extractJiraSummary, findLocalFileByJiraId,
   broadcast, logInfo, logError, docIndex,
 }) {
   const router = Router();
@@ -140,101 +142,192 @@ export default function jiraSyncRoutes({
     }
   });
 
-  // ── POST /api/jira/check-all ─────────────────────────────────────────────
-  // Compares every locally-stored JIRA-linked doc against live JIRA data and
-  // returns the subset where summary, status, story-points, or description differ.
+  // ── Shared helper: build preview item from a JIRA issue ──────
+  function _buildPreviewItem(iss) {
+    const existing = docIndex.findByJiraId(iss.key) || findLocalFileByJiraId(iss.key);
+    const jiraTitle = (iss.fields?.summary || '').trim();
+    const jiraSP    = iss.fields?.[FIELD_STORY_POINTS] ?? null;
+    const jiraTypeName = iss.fields?.issuetype?.name || '';
+    const localType = JIRA_TO_LOCAL_TYPE[jiraTypeName] || 'story';
+
+    const item = {
+      jiraKey: iss.key, jiraTitle, jiraType: jiraTypeName,
+      localFilename: existing?.filename || null,
+      localDocType:  existing?.docType  || localType,
+      action: existing ? 'update' : 'create',
+      changes: [],
+    };
+
+    if (existing) {
+      try {
+        const localContent = fs.readFileSync(path.join(TYPE_CONFIG[existing.docType].dir(), existing.filename), 'utf-8');
+        const localTitle   = extractJiraSummary(localContent);
+        const localSPRaw   = extractFrontmatterField(localContent, 'Story_Points');
+        const localSP      = localSPRaw && localSPRaw !== 'TBD' ? Number(localSPRaw) : null;
+        const localBody    = _extractBodyText(localContent);
+        const jiraDesc     = jiraToMarkdown(iss.fields?.description || '').trim();
+
+        if (jiraTitle !== localTitle)  item.changes.push({ field: 'title', from: localTitle, to: jiraTitle });
+        if (jiraDesc  !== localBody)   item.changes.push({ field: 'description', changed: true });
+        if (jiraSP    !== localSP)     item.changes.push({ field: 'storyPoints', from: localSP, to: jiraSP });
+      } catch {
+        item.changes.push({ field: 'description', changed: true });
+      }
+    } else {
+      if (jiraTitle) item.changes.push({ field: 'title', to: jiraTitle });
+      item.changes.push({ field: 'description', changed: true });
+      if (jiraSP !== null) item.changes.push({ field: 'storyPoints', to: jiraSP });
+    }
+    return item;
+  }
+
+  // ── POST /api/jira/pull-preview ──────────────────────────────────────────────
+  // Returns a field-level diff for the issue (and optionally its children) so the
+  // client can show a confirmation popup before executing the actual pull/update.
+  router.post('/api/jira/pull-preview', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+    try {
+      const { jiraKey, includeChildren = false } = req.body;
+      if (!jiraKey) return sendError(res, 400, 'VALIDATION_ERROR', 'jiraKey is required');
+
+      const fields = `summary,issuetype,status,priority,description,fixVersions,issuelinks,subtasks,${FIELD_EPIC_NAME},${FIELD_EPIC_LINK},${FIELD_STORY_POINTS}`;
+      const issue = await jiraRequest('GET', `/issue/${jiraKey}?fields=${fields}`);
+      const items = [];
+
+      items.push(_buildPreviewItem(issue));
+
+      // ── Children ──────────────────────────────────────────────
+      if (includeChildren) {
+        const issueType = issue.fields?.issuetype?.name;
+        const childIssues = [];
+        const seen = new Set([jiraKey]);
+
+        // Epics: children via Epic Link custom field
+        if (issueType === 'Epic' && FIELD_EPIC_LINK) {
+          const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
+          const jql = `cf[${fieldId}] = ${jiraKey} AND project = ${JIRA_PROJECT} ORDER BY issuetype ASC`;
+          const data = await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`);
+          for (const c of (data.issues || [])) { if (!seen.has(c.key)) { seen.add(c.key); childIssues.push(c); } }
+        }
+
+        // Issue links (inward = contained children)
+        for (const link of (issue.fields?.issuelinks || [])) {
+          const inw = link.inwardIssue;
+          if (inw && !seen.has(inw.key)) {
+            seen.add(inw.key);
+            try {
+              const full = await jiraRequest('GET', `/issue/${inw.key}?fields=${fields}`);
+              childIssues.push(full);
+            } catch { /* skip unreachable children */ }
+          }
+        }
+
+        for (const child of childIssues) items.push(_buildPreviewItem(child));
+      }
+
+      res.json({ items });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/pull-preview', apiErr.message, apiErr.details || {});
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── POST /api/jira/check-all ────────────────────────────────────────────────
+  // Fetches JIRA state for all locally-linked issues and returns field-level diffs.
+  // Response: { changed: [...], skipped: [jiraId,...], errors: [...], total: N }
   router.post('/api/jira/check-all', async (req, res) => {
     if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
     try {
-      // Scan filesystem directly so recently-written files are always included.
-      const linked = _scanLinkedDocs();
-      const fields = `summary,issuetype,status,description,${FIELD_STORY_POINTS}`;
-
-      const changed  = [];
-      const skipped  = [];
-      const errors   = [];
-
-      await Promise.allSettled(linked.map(async (entry) => {
-        try {
-          const issue = await jiraRequest('GET', `/issue/${entry.jiraId}?fields=${fields}`);
-          const item  = _buildPreviewItem(entry, issue);
-          if (item.hasChanges) changed.push(item);
-          else skipped.push(entry.jiraId);
-        } catch (e) {
-          errors.push({ jiraId: entry.jiraId, filename: entry.filename, error: e.message });
+      // Scan filesystem directly so freshly-written files are always included
+      const linkedDocs = [];
+      for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
+        const dir = cfg.dir();
+        if (!fs.existsSync(dir)) continue;
+        for (const filename of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
+          try {
+            const content = fs.readFileSync(path.join(dir, filename), 'utf-8');
+            const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
+            if (!jiraId || jiraId === 'TBD') continue;
+            linkedDocs.push({ filename, docType, jiraId });
+          } catch { /* skip unreadable */ }
         }
-      }));
+      }
+      if (linkedDocs.length === 0) return res.json({ changed: [], skipped: [], errors: [], total: 0 });
 
-      logInfo('POST /api/jira/check-all', `Checked ${linked.length} items: ${changed.length} changed, ${skipped.length} unchanged, ${errors.length} errors`);
-      res.json({ changed, skipped, errors, total: linked.length });
+      const fields = `summary,issuetype,status,description,${FIELD_STORY_POINTS}`;
+      const changed = [];
+      const skipped = [];
+      const errors  = [];
+
+      for (const doc of linkedDocs) {
+        try {
+          const issue      = await jiraRequest('GET', `/issue/${doc.jiraId}?fields=${fields}`);
+          const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
+          const jiraSp      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
+          const jiraDesc    = jiraToMarkdown(issue.fields?.description || '').trim();
+
+          // Read local content for accurate comparison
+          let localTitle = doc.title || '';
+          let localDesc  = '';
+          let localSp    = doc.storyPoints ?? null;
+          try {
+            const raw  = fs.readFileSync(path.join(TYPE_CONFIG[doc.docType].dir(), doc.filename), 'utf-8');
+            // Extract heading text directly — avoids extractJiraSummary's template-detection
+            // logic which misfires on headings like "## Stable Title" (treats any heading
+            // ending in "Title" as a placeholder and reads the next line instead).
+            const headingMatch = raw.match(/^## (.+)$/m);
+            localTitle = (headingMatch ? headingMatch[1].trim() : '') || localTitle;
+            localDesc  = _extractBodyText(raw);
+            const spRaw = extractFrontmatterField(raw, 'Story_Points');
+            localSp = spRaw && spRaw !== 'TBD' ? Number(spRaw) : null;
+          } catch { /* unreadable file — use index values */ }
+
+          const summaryChanged = jiraSummary && jiraSummary !== localTitle;
+          const spChanged      = jiraSp !== null && jiraSp !== localSp;
+          const descChanged    = jiraDesc !== localDesc;
+
+          if (summaryChanged || spChanged || descChanged) {
+            changed.push({
+              jiraId:   doc.jiraId,
+              jiraKey:  doc.jiraId,
+              jiraTitle: jiraSummary,
+              filename: doc.filename,
+              docType:  doc.docType,
+              localDocType: doc.docType,
+              title:    localTitle,
+              action:   'update',
+              // Object format for test assertions
+              changes: {
+                summary:     summaryChanged ? { local: localTitle, jira: jiraSummary } : null,
+                storyPoints: spChanged      ? { local: localSp,    jira: jiraSp      } : null,
+                description: descChanged    ? { changed: true }                         : null,
+              },
+              // Array format for showSyncPreviewModal
+              changesArray: [
+                ...(summaryChanged ? [{ field: 'title', from: localTitle, to: jiraSummary }] : []),
+                ...(descChanged    ? [{ field: 'description', changed: true }] : []),
+                ...(spChanged      ? [{ field: 'storyPoints', from: localSp, to: jiraSp }] : []),
+              ],
+            });
+          } else {
+            skipped.push(doc.jiraId);
+          }
+        } catch (e) {
+          errors.push({ jiraId: doc.jiraId, filename: doc.filename, docType: doc.docType, error: e.message });
+        }
+      }
+
+      logInfo('POST /api/jira/check-all', `Checked ${linkedDocs.length}: ${changed.length} changed, ${skipped.length} unchanged, ${errors.length} errors`);
+      res.json({ changed, skipped, errors, total: linkedDocs.length });
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/jira/check-all', apiErr.message, apiErr.details || {});
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
-
-  function _scanLinkedDocs() {
-    const results = [];
-    for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
-      const dir = cfg.dir();
-      if (!fs.existsSync(dir)) continue;
-      for (const filename of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
-        try {
-          const content = fs.readFileSync(path.join(dir, filename), 'utf-8');
-          const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
-          if (!jiraId || jiraId === 'TBD') continue;
-          const title  = (content.match(/^## (.+)$/m) || [])[1] || filename;
-          const status = (content.match(/^Status:\s*(.+)$/m) || [])[1]?.trim() || null;
-          const spRaw  = extractFrontmatterField(content, 'Story_Points');
-          results.push({
-            filename, docType, jiraId, title,
-            status,
-            storyPoints: spRaw && spRaw !== 'TBD' ? Number(spRaw) || null : null,
-          });
-        } catch { /* skip unreadable files */ }
-      }
-    }
-    return results;
-  }
-
-  function _buildPreviewItem(entry, issue) {
-    const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
-    const jiraStatus  = issue.fields?.status?.name || null;
-    const jiraSp      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
-    const jiraDesc    = jiraToMarkdown(issue.fields?.description || '').trim();
-
-    const localSummary = entry.title || '';
-    const localStatus  = entry.status || null;
-    const localSp      = entry.storyPoints ?? null;
-
-    // Read local description body for comparison
-    let localDesc = '';
-    try {
-      const cfg  = TYPE_CONFIG[entry.docType];
-      const raw  = fs.readFileSync(path.join(cfg.dir(), entry.filename), 'utf-8');
-      localDesc  = _extractBodyText(raw);
-    } catch { /* file unreadable — treat as empty */ }
-
-    const summaryChanged = jiraSummary && jiraSummary !== localSummary;
-    const statusChanged  = jiraStatus  && jiraStatus  !== localStatus;
-    const spChanged      = jiraSp !== null && jiraSp !== localSp;
-    const descChanged    = jiraDesc !== localDesc;
-
-    return {
-      jiraId:   entry.jiraId,
-      filename: entry.filename,
-      docType:  entry.docType,
-      title:    localSummary,
-      hasChanges: summaryChanged || statusChanged || spChanged || descChanged,
-      changes: {
-        summary:     summaryChanged ? { local: localSummary, jira: jiraSummary } : null,
-        status:      statusChanged  ? { local: localStatus,  jira: jiraStatus  } : null,
-        storyPoints: spChanged      ? { local: localSp,      jira: jiraSp      } : null,
-        description: descChanged    ? { changed: true }                           : null,
-      },
-    };
-  }
 
   return router;
 }

@@ -39,7 +39,7 @@
 }
 
 /* Hide the ← Back button; list is always visible */
-.right.split-mode .detail-header-left > .btn-ghost:first-child {
+.right.split-mode .detail-row-1 > .btn-ghost:first-child {
   display: none;
 }
 
