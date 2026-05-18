@@ -215,3 +215,164 @@
   color: var(--muted);
   font-style: italic;
 }
+
+/* ── Vanilla JS/SVG Canvas ───────────────────────────────────── */
+.canvas-empty {
+  padding: 40px 24px;
+  font-size: 0.84rem;
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+}
+
+.canvas-epic-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  background: var(--surface);
+  font-weight: 600;
+  box-shadow: 0 2px 8px var(--shadow);
+  white-space: nowrap;
+}
+
+.canvas-epic-title {
+  font-size: 0.82rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.canvas-card {
+  position: absolute;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.canvas-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 10px var(--shadow);
+}
+
+.canvas-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0,150,214,0.15));
+}
+
+.canvas-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.canvas-card-sp {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.canvas-card-title {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── SVG edge labels ─────────────────────────────────────────── */
+.canvas-edge-label {
+  font-size: 9px;
+  fill: var(--muted);
+  font-family: system-ui, sans-serif;
+}
+
+.canvas-edge-label--blocks {
+  fill: #ef4444;
+  font-weight: 600;
+}
+
+.canvas-edge-label--parallel {
+  fill: var(--type-story-color, #3b82f6);
+  font-weight: 600;
+}
+
+/* ── Drop cells (drag-to-reposition) ─────────────────────────── */
+.canvas-drop-cell {
+  position: absolute;
+  border-radius: 8px;
+  transition: background 0.1s, border-color 0.1s;
+  border: 1.5px dashed transparent;
+  box-sizing: border-box;
+  pointer-events: all;
+}
+
+.canvas-drop-cell.drag-over {
+  background: var(--accent-subtle, rgba(0,150,214,0.08));
+  border-color: var(--accent);
+}
+
+.canvas-card[draggable="true"] { cursor: grab; }
+.canvas-card.dragging { opacity: 0.45; cursor: grabbing; }
+
+/* ── Canvas handles (link creation) ─────────────────────────── */
+.canvas-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: crosshair;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+}
+
+.canvas-card:hover .canvas-handle { opacity: 1; }
+
+.canvas-handle--top    { top: -5px;    left: 50%; transform: translateX(-50%); }
+.canvas-handle--bottom { bottom: -5px; left: 50%; transform: translateX(-50%); }
+.canvas-handle--left   { left: -5px;   top: 50%;  transform: translateY(-50%); }
+.canvas-handle--right  { right: -5px;  top: 50%;  transform: translateY(-50%); }
+
+/* ── Link type popup ─────────────────────────────────────────── */
+.canvas-link-popup {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: 10px;
+  box-shadow: 0 4px 16px var(--shadow);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.canvas-link-popup button {
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.12s;
+}
+.canvas-link-popup button:hover { background: var(--surface2); }
