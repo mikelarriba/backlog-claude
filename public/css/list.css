@@ -321,8 +321,9 @@
   white-space: nowrap;
   align-self: center;
 }
-.dep-badge-blocks  { background: #dcfce7; color: #15803d; }
-.dep-badge-blocked { background: #fee2e2; color: #b91c1c; }
+.dep-badge-blocks   { background: #dcfce7; color: #15803d; }
+.dep-badge-blocked  { background: #fee2e2; color: #b91c1c; }
+.dep-badge-parallel { background: #dbeafe; color: #1d4ed8; }
 
 /* ── Cascaded dep indent ─────────────────────────────────────── */
 /* Applied post-render by applyDepCascade() to all siblings from  */
@@ -357,6 +358,14 @@
   stroke-dasharray: 5 3;
   opacity: 0.65;
   fill: none;
+}
+
+.dep-connector-line--parallel {
+  stroke: #3b82f6;
+  stroke-dasharray: 6 3;
+  stroke-width: 1.5;
+  fill: none;
+  opacity: 0.65;
 }
 
 /* ── Multi-select highlight ─────────────────────────────────── */
