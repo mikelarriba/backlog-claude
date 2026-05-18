@@ -8,6 +8,8 @@ import { createJiraService } from './src/services/jiraService.js';
 import { watchInbox } from './src/services/inboxWatcher.js';
 import { isoDate, slugify } from './src/utils/transforms.js';
 import { ensureDir } from './src/utils/routeHelpers.js';
+import { createLogger } from './src/utils/logger.js';
+import { createTypeConfig } from './src/config/docTypes.js';
 import { createDocIndex } from './src/services/docIndex.js';
 import docsCrudRoutes from './src/routes/docs-crud.js';
 import docsAiRoutes from './src/routes/docs-ai.js';
@@ -39,39 +41,31 @@ if (fs.existsSync(envPath)) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const LOG_PREFIX = '[backlog-claude]';
-function nowIso() { return new Date().toISOString(); }
-function logInfo(scope, message, meta = {})  { console.log(`${LOG_PREFIX} ${nowIso()} [INFO] [${scope}] ${message}`, meta); }
-function logWarn(scope, message, meta = {})  { console.warn(`${LOG_PREFIX} ${nowIso()} [WARN] [${scope}] ${message}`, meta); }
-function logError(scope, message, meta = {}) { console.error(`${LOG_PREFIX} ${nowIso()} [ERROR] [${scope}] ${message}`, meta); }
+const { logInfo, logWarn, logError } = createLogger('[backlog-claude]');
 
 // ── Folder paths ─────────────────────────────────────────────────────────────
-const DOCS_ROOT    = process.env.TEST_DOCS_ROOT || path.join(__dirname, 'docs');
-const FEATURES_DIR = path.join(DOCS_ROOT, 'features');
-const EPICS_DIR    = path.join(DOCS_ROOT, 'epics');
-const STORIES_DIR  = path.join(DOCS_ROOT, 'stories');
-const SPIKES_DIR   = path.join(DOCS_ROOT, 'spikes');
-const BUGS_DIR     = path.join(DOCS_ROOT, 'bugs');
-const INBOX_DIR    = process.env.TEST_INBOX_DIR || path.join(__dirname, 'inbox');
+const DOCS_ROOT = process.env.TEST_DOCS_ROOT || path.join(__dirname, 'docs');
+const INBOX_DIR = process.env.TEST_INBOX_DIR || path.join(__dirname, 'inbox');
 
 const _apiInFlight = new Set();
 
-const TYPE_CONFIG = {
-  feature: { command: 'create-features', dir: () => FEATURES_DIR, event: 'feature_created' },
-  epic:    { command: 'create-epics',    dir: () => EPICS_DIR,    event: 'epic_created' },
-  story:   { command: 'create-stories',  dir: () => STORIES_DIR,  event: 'story_created' },
-  spike:   { command: 'create-spikes',   dir: () => SPIKES_DIR,   event: 'spike_created' },
-  bug:     { command: 'create-bugs',     dir: () => BUGS_DIR,     event: 'bug_created'   },
-};
+const TYPE_CONFIG  = createTypeConfig(DOCS_ROOT);
+// Convenience aliases — derived from TYPE_CONFIG to stay in sync
+const FEATURES_DIR = TYPE_CONFIG.feature.dir();
+const EPICS_DIR    = TYPE_CONFIG.epic.dir();
+const STORIES_DIR  = TYPE_CONFIG.story.dir();
+const SPIKES_DIR   = TYPE_CONFIG.spike.dir();
+const BUGS_DIR     = TYPE_CONFIG.bug.dir();
 
 // ── JIRA config ──────────────────────────────────────────────────────────────
 const JIRA_BASE  = (process.env.JIRA_BASE_URL || 'https://devstack.vwgroup.com/jira').replace(/\/$/, '');
 const JIRA_TOKEN = process.env.JIRA_API_TOKEN || '';
-const JIRA_PROJECT = 'EAMDM';
-const JIRA_LABEL   = 'MIDAS_Development';
-const FIELD_EPIC_NAME    = 'customfield_10002';
-const FIELD_EPIC_LINK    = 'customfield_10000';
-const FIELD_STORY_POINTS = 'customfield_10006'; // VW Group JIRA story points field
+const JIRA_PROJECT = process.env.JIRA_PROJECT  || 'EAMDM';
+const JIRA_LABEL   = process.env.JIRA_LABEL    || 'MIDAS_Development';
+// Custom field IDs vary per JIRA instance — override via environment variables
+const FIELD_EPIC_NAME    = process.env.JIRA_FIELD_EPIC_NAME    || 'customfield_10002';
+const FIELD_EPIC_LINK    = process.env.JIRA_FIELD_EPIC_LINK    || 'customfield_10000';
+const FIELD_STORY_POINTS = process.env.JIRA_FIELD_STORY_POINTS || 'customfield_10006';
 
 const { jiraRequest, jiraPagedRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } =
   createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIELD_STORY_POINTS, TYPE_CONFIG, isoDate, slugify });
@@ -82,6 +76,16 @@ await docIndex.build();
 // ── Middleware & SSE ─────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.static(__dirname));
+
+// ── API versioning ── /api/v1/* is an alias for /api/* ───────────────────────
+// Rewrite /api/v1/... → /api/... so all route modules work unchanged.
+// Clients can migrate to /api/v1/ at their own pace; both paths are supported.
+app.use((req, _res, next) => {
+  if (req.url.startsWith('/api/v1/')) {
+    req.url = '/api' + req.url.slice('/api/v1'.length);
+  }
+  next();
+});
 
 const { handleEvents, broadcast } = createEventService();
 app.get('/api/events', handleEvents);
