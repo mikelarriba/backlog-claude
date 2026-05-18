@@ -71,16 +71,18 @@ export function normalizeOutput(content) {
   return c.trim();
 }
 
-export function callClaude(rootDir, prompt) {
-  if (process.env.MOCK_CLAUDE) return Promise.resolve(MOCK_RESPONSE);
+// Error patterns that indicate a user-content problem — do not retry these.
+const NO_RETRY_PATTERNS = [/invalid api key/i, /permission denied/i, /content policy/i, /context length/i];
+
+function _spawnClaude(rootDir, prompt, timeoutMs) {
   return new Promise((resolve, reject) => {
     let out = '';
     let err = '';
     const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });
     const timer = setTimeout(() => {
       proc.kill();
-      reject(new Error('Claude subprocess timed out after 3 min'));
-    }, CALL_TIMEOUT_MS);
+      reject(Object.assign(new Error('Claude subprocess timed out'), { isTimeout: true }));
+    }, timeoutMs);
     proc.stdout.on('data', d => (out += d.toString()));
     proc.stderr.on('data', d => (err += d.toString()));
     proc.on('close', code => {
@@ -89,6 +91,23 @@ export function callClaude(rootDir, prompt) {
       resolve(normalizeOutput(out));
     });
   });
+}
+
+export async function callClaude(rootDir, prompt, { maxAttempts = 3 } = {}) {
+  if (process.env.MOCK_CLAUDE) return Promise.resolve(MOCK_RESPONSE);
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await _spawnClaude(rootDir, prompt, CALL_TIMEOUT_MS);
+    } catch (err) {
+      lastErr = err;
+      const isUserError = !err.isTimeout && NO_RETRY_PATTERNS.some(p => p.test(err.message));
+      if (isUserError || attempt === maxAttempts) break;
+      // Exponential back-off: 2s, 4s, 8s
+      await new Promise(r => setTimeout(r, 2 ** attempt * 1000));
+    }
+  }
+  throw lastErr;
 }
 
 export function streamClaude(rootDir, prompt, onChunk) {

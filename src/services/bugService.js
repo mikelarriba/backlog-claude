@@ -192,6 +192,10 @@ export function textToPdfBuffer(title, segments) {
     doc.moveDown(0.5);
     doc.fontSize(10).font('Helvetica');
 
+    const MAX_IMAGE_BYTES = 5 * 1024 * 1024;   // 5 MB per image
+    const MAX_TOTAL_BYTES = 20 * 1024 * 1024;  // 20 MB total inline images
+    let totalImageBytes = 0;
+
     const list = Array.isArray(segments)
       ? segments
       : [{ type: 'text', value: String(segments) }];
@@ -204,12 +208,22 @@ export function textToPdfBuffer(title, segments) {
           doc.moveDown(0.3);
         }
       } else if (seg.type === 'image') {
-        try {
-          doc.moveDown(0.5);
-          doc.image(seg.buffer, { fit: [maxWidth, 400], align: 'left' });
-          doc.moveDown(0.5);
-        } catch {
-          // Unsupported image format — skip silently
+        const bytes = seg.buffer?.byteLength ?? 0;
+        if (bytes > MAX_IMAGE_BYTES) {
+          doc.text(`[Image omitted — exceeds ${MAX_IMAGE_BYTES / 1024 / 1024} MB limit]`, { align: 'left' });
+          doc.moveDown(0.3);
+        } else if (totalImageBytes + bytes > MAX_TOTAL_BYTES) {
+          doc.text('[Image omitted — total image budget exceeded]', { align: 'left' });
+          doc.moveDown(0.3);
+        } else {
+          try {
+            doc.moveDown(0.5);
+            doc.image(seg.buffer, { fit: [maxWidth, 400], align: 'left' });
+            doc.moveDown(0.5);
+            totalImageBytes += bytes;
+          } catch {
+            // Unsupported image format — skip silently
+          }
         }
       }
     }
