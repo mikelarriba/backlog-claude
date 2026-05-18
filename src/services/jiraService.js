@@ -5,11 +5,16 @@ import { stripFrontmatter, jiraToMarkdown } from '../utils/transforms.js';
 export const LOCAL_TO_JIRA_TYPE = { feature: 'New Feature', epic: 'Epic', story: 'Story', spike: 'Task', bug: 'Bug' };
 export const JIRA_TO_LOCAL_TYPE = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Improvement: 'story', Task: 'spike', Bug: 'bug' };
 
+const JIRA_TIMEOUT_MS = Number(process.env.JIRA_TIMEOUT_MS) || 30_000;
+
 export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIELD_STORY_POINTS, TYPE_CONFIG, isoDate, slugify }) {
-  async function jiraRequest(method, urlPath, body) {
+  async function jiraRequest(method, urlPath, body, { _retryOn429 = true } = {}) {
     const url = `${JIRA_BASE}/rest/api/2${urlPath}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
     const opts = {
       method,
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${JIRA_TOKEN}`,
         Accept: 'application/json',
@@ -17,8 +22,23 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
       },
     };
     if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(url, opts);
+    let res;
+    try {
+      res = await fetch(url, opts);
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error(`JIRA request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+    // Rate-limit: wait for Retry-After and retry once
+    if (res.status === 429 && _retryOn429) {
+      const retryAfter = Number(res.headers.get('Retry-After')) || 60;
+      await new Promise(r => setTimeout(r, retryAfter * 1000));
+      return jiraRequest(method, urlPath, body, { _retryOn429: false });
+    }
     if (!res.ok) {
+      if (res.status === 429) throw new Error(`JIRA rate limit exceeded — try again later`);
       const text = await res.text().catch(() => '');
       // Scrub anything resembling a Bearer token from error output
       const safeText = text.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]').slice(0, 300);
