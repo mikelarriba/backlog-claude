@@ -175,9 +175,18 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       standalones.sort(sortByRankPriority);
 
       // Build ordered work queue: grouped epics first, then standalones
-      const workQueue = [];
-      for (const docs of sortedGroups) workQueue.push(...docs);
-      workQueue.push(...standalones);
+      // Unestimated items are routed directly to overflow — they are not
+      // sprint-ready and must not be silently placed in Sprint 1.
+      const workQueue    = [];
+      const noEstimateOverflow = [];
+      for (const docs of sortedGroups) {
+        for (const d of docs) {
+          if (d.hasEstimate) workQueue.push(d); else noEstimateOverflow.push(d);
+        }
+      }
+      for (const d of standalones) {
+        if (d.hasEstimate) workQueue.push(d); else noEstimateOverflow.push(d);
+      }
 
       // ── Build buckets; pre-fill with already-assigned docs ───────────────────
       const buckets = sprintCfg.map((s, idx) => ({
@@ -194,7 +203,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const depAdjusted  = []; // warnings for items bumped due to deps
 
       // ── Greedy fill with dep-constraint floor ────────────────────────────────
-      const overflow = [];
+      const overflow = [...noEstimateOverflow];
       for (const doc of workQueue) {
         // Compute the minimum allowed sprint index from dependency constraints
         let minIdx = 0;
@@ -227,12 +236,12 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       // ── Warnings and suggestions ─────────────────────────────────────────────
       const warnings    = [];
       const suggestions = [];
-      const noEstimate  = leafDocs.filter(d => !d.hasEstimate);
-      if (noEstimate.length) warnings.push(`${noEstimate.length} item(s) have no story point estimate and are treated as 0 SP`);
+      if (noEstimateOverflow.length) warnings.push(`${noEstimateOverflow.length} item(s) have no story point estimate — add story points before distributing`);
       if (depAdjusted.length) warnings.push(...depAdjusted);
-      if (overflow.length) {
-        const overflowSP = overflow.reduce((s, d) => s + d.storyPoints, 0);
-        warnings.push(`${overflow.length} item(s) (${overflowSP} SP) exceed total sprint capacity`);
+      const capacityOverflow = overflow.filter(d => d.hasEstimate);
+      if (capacityOverflow.length) {
+        const overflowSP = capacityOverflow.reduce((s, d) => s + d.storyPoints, 0);
+        warnings.push(`${capacityOverflow.length} item(s) (${overflowSP} SP) exceed total sprint capacity`);
       }
       for (const bucket of buckets) {
         const pct = bucket.capacity > 0 ? Math.round((bucket.usedPoints / bucket.capacity) * 100) : 0;
