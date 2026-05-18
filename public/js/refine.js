@@ -9,12 +9,13 @@
 // form that generates the doc and links it in one flow.
 
 // ── Canvas state ───────────────────────────────────────────────
-let _canvasEpicFilename = null;
-let _canvasDocType      = null;
-let _canvasLayout       = {};   // { storyFilename: { col, row } }
-let _canvasStories      = [];
-let _canvasParallel     = [];   // [{ a, b }] pairs
-let _canvasBlocks       = [];   // [{ src, tgt }] pairs
+let _canvasEpicFilename  = null;
+let _canvasDocType       = null;
+let _canvasLayout        = {};   // { storyFilename: { col, row } }
+let _canvasStories       = [];
+let _canvasParallel      = [];   // [{ a, b }] pairs
+let _canvasBlocks        = [];   // [{ src, tgt }] pairs
+let _canvasManageLinks   = false; // "Manage Links" mode
 
 // Grid constants
 const CELL_W    = 240;
@@ -41,6 +42,7 @@ async function openManualRefine(filename, docType) {
   document.getElementById('refine-view').classList.add('show');
 
   // Render the correct "+ Create" buttons for this doc type
+  _canvasManageLinks = false;
   const addBtns = document.getElementById('refine-add-btns');
   if (docType === 'feature') {
     addBtns.innerHTML = `<button class="btn-xs" onclick="openCreatePanel('epic')">＋ Epic</button>`;
@@ -48,7 +50,8 @@ async function openManualRefine(filename, docType) {
     addBtns.innerHTML = `
       <button class="btn-xs green" onclick="openCreatePanel('story')">＋ Story</button>
       <button class="btn-xs" onclick="openCreatePanel('spike')">＋ Spike</button>
-      <button class="btn-xs red" onclick="openCreatePanel('bug')">＋ Bug</button>`;
+      <button class="btn-xs red" onclick="openCreatePanel('bug')">＋ Bug</button>
+      <button class="btn-xs" id="manage-links-btn" onclick="toggleManageLinks()">⛓ Manage Links</button>`;
   }
 
   closeRefinePanel();
@@ -288,17 +291,69 @@ function renderCanvas(epicFilename, docType) {
     card.dataset.doctype  = child.docType || docType;
     card.style.cssText = `left:${x}px;top:${y}px;width:${CELL_W}px;min-height:${CELL_H}px`;
     card.setAttribute('draggable', 'true');
+    const handleDisplay = _canvasManageLinks ? 'block' : 'none';
     card.innerHTML = `
       <div class="canvas-card-header">
         <span class="type-badge ${child.docType || docType}">${TYPE_LABEL[child.docType || docType] || child.docType}</span>
         ${sp ? `<span class="canvas-card-sp">${sp}</span>` : ''}
       </div>
-      <div class="canvas-card-title">${escHtml(child.title || child.filename)}</div>`;
+      <div class="canvas-card-title">${escHtml(child.title || child.filename)}</div>
+      <div class="canvas-handle canvas-handle--top"    style="display:${handleDisplay}" data-side="top"></div>
+      <div class="canvas-handle canvas-handle--bottom" style="display:${handleDisplay}" data-side="bottom"></div>
+      <div class="canvas-handle canvas-handle--left"   style="display:${handleDisplay}" data-side="left"></div>
+      <div class="canvas-handle canvas-handle--right"  style="display:${handleDisplay}" data-side="right"></div>`;
 
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      if (e.target.classList.contains('canvas-handle')) return;
       document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
       card.classList.add('selected');
       openRefinePanel(child.filename, child.docType || docType);
+    });
+
+    // Handle drag for link creation
+    card.querySelectorAll('.canvas-handle').forEach(handle => {
+      let rubberLine = null;
+      handle.addEventListener('mousedown', e => {
+        if (!_canvasManageLinks) return;
+        e.stopPropagation();
+        // Create rubber-band SVG line
+        rubberLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        rubberLine.setAttribute('stroke', 'var(--accent)');
+        rubberLine.setAttribute('stroke-width', '2');
+        rubberLine.setAttribute('stroke-dasharray', '5 3');
+        rubberLine.setAttribute('pointer-events', 'none');
+        const startX = e.clientX;
+        const startY = e.clientY;
+        rubberLine.setAttribute('x1', startX);
+        rubberLine.setAttribute('y1', startY);
+        rubberLine.setAttribute('x2', startX);
+        rubberLine.setAttribute('y2', startY);
+        svg.appendChild(rubberLine);
+
+        function onMove(mv) {
+          rubberLine.setAttribute('x2', mv.clientX);
+          rubberLine.setAttribute('y2', mv.clientY);
+        }
+        function onUp(mu) {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          if (rubberLine) { rubberLine.remove(); rubberLine = null; }
+          // Find target card under mouse
+          const els = document.elementsFromPoint(mu.clientX, mu.clientY);
+          const tgtCard = els.find(el => el.classList.contains('canvas-card') && el !== card);
+          if (tgtCard) {
+            const tgtFn  = tgtCard.dataset.filename;
+            const tgtDt  = tgtCard.dataset.doctype;
+            const srcFn  = child.filename;
+            const srcDt  = child.docType || docType;
+            if (tgtFn && tgtFn !== srcFn) {
+              _showLinkPopup(mu.clientX, mu.clientY, srcFn, srcDt, tgtFn, tgtDt);
+            }
+          }
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
     });
 
     wrapper.appendChild(card);
@@ -477,6 +532,63 @@ async function saveCanvasLayout(epicFilename) {
   } catch { /* silent */ }
 }
 
+// ── Manage Links mode ──────────────────────────────────────────
+function toggleManageLinks() {
+  _canvasManageLinks = !_canvasManageLinks;
+  const btn = document.getElementById('manage-links-btn');
+  if (btn) btn.classList.toggle('active', _canvasManageLinks);
+  // Show/hide handles on all cards
+  document.querySelectorAll('.canvas-card .canvas-handle').forEach(h => {
+    h.style.display = _canvasManageLinks ? 'block' : 'none';
+  });
+}
+
+function _closeLinkPopup() {
+  document.querySelectorAll('.canvas-link-popup').forEach(el => el.remove());
+}
+
+function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+  _closeLinkPopup();
+  const popup = document.createElement('div');
+  popup.className = 'canvas-link-popup';
+  popup.style.left = `${x}px`;
+  popup.style.top  = `${y}px`;
+  popup.innerHTML = `
+    <button onclick="_createCanvasLink('blocks','${escHtml(srcFilename)}','${escHtml(srcDocType)}','${escHtml(tgtFilename)}','${escHtml(tgtDocType)}')">Add BLOCKS link</button>
+    <button onclick="_createCanvasLink('parallel','${escHtml(srcFilename)}','${escHtml(srcDocType)}','${escHtml(tgtFilename)}','${escHtml(tgtDocType)}')">Add PARALLEL link</button>
+    <button onclick="_closeLinkPopup()">Cancel</button>`;
+  document.body.appendChild(popup);
+  // Close on outside click
+  setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+async function _createCanvasLink(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+  _closeLinkPopup();
+  // Reject epic node links
+  if (!['story', 'spike', 'bug'].includes(tgtDocType)) {
+    showJiraToast('error', 'Only leaf stories can be linked');
+    return;
+  }
+  try {
+    const res = await fetch('/api/link', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ linkType, sourceType: srcDocType, sourceFilename: srcFilename, targetType: tgtDocType, targetFilename: tgtFilename }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'Link failed');
+    await loadDocs();
+    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    if (_canvasManageLinks) {
+      const btn = document.getElementById('manage-links-btn');
+      if (btn) btn.classList.add('active');
+      _canvasManageLinks = true;
+    }
+  } catch (e) {
+    showJiraToast('error', e.message);
+  }
+}
+
 async function resetCanvasLayout(epicFilename) {
   try {
     await fetch(`/api/canvas/layout/${encodeURIComponent(epicFilename)}`, { method: 'DELETE' });
@@ -533,9 +645,79 @@ async function openRefinePanel(filename, docType) {
       </div>
       <div class="rp-content markdown" id="rp-content">
         ${marked.parse(stripFrontmatter(content))}
+      </div>
+      <div class="rp-deps-section" id="rp-deps-section">
+        <div class="rp-loading">Loading dependencies…</div>
       </div>`;
+
+    // Load and render dependency section
+    _loadRpDeps(filename, docType);
   } catch {
     panel.innerHTML = '<div class="rp-loading">Failed to load content.</div>';
+  }
+}
+
+async function _loadRpDeps(filename, docType) {
+  const section = document.getElementById('rp-deps-section');
+  if (!section) return;
+  try {
+    const res = await fetch(`/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`);
+    if (!res.ok) { section.innerHTML = ''; return; }
+    const data = await res.json();
+
+    function depRow(item, lType) {
+      const ef = escHtml(item.filename);
+      const et = escHtml(item.docType || docType);
+      return `<div class="rp-dep-row">
+        <span class="rp-dep-title">${escHtml(item.title || item.filename)}</span>
+        <button class="btn-ghost btn-xs dep-remove-btn"
+          onclick="_removeCanvasLink('${lType}','${escHtml(filename)}','${escHtml(docType)}','${ef}','${et}')">&times;</button>
+      </div>`;
+    }
+
+    const blocks   = data.blocks   || [];
+    const blockedBy = data.blockedBy || [];
+    const parallel  = data.parallel  || [];
+
+    section.innerHTML = `
+      <div class="rp-deps-header">Dependencies</div>
+      <div class="rp-dep-group">
+        <div class="rp-dep-label">Blocks</div>
+        ${blocks.length   ? blocks.map(i => depRow(i, 'blocks')).join('') : '<div class="dep-empty">None</div>'}
+      </div>
+      <div class="rp-dep-group">
+        <div class="rp-dep-label">Blocked by</div>
+        ${blockedBy.length ? blockedBy.map(i => depRow(i, 'blockedBy')).join('') : '<div class="dep-empty">None</div>'}
+      </div>
+      <div class="rp-dep-group">
+        <div class="rp-dep-label">Parallel with</div>
+        ${parallel.length  ? parallel.map(i => depRow(i, 'parallel')).join('') : '<div class="dep-empty">None</div>'}
+      </div>`;
+  } catch {
+    section.innerHTML = '';
+  }
+}
+
+async function _removeCanvasLink(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+  // For blockedBy direction: the blocker is tgt, the blocked is src
+  let finalSrc = srcFilename, finalSrcType = srcDocType;
+  let finalTgt = tgtFilename, finalTgtType = tgtDocType;
+  if (linkType === 'blockedBy') {
+    linkType = 'blocks';
+    [finalSrc, finalSrcType, finalTgt, finalTgtType] = [tgtFilename, tgtDocType, srcFilename, srcDocType];
+  }
+  try {
+    await fetch('/api/link', {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ linkType, sourceType: finalSrcType, sourceFilename: finalSrc, targetType: finalTgtType, targetFilename: finalTgt }),
+    });
+    await loadDocs();
+    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    // Reopen panel to refresh deps
+    openRefinePanel(srcFilename, srcDocType);
+  } catch (e) {
+    showJiraToast('error', e.message);
   }
 }
 
