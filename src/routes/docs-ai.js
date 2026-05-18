@@ -15,16 +15,21 @@ export default function docsAiRoutes({ TYPE_CONFIG, INBOX_DIR, broadcast, loadCo
   // ── POST /api/generate ─────────────────────────────────────────────────────
   router.post('/api/generate', async (req, res) => {
     try {
-      const { title, idea, priority = 'Medium', type = 'epic', parentFeature, parentEpic, fixVersion, team, workCategory } = req.body;
-      if (!idea?.trim()) {
+      const { title: rawTitle, idea: rawIdea, priority = 'Medium', type = 'epic', parentFeature, parentEpic, fixVersion, team, workCategory } = req.body;
+      if (!rawIdea?.trim()) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'Idea is required');
       }
-      if (title && title.length > 200) {
+      if (rawTitle && rawTitle.length > 200) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
       }
-      if (idea.length > 5000) {
+      if (rawIdea.length > 5000) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'Idea must be 5000 characters or fewer');
       }
+      // Strip control characters (except \t and \n which are valid in body text)
+      // to prevent prompt injection via crafted null bytes or escape sequences.
+      const stripControls = s => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      const title = rawTitle ? stripControls(rawTitle) : rawTitle;
+      const idea  = stripControls(rawIdea);
 
       const normalizedType = assertDocType(type, TYPE_CONFIG);
       const cfg = TYPE_CONFIG[normalizedType];

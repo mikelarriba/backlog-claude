@@ -34,9 +34,11 @@ export function extractWorkflowStatus(content) {
 }
 
 export function setFrontmatterField(content, field, value) {
+  // Strip newlines to prevent frontmatter block corruption via injected "---"
+  const safeValue = String(value).replace(/[\r\n]/g, ' ').trim();
   const re = new RegExp(`^(${field}:\\s*).*$`, 'm');
-  if (re.test(content)) return content.replace(re, `$1${value}`);
-  return content.replace(/^---\n/, `---\n${field}: ${value}\n`);
+  if (re.test(content)) return content.replace(re, `$1${safeValue}`);
+  return content.replace(/^---\n/, `---\n${field}: ${safeValue}\n`);
 }
 
 export function removeFrontmatterField(content, field) {

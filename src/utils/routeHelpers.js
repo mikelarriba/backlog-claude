@@ -54,12 +54,16 @@ export function assertStatus(status) {
   }
 }
 
+// Allow-list regex: lowercase alphanumeric + hyphens, must end in .md.
+// Rejects path traversal (../../), uppercase, spaces, and any other chars.
+const SAFE_FILENAME_RE = /^[a-z0-9][a-z0-9\-]*\.md$/;
+
 export function assertFilename(filename) {
   const cleaned = path.basename(String(filename || '').trim());
-  if (!cleaned || cleaned === '.' || cleaned === '..') {
+  if (!cleaned || !SAFE_FILENAME_RE.test(cleaned)) {
     throw {
       code: 'INVALID_FILENAME',
-      message: 'Filename is required and must be valid',
+      message: 'Filename must match pattern: lowercase letters, digits, hyphens, ending in .md',
     };
   }
   return cleaned;

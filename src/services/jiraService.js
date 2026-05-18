@@ -20,7 +20,9 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
     const res = await fetch(url, opts);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`JIRA ${method} ${urlPath} → ${res.status}: ${text.slice(0, 300)}`);
+      // Scrub anything resembling a Bearer token from error output
+      const safeText = text.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]').slice(0, 300);
+      throw new Error(`JIRA ${method} ${urlPath} → ${res.status}: ${safeText}`);
     }
     return res.json();
   }
