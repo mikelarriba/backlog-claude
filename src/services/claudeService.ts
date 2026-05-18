@@ -2,14 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 
-/**
- * Load a named slash-command prompt from `.claude/commands/<name>.md`.
- * Returns null if the file does not exist.
- * @param {string} rootDir
- * @param {string} name
- * @returns {string|null}
- */
-export function loadCommand(rootDir, name) {
+export function loadCommand(rootDir: string, name: string): string | null {
   const commandPath = path.join(rootDir, '.claude', 'commands', `${name}.md`);
   if (!fs.existsSync(commandPath)) return null;
   return fs.readFileSync(commandPath, 'utf-8').replace(/^---[\s\S]*?---\n?/, '').trim();
@@ -45,26 +38,21 @@ N/A
 `;
 
 // Model override — read from settings file if present
-let _modelOverride = null;
+let _modelOverride: string | null = null;
 
 /**
  * Override the Claude model used for all subsequent spawns (session-scoped).
  * Pass null or undefined to clear the override and use the CLI default.
- * @param {string|null|undefined} model - e.g. "claude-opus-4-6"
  */
-export function setModelOverride(model) {
+export function setModelOverride(model: string | null | undefined): void {
   _modelOverride = model || null;
 }
 
-/**
- * Return the current model override, or null if none is set.
- * @returns {string|null}
- */
-export function getModelOverride() {
+export function getModelOverride(): string | null {
   return _modelOverride;
 }
 
-function buildClaudeArgs(prompt) {
+function buildClaudeArgs(prompt: string): string[] {
   const args = ['-p', prompt];
   if (_modelOverride) args.push('--model', _modelOverride);
   return args;
@@ -76,15 +64,7 @@ const CALL_TIMEOUT_MS = 180_000;
 const STREAM_TIMEOUT_MS = 300_000;
 
 // Strip code fences that models sometimes wrap around output.
-// Handles: ```yaml\n---frontmatter---\n```\nbody  →  ---frontmatter---\nbody
-// And:     ```markdown\nentire output\n```  →  entire output
-/**
- * Strip code fences that Claude sometimes wraps around its output.
- * Handles yaml-fenced frontmatter blocks and outer markdown fences.
- * @param {string} content
- * @returns {string}
- */
-export function normalizeOutput(content) {
+export function normalizeOutput(content: string): string {
   let c = content.trim();
   // Unwrap yaml-fenced frontmatter block that appears before the body
   c = c.replace(/^```[\w]+\n(---[\s\S]*?---)\n```\n?/, '$1\n');
@@ -96,7 +76,7 @@ export function normalizeOutput(content) {
 // Error patterns that indicate a user-content problem — do not retry these.
 const NO_RETRY_PATTERNS = [/invalid api key/i, /permission denied/i, /content policy/i, /context length/i];
 
-function _spawnClaude(rootDir, prompt, timeoutMs) {
+function _spawnClaude(rootDir: string, prompt: string, timeoutMs: number): Promise<string> {
   return new Promise((resolve, reject) => {
     let out = '';
     let err = '';
@@ -105,9 +85,9 @@ function _spawnClaude(rootDir, prompt, timeoutMs) {
       proc.kill();
       reject(Object.assign(new Error('Claude subprocess timed out'), { isTimeout: true }));
     }, timeoutMs);
-    proc.stdout.on('data', d => (out += d.toString()));
-    proc.stderr.on('data', d => (err += d.toString()));
-    proc.on('close', code => {
+    proc.stdout!.on('data', (d: Buffer) => (out += d.toString()));
+    proc.stderr!.on('data', (d: Buffer) => (err += d.toString()));
+    proc.on('close', (code: number | null) => {
       clearTimeout(timer);
       if (code !== 0) return reject(new Error(err.trim() || `claude exited ${code}`));
       resolve(normalizeOutput(out));
@@ -119,20 +99,16 @@ function _spawnClaude(rootDir, prompt, timeoutMs) {
  * Invoke the Claude CLI non-streaming. Retries up to `maxAttempts` times
  * with exponential back-off (2s, 4s, 8s). User-content errors (bad API key,
  * content policy, context too long) are not retried.
- * @param {string} rootDir     - cwd for the claude subprocess
- * @param {string} prompt
- * @param {{ maxAttempts?: number }} [opts]
- * @returns {Promise<string>}  - Normalised output (code fences stripped)
  */
-export async function callClaude(rootDir, prompt, { maxAttempts = 3 } = {}) {
+export async function callClaude(rootDir: string, prompt: string, { maxAttempts = 3 } = {}): Promise<string> {
   if (process.env.MOCK_CLAUDE) return Promise.resolve(MOCK_RESPONSE);
-  let lastErr;
+  let lastErr: any;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await _spawnClaude(rootDir, prompt, CALL_TIMEOUT_MS);
-    } catch (err) {
+    } catch (err: any) {
       lastErr = err;
-      const isUserError = !err.isTimeout && NO_RETRY_PATTERNS.some(p => p.test(err.message));
+      const isUserError = !err.isTimeout && NO_RETRY_PATTERNS.some((p: RegExp) => p.test(err.message));
       if (isUserError || attempt === maxAttempts) break;
       // Exponential back-off: 2s, 4s, 8s
       await new Promise(r => setTimeout(r, 2 ** attempt * 1000));
@@ -144,12 +120,8 @@ export async function callClaude(rootDir, prompt, { maxAttempts = 3 } = {}) {
 /**
  * Invoke the Claude CLI in streaming mode. Each stdout chunk is forwarded to
  * `onChunk` as it arrives. Times out after 5 minutes.
- * @param {string}   rootDir   - cwd for the claude subprocess
- * @param {string}   prompt
- * @param {(chunk: string) => void} onChunk - Called for each data chunk
- * @returns {Promise<void>}
  */
-export function streamClaude(rootDir, prompt, onChunk) {
+export function streamClaude(rootDir: string, prompt: string, onChunk: (chunk: string) => void): Promise<void> {
   if (process.env.MOCK_CLAUDE) {
     onChunk(MOCK_RESPONSE);
     return Promise.resolve();
@@ -161,9 +133,9 @@ export function streamClaude(rootDir, prompt, onChunk) {
       proc.kill();
       reject(new Error('Claude subprocess timed out after 5 min'));
     }, STREAM_TIMEOUT_MS);
-    proc.stdout.on('data', d => onChunk(d.toString()));
-    proc.stderr.on('data', d => (err += d.toString()));
-    proc.on('close', code => {
+    proc.stdout!.on('data', (d: Buffer) => onChunk(d.toString()));
+    proc.stderr!.on('data', (d: Buffer) => (err += d.toString()));
+    proc.on('close', (code: number | null) => {
       clearTimeout(timer);
       code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`));
     });

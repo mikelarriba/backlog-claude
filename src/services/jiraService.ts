@@ -1,18 +1,38 @@
 import fs from 'fs';
 import path from 'path';
 import { stripFrontmatter, jiraToMarkdown } from '../utils/transforms.js';
+import type { TypeConfig } from '../types.js';
 
-export const LOCAL_TO_JIRA_TYPE = { feature: 'New Feature', epic: 'Epic', story: 'Story', spike: 'Task', bug: 'Bug' };
-export const JIRA_TO_LOCAL_TYPE = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Improvement: 'story', Task: 'spike', Bug: 'bug' };
+export const LOCAL_TO_JIRA_TYPE: Record<string, string> = { feature: 'New Feature', epic: 'Epic', story: 'Story', spike: 'Task', bug: 'Bug' };
+export const JIRA_TO_LOCAL_TYPE: Record<string, string> = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Improvement: 'story', Task: 'spike', Bug: 'bug' };
 
 const JIRA_TIMEOUT_MS = Number(process.env.JIRA_TIMEOUT_MS) || 30_000;
 
-export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIELD_STORY_POINTS, TYPE_CONFIG, isoDate, slugify }) {
-  async function jiraRequest(method, urlPath, body, { _retryOn429 = true } = {}) {
+interface JiraServiceConfig {
+  JIRA_BASE: string;
+  JIRA_TOKEN: string;
+  FIELD_EPIC_NAME: string;
+  FIELD_STORY_POINTS: string;
+  TYPE_CONFIG: TypeConfig;
+  isoDate: () => string;
+  slugify: (text: string) => string;
+}
+
+export interface JiraServiceInstance {
+  jiraRequest: (method: string, urlPath: string, body?: any, opts?: { _retryOn429?: boolean }) => Promise<any>;
+  jiraPagedRequest: (jql: string, fields: string, opts?: { maxResults?: number; maxTotal?: number }) => Promise<any[]>;
+  jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<any>;
+  findLocalFileByJiraId: (jiraId: string) => { docType: string; filename: string } | null;
+  jiraIssueToMarkdown: (issue: any) => { docType: string; content: string };
+  extractJiraSummary: (content: string) => string;
+}
+
+export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIELD_STORY_POINTS, TYPE_CONFIG, isoDate, slugify }: JiraServiceConfig): JiraServiceInstance {
+  async function jiraRequest(method: string, urlPath: string, body?: any, { _retryOn429 = true } = {}): Promise<any> {
     const url = `${JIRA_BASE}/rest/api/2${urlPath}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
-    const opts = {
+    const opts: RequestInit = {
       method,
       signal: controller.signal,
       headers: {
@@ -22,10 +42,10 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
       },
     };
     if (body) opts.body = JSON.stringify(body);
-    let res;
+    let res: Response;
     try {
       res = await fetch(url, opts);
-    } catch (err) {
+    } catch (err: any) {
       if (err.name === 'AbortError') throw new Error(`JIRA request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
       throw err;
     } finally {
@@ -47,18 +67,8 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
     return res.json();
   }
 
-  /**
-   * Paginated JIRA search — fetches all pages and returns the concatenated
-   * issues array. Stops when `startAt + page.issues.length >= page.total`
-   * or when `maxTotal` issues have been collected.
-   *
-   * @param {string} jql - JQL query string (already encoded for the URL)
-   * @param {string} fields - comma-separated field list
-   * @param {{ maxResults?: number, maxTotal?: number }} [opts]
-   * @returns {Promise<object[]>} Concatenated issues array
-   */
-  async function jiraPagedRequest(jql, fields, { maxResults = 100, maxTotal = 500 } = {}) {
-    const all = [];
+  async function jiraPagedRequest(jql: string, fields: string, { maxResults = 100, maxTotal = 500 } = {}): Promise<any[]> {
+    const all: any[] = [];
     let startAt = 0;
 
     while (true) {
@@ -74,7 +84,7 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
     return all.slice(0, maxTotal);
   }
 
-  function findLocalFileByJiraId(jiraId) {
+  function findLocalFileByJiraId(jiraId: string): { docType: string; filename: string } | null {
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
       const dir = cfg.dir();
       if (!fs.existsSync(dir)) continue;
@@ -87,7 +97,7 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
     return null;
   }
 
-  function jiraIssueToMarkdown(issue) {
+  function jiraIssueToMarkdown(issue: any): { docType: string; content: string } {
     const { key, fields } = issue;
     const summary = (fields.summary || '').replace(/[\r\n]+/g, ' ').trim();
     const description = jiraToMarkdown(fields.description || '');
@@ -119,7 +129,7 @@ ${description || '_No description in JIRA._'}
     return { docType, content };
   }
 
-  function extractJiraSummary(content) {
+  function extractJiraSummary(content: string): string {
     const storyHeader = content.match(/^## Story \d+:\s*(.+?)(?:\s*<!--.*?-->)?\s*$/m);
     if (storyHeader) return storyHeader[1].trim();
     // Any "## <Type> Title" placeholder → real title is the next non-empty line
@@ -132,10 +142,10 @@ ${description || '_No description in JIRA._'}
     return 'Untitled';
   }
 
-  async function jiraUploadAttachment(issueKey, filename, buffer) {
+  async function jiraUploadAttachment(issueKey: string, filename: string, buffer: Buffer): Promise<any> {
     const url = `${JIRA_BASE}/rest/api/2/issue/${issueKey}/attachments`;
     const formData = new FormData();
-    formData.append('file', new Blob([buffer]), filename);
+    formData.append('file', new Blob([new Uint8Array(buffer)]), filename);
     const res = await fetch(url, {
       method: 'POST',
       headers: {

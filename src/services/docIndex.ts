@@ -7,16 +7,17 @@ import {
   extractTitle, extractWorkflowStatus,
   extractFrontmatterField,
 } from '../utils/transforms.js';
+import type { DocEntry, DocIndexInstance, TypeConfig } from '../types.js';
 
-export function createDocIndex({ TYPE_CONFIG }) {
-  const _map = new Map(); // Map<filename, entry>
+export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): DocIndexInstance {
+  const _map = new Map<string, DocEntry>();
 
-  function _buildEntry(docType, dir, filename) {
+  function _buildEntry(docType: string, dir: string, filename: string): DocEntry {
     const content = fs.readFileSync(path.join(dir, filename), 'utf-8');
     const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/);
 
-    let parentFilename = null;
-    let parentType     = null;
+    let parentFilename: string | null = null;
+    let parentType: string | null = null;
     if (docType === 'epic') {
       const val = extractFrontmatterField(content, 'Feature_ID');
       if (val && val !== 'TBD') { parentFilename = val; parentType = 'feature'; }
@@ -70,10 +71,10 @@ export function createDocIndex({ TYPE_CONFIG }) {
     };
   }
 
-  async function build() {
+  async function build(): Promise<DocIndexInstance> {
     _map.clear();
     // Collect all (docType, dir, filename) tuples first so we can yield evenly
-    const entries = [];
+    const entries: Array<{ docType: string; dir: string; f: string }> = [];
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
       const dir = cfg.dir();
       if (!fs.existsSync(dir)) continue;
@@ -92,17 +93,17 @@ export function createDocIndex({ TYPE_CONFIG }) {
   }
 
   // Return all entries sorted newest-first (same order as GET /api/docs).
-  function getAll() {
+  function getAll(): DocEntry[] {
     return Array.from(_map.values()).sort((a, b) => b.filename.localeCompare(a.filename));
   }
 
   // O(1) single-entry lookup.
-  function get(filename) {
+  function get(filename: string): DocEntry | null {
     return _map.get(filename) || null;
   }
 
   // Rebuild a single entry after a write; remove it after a delete.
-  function invalidate(docType, filename) {
+  function invalidate(docType: string, filename: string): void {
     const cfg = TYPE_CONFIG[docType];
     if (!cfg) { _map.delete(filename); return; }
     const filepath = path.join(cfg.dir(), filename);
@@ -111,13 +112,12 @@ export function createDocIndex({ TYPE_CONFIG }) {
   }
 
   // Full async rebuild — use after batch operations that touch many files.
-  // Returns a Promise so callers can await completion.
-  async function invalidateAll() {
+  async function invalidateAll(): Promise<void> {
     await build();
   }
 
   // O(1) replacement for the O(n) findLocalFileByJiraId disk scan.
-  function findByJiraId(jiraId) {
+  function findByJiraId(jiraId: string): { docType: string; filename: string } | null {
     if (!jiraId || jiraId === 'TBD') return null;
     for (const entry of _map.values()) {
       if (entry.jiraId === jiraId) return { docType: entry.docType, filename: entry.filename };
@@ -125,6 +125,6 @@ export function createDocIndex({ TYPE_CONFIG }) {
     return null;
   }
 
-  const docIndex = { build, getAll, get, invalidate, invalidateAll, findByJiraId };
+  const docIndex: DocIndexInstance = { build, getAll, get, invalidate, invalidateAll, findByJiraId };
   return docIndex;
 }

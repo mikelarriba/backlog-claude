@@ -44,6 +44,7 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       // @ts-ignore — multer extends Request.files
       const files = req.files || [];
       const processed = [];
+      // @ts-ignore — multer File[] union type; always array when using upload.array()
       for (const file of files) {
         try {
           const result = await processAttachment(file, callClaude);
