@@ -284,9 +284,11 @@ function renderDocItem(d, indent, childrenMap) {
   const isLeaf       = ['story', 'spike', 'bug'].includes(d.docType);
   const blocksCnt    = isLeaf ? (d.blocks    || []).length : 0;
   const blockedByCnt = isLeaf ? (d.blockedBy || []).length : 0;
+  const parallelCnt  = isLeaf ? (d.parallel  || []).length : 0;
   const depBadges = [
     blocksCnt    ? `<span class="dep-badge dep-badge-blocks" title="Blocks ${blocksCnt} stor${blocksCnt !== 1 ? 'ies' : 'y'}">→ ${blocksCnt}</span>` : '',
     blockedByCnt ? `<span class="dep-badge dep-badge-blocked" title="Blocked by ${blockedByCnt} stor${blockedByCnt !== 1 ? 'ies' : 'y'}">🔒 ${blockedByCnt}</span>` : '',
+    parallelCnt  ? `<span class="dep-badge dep-badge-parallel" title="Parallel with ${parallelCnt} stor${parallelCnt !== 1 ? 'ies' : 'y'}"># ${parallelCnt}</span>` : '',
   ].join('');
   const teamSlug    = d.team        ? d.team.toLowerCase().replace(/\s+/g, '-')        : null;
   const workCatSlug = d.workCategory ? d.workCategory.toLowerCase().replace(/\s+/g, '-') : null;
@@ -409,16 +411,19 @@ function showDepConnectors(filename) {
   const svg = document.getElementById('dep-connector-svg');
   if (!svg) return;
 
-  // Build pairs: blocker → blocked
+  // Build pairs: blocker → blocked (sequential) and parallel
   const pairs = [];
   for (const blockedFn of (doc.blocks || [])) {
-    pairs.push({ blockerFn: filename, blockedFn });
+    pairs.push({ blockerFn: filename, blockedFn, isParallel: false });
   }
   for (const blockerFn of (doc.blockedBy || [])) {
-    pairs.push({ blockerFn, blockedFn: filename });
+    pairs.push({ blockerFn, blockedFn: filename, isParallel: false });
+  }
+  for (const parallelFn of (doc.parallel || [])) {
+    pairs.push({ blockerFn: filename, blockedFn: parallelFn, isParallel: true });
   }
 
-  for (const { blockerFn, blockedFn } of pairs) {
+  for (const { blockerFn, blockedFn, isParallel } of pairs) {
     const blockerEl = _findVisibleDepEl(blockerFn);
     const blockedEl = _findVisibleDepEl(blockedFn);
     if (!blockerEl || !blockedEl) continue;
@@ -444,7 +449,7 @@ function showDepConnectors(filename) {
     const xMid = Math.min(x1, x2) - offset;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', `M${x1},${y1} H${xMid} V${y2} H${x2}`);
-    path.setAttribute('class', 'dep-connector-line');
+    path.setAttribute('class', isParallel ? 'dep-connector-line dep-connector-line--parallel' : 'dep-connector-line');
     svg.appendChild(path);
   }
 }
@@ -453,7 +458,7 @@ function attachDepHoverListeners() {
   document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach(el => {
     const doc = allDocs.find(d => d.filename === el.dataset.filename);
     if (!doc) return;
-    if (!(doc.blocks || []).length && !(doc.blockedBy || []).length) return;
+    if (!(doc.blocks || []).length && !(doc.blockedBy || []).length && !(doc.parallel || []).length) return;
     el.addEventListener('mouseenter', () => showDepConnectors(doc.filename));
     el.addEventListener('mouseleave', hideDepConnectors);
   });
