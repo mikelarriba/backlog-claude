@@ -129,6 +129,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           parentFilename: e.parentFilename || null,
           blockedBy:      e.blockedBy || [],
           blocks:         e.blocks    || [],
+          parallel:       e.parallel  || [],
         }));
 
       // Partition: already-assigned vs unassigned
@@ -215,10 +216,19 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           }
         }
 
-        // Place in the first bucket at or after minIdx with enough capacity
+        // Prefer the same sprint as already-placed parallel siblings (co-location)
+        let preferredIdx = minIdx;
+        for (const siblingFn of (doc.parallel || [])) {
+          const sibSprint = placementMap.get(siblingFn);
+          if (sibSprint !== undefined) {
+            preferredIdx = Math.max(preferredIdx, sprintIdx.get(sibSprint) ?? 0);
+          }
+        }
+
+        // Place in the first bucket at or after preferredIdx with enough capacity
         let placed = false;
         for (const bucket of buckets) {
-          if (bucket.idx < minIdx) continue;
+          if (bucket.idx < preferredIdx) continue;
           if (bucket.usedPoints + doc.storyPoints <= bucket.capacity) {
             if (minIdx > 0 && bucket.idx > 0) {
               depAdjusted.push(`"${doc.title}" placed in ${bucket.name} due to dependency ordering`);
@@ -231,6 +241,22 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           }
         }
         if (!placed) overflow.push(doc);
+      }
+
+      // ── Advisory warnings for parallel siblings in different sprints ────────
+      const seenParallelPairs = new Set();
+      for (const doc of workQueue) {
+        const docSprint = placementMap.get(doc.filename);
+        if (!docSprint) continue;
+        for (const siblingFn of (doc.parallel || [])) {
+          const pairKey = [doc.filename, siblingFn].sort().join('|');
+          if (seenParallelPairs.has(pairKey)) continue;
+          seenParallelPairs.add(pairKey);
+          const sibSprint = placementMap.get(siblingFn);
+          if (sibSprint && sibSprint !== docSprint) {
+            depAdjusted.push(`Parallel stories "${doc.title}" (${docSprint}) and "${siblingFn}" (${sibSprint}) could not be co-located`);
+          }
+        }
       }
 
       // ── Warnings and suggestions ─────────────────────────────────────────────
