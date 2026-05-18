@@ -652,8 +652,9 @@
   margin-top: 3px;
   display: inline-block;
 }
-.dep-blocked { background: rgba(239,68,68,0.12); color: #ef4444; }
-.dep-blocks  { background: rgba(59,130,246,0.12); color: #3b82f6; }
+.dep-blocked  { background: rgba(239,68,68,0.12);  color: #ef4444; }
+.dep-blocks   { background: rgba(59,130,246,0.12); color: #3b82f6; }
+.dep-parallel { background: rgba(16,185,129,0.12); color: #059669; }
 
 /* ── Dependency modal ────────────────────────────────────────── */
 .dep-dialog {

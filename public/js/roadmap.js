@@ -420,9 +420,11 @@ function renderRoadmapCard(d, sprintName) {
   // Dependency badges
   const blocks    = d.blocks    || [];
   const blockedBy = d.blockedBy || [];
+  const parallel  = d.parallel  || [];
   let depHtml = '';
   if (blockedBy.length) depHtml += `<div class="dep-badge dep-blocked">⬅ blocked by ${blockedBy.length}</div>`;
   if (blocks.length)    depHtml += `<div class="dep-badge dep-blocks">→ blocks ${blocks.length}</div>`;
+  if (parallel.length)  depHtml += `<div class="dep-badge dep-parallel"># parallel ${parallel.length}</div>`;
 
   const depBlockedClass = blockedBy.length ? ' rm-dep-blocked' : '';
 
@@ -660,21 +662,42 @@ function renderDepLists(data) {
   blockedByList.innerHTML = (data.blockedBy || []).length
     ? (data.blockedBy || []).map(item => depItemHtml(item, 'blockedBy')).join('')
     : '<div class="dep-empty">None</div>';
+
+  const parallelList = document.getElementById('dep-parallel-list');
+  if (parallelList) {
+    parallelList.innerHTML = (data.parallel || []).length
+      ? (data.parallel || []).map(item => depItemHtml(item, 'parallel')).join('')
+      : '<div class="dep-empty">None</div>';
+  }
 }
 
 function populateDepTargetSelect(excludeFilename, currentData) {
-  const select = document.getElementById('dep-target-select');
   const leafTypes = new Set(['story', 'spike', 'bug']);
-  const alreadyBlocks = new Set((currentData.blocks || []).map(b => b.filename));
+  const alreadyBlocks   = new Set((currentData.blocks   || []).map(b => b.filename));
+  const alreadyParallel = new Set((currentData.parallel || []).map(p => p.filename));
   alreadyBlocks.add(excludeFilename);
+  alreadyParallel.add(excludeFilename);
 
-  const candidates = allDocs
-    .filter(d => leafTypes.has(d.docType) && !alreadyBlocks.has(d.filename))
+  const allCandidates = allDocs
+    .filter(d => leafTypes.has(d.docType))
     .sort((a, b) => (a.title || a.filename).localeCompare(b.title || b.filename));
 
-  select.innerHTML = candidates.length
-    ? candidates.map(d => `<option value="${escHtml(d.filename)}" data-doctype="${d.docType}">${escHtml(d.title || d.filename)}</option>`).join('')
-    : '<option value="" disabled>No candidates</option>';
+  const blockCandidates    = allCandidates.filter(d => !alreadyBlocks.has(d.filename));
+  const parallelCandidates = allCandidates.filter(d => !alreadyParallel.has(d.filename));
+
+  const select = document.getElementById('dep-target-select');
+  if (select) {
+    select.innerHTML = blockCandidates.length
+      ? blockCandidates.map(d => `<option value="${escHtml(d.filename)}" data-doctype="${d.docType}">${escHtml(d.title || d.filename)}</option>`).join('')
+      : '<option value="" disabled>No candidates</option>';
+  }
+
+  const parallelSelect = document.getElementById('dep-parallel-select');
+  if (parallelSelect) {
+    parallelSelect.innerHTML = parallelCandidates.length
+      ? parallelCandidates.map(d => `<option value="${escHtml(d.filename)}" data-doctype="${d.docType}">${escHtml(d.title || d.filename)}</option>`).join('')
+      : '<option value="" disabled>No candidates</option>';
+  }
 }
 
 async function addDepLink() {
@@ -702,20 +725,46 @@ async function addDepLink() {
   } catch (e) { showJiraToast('error', e.message); }
 }
 
+async function addParallelLink() {
+  const select = document.getElementById('dep-parallel-select');
+  if (!select) return;
+  const targetFilename = select.value;
+  if (!targetFilename) return;
+  const targetDocType = select.selectedOptions[0]?.dataset.doctype || 'story';
+
+  try {
+    await postJSON('/api/link', {
+      linkType: 'parallel',
+      sourceType: _depModalDocType, sourceFilename: _depModalFilename,
+      targetType: targetDocType,    targetFilename,
+    });
+    const data = await fetch(`/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`).then(r => r.json());
+    renderDepLists(data);
+    populateDepTargetSelect(_depModalFilename, data);
+    renderRoadmapBoard();
+  } catch (e) { showJiraToast('error', e.message); }
+}
+
 async function removeDepLink(targetFilename, targetDocType, direction) {
   try {
-    let srcFilename, srcDocType, tgtFilename, tgtDocType;
-    if (direction === 'blocks') {
+    let srcFilename, srcDocType, tgtFilename, tgtDocType, linkType;
+    if (direction === 'parallel') {
+      linkType    = 'parallel';
+      srcFilename = _depModalFilename; srcDocType = _depModalDocType;
+      tgtFilename = targetFilename;    tgtDocType = targetDocType;
+    } else if (direction === 'blocks') {
+      linkType    = 'blocks';
       srcFilename = _depModalFilename; srcDocType = _depModalDocType;
       tgtFilename = targetFilename;    tgtDocType = targetDocType;
     } else {
+      linkType    = 'blocks';
       srcFilename = targetFilename;    srcDocType = targetDocType;
       tgtFilename = _depModalFilename; tgtDocType = _depModalDocType;
     }
     await fetch('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linkType: 'blocks', sourceType: srcDocType, sourceFilename: srcFilename, targetType: tgtDocType, targetFilename: tgtFilename }),
+      body: JSON.stringify({ linkType, sourceType: srcDocType, sourceFilename: srcFilename, targetType: tgtDocType, targetFilename: tgtFilename }),
     });
     // Refresh modal
     const data = await fetch(`/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`).then(r => r.json());
