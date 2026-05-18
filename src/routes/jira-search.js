@@ -8,7 +8,7 @@ import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 
 export default function jiraSearchRoutes({
   TYPE_CONFIG, JIRA_PROJECT, JIRA_LABEL, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
-  jiraRequest, findLocalFileByJiraId, jiraIssueToMarkdown,
+  jiraRequest, jiraPagedRequest, findLocalFileByJiraId, jiraIssueToMarkdown,
   broadcast, logError, docIndex,
 }) {
   const router = Router();
@@ -33,9 +33,9 @@ export default function jiraSearchRoutes({
       const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
       const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause} ORDER BY updated DESC`;
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
-      const data = await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`);
+      const rawIssues = await jiraPagedRequest(jql, fields, { maxResults: 100, maxTotal: 500 });
 
-      const issues = (data.issues || []).map(issue => {
+      const issues = rawIssues.map(issue => {
         const existing = docIndex.findByJiraId(issue.key) || findLocalFileByJiraId(issue.key);
         return {
           key:           issue.key,
@@ -50,7 +50,7 @@ export default function jiraSearchRoutes({
         };
       });
 
-      res.json({ issues, total: data.total });
+      res.json({ issues, total: rawIssues.length });
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('GET /api/jira/search', apiErr.message, apiErr.details || {});
@@ -107,12 +107,12 @@ export default function jiraSearchRoutes({
         });
       }
 
-      // Epics: find children via Epic Link custom field
+      // Epics: find children via Epic Link custom field — paginate to handle large epics
       if (issueType === 'Epic') {
         const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
         const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} ORDER BY issuetype ASC`;
-        const data = await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=summary,issuetype,status,priority`);
-        for (const child of (data.issues || [])) addChild(child);
+        const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', { maxResults: 100, maxTotal: 500 });
+        for (const child of childIssues) addChild(child);
       }
 
       // New Features / Epics: check issue links (inward = contained children)

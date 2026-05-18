@@ -263,7 +263,7 @@ Created: ${isoDate()}
 
       // Delete the original story
       fs.unlinkSync(filepath);
-      docIndex.invalidateAll();
+      await docIndex.invalidateAll();
       broadcast({ type: 'doc_deleted', filename, docType });
 
       logInfo('POST /api/docs/split-story', `Split ${filename} into ${createdFiles.length} parts`);

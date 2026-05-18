@@ -47,6 +47,33 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
     return res.json();
   }
 
+  /**
+   * Paginated JIRA search — fetches all pages and returns the concatenated
+   * issues array. Stops when `startAt + page.issues.length >= page.total`
+   * or when `maxTotal` issues have been collected.
+   *
+   * @param {string} jql - JQL query string (already encoded for the URL)
+   * @param {string} fields - comma-separated field list
+   * @param {{ maxResults?: number, maxTotal?: number }} [opts]
+   * @returns {Promise<object[]>} Concatenated issues array
+   */
+  async function jiraPagedRequest(jql, fields, { maxResults = 100, maxTotal = 500 } = {}) {
+    const all = [];
+    let startAt = 0;
+
+    while (true) {
+      const url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}`;
+      const page = await jiraRequest('GET', url);
+      const issues = page.issues || [];
+      all.push(...issues);
+
+      if (all.length >= maxTotal || all.length >= (page.total || 0) || issues.length < maxResults) break;
+      startAt += issues.length;
+    }
+
+    return all.slice(0, maxTotal);
+  }
+
   function findLocalFileByJiraId(jiraId) {
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
       const dir = cfg.dir();
@@ -130,6 +157,7 @@ ${description || '_No description in JIRA._'}
 
   return {
     jiraRequest,
+    jiraPagedRequest,
     jiraUploadAttachment,
     findLocalFileByJiraId,
     jiraIssueToMarkdown,

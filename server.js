@@ -73,11 +73,11 @@ const FIELD_EPIC_NAME    = 'customfield_10002';
 const FIELD_EPIC_LINK    = 'customfield_10000';
 const FIELD_STORY_POINTS = 'customfield_10006'; // VW Group JIRA story points field
 
-const { jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } =
+const { jiraRequest, jiraPagedRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } =
   createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIELD_STORY_POINTS, TYPE_CONFIG, isoDate, slugify });
 
 const docIndex = createDocIndex({ TYPE_CONFIG });
-docIndex.build();
+await docIndex.build();
 
 // ── Middleware & SSE ─────────────────────────────────────────────────────────
 app.use(express.json());
@@ -93,7 +93,7 @@ const streamClaude = (prompt, onChunk) => streamClaudeService(__dirname, prompt,
 // ── Mount route modules ──────────────────────────────────────────────────────
 const shared = { rootDir: __dirname, TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logWarn, logError, docIndex };
 
-const jiraShared = { ...shared, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS, jiraRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary };
+const jiraShared = { ...shared, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS, jiraRequest, jiraPagedRequest, jiraUploadAttachment, findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary };
 
 app.use(docsCrudRoutes(shared));
 app.use(docsAiRoutes(shared));
