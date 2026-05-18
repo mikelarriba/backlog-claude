@@ -25,10 +25,6 @@
 
   <!-- Markdown renderer -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <!-- Graph: Cytoscape + dagre hierarchical layout -->
-  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
-  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
-  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
   <link rel="stylesheet" href="/public/css/refine.css" />
   <link rel="stylesheet" href="/public/css/split.css" />
   <link rel="stylesheet" href="/public/css/swimlanes.css" />
@@ -705,11 +701,22 @@
         <div class="dep-section-label">This story is blocked by (must come after):</div>
         <div id="dep-blockedby-list" class="dep-list"></div>
       </div>
+      <div class="dep-section">
+        <div class="dep-section-label">This story runs in parallel with:</div>
+        <div id="dep-parallel-list" class="dep-list"></div>
+      </div>
       <div class="dep-section dep-add-section">
         <div class="dep-section-label">Add dependency — this story blocks:</div>
         <div class="dep-add-row">
           <select id="dep-target-select" class="dep-select"></select>
           <button class="btn-primary btn-sm" onclick="addDepLink()">Add Block</button>
+        </div>
+      </div>
+      <div class="dep-section dep-add-section">
+        <div class="dep-section-label">Add parallel link — runs in parallel with:</div>
+        <div class="dep-add-row">
+          <select id="dep-parallel-select" class="dep-select"></select>
+          <button class="btn-primary btn-sm" onclick="addParallelLink()">Add Parallel</button>
         </div>
       </div>
     </div>
