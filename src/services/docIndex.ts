@@ -35,8 +35,10 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     const rankRaw      = extractFrontmatterField(content, 'Rank');
     const blocksRaw    = extractFrontmatterField(content, 'Blocks');
     const blockedByRaw = extractFrontmatterField(content, 'Blocked_By');
+    const parallelRaw  = extractFrontmatterField(content, 'Parallel');
     const blocks    = blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
     const blockedBy = blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
+    const parallel  = parallelRaw  ? parallelRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
     const teamRaw       = extractFrontmatterField(content, 'Team');
     const workCatRaw    = extractFrontmatterField(content, 'Work_Category');
 
@@ -65,6 +67,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
       parentType,
       blocks,
       blockedBy,
+      parallel,
       team:         teamRaw    && teamRaw    !== 'TBD' ? teamRaw    : null,
       workCategory: workCatRaw && workCatRaw !== 'TBD' ? workCatRaw : null,
       hasDescription: body.length > 30,

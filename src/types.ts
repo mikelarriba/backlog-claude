@@ -37,6 +37,7 @@ export interface DocEntry {
   parentType: string | null;
   blocks: string[];
   blockedBy: string[];
+  parallel: string[];
   team: string | null;
   workCategory: string | null;
   hasDescription: boolean;
