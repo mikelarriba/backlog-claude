@@ -7,6 +7,7 @@ import {
   extractWorkflowStatus,
   setFrontmatterField,
   markdownToJira,
+  jiraToMarkdown,
   extractFrontmatterField,
 } from '../../src/utils/transforms.js';
 
@@ -189,5 +190,63 @@ describe('setFrontmatterField — newline sanitization', () => {
     const content = '---\nStatus: Draft\n---\n';
     const result  = setFrontmatterField(content, 'Status', 'Created in JIRA');
     assert.ok(result.includes('Status: Created in JIRA'));
+  });
+});
+
+// ── jiraToMarkdown — edge cases ───────────────────────────────────────────────
+describe('jiraToMarkdown — edge cases', () => {
+  test('converts h1-h3 headings', () => {
+    const jira = 'h1. Top\nh2. Middle\nh3. Sub';
+    const result = jiraToMarkdown(jira);
+    assert.match(result, /^# Top$/m);
+    assert.match(result, /^## Middle$/m);
+    assert.match(result, /^### Sub$/m);
+  });
+
+  test('converts {code} blocks to fenced code', () => {
+    const jira = '{code:javascript}\nconsole.log("hello");\n{code}';
+    const result = jiraToMarkdown(jira);
+    assert.match(result, /```/);
+    assert.match(result, /console\.log/);
+  });
+
+  test('converts monospace {{text}} to backticks', () => {
+    assert.match(jiraToMarkdown('{{myVar}}'), /`myVar`/);
+  });
+
+  test('converts JIRA link [label|url] to markdown [label](url)', () => {
+    const result = jiraToMarkdown('[Click here|https://example.com]');
+    assert.match(result, /\[Click here\]\(https:\/\/example\.com\)/);
+  });
+
+  test('handles empty input', () => {
+    assert.equal(jiraToMarkdown(''), '');
+    assert.equal(jiraToMarkdown(null), '');
+  });
+
+  test('strips unknown macros like {color:red}', () => {
+    const result = jiraToMarkdown('{color:red}hello{color}');
+    assert.doesNotMatch(result, /\{color/);
+    assert.match(result, /hello/);
+  });
+});
+
+// ── markdownToJira — edge cases ────────────────────────────────────────────────
+describe('markdownToJira — edge cases', () => {
+  test('preserves content inside fenced code blocks unchanged', () => {
+    // {code} tags inside a markdown fence should remain as literal text after
+    // the outer fence is converted, not be treated as JIRA macro delimiters
+    const md = '```\n{code}\nnested content\n{code}\n```';
+    const out = markdownToJira(md);
+    assert.match(out, /\{code\}/);
+    assert.match(out, /nested content/);
+  });
+
+  test('converts #### to h4', () => {
+    assert.equal(markdownToJira('#### Deep'), 'h4. Deep');
+  });
+
+  test('handles empty string', () => {
+    assert.equal(markdownToJira(''), '');
   });
 });
