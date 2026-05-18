@@ -376,3 +376,53 @@
   transition: background 0.12s;
 }
 .canvas-link-popup button:hover { background: var(--surface2); }
+
+/* ── Refine panel dependency section ─────────────────────────── */
+.rp-deps-section {
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+}
+
+.rp-deps-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.rp-dep-group {
+  margin-bottom: 10px;
+}
+
+.rp-dep-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.rp-dep-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.rp-dep-title {
+  font-size: 0.78rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Active state for Manage Links button */
+#manage-links-btn.active {
+  background: var(--accent-subtle, rgba(0,150,214,0.12));
+  border-color: var(--accent);
+  color: var(--accent);
+}
