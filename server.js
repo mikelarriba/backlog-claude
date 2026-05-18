@@ -21,6 +21,7 @@ import jiraSyncRoutes from './src/routes/jira-sync.js';
 import jiraSearchRoutes from './src/routes/jira-search.js';
 import settingsRoutes from './src/routes/settings.js';
 import bugRoutes from './src/routes/bugs.js';
+import canvasRoutes from './src/routes/canvas.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -109,6 +110,7 @@ app.use(jiraSyncRoutes(jiraShared));
 app.use(jiraSearchRoutes(jiraShared));
 app.use(settingsRoutes({ rootDir: __dirname, broadcast, logInfo, jiraBase: JIRA_BASE }));
 app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex }));
+app.use(canvasRoutes({ rootDir: __dirname, logInfo }));
 
 // ── Startup ──────────────────────────────────────────────────────────────────
 function validateStartupConfig() {
