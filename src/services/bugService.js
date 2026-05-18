@@ -2,6 +2,7 @@ import path from 'path';
 import MsgReaderModule from '@kenjiuno/msgreader';
 import PDFDocument from 'pdfkit';
 
+// @ts-ignore — @kenjiuno/msgreader exports default differently in CJS/ESM interop
 const MsgReader = MsgReaderModule.default;
 
 // ── HTML → segments ──────────────────────────────────────────────────────────

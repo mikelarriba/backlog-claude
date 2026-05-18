@@ -29,6 +29,7 @@ export default function jiraSearchRoutes({
           ? `issuetype in ("Story", "Improvement")`
           : `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
 
+      // @ts-ignore — Express query values are string | string[] | ParsedQs; text is always string here
       const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
       const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause} ORDER BY updated DESC`;
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;

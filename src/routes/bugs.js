@@ -23,6 +23,7 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       const ALLOWED_MIME = [/^image\//, /^application\/pdf$/, /^message\/rfc822$/, /^application\/vnd\.ms-outlook$/, /^text\//];
       // These formats are sent as application/octet-stream by browsers — allow by extension
       const ALLOWED_EXT = new Set(['.msg', '.log', '.txt', '.csv']);
+      // @ts-ignore — multer extends Request.files; type not visible to TS checker
       const badFile = (req.files || []).find(f => {
         if (ALLOWED_MIME.some(p => p.test(f.mimetype))) return false;
         if (f.mimetype === 'application/octet-stream' && ALLOWED_EXT.has(path.extname(f.originalname).toLowerCase())) return false;
@@ -40,6 +41,7 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       const filename = `${isoDate()}-${slug}.md`;
 
       // Process attachments
+      // @ts-ignore — multer extends Request.files
       const files = req.files || [];
       const processed = [];
       for (const file of files) {
