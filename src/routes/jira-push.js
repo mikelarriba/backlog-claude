@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { pMap } from '../utils/pMap.js';
 import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
 import {
   setFrontmatterField, extractFrontmatterField, stripFrontmatter, markdownToJira,
@@ -158,25 +159,31 @@ export default function jiraPushRoutes({
 
   // ── POST /api/jira/push-preview ─────────────────────────────────────────────
   // Returns a field-level diff for each item so the client can show a confirmation popup.
+  // Items with an existing JIRA ID are fetched in parallel (max JIRA_CONCURRENCY at once).
+  const JIRA_CONCURRENCY = Number(process.env.JIRA_CONCURRENCY) || 5;
+
   router.post('/api/jira/push-preview', async (req, res) => {
     if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
     try {
       const { items = [] } = req.body;
-      const previews = [];
 
-      for (const { filename, docType } of items) {
+      // Build local metadata for each item (synchronous, no I/O limit needed)
+      const localItems = items.flatMap(({ filename, docType }) => {
         const cfg = TYPE_CONFIG[docType];
-        if (!cfg) continue;
+        if (!cfg) return [];
         const filepath = path.join(cfg.dir(), filename);
-        if (!fs.existsSync(filepath)) continue;
-
-        const content   = fs.readFileSync(filepath, 'utf-8');
-        const jiraId    = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
+        if (!fs.existsSync(filepath)) return [];
+        const content    = fs.readFileSync(filepath, 'utf-8');
+        const jiraId     = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
         const localTitle = extractJiraSummary(content);
-        const localSP   = extractFrontmatterField(content, 'Story_Points');
-        const spValue   = localSP && localSP !== 'TBD' ? Number(localSP) : null;
+        const localSP    = extractFrontmatterField(content, 'Story_Points');
+        const spValue    = localSP && localSP !== 'TBD' ? Number(localSP) : null;
+        return [{ filename, docType, content, jiraId, localTitle, spValue }];
+      });
 
+      // Fetch JIRA data for existing issues in parallel (capped at JIRA_CONCURRENCY)
+      const previews = await pMap(localItems, async ({ filename, docType, jiraId, localTitle, spValue }) => {
         const preview = {
           filename, docType, title: localTitle,
           jiraId: jiraId !== 'TBD' ? jiraId : null,
@@ -206,8 +213,8 @@ export default function jiraPushRoutes({
           if (spValue !== null) preview.changes.push({ field: 'storyPoints', to: spValue });
         }
 
-        previews.push(preview);
-      }
+        return preview;
+      }, { concurrency: JIRA_CONCURRENCY });
 
       res.json({ items: previews });
     } catch (err) {

@@ -9,7 +9,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
   const router = Router();
 
   // ── POST /api/docs/batch-delete ──────────────────────────────────────────
-  router.post('/api/docs/batch-delete', (req, res) => {
+  router.post('/api/docs/batch-delete', async (req, res) => {
     try {
       const { docs } = req.body;
       if (!Array.isArray(docs) || !docs.length) {
@@ -39,7 +39,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       if (deleted.length) {
-        docIndex.invalidateAll();
+        await docIndex.invalidateAll();
         broadcast({ type: 'batch_deleted', filenames: deleted.map(d => d.filename) });
       }
 
@@ -52,7 +52,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
   });
 
   // ── POST /api/docs/batch-fix-version ───────────────────────────────────────
-  router.post('/api/docs/batch-fix-version', (req, res) => {
+  router.post('/api/docs/batch-fix-version', async (req, res) => {
     try {
       const { fixVersion, docs } = req.body;
       if (!Array.isArray(docs) || !docs.length) {
@@ -85,7 +85,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       if (updated.length) {
-        docIndex.invalidateAll();
+        await docIndex.invalidateAll();
         broadcast({ type: 'batch_fix_version_updated', fixVersion: newValue, filenames: updated.map(u => u.filename) });
       }
 
@@ -257,7 +257,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
   });
 
   // ── POST /api/docs/rerank ── batch assign Rank fields ──────────────────────
-  router.post('/api/docs/rerank', (req, res) => {
+  router.post('/api/docs/rerank', async (req, res) => {
     try {
       const { type, orderedFilenames } = req.body;
       if (!type) return sendError(res, 400, 'VALIDATION_ERROR', 'type is required');
@@ -285,7 +285,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       if (updated.length) {
-        docIndex.invalidateAll();
+        await docIndex.invalidateAll();
         broadcast({ type: 'title_updated', docType });
       }
 
@@ -298,7 +298,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
   });
 
   // ── POST /api/docs/apply-distribution ── batch assign sprints ──────────────
-  router.post('/api/docs/apply-distribution', (req, res) => {
+  router.post('/api/docs/apply-distribution', async (req, res) => {
     try {
       const { assignments } = req.body;
       if (!Array.isArray(assignments) || !assignments.length) {
@@ -378,7 +378,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       if (updated.length) {
-        docIndex.invalidateAll();
+        await docIndex.invalidateAll();
         broadcast({ type: 'batch_sprint_updated', filenames: updated.map(u => u.filename) });
       }
 

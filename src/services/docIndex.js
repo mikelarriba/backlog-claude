@@ -70,14 +70,23 @@ export function createDocIndex({ TYPE_CONFIG }) {
     };
   }
 
-  function build() {
+  async function build() {
     _map.clear();
+    // Collect all (docType, dir, filename) tuples first so we can yield evenly
+    const entries = [];
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
       const dir = cfg.dir();
       if (!fs.existsSync(dir)) continue;
       for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md') && f !== '.gitkeep')) {
-        try { _map.set(f, _buildEntry(docType, dir, f)); } catch { /* skip unreadable */ }
+        entries.push({ docType, dir, f });
       }
+    }
+    // Process files and yield to the event loop every 50 entries so the server
+    // stays responsive during a full rebuild with large doc sets.
+    for (let i = 0; i < entries.length; i++) {
+      if (i > 0 && i % 50 === 0) await new Promise(r => setImmediate(r));
+      const { docType, dir, f } = entries[i];
+      try { _map.set(f, _buildEntry(docType, dir, f)); } catch { /* skip unreadable */ }
     }
     return docIndex;
   }
@@ -101,9 +110,10 @@ export function createDocIndex({ TYPE_CONFIG }) {
     try { _map.set(filename, _buildEntry(docType, cfg.dir(), filename)); } catch { _map.delete(filename); }
   }
 
-  // Full rebuild — use after batch operations that touch many files.
-  function invalidateAll() {
-    build();
+  // Full async rebuild — use after batch operations that touch many files.
+  // Returns a Promise so callers can await completion.
+  async function invalidateAll() {
+    await build();
   }
 
   // O(1) replacement for the O(n) findLocalFileByJiraId disk scan.
