@@ -27,6 +27,7 @@ export default function jiraSearchRoutes({
         ? `issuetype in ("New Feature", Epic, Story, Improvement, Task, Bug)`
         : type === 'story'
           ? `issuetype in ("Story", "Improvement")`
+          // @ts-ignore — Express query type is string at runtime, TS sees union with ParsedQs
           : `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
 
       // @ts-ignore — Express query values are string | string[] | ParsedQs; text is always string here

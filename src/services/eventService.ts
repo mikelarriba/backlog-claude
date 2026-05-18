@@ -1,8 +1,11 @@
-export function createEventService() {
-  const sseClients = new Set();
-  let heartbeatTimer = null;
+import type { Request, Response } from 'express';
+import type { BroadcastFn } from '../types.js';
 
-  function handleEvents(req, res) {
+export function createEventService(): { handleEvents: (req: Request, res: Response) => void; broadcast: BroadcastFn } {
+  const sseClients = new Set<Response>();
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+  function handleEvents(req: Request, res: Response): void {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -16,7 +19,7 @@ export function createEventService() {
     if (!heartbeatTimer && sseClients.size > 0) {
       heartbeatTimer = setInterval(() => {
         if (sseClients.size === 0) {
-          clearInterval(heartbeatTimer);
+          clearInterval(heartbeatTimer!);
           heartbeatTimer = null;
           return;
         }
@@ -28,7 +31,7 @@ export function createEventService() {
     }
   }
 
-  function broadcast(payload) {
+  function broadcast(payload: Record<string, any>): void {
     const data = `data: ${JSON.stringify(payload)}\n\n`;
     for (const client of sseClients) {
       try { client.write(data); } catch { sseClients.delete(client); }

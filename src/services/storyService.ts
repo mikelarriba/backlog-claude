@@ -1,4 +1,4 @@
-export function parseStorySections(content) {
+export function parseStorySections(content: string): { frontmatter: string; sections: string[] } {
   const fmMatch = content.match(/^---[\s\S]*?---\n?/);
   const frontmatter = fmMatch ? fmMatch[0] : '';
   const body = content.slice(frontmatter.length).trim();
@@ -6,11 +6,11 @@ export function parseStorySections(content) {
   return { frontmatter, sections };
 }
 
-export function serializeStoryFile(frontmatter, sections) {
+export function serializeStoryFile(frontmatter: string, sections: string[]): string {
   return `${frontmatter}\n${sections.join('\n\n')}\n`;
 }
 
-export function extractStoryTitle(section) {
+export function extractStoryTitle(section: string): string {
   const m = section.match(/^## (.+)$/m);
   return m ? m[1].trim() : 'Untitled Story';
 }

@@ -1,24 +1,38 @@
 import fs from 'fs';
 import path from 'path';
+import type { Logger } from '../utils/logger.js';
+
+interface InboxWatcherOptions {
+  INBOX_DIR: string;
+  EPICS_DIR: string;
+  DOC_DIRS: string[];
+  isClaimedByApi: (filename: string) => boolean;
+  ensureDir: (dir: string) => void;
+  loadCommand: (name: string) => string | null;
+  callClaude: (prompt: string) => Promise<string>;
+  broadcast: (event: Record<string, any>) => void;
+  logInfo: Logger['logInfo'];
+  logError: Logger['logError'];
+}
 
 export function watchInbox({
   INBOX_DIR,
   EPICS_DIR,
-  DOC_DIRS,        // all doc dirs to check — skip if file already exists in any of them
-  isClaimedByApi,  // fn(filename) → true while the API is mid-generation for this file
+  DOC_DIRS,
+  isClaimedByApi,
   ensureDir,
   loadCommand,
   callClaude,
   broadcast,
   logInfo,
   logError,
-}) {
+}: InboxWatcherOptions): void {
   ensureDir(INBOX_DIR);
   const allDocDirs   = DOC_DIRS || [EPICS_DIR];
   const _isClaimed   = isClaimedByApi || (() => false);
 
   // Skip if already saved to any doc dir OR if the API is currently generating it
-  const shouldSkip = (filename) =>
+  const shouldSkip = (filename: string): boolean =>
     _isClaimed(filename) ||
     allDocDirs.some(dir => fs.existsSync(path.join(dir, filename)));
 
@@ -39,7 +53,7 @@ export function watchInbox({
 
   logInfo('watchInbox', 'Watching /inbox for new files');
 
-  async function processInboxFile(filename) {
+  async function processInboxFile(filename: string): Promise<void> {
     logInfo('watchInbox', `New inbox file: ${filename}`);
     try {
       const inboxContent = fs.readFileSync(path.join(INBOX_DIR, filename), 'utf-8');
@@ -53,12 +67,12 @@ export function watchInbox({
       fs.writeFileSync(path.join(EPICS_DIR, filename), epicContent);
       broadcast({ type: 'epic_created', filename });
       logInfo('watchInbox', `Epic saved: docs/epics/${filename}`);
-    } catch (err) {
+    } catch (err: any) {
       logError('watchInbox', `Failed to process ${filename}`, { error: err.message });
     }
   }
 }
 
-function isInboxFile(file) {
+function isInboxFile(file: string): boolean {
   return file.endsWith('.md') && file !== '.gitkeep';
 }

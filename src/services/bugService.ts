@@ -1,19 +1,14 @@
 import path from 'path';
 import MsgReaderModule from '@kenjiuno/msgreader';
 import PDFDocument from 'pdfkit';
+import type { EmailSegment, ProcessedAttachment, ParsedMsg } from '../types.js';
 
 // @ts-ignore — @kenjiuno/msgreader exports default differently in CJS/ESM interop
 const MsgReader = MsgReaderModule.default;
 
 // ── HTML → segments ──────────────────────────────────────────────────────────
-/**
- * Convert an HTML email body into an ordered array of text and image segments.
- * Handles three image sources:
- *  - cid: references matched against the inlineImages map
- *  - data:image/...;base64,... URIs (screenshots pasted directly into Outlook)
- */
-function htmlToSegments(html, inlineImages) {
-  const segments = [];
+function htmlToSegments(html: string, inlineImages: Map<string, Buffer>): EmailSegment[] {
+  const segments: EmailSegment[] = [];
 
   // Strip head/style/script blocks (avoid dumping CSS into text)
   let processed = html
@@ -40,7 +35,6 @@ function htmlToSegments(html, inlineImages) {
       const cidMatch = part.match(/src=["']cid:([^"']+)["']/i);
       if (cidMatch) {
         const rawCid = cidMatch[1].trim();
-        // Try with and without angle brackets — pidContentId format varies
         const imgBuf = inlineImages.get(rawCid)
           || inlineImages.get(rawCid.replace(/^<|>$/g, ''))
           || inlineImages.get(`<${rawCid}>`);
@@ -67,7 +61,7 @@ function htmlToSegments(html, inlineImages) {
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"')
-        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+        .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(parseInt(n, 10)))
         .replace(/\n{3,}/g, '\n\n')         // collapse excessive blank lines
         .trim();
       if (text) segments.push({ type: 'text', value: text });
@@ -78,13 +72,8 @@ function htmlToSegments(html, inlineImages) {
 }
 
 // ── Plain-text body → segments ────────────────────────────────────────────────
-/**
- * Convert an Outlook plain-text email body into an ordered array of text and
- * image segments by replacing [cid:filename@domain] bracket references with
- * actual image buffers from the inlineImages map.
- */
-function plainTextToSegments(text, inlineImages) {
-  const segments = [];
+function plainTextToSegments(text: string, inlineImages: Map<string, Buffer>): EmailSegment[] {
+  const segments: EmailSegment[] = [];
   if (!text) return segments;
 
   // Outlook plain-text bodies reference inline images as [cid:filename@domain]
@@ -108,10 +97,7 @@ function plainTextToSegments(text, inlineImages) {
 }
 
 // ── Translation ───────────────────────────────────────────────────────────────
-/**
- * Translate text to English using Claude. Returns the text unchanged if already English.
- */
-export async function translateToEnglish(callClaude, text) {
+export async function translateToEnglish(callClaude: (prompt: string) => Promise<string>, text: string): Promise<string> {
   if (!text || !text.trim()) return text;
   const prompt = [
     'Detect the language of the following text.',
@@ -126,35 +112,27 @@ export async function translateToEnglish(callClaude, text) {
 }
 
 // ── .msg parser ───────────────────────────────────────────────────────────────
-/**
- * Parse a .msg (Outlook) file.
- * Returns subject, sender, date, plain body, HTML body, and a Map of inline images.
- */
-export function parseMsgFile(buffer) {
+export function parseMsgFile(buffer: Buffer): ParsedMsg {
   const reader = new MsgReader(buffer);
   const fileData = reader.getFileData();
 
   const IMAGE_EXT = /\.(png|jpe?g|gif|bmp|tiff?|webp)$/i;
 
   // CID → Buffer for HTML cid: references (inline images)
-  const inlineImages = new Map();
+  const inlineImages = new Map<string, Buffer>();
   // Non-CID image attachments appended at the end of the PDF
-  const attachmentImages = [];
+  const attachmentImages: Array<{ filename: string; buffer: Buffer }> = [];
 
   for (const att of (fileData.attachments || [])) {
     try {
-      // getAttachment() is required to fetch the actual binary content;
-      // att.content is NOT available on the FieldsData metadata object.
       const { content } = reader.getAttachment(att);
       if (!content) continue;
       const buf = Buffer.from(content);
 
       if (att.pidContentId) {
-        // CID-referenced inline image — strip angle brackets if present
         const cid = att.pidContentId.replace(/[<>]/g, '').trim();
         inlineImages.set(cid, buf);
       } else if (IMAGE_EXT.test(att.fileName || '')) {
-        // Non-inline image attachment — append after body in PDF
         attachmentImages.push({ filename: att.fileName, buffer: buf });
       }
     } catch { /* skip unreadable attachments */ }
@@ -173,15 +151,11 @@ export function parseMsgFile(buffer) {
 }
 
 // ── PDF renderer ──────────────────────────────────────────────────────────────
-/**
- * Render an ordered list of text/image segments to a PDF buffer.
- * Accepts either an array of segments or a plain string (backwards compat).
- */
-export function textToPdfBuffer(title, segments) {
+export function textToPdfBuffer(title: string, segments: EmailSegment[] | string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
-    const chunks = [];
-    doc.on('data', chunk => chunks.push(chunk));
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
     doc.on('end',  () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
@@ -197,7 +171,7 @@ export function textToPdfBuffer(title, segments) {
     const MAX_TOTAL_BYTES = 20 * 1024 * 1024;  // 20 MB total inline images
     let totalImageBytes = 0;
 
-    const list = Array.isArray(segments)
+    const list: EmailSegment[] = Array.isArray(segments)
       ? segments
       : [{ type: 'text', value: String(segments) }];
 
@@ -219,7 +193,7 @@ export function textToPdfBuffer(title, segments) {
         } else {
           try {
             doc.moveDown(0.5);
-            doc.image(seg.buffer, { fit: [maxWidth, 400], align: 'left' });
+            doc.image(seg.buffer!, { fit: [maxWidth, 400], align: 'left' });
             doc.moveDown(0.5);
             totalImageBytes += bytes;
           } catch {
@@ -234,12 +208,7 @@ export function textToPdfBuffer(title, segments) {
 }
 
 // ── Main attachment processor ─────────────────────────────────────────────────
-/**
- * Process a single uploaded attachment.
- * - .msg → parse HTML body, translate each text segment, embed inline images → PDF
- * - everything else → pass through unchanged
- */
-export async function processAttachment(file, callClaude) {
+export async function processAttachment(file: { originalname: string; buffer: Buffer }, callClaude: (prompt: string) => Promise<string>): Promise<ProcessedAttachment> {
   const ext = path.extname(file.originalname).toLowerCase();
 
   if (ext === '.msg') {
@@ -251,22 +220,20 @@ export async function processAttachment(file, callClaude) {
       msgData.sentDate   ? `Date: ${msgData.sentDate}`                              : '',
     ].filter(Boolean);
 
-    let segments = [];
+    let segments: EmailSegment[] = [];
 
     if (msgData.bodyHtml && msgData.bodyHtml.trim()) {
-      // Parse HTML → text + image segments; translate each text segment
       segments = htmlToSegments(msgData.bodyHtml, msgData.inlineImages);
       for (const seg of segments) {
         if (seg.type === 'text') {
-          seg.value = await translateToEnglish(callClaude, seg.value);
+          seg.value = await translateToEnglish(callClaude, seg.value!);
         }
       }
     } else {
-      // Fallback: plain text body (Outlook RTF emails) — resolve [cid:...] inline images
       segments = plainTextToSegments(msgData.body, msgData.inlineImages);
       for (const seg of segments) {
         if (seg.type === 'text') {
-          seg.value = await translateToEnglish(callClaude, seg.value);
+          seg.value = await translateToEnglish(callClaude, seg.value!);
         }
       }
     }
