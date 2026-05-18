@@ -270,9 +270,9 @@ export default function jiraSyncRoutes({
           const jiraDesc    = jiraToMarkdown(issue.fields?.description || '').trim();
 
           // Read local content for accurate comparison
-          let localTitle = doc.title || '';
+          let localTitle = '';
           let localDesc  = '';
-          let localSp    = doc.storyPoints ?? null;
+          let localSp    = null;
           try {
             const raw  = fs.readFileSync(path.join(TYPE_CONFIG[doc.docType].dir(), doc.filename), 'utf-8');
             // Extract heading text directly — avoids extractJiraSummary's template-detection

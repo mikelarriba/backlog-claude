@@ -1,7 +1,7 @@
 // ── Unit tests: src/utils/routeHelpers.js ─────────────────────────────────────
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertFilename } from '../../src/utils/routeHelpers.js';
+import { assertFilename, assertBody } from '../../src/utils/routeHelpers.js';
 
 // ── assertFilename — allow-list regex ─────────────────────────────────────────
 describe('assertFilename', () => {
@@ -44,5 +44,43 @@ describe('assertFilename', () => {
 
   test('rejects filename with null bytes', () => {
     assert.throws(() => assertFilename('story\x00.md'), { code: 'INVALID_FILENAME' });
+  });
+});
+
+// ── assertBody ────────────────────────────────────────────────────────────────
+describe('assertBody', () => {
+  test('does not throw when all required fields are present', () => {
+    assert.doesNotThrow(() => assertBody({ title: 'Hello', type: 'epic' }, ['title', 'type']));
+  });
+
+  test('throws MISSING_FIELDS when a required field is absent', () => {
+    assert.throws(
+      () => assertBody({ title: 'Hello' }, ['title', 'type']),
+      { code: 'MISSING_FIELDS' },
+    );
+  });
+
+  test('reports all missing fields at once', () => {
+    let thrown;
+    try { assertBody({}, ['title', 'type', 'idea']); } catch (e) { thrown = e; }
+    assert.deepEqual(thrown.details.missing, ['title', 'type', 'idea']);
+  });
+
+  test('treats null as missing', () => {
+    assert.throws(
+      () => assertBody({ title: null }, ['title']),
+      { code: 'MISSING_FIELDS' },
+    );
+  });
+
+  test('treats empty string as missing', () => {
+    assert.throws(
+      () => assertBody({ title: '' }, ['title']),
+      { code: 'MISSING_FIELDS' },
+    );
+  });
+
+  test('accepts zero and false as valid values', () => {
+    assert.doesNotThrow(() => assertBody({ count: 0, enabled: false }, ['count', 'enabled']));
   });
 });
