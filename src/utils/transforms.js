@@ -91,9 +91,10 @@ export function jiraToMarkdown(jira) {
   // Horizontal rule
   text = text.replace(/^----$/gm, '---');
 
-  // Links: [label|url] → [label](url), [url] → url
+  // Links: [label|url] → [label](url), bare [url] → url
+  // Negative lookahead (?!\() prevents stripping brackets from already-converted [label](url)
   text = text.replace(/\[([^\]|]+)\|([^\]]+)\]/g, '[$1]($2)');
-  text = text.replace(/\[([^\]|]+)\]/g, '$1');
+  text = text.replace(/\[([^\]|]+)\](?!\()/g, '$1');
 
   // Tables: || header || → | header | and | cell | → | cell |
   text = text.replace(/^\|\|(.+)\|\|$/gm, (_, inner) => {
