@@ -215,6 +215,7 @@ function updateDocButtons(docType) {
   document.getElementById('create-spike-btn').classList.toggle('hidden', !isEpic);
   document.getElementById('create-bug-btn').classList.toggle('hidden', !isEpic);
   document.getElementById('refine-dropdown-wrap').classList.toggle('hidden', !(isEpic || isFeature));
+  document.getElementById('export-pdf-btn').classList.toggle('hidden', !(isEpic || isFeature));
   const storiesBtn = document.getElementById('stories-btn');
   if (storiesBtn) { storiesBtn.disabled = false; storiesBtn.textContent = 'AI Story Generation'; }
 }

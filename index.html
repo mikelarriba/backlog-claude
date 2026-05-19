@@ -399,6 +399,10 @@
                 </button>
               </div>
             </div>
+
+            <button class="btn-toolbar hidden" id="export-pdf-btn" onclick="exportEpicToPdf(currentFilename, currentDocType)" title="Export epic with stories to PDF">
+              PDF
+            </button>
           </div>
           <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">Delete</button>
         </div><!-- /.detail-row-4 -->
@@ -468,6 +472,7 @@
         <span class="refine-title">✨ Refine: <span id="refine-epic-title"></span></span>
         <div class="refine-add-btns" id="refine-add-btns"></div>
         <button class="btn-ghost btn-xs" onclick="resetCanvasLayout(_canvasEpicFilename)" title="Reset card positions to auto-layout">↺ Reset Layout</button>
+        <button class="btn-ghost btn-xs" onclick="exportEpicToPdf(_canvasEpicFilename, _canvasDocType)" title="Export epic to PDF">PDF</button>
       </div>
       <div class="refine-body">
         <div id="refine-canvas"></div>
@@ -736,6 +741,7 @@
 <script src="/public/js/jira.js"></script>
 <script src="/public/js/bugcreate.js"></script>
 <script src="/public/js/refine.js"></script>
+<script src="/public/js/export.js"></script>
 <script src="/public/js/piconfig.js"></script>
 <script src="/public/js/distribution.js"></script>
 <script src="/public/js/roadmap.js"></script>
