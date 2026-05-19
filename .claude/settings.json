@@ -23,7 +23,23 @@
       "Bash(node -e \"const fs = require\\('fs'\\); const html = fs.readFileSync\\('index.html', 'utf-8'\\); console.log\\('Sidebar/list elements:', \\(html.match\\(/id=\"doc-list\"|class=\"sidebar\"|id=\"sidebar\"|class=\"left-panel\"|id=\"left-panel\"/g\\) || []\\).join\\('\\\\n'\\)\\);\")",
       "Bash(curl -sv http://localhost:3000/api/docs)",
       "Bash(node --check /Users/srj9o5d/Development/backlog-claude/server.js)",
-      "Bash(node --check /Users/srj9o5d/Development/backlog-claude/src/services/bugService.js)"
+      "Bash(node --check /Users/srj9o5d/Development/backlog-claude/src/services/bugService.js)",
+      "Bash(pkill -f \"tsx.*server\")",
+      "Bash(grep -r \"download\\\\|export\\\\|pdf\" /Users/srj9o5d/Development/backlog-claude/public/js/*.js --include=\"*.js\")",
+      "Bash(grep -l \"new-download-api\" /Users/srj9o5d/Development/backlog-claude/docs/stories/*.md /Users/srj9o5d/Development/backlog-claude/docs/epics/*.md)",
+      "Bash(grep -rl \"Download\" /Users/srj9o5d/Development/backlog-claude/docs/epics/*.md)",
+      "Bash(grep -l \"new-download-api---resumable-large-file-downloads-\" /Users/srj9o5d/Development/backlog-claude/docs/stories/*.md /Users/srj9o5d/Development/backlog-claude/docs/spikes/*.md)",
+      "Bash(grep -rl \"new-download-api---resumable-large-file-downloads-\" /Users/srj9o5d/Development/backlog-claude/docs/stories/*.md /Users/srj9o5d/Development/backlog-claude/docs/spikes/*.md)",
+      "Bash(git -C /Users/srj9o5d/Development/backlog-claude status)",
+      "Bash(git -C /Users/srj9o5d/Development/backlog-claude diff --stat)",
+      "Bash(git -C /Users/srj9o5d/Development/backlog-claude log --oneline -10)",
+      "Bash(git -C /Users/srj9o5d/Development/backlog-claude diff index.html)",
+      "Bash(git -C /Users/srj9o5d/Development/backlog-claude diff public/js/detail.js)",
+      "Bash(git -C /Users/srj9o5d/Development/backlog-claude checkout -b visual-refinement-feature-upgrade)",
+      "Bash(git -C /Users/srj9o5d/Development/backlog-claude push -u origin visual-refinement-feature-upgrade)",
+      "Bash(git -C /Users/srj9o5d/Development/backlog-claude checkout main)",
+      "Bash(git -C /Users/srj9o5d/Development/backlog-claude pull)",
+      "Bash(node --test tests/unit/transforms.test.js)"
     ]
   }
 }

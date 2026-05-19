@@ -136,6 +136,30 @@ async function buildCanvasGraph(filename, docType) {
   renderCanvas(filename, docType);
 }
 
+// ── Lightweight edge rebuild (preserves card positions) ────────
+function rebuildCanvasEdges() {
+  const childFilenames = new Set(_canvasStories.map(c => c.filename));
+  _canvasBlocks   = [];
+  _canvasParallel = [];
+  for (const child of _canvasStories) {
+    const doc = allDocs.find(d => d.filename === child.filename);
+    if (!doc) continue;
+    for (const blockedFn of (doc.blocks || [])) {
+      if (childFilenames.has(blockedFn)) {
+        _canvasBlocks.push({ src: child.filename, tgt: blockedFn });
+      }
+    }
+    for (const parallelFn of (doc.parallel || [])) {
+      if (childFilenames.has(parallelFn)) {
+        const pairKey = [child.filename, parallelFn].sort().join('|');
+        if (!_canvasParallel.find(p => [p.a, p.b].sort().join('|') === pairKey)) {
+          _canvasParallel.push({ a: child.filename, b: parallelFn });
+        }
+      }
+    }
+  }
+}
+
 // ── Auto layout: topological BFS ──────────────────────────────
 function computeAutoLayout(children, blocks, parallel) {
   const layout = {};
@@ -236,11 +260,27 @@ function renderCanvas(epicFilename, docType) {
     return;
   }
 
-  // Grid dimensions: at least 3 cols × 3 rows, always 1 extra empty row/col for dropping
-  const occupiedCols = Math.max(...Object.values(_canvasLayout).map(p => p.col), 0) + 1;
-  const occupiedRows = Math.max(...Object.values(_canvasLayout).map(p => p.row), 0) + 1;
-  const gridCols = Math.max(occupiedCols + 1, 3);
-  const gridRows = Math.max(occupiedRows + 1, 3);
+  // Compact layout: remap col/row values to remove gaps
+  const usedCols = [...new Set(Object.values(_canvasLayout).map(p => p.col))].sort((a, b) => a - b);
+  const usedRows = [...new Set(Object.values(_canvasLayout).map(p => p.row))].sort((a, b) => a - b);
+  if (usedCols.length || usedRows.length) {
+    const colRemap = new Map(usedCols.map((c, i) => [c, i]));
+    const rowRemap = new Map(usedRows.map((r, i) => [r, i]));
+    let changed = false;
+    for (const fn of Object.keys(_canvasLayout)) {
+      const newCol = colRemap.get(_canvasLayout[fn].col) ?? _canvasLayout[fn].col;
+      const newRow = rowRemap.get(_canvasLayout[fn].row) ?? _canvasLayout[fn].row;
+      if (newCol !== _canvasLayout[fn].col || newRow !== _canvasLayout[fn].row) changed = true;
+      _canvasLayout[fn] = { col: newCol, row: newRow };
+    }
+    if (changed) saveCanvasLayout(epicFilename);
+  }
+
+  // Grid dimensions: occupied + 1 extra row/col for expansion
+  const occupiedCols = usedCols.length || 1;
+  const occupiedRows = usedRows.length || 1;
+  const gridCols = occupiedCols + 1;
+  const gridRows = occupiedRows + 1;
 
   const totalW = GUTTER_X + gridCols * (CELL_W + GUTTER_X);
   const totalH = TOP_OFFSET + gridRows * (CELL_H + GUTTER_Y) + GUTTER_Y;
@@ -591,7 +631,8 @@ async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
     });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error?.message || 'Delete failed'); }
     await loadDocs();
-    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    rebuildCanvasEdges();
+    renderCanvas(_canvasEpicFilename, _canvasDocType);
     _restoreManageLinksState();
   } catch (e) {
     showJiraToast('error', e.message);
@@ -615,7 +656,8 @@ async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtFn, tgtD
     });
     if (!addRes.ok) { const d = await addRes.json(); throw new Error(d.error?.message || 'Create failed'); }
     await loadDocs();
-    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    rebuildCanvasEdges();
+    renderCanvas(_canvasEpicFilename, _canvasDocType);
     _restoreManageLinksState();
   } catch (e) {
     showJiraToast('error', e.message);
@@ -691,24 +733,10 @@ async function _createCanvasLink(linkType, srcFilename, srcDocType, tgtFilename,
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || 'Link failed');
 
-    // A new BLOCKS dependency changes row ordering — clear saved layout so
-    // computeAutoLayout re-runs and shifts the blocked card to a lower swimlane.
-    if (linkType === 'blocks') {
-      try {
-        await fetch(`/api/canvas/layout/${encodeURIComponent(_canvasEpicFilename)}`, { method: 'DELETE' });
-      } catch {}
-    }
-
     await loadDocs();
-    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
-    // Restore manage-links state after re-render
-    if (_canvasManageLinks) {
-      const btn = document.getElementById('manage-links-btn');
-      if (btn) btn.classList.add('active');
-      const canvas = document.getElementById('refine-canvas');
-      if (canvas) canvas.classList.add('manage-links-active');
-      document.querySelectorAll('.canvas-card').forEach(c => { c.setAttribute('draggable', 'false'); });
-    }
+    rebuildCanvasEdges();
+    renderCanvas(_canvasEpicFilename, _canvasDocType);
+    _restoreManageLinksState();
   } catch (e) {
     showJiraToast('error', e.message);
   }
@@ -838,7 +866,8 @@ async function _removeCanvasLink(linkType, srcFilename, srcDocType, tgtFilename,
       body:    JSON.stringify({ linkType, sourceType: finalSrcType, sourceFilename: finalSrc, targetType: finalTgtType, targetFilename: finalTgt }),
     });
     await loadDocs();
-    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    rebuildCanvasEdges();
+    renderCanvas(_canvasEpicFilename, _canvasDocType);
     // Reopen panel to refresh deps
     openRefinePanel(srcFilename, srcDocType);
   } catch (e) {
@@ -961,10 +990,13 @@ async function executeRpCreate(type) {
   stream.style.display = 'block';
 
   try {
+    const parentDoc = allDocs.find(d => d.filename === _canvasEpicFilename);
+    const genBody = { title, idea, type, priority: 'Medium' };
+    if (parentDoc?.fixVersion) genBody.fixVersion = parentDoc.fixVersion;
     const genRes = await fetch('/api/generate', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ title, idea, type, priority: 'Medium' }),
+      body:    JSON.stringify(genBody),
     });
     if (!genRes.ok) throw new Error((await genRes.json()).error?.message || 'Generate failed');
     const { filename: newFilename } = await genRes.json();

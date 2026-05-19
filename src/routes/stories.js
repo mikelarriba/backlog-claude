@@ -3,11 +3,11 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { sendError, ensureDir, parseApiError, assertFilename, setupSSE } from '../utils/routeHelpers.js';
-import { extractTitle, setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
+import { extractTitle, extractFrontmatterField, setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
 import { parseStorySections, serializeStoryFile, extractStoryTitle } from '../services/storyService.js';
 import { normalizeOutput } from '../services/claudeService.js';
 
-export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, logError }) {
+export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, logError, docIndex }) {
   const router = Router();
 
   // ── GET /api/stories/:filename ─────────────────────────────────────────────
@@ -151,9 +151,12 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
 
       ensureDir(STORIES_DIR);
       const date = isoDate();
+      const epicFixVersion = extractFrontmatterField(epicContent, 'Fix_Version') || 'TBD';
       const createdFiles = [];
 
-      for (const section of rawSections) {
+      const total = rawSections.length;
+      for (let i = 0; i < rawSections.length; i++) {
+        const section = rawSections[i];
         // Extract title — strip "Story N: " prefix to get the plain title
         const headingMatch = section.match(/^## Story \d+[:\s]+(.+)$/m);
         const storyTitle   = headingMatch ? headingMatch[1].trim() : 'Untitled Story';
@@ -163,10 +166,12 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
         // Replace "## Story N: Title" heading with clean "## Title"
         const cleanBody = section.replace(/^## Story \d+[:\s]+.+$/m, `## ${storyTitle}`);
 
-        const frontmatter = `---\nJIRA_ID: TBD\nStory_Points: TBD\nStatus: Draft\nPriority: Medium\nEpic_ID: ${filename}\nSquad: TBD\nPI: TBD\nSprint: TBD\nCreated: ${date}\n---\n\n`;
+        const frontmatter = `---\nJIRA_ID: TBD\nStory_Points: TBD\nStatus: Draft\nPriority: Medium\nEpic_ID: ${filename}\nFix_Version: ${epicFixVersion}\nSquad: TBD\nPI: TBD\nSprint: TBD\nCreated: ${date}\n---\n\n`;
         fs.writeFileSync(path.join(STORIES_DIR, storyFilename), frontmatter + cleanBody);
+        docIndex.invalidate('story', storyFilename);
         broadcast({ type: 'story_created', filename: storyFilename, docType: 'story' });
         createdFiles.push({ filename: storyFilename, title: storyTitle });
+        send({ progress: { current: i + 1, total, title: storyTitle } });
       }
 
       send({ done: true, files: createdFiles });

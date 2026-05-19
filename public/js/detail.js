@@ -30,30 +30,58 @@ function renderDetailDeps(doc) {
 
   const blocks    = (doc?.blocks    || []);
   const blockedBy = (doc?.blockedBy || []);
+  const parallel  = (doc?.parallel  || []);
 
-  if (!blocks.length && !blockedBy.length) {
+  if (!blocks.length && !blockedBy.length && !parallel.length) {
     row.classList.add('hidden');
     row.innerHTML = '';
     return;
   }
 
-  const chips = [];
+  function depChip(fn, chipClass, icon, linkType) {
+    const d = allDocs.find(dd => dd.filename === fn);
+    const title = d ? d.title : fn.replace(/\.md$/, '');
+    const dtype = d ? d.docType : 'story';
+    const short = title.length > 35 ? title.slice(0, 33) + '…' : title;
+    return `<span class="dep-chip ${chipClass}" title="${escHtml(linkType)}: ${escHtml(title)}">` +
+      `<span class="dep-chip-text" onclick="openDoc('${escHtml(fn)}','${dtype}')">${icon} ${escHtml(short)}</span>` +
+      `<button class="dep-chip-delete" onclick="event.stopPropagation(); deleteDepFromDetail('${escHtml(fn)}','${dtype}','${linkType}')" title="Remove dependency">&times;</button>` +
+      `</span>`;
+  }
 
-  for (const fn of blockedBy) {
-    const d = allDocs.find(dd => dd.filename === fn);
-    const title = d ? d.title : fn.replace(/\.md$/, '');
-    const dtype = d ? d.docType : 'story';
-    chips.push(`<span class="dep-chip dep-chip-blocked" onclick="openDoc('${escHtml(fn)}','${dtype}')" title="Blocked by: ${escHtml(title)}">🔒 ${escHtml(title.length > 35 ? title.slice(0, 33) + '…' : title)}</span>`);
-  }
-  for (const fn of blocks) {
-    const d = allDocs.find(dd => dd.filename === fn);
-    const title = d ? d.title : fn.replace(/\.md$/, '');
-    const dtype = d ? d.docType : 'story';
-    chips.push(`<span class="dep-chip dep-chip-blocks" onclick="openDoc('${escHtml(fn)}','${dtype}')" title="Blocks: ${escHtml(title)}">→ ${escHtml(title.length > 35 ? title.slice(0, 33) + '…' : title)}</span>`);
-  }
+  const chips = [];
+  for (const fn of blockedBy) chips.push(depChip(fn, 'dep-chip-blocked', '🔒', 'blockedBy'));
+  for (const fn of blocks)    chips.push(depChip(fn, 'dep-chip-blocks',  '→',  'blocks'));
+  for (const fn of parallel)  chips.push(depChip(fn, 'dep-chip-parallel','#',  'parallel'));
 
   row.innerHTML = chips.join('');
   row.classList.remove('hidden');
+}
+
+async function deleteDepFromDetail(targetFn, targetDocType, linkType) {
+  let srcFn = currentFilename, srcType = currentDocType;
+  let tgtFn = targetFn, tgtType = targetDocType;
+  let apiLinkType = linkType;
+  if (linkType === 'blockedBy') {
+    apiLinkType = 'blocks';
+    srcFn = targetFn; srcType = targetDocType;
+    tgtFn = currentFilename; tgtType = currentDocType;
+  }
+  try {
+    const res = await fetch('/api/link', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linkType: apiLinkType, sourceType: srcType, sourceFilename: srcFn,
+        targetType: tgtType, targetFilename: tgtFn }),
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error?.message || 'Delete failed'); }
+    await loadDocs();
+    const doc = allDocs.find(d => d.filename === currentFilename);
+    if (doc) renderDetailDeps(doc);
+    showJiraToast('ok', 'Dependency removed');
+  } catch (e) {
+    showJiraToast('error', `Failed to remove dependency: ${e.message}`);
+  }
 }
 
 function renderDocContent(doc, content) {
@@ -519,8 +547,42 @@ function showList() {
 }
 
 // ── Delete ────────────────────────────────────────────────────
-function confirmDelete() {
-  if (!currentFilename) return;
+async function confirmDelete() {
+  if (!currentFilename || !currentDocType) return;
+
+  // For epics/features: check for children and show selection modal
+  if (currentDocType === 'epic' || currentDocType === 'feature') {
+    try {
+      const data = await fetchJSON(`/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`);
+      const children = data.children || [];
+      if (children.length) {
+        const doc = allDocs.find(d => d.filename === currentFilename);
+        const title = doc?.title || currentFilename;
+        const items = children.map(c => ({
+          key: c.filename,
+          summary: c.title || c.filename,
+          type: TYPE_LABEL[c.docType] || c.docType,
+          localExists: true,
+        }));
+        const selected = await showJiraSelectModal(
+          `Delete "${title}" and ${children.length} child item${children.length !== 1 ? 's' : ''}?`,
+          items,
+          'Delete selected'
+        );
+        // User cancelled
+        if (!selected.length && !confirm(`Delete only "${title}" without its children?`)) return;
+        await executeDeleteWithChildren(selected.map(s => {
+          const child = children.find(c => c.filename === s.key);
+          return { filename: s.key, type: child?.docType || 'story' };
+        }));
+        return;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch children for delete:', e.message);
+    }
+  }
+
+  // Simple delete for leaf items or if children fetch failed
   document.getElementById('delete-msg').textContent =
     `Delete "${currentFilename}"? This will permanently remove the file and cannot be undone.`;
   document.getElementById('delete-overlay').classList.add('show');
@@ -531,6 +593,23 @@ function closeDeleteDialog() {
   const btn = document.getElementById('confirm-delete-btn');
   btn.disabled = false;
   btn.textContent = 'Delete';
+}
+
+async function executeDeleteWithChildren(childDocs) {
+  try {
+    // Delete children first via batch endpoint
+    if (childDocs.length) {
+      await postJSON('/api/docs/batch-delete', {
+        docs: childDocs.map(c => ({ type: c.type, filename: c.filename })),
+      });
+    }
+    // Delete the parent
+    await deleteJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`);
+    showList();
+    showJiraToast('ok', `Deleted ${childDocs.length + 1} item${childDocs.length ? 's' : ''}`);
+  } catch (e) {
+    showJiraToast('error', `Delete failed: ${e.message}`);
+  }
 }
 
 async function executeDelete() {

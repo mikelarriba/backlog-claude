@@ -206,7 +206,7 @@ export default function jiraSyncRoutes({
         // Epics: children via Epic Link custom field
         if (issueType === 'Epic' && FIELD_EPIC_LINK) {
           const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
-          const jql = `cf[${fieldId}] = ${jiraKey} AND project = ${JIRA_PROJECT} ORDER BY issuetype ASC`;
+          const jql = `cf[${fieldId}] = ${jiraKey} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
           const data = await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`);
           for (const c of (data.issues || [])) { if (!seen.has(c.key)) { seen.add(c.key); childIssues.push(c); } }
         }
@@ -224,6 +224,50 @@ export default function jiraSyncRoutes({
         }
 
         for (const child of childIssues) items.push(_buildPreviewItem(child));
+
+        // ── Detect local children that are closed/missing in JIRA ──
+        // Find local children of this parent and check if their JIRA issue
+        // is Done or no longer exists — offer to delete them locally.
+        const parentEntry = docIndex.findByJiraId(jiraKey);
+        if (parentEntry) {
+          const localChildren = docIndex.getAll()
+            .filter(e => e.parentFilename === parentEntry.filename && e.jiraId && e.jiraId !== 'TBD');
+
+          const jiraChildKeys = new Set(childIssues.map(c => c.key));
+
+          for (const local of localChildren) {
+            if (jiraChildKeys.has(local.jiraId) || seen.has(local.jiraId)) continue;
+            // This local child wasn't in the open JIRA children — check if it's closed or gone
+            try {
+              const remoteIssue = await jiraRequest('GET', `/issue/${local.jiraId}?fields=status,summary,issuetype`);
+              const statusCat = remoteIssue.fields?.status?.statusCategory?.key;
+              if (statusCat === 'done') {
+                items.push({
+                  jiraKey: local.jiraId,
+                  jiraTitle: remoteIssue.fields?.summary || local.title,
+                  jiraType: remoteIssue.fields?.issuetype?.name || '',
+                  localFilename: local.filename,
+                  localDocType: local.docType,
+                  action: 'delete',
+                  reason: `Closed in JIRA (${remoteIssue.fields?.status?.name || 'Done'})`,
+                  changes: [{ field: 'status', from: local.status || 'Draft', to: remoteIssue.fields?.status?.name || 'Done' }],
+                });
+              }
+            } catch {
+              // Issue not found in JIRA — also offer deletion
+              items.push({
+                jiraKey: local.jiraId,
+                jiraTitle: local.title || local.filename,
+                jiraType: '',
+                localFilename: local.filename,
+                localDocType: local.docType,
+                action: 'delete',
+                reason: 'Not found in JIRA',
+                changes: [{ field: 'status', to: 'Not found in JIRA' }],
+              });
+            }
+          }
+        }
       }
 
       res.json({ items });

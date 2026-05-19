@@ -422,6 +422,19 @@
   color: #93c5fd;
 }
 
+.sync-preview-action.delete {
+  background: #fee2e2;
+  color: #991b1b;
+}
+[data-theme="dark"] .sync-preview-action.delete {
+  background: rgba(153, 27, 27, 0.3);
+  color: #fca5a5;
+}
+
+.sync-preview-item--delete {
+  border-left: 3px solid #ef4444;
+}
+
 .sync-preview-item-title {
   font-size: 0.8rem;
   font-weight: 600;
