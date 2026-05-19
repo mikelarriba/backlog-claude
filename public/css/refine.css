@@ -36,7 +36,7 @@
   flex-shrink: 0;
 }
 
-/* ── Body: graph canvas + slide-in panel ─────────────────────── */
+/* ── Body: canvas + slide-in panel ──────────────────────────── */
 .refine-body {
   display: flex;
   flex: 1;
@@ -45,8 +45,9 @@
 
 #refine-canvas {
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
   background: var(--bg);
+  position: relative;
 }
 
 /* ── Slide-in panel ──────────────────────────────────────────── */
@@ -216,7 +217,7 @@
   font-style: italic;
 }
 
-/* ── Vanilla JS/SVG Canvas ───────────────────────────────────── */
+/* ── Canvas: empty state ─────────────────────────────────────── */
 .canvas-empty {
   padding: 40px 24px;
   font-size: 0.84rem;
@@ -225,6 +226,7 @@
   text-align: center;
 }
 
+/* ── Epic node ───────────────────────────────────────────────── */
 .canvas-epic-node {
   position: absolute;
   display: flex;
@@ -247,15 +249,29 @@
   max-width: 180px;
 }
 
+/* ── Swimlane grid cells (drop targets) ──────────────────────── */
+.canvas-swimlane-cell {
+  box-sizing: border-box;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.canvas-swimlane-cell.drag-over {
+  background: var(--accent-subtle, rgba(0,150,214,0.08));
+  border-color: var(--accent);
+  border-style: solid;
+}
+
+/* ── Story cards ─────────────────────────────────────────────── */
 .canvas-card {
-  position: absolute;
+  box-sizing: border-box;
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
-  box-sizing: border-box;
 }
 
 .canvas-card:hover {
@@ -267,6 +283,14 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0,150,214,0.15));
 }
+
+/* Cursor changes for drag state */
+.canvas-card[draggable="true"] { cursor: grab; }
+.canvas-card.dragging          { opacity: 0.3; cursor: grabbing; }
+
+/* During an active drag, disable pointer-events on cards so dragover
+   reaches the swimlane cells beneath them */
+.drag-active .canvas-card { pointer-events: none; }
 
 .canvas-card-header {
   display: flex;
@@ -312,25 +336,7 @@
   font-weight: 600;
 }
 
-/* ── Drop cells (drag-to-reposition) ─────────────────────────── */
-.canvas-drop-cell {
-  position: absolute;
-  border-radius: 8px;
-  transition: background 0.1s, border-color 0.1s;
-  border: 1.5px dashed transparent;
-  box-sizing: border-box;
-  pointer-events: all;
-}
-
-.canvas-drop-cell.drag-over {
-  background: var(--accent-subtle, rgba(0,150,214,0.08));
-  border-color: var(--accent);
-}
-
-.canvas-card[draggable="true"] { cursor: grab; }
-.canvas-card.dragging { opacity: 0.45; cursor: grabbing; }
-
-/* ── Canvas handles (link creation) ─────────────────────────── */
+/* ── Canvas handles (link creation — only in Manage Links mode) ─ */
 .canvas-handle {
   position: absolute;
   width: 10px;
@@ -338,12 +344,11 @@
   border-radius: 50%;
   background: var(--accent);
   cursor: crosshair;
-  opacity: 0;
-  transition: opacity 0.15s;
+  display: none;
   z-index: 10;
 }
 
-.canvas-card:hover .canvas-handle { opacity: 1; }
+#refine-canvas.manage-links-active .canvas-handle { display: block; }
 
 .canvas-handle--top    { top: -5px;    left: 50%; transform: translateX(-50%); }
 .canvas-handle--bottom { bottom: -5px; left: 50%; transform: translateX(-50%); }
@@ -364,6 +369,17 @@
   gap: 6px;
 }
 
+.canvas-link-popup-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0 2px 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
 .canvas-link-popup button {
   text-align: left;
   background: transparent;
@@ -376,6 +392,12 @@
   transition: background 0.12s;
 }
 .canvas-link-popup button:hover { background: var(--surface2); }
+
+.canvas-link-popup-danger {
+  color: #ef4444 !important;
+  border-color: #ef444440 !important;
+}
+.canvas-link-popup-danger:hover { background: #ef444412 !important; }
 
 /* ── Refine panel dependency section ─────────────────────────── */
 .rp-deps-section {

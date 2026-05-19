@@ -69,6 +69,9 @@ function closeRefineView() {
   _canvasStories      = [];
   _canvasParallel     = [];
   _canvasBlocks       = [];
+  _canvasManageLinks  = false;
+  const canvas = document.getElementById('refine-canvas');
+  if (canvas) canvas.classList.remove('manage-links-active');
 
   if (currentFilename && currentDocType) {
     document.getElementById('detail-view').classList.add('show');
@@ -138,76 +141,83 @@ function computeAutoLayout(children, blocks, parallel) {
   const layout = {};
   if (!children.length) return layout;
 
-  // Build adjacency: blockedBy means row = blocker.row + 1
-  const blockedByMap = new Map();
+  // Build adjacency: who blocks whom
+  const blockedByMap = new Map(); // tgt → [src, ...] (who must come before tgt)
   for (const { src, tgt } of blocks) {
     if (!blockedByMap.has(tgt)) blockedByMap.set(tgt, []);
     blockedByMap.get(tgt).push(src);
   }
 
-  // BFS from roots (no blockedBy) to assign rows
-  const rowMap = new Map();
-  const queue  = [];
+  // Phase 1 — seed BFS with true roots (stories with no blockers in this epic)
+  const rowMap  = new Map();
+  const visited = new Set();
+  const queue   = [];
   for (const child of children) {
     if (!(blockedByMap.get(child.filename) || []).length) {
       rowMap.set(child.filename, 0);
+      visited.add(child.filename);
       queue.push(child.filename);
     }
   }
-  // Safety: any remaining unplaced stories get row 0
-  for (const child of children) {
-    if (!rowMap.has(child.filename)) { rowMap.set(child.filename, 0); queue.push(child.filename); }
-  }
 
-  // BFS to propagate row depths
-  const visited = new Set(queue);
-  while (queue.length) {
-    const fn = queue.shift();
+  // Phase 2 — BFS: propagate rows through the blocks graph
+  let head = 0;
+  while (head < queue.length) {
+    const fn = queue[head++];
     const currentRow = rowMap.get(fn) || 0;
     for (const { src, tgt } of blocks) {
-      if (src === fn && !visited.has(tgt)) {
-        rowMap.set(tgt, Math.max(rowMap.get(tgt) || 0, currentRow + 1));
+      if (src !== fn) continue;
+      const newRow = Math.max(rowMap.get(tgt) || 0, currentRow + 1);
+      rowMap.set(tgt, newRow);
+      if (!visited.has(tgt)) {
         visited.add(tgt);
         queue.push(tgt);
       }
     }
   }
 
-  // Assign columns: parallel groups share a column, sequential chains go to col 0
-  const colMap = new Map();
-  let nextCol  = 0;
+  // Phase 3 — any story not reachable from a root (orphan or cycle) gets row 0
+  for (const child of children) {
+    if (!rowMap.has(child.filename)) rowMap.set(child.filename, 0);
+  }
 
-  // Group by parallel connected components
-  const parallelSets = new Map();
-  for (const child of children) parallelSets.set(child.filename, child.filename);
+  // Assign columns:
+  //   - Items connected by BLOCKS share a column (sequential workstream — stacked vertically)
+  //   - Items connected by PARALLEL get separate columns (concurrent workstreams — side by side)
+  //
+  // Union-find groups items that must be in the same column.
+  // Each independent component (workstream) gets its own column number.
+  const colSets = new Map();
+  for (const child of children) colSets.set(child.filename, child.filename);
 
   function findRoot(fn) {
-    if (parallelSets.get(fn) === fn) return fn;
-    const root = findRoot(parallelSets.get(fn));
-    parallelSets.set(fn, root);
+    if (colSets.get(fn) === fn) return fn;
+    const root = findRoot(colSets.get(fn));
+    colSets.set(fn, root);
     return root;
   }
   function union(a, b) {
     const ra = findRoot(a), rb = findRoot(b);
-    if (ra !== rb) parallelSets.set(ra, rb);
+    if (ra !== rb) colSets.set(ra, rb);
   }
 
-  for (const { a, b } of parallel) union(a, b);
+  // Sequential chains (blocks) → same column
+  for (const { src, tgt } of blocks) union(src, tgt);
+  // Parallel items are intentionally NOT unioned — they go in separate columns
 
+  // Assign one column per component, roots-first for stable ordering
   const componentCol = new Map();
-  for (const child of children) {
+  let nextCol = 0;
+  const sortedByRow = [...children].sort((a, b) => (rowMap.get(a.filename) || 0) - (rowMap.get(b.filename) || 0));
+  for (const child of sortedByRow) {
     const root = findRoot(child.filename);
-    if (!componentCol.has(root)) {
-      componentCol.set(root, nextCol++);
-    }
-    colMap.set(child.filename, componentCol.get(root));
+    if (!componentCol.has(root)) componentCol.set(root, nextCol++);
   }
 
   // Build layout
-  const rowCounters = new Map(); // col → next available row within that col
   for (const child of children) {
-    const col = colMap.get(child.filename) || 0;
-    const row = rowMap.get(child.filename) || 0;
+    const col = componentCol.get(findRoot(child.filename)) ?? 0;
+    const row = rowMap.get(child.filename) ?? 0;
     layout[child.filename] = { col, row };
   }
 
@@ -226,61 +236,90 @@ function renderCanvas(epicFilename, docType) {
     return;
   }
 
-  // Determine grid dimensions
-  const cols = Math.max(...Object.values(_canvasLayout).map(p => p.col), 0) + 1;
-  const rows = Math.max(...Object.values(_canvasLayout).map(p => p.row), 0) + 1;
+  // Grid dimensions: at least 3 cols × 3 rows, always 1 extra empty row/col for dropping
+  const occupiedCols = Math.max(...Object.values(_canvasLayout).map(p => p.col), 0) + 1;
+  const occupiedRows = Math.max(...Object.values(_canvasLayout).map(p => p.row), 0) + 1;
+  const gridCols = Math.max(occupiedCols + 1, 3);
+  const gridRows = Math.max(occupiedRows + 1, 3);
 
-  const totalW = cols * (CELL_W + GUTTER_X) + GUTTER_X;
-  const totalH = TOP_OFFSET + rows * (CELL_H + GUTTER_Y) + GUTTER_Y + 40;
+  const totalW = GUTTER_X + gridCols * (CELL_W + GUTTER_X);
+  const totalH = TOP_OFFSET + gridRows * (CELL_H + GUTTER_Y) + GUTTER_Y;
 
-  container.style.width  = '100%';
-  container.style.height = '100%';
-
-  // Wrapper sized to content (for scrolling)
+  // Wrapper sized to content (enables scrolling)
   const wrapper = document.createElement('div');
-  wrapper.style.cssText = `position:relative;min-width:${totalW}px;min-height:${totalH}px`;
+  wrapper.style.cssText = `position:relative;width:${totalW}px;height:${totalH}px`;
   container.appendChild(wrapper);
 
-  // SVG overlay layer
+  // SVG overlay (on top of everything, pointer-events:none)
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', 'canvas-svg-layer');
-  svg.setAttribute('width', totalW);
-  svg.setAttribute('height', totalH);
-  svg.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible';
+  svg.style.cssText = `position:absolute;top:0;left:0;width:${totalW}px;height:${totalH}px;pointer-events:none;overflow:visible;z-index:3`;
   wrapper.appendChild(svg);
-
-  // Dotted vertical lane dividers
-  for (let c = 1; c < cols; c++) {
-    const x = GUTTER_X + c * (CELL_W + GUTTER_X) - GUTTER_X / 2;
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', x); line.setAttribute('y1', TOP_OFFSET - 10);
-    line.setAttribute('x2', x); line.setAttribute('y2', totalH - 20);
-    line.setAttribute('stroke', 'var(--border)');
-    line.setAttribute('stroke-width', '1');
-    line.setAttribute('stroke-dasharray', '4 4');
-    line.setAttribute('opacity', '0.5');
-    svg.appendChild(line);
-  }
 
   // Epic title node at top center
   const epicDoc = allDocs.find(d => d.filename === epicFilename && d.docType === docType);
   const epicNode = document.createElement('div');
   epicNode.className = 'canvas-epic-node';
   const epicCenterX = totalW / 2;
-  epicNode.style.cssText = `left:${epicCenterX - 110}px;top:14px;width:220px`;
+  epicNode.style.cssText = `position:absolute;left:${epicCenterX - 110}px;top:14px;width:220px;z-index:2`;
   epicNode.innerHTML = `
     <span class="type-badge ${docType}">${TYPE_LABEL[docType] || docType}</span>
     <span class="canvas-epic-title">${escHtml(epicDoc?.title || epicFilename)}</span>`;
+  epicNode.style.cursor = 'pointer';
+  epicNode.addEventListener('click', () => {
+    document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
+    openRefinePanel(epicFilename, docType);
+  });
   wrapper.appendChild(epicNode);
 
-  // Story cards
-  const cardPositions = {}; // filename → { cx, cy, el }
+  // ── Swimlane grid cells (visible + drop targets) ──────────────
+  // During a card drag, wrapper gets class 'drag-active' which sets
+  // pointer-events:none on all cards, letting dragover fall through to cells.
+  const cellAt = (col, row) => ({
+    x: GUTTER_X + col * (CELL_W + GUTTER_X),
+    y: TOP_OFFSET + row * (CELL_H + GUTTER_Y),
+  });
+
+  for (let row = 0; row < gridRows; row++) {
+    for (let col = 0; col < gridCols; col++) {
+      const { x, y } = cellAt(col, row);
+      const cell = document.createElement('div');
+      cell.className = 'canvas-swimlane-cell';
+      cell.dataset.col = col;
+      cell.dataset.row = row;
+      cell.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${CELL_W}px;height:${CELL_H}px`;
+
+      cell.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        cell.classList.add('drag-over');
+      });
+      cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+      cell.addEventListener('drop', async e => {
+        e.preventDefault();
+        cell.classList.remove('drag-over');
+        wrapper.classList.remove('drag-active');
+        const fn = e.dataTransfer.getData('text/plain');
+        if (!fn) return;
+        const newCol = parseInt(cell.dataset.col);
+        const newRow = parseInt(cell.dataset.row);
+        const cur = _canvasLayout[fn] || {};
+        if (cur.col === newCol && cur.row === newRow) return;
+        _canvasLayout[fn] = { col: newCol, row: newRow };
+        await saveCanvasLayout(epicFilename);
+        renderCanvas(epicFilename, docType);
+      });
+
+      wrapper.appendChild(cell);
+    }
+  }
+
+  // ── Story cards ───────────────────────────────────────────────
+  const cardPositions = {};
   for (const child of _canvasStories) {
     const pos = _canvasLayout[child.filename] || { col: 0, row: 0 };
-    const x   = GUTTER_X + pos.col * (CELL_W + GUTTER_X);
-    const y   = TOP_OFFSET + pos.row * (CELL_H + GUTTER_Y);
-    const cx  = x + CELL_W / 2;
-    const cy  = y + CELL_H / 2;
+    const { x, y } = cellAt(pos.col, pos.row);
+    const cx = x + CELL_W / 2;
+    const cy = y + CELL_H / 2;
 
     const doc = allDocs.find(d => d.filename === child.filename);
     const sp  = doc?.storyPoints ? `${doc.storyPoints} SP` : '';
@@ -289,65 +328,82 @@ function renderCanvas(epicFilename, docType) {
     card.className = 'canvas-card';
     card.dataset.filename = child.filename;
     card.dataset.doctype  = child.docType || docType;
-    card.style.cssText = `left:${x}px;top:${y}px;width:${CELL_W}px;min-height:${CELL_H}px`;
-    card.setAttribute('draggable', 'true');
-    const handleDisplay = _canvasManageLinks ? 'block' : 'none';
+    // Inset 4px inside the cell so the dashed cell border stays visible
+    const INSET = 4;
+    card.style.cssText = `position:absolute;left:${x+INSET}px;top:${y+INSET}px;width:${CELL_W-INSET*2}px;height:${CELL_H-INSET*2}px;z-index:2`;
+    card.setAttribute('draggable', _canvasManageLinks ? 'false' : 'true');
     card.innerHTML = `
       <div class="canvas-card-header">
         <span class="type-badge ${child.docType || docType}">${TYPE_LABEL[child.docType || docType] || child.docType}</span>
         ${sp ? `<span class="canvas-card-sp">${sp}</span>` : ''}
       </div>
       <div class="canvas-card-title">${escHtml(child.title || child.filename)}</div>
-      <div class="canvas-handle canvas-handle--top"    style="display:${handleDisplay}" data-side="top"></div>
-      <div class="canvas-handle canvas-handle--bottom" style="display:${handleDisplay}" data-side="bottom"></div>
-      <div class="canvas-handle canvas-handle--left"   style="display:${handleDisplay}" data-side="left"></div>
-      <div class="canvas-handle canvas-handle--right"  style="display:${handleDisplay}" data-side="right"></div>`;
+      <div class="canvas-handle canvas-handle--top"    data-side="top"></div>
+      <div class="canvas-handle canvas-handle--bottom" data-side="bottom"></div>
+      <div class="canvas-handle canvas-handle--left"   data-side="left"></div>
+      <div class="canvas-handle canvas-handle--right"  data-side="right"></div>`;
 
-    card.addEventListener('click', (e) => {
+    // Click → open panel
+    card.addEventListener('click', e => {
       if (e.target.classList.contains('canvas-handle')) return;
       document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
       card.classList.add('selected');
       openRefinePanel(child.filename, child.docType || docType);
     });
 
-    // Handle drag for link creation
+    // HTML5 drag to reposition
+    card.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', child.filename);
+      e.dataTransfer.effectAllowed = 'move';
+      // Defer so the drag ghost renders before we hide the card
+      setTimeout(() => {
+        card.classList.add('dragging');
+        // pointer-events:none on all cards lets dragover reach the cells beneath
+        wrapper.classList.add('drag-active');
+      }, 0);
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      wrapper.classList.remove('drag-active');
+    });
+
+    // Handle mousedown for rubber-band link creation (Manage Links mode)
     card.querySelectorAll('.canvas-handle').forEach(handle => {
-      let rubberLine = null;
       handle.addEventListener('mousedown', e => {
         if (!_canvasManageLinks) return;
         e.stopPropagation();
-        // Create rubber-band SVG line
-        rubberLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        e.preventDefault();
+        card.setAttribute('draggable', 'false');
+
+        const rubberLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         rubberLine.setAttribute('stroke', 'var(--accent)');
         rubberLine.setAttribute('stroke-width', '2');
         rubberLine.setAttribute('stroke-dasharray', '5 3');
         rubberLine.setAttribute('pointer-events', 'none');
-        const startX = e.clientX;
-        const startY = e.clientY;
-        rubberLine.setAttribute('x1', startX);
-        rubberLine.setAttribute('y1', startY);
-        rubberLine.setAttribute('x2', startX);
-        rubberLine.setAttribute('y2', startY);
+        const r0 = svg.getBoundingClientRect();
+        rubberLine.setAttribute('x1', e.clientX - r0.left);
+        rubberLine.setAttribute('y1', e.clientY - r0.top);
+        rubberLine.setAttribute('x2', e.clientX - r0.left);
+        rubberLine.setAttribute('y2', e.clientY - r0.top);
         svg.appendChild(rubberLine);
 
         function onMove(mv) {
-          rubberLine.setAttribute('x2', mv.clientX);
-          rubberLine.setAttribute('y2', mv.clientY);
+          const r = svg.getBoundingClientRect();
+          rubberLine.setAttribute('x2', mv.clientX - r.left);
+          rubberLine.setAttribute('y2', mv.clientY - r.top);
         }
         function onUp(mu) {
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
-          if (rubberLine) { rubberLine.remove(); rubberLine = null; }
-          // Find target card under mouse
+          rubberLine.remove();
+          if (!_canvasManageLinks) card.setAttribute('draggable', 'true');
           const els = document.elementsFromPoint(mu.clientX, mu.clientY);
           const tgtCard = els.find(el => el.classList.contains('canvas-card') && el !== card);
           if (tgtCard) {
-            const tgtFn  = tgtCard.dataset.filename;
-            const tgtDt  = tgtCard.dataset.doctype;
-            const srcFn  = child.filename;
-            const srcDt  = child.docType || docType;
-            if (tgtFn && tgtFn !== srcFn) {
-              _showLinkPopup(mu.clientX, mu.clientY, srcFn, srcDt, tgtFn, tgtDt);
+            const tgtFn = tgtCard.dataset.filename;
+            const tgtDt = tgtCard.dataset.doctype;
+            if (tgtFn && tgtFn !== child.filename) {
+              _showLinkPopup(mu.clientX, mu.clientY, child.filename, child.docType || docType, tgtFn, tgtDt);
             }
           }
         }
@@ -357,20 +413,16 @@ function renderCanvas(epicFilename, docType) {
     });
 
     wrapper.appendChild(card);
-    cardPositions[child.filename] = { cx, cy, el: card, x, y };
+    cardPositions[child.filename] = { cx, cy, x, y };
   }
 
-  // Init drag-to-reposition
-  initCanvasDrag(wrapper, svg, epicFilename, cols, rows, cardPositions);
-
-  // Draw SVG edges after cards are placed
+  // Draw SVG edges on top
   drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW);
 }
 
 // ── Draw SVG edges ─────────────────────────────────────────────
 function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) {
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-  // Arrowhead marker for BLOCKS edges
   defs.innerHTML = `
     <marker id="arrow-blocks" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
       <path d="M0,0 L0,6 L8,3 z" fill="#ef4444"/>
@@ -380,7 +432,20 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
     </marker>`;
   svg.appendChild(defs);
 
-  // SEC arrows: connect cards in the same column, ordered by row
+  // Helper: make a path clickable with a wider transparent hit area
+  function addHitArea(svg, d, onClick) {
+    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hit.setAttribute('d', d);
+    hit.setAttribute('stroke', 'transparent');
+    hit.setAttribute('stroke-width', '14');
+    hit.setAttribute('fill', 'none');
+    hit.setAttribute('pointer-events', 'stroke');
+    hit.style.cursor = 'pointer';
+    hit.addEventListener('click', onClick);
+    svg.appendChild(hit);
+  }
+
+  // SEC arrows: cards sharing a column, consecutive rows
   const byCols = {};
   for (const [fn, pos] of Object.entries(_canvasLayout)) {
     if (!byCols[pos.col]) byCols[pos.col] = [];
@@ -391,8 +456,7 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
     for (let i = 0; i < colItems.length - 1; i++) {
       const src = cardPositions[colItems[i].fn];
       const tgt = cardPositions[colItems[i + 1].fn];
-      if (!src || !tgt) continue;
-      // Skip if there's already a BLOCKS edge between them
+      if (!src || !tgt || src === tgt) continue;
       const hasBlocks = _canvasBlocks.some(b =>
         (b.src === colItems[i].fn && b.tgt === colItems[i + 1].fn) ||
         (b.src === colItems[i + 1].fn && b.tgt === colItems[i].fn)
@@ -402,7 +466,6 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
       const x1 = src.cx, y1 = src.y + CELL_H;
       const x2 = tgt.cx, y2 = tgt.y;
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const mx = (x1 + x2) / 2;
       path.setAttribute('d', `M${x1},${y1} C${x1},${y1 + 20} ${x2},${y2 - 20} ${x2},${y2}`);
       path.setAttribute('stroke', 'var(--border)');
       path.setAttribute('stroke-width', '1.5');
@@ -410,7 +473,6 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
       path.setAttribute('marker-end', 'url(#arrow-sec)');
       svg.appendChild(path);
 
-      // SEC label
       const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       label.setAttribute('x', x1 + 6);
       label.setAttribute('y', y1 + (y2 - y1) / 2);
@@ -420,16 +482,22 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
     }
   }
 
-  // BLOCKS arrows (red)
+  // BLOCKS arrows (red) — clickable
   for (const { src, tgt } of _canvasBlocks) {
+    if (src === tgt) continue;
     const s = cardPositions[src];
     const t = cardPositions[tgt];
     if (!s || !t) continue;
 
+    const srcDt = _canvasStories.find(c => c.filename === src)?.docType || _canvasDocType;
+    const tgtDt = _canvasStories.find(c => c.filename === tgt)?.docType || _canvasDocType;
+
     const x1 = s.cx, y1 = s.y + CELL_H;
     const x2 = t.cx, y2 = t.y;
+    const d = `M${x1},${y1} C${x1},${y1 + 24} ${x2},${y2 - 24} ${x2},${y2}`;
+
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', `M${x1},${y1} C${x1},${y1 + 24} ${x2},${y2 - 24} ${x2},${y2}`);
+    path.setAttribute('d', d);
     path.setAttribute('stroke', '#ef4444');
     path.setAttribute('stroke-width', '2');
     path.setAttribute('fill', 'none');
@@ -442,20 +510,29 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
     label.setAttribute('class', 'canvas-edge-label canvas-edge-label--blocks');
     label.textContent = 'BLOCKS';
     svg.appendChild(label);
+
+    addHitArea(svg, d, e => {
+      e.stopPropagation();
+      _showEdgePopup(e.clientX, e.clientY, 'blocks', src, srcDt, tgt, tgtDt);
+    });
   }
 
-  // PARALLEL brackets (dotted horizontal bracket above both cards)
+  // PARALLEL brackets — clickable
   for (const { a, b } of _canvasParallel) {
     const pa = cardPositions[a];
     const pb = cardPositions[b];
     if (!pa || !pb) continue;
 
+    const aDt = _canvasStories.find(c => c.filename === a)?.docType || _canvasDocType;
+    const bDt = _canvasStories.find(c => c.filename === b)?.docType || _canvasDocType;
+
     const x1 = pa.x;
     const x2 = pb.x + CELL_W;
     const y  = Math.min(pa.y, pb.y) - 14;
+    const d  = `M${x1},${pa.y - 4} V${y} H${x2} V${pb.y - 4}`;
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', `M${x1},${pa.y - 4} V${y} H${x2} V${pb.y - 4}`);
+    path.setAttribute('d', d);
     path.setAttribute('stroke', 'var(--type-story-color, #3b82f6)');
     path.setAttribute('stroke-width', '1.5');
     path.setAttribute('stroke-dasharray', '5 3');
@@ -469,58 +546,91 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
     label.setAttribute('class', 'canvas-edge-label canvas-edge-label--parallel');
     label.textContent = 'PARALLEL';
     svg.appendChild(label);
+
+    addHitArea(svg, d, e => {
+      e.stopPropagation();
+      _showEdgePopup(e.clientX, e.clientY, 'parallel', a, aDt, b, bDt);
+    });
   }
 }
 
-// ── Drag-to-reposition ─────────────────────────────────────────
-function initCanvasDrag(wrapper, svg, epicFilename, cols, rows) {
-  let draggingFilename = null;
-  let draggingDocType  = null;
+// ── Edge click popup ───────────────────────────────────────────
+function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
+  _closeLinkPopup();
+  const popup = document.createElement('div');
+  popup.className = 'canvas-link-popup';
+  popup.style.left = `${x}px`;
+  popup.style.top  = `${y}px`;
 
-  document.querySelectorAll('.canvas-card').forEach(card => {
-    card.addEventListener('dragstart', e => {
-      draggingFilename = card.dataset.filename;
-      draggingDocType  = card.dataset.doctype;
-      card.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
-      draggingFilename = null;
-    });
-  });
+  const altType  = linkType === 'blocks' ? 'parallel' : 'blocks';
+  const altLabel = linkType === 'blocks' ? 'Change to PARALLEL' : 'Change to BLOCKS';
 
-  // Create drop cell overlays
-  const maxCols = cols + 1;
-  const maxRows = rows + 2;
-  for (let col = 0; col < maxCols; col++) {
-    for (let row = 0; row < maxRows; row++) {
-      const cell = document.createElement('div');
-      cell.className = 'canvas-drop-cell';
-      cell.dataset.col = col;
-      cell.dataset.row = row;
-      cell.style.cssText = `
-        left:${GUTTER_X + col * (CELL_W + GUTTER_X)}px;
-        top:${TOP_OFFSET + row * (CELL_H + GUTTER_Y)}px;
-        width:${CELL_W}px;height:${CELL_H}px`;
-      cell.addEventListener('dragover', e => { e.preventDefault(); cell.classList.add('drag-over'); });
-      cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
-      cell.addEventListener('drop', async e => {
-        e.preventDefault();
-        cell.classList.remove('drag-over');
-        if (!draggingFilename) return;
-        const newCol = parseInt(cell.dataset.col);
-        const newRow = parseInt(cell.dataset.row);
-        const current = _canvasLayout[draggingFilename] || {};
-        if (current.col === newCol && current.row === newRow) return; // no-op
-        _canvasLayout[draggingFilename] = { col: newCol, row: newRow };
-        await saveCanvasLayout(epicFilename);
-        renderCanvas(epicFilename, _canvasDocType);
-      });
-      wrapper.appendChild(cell);
-    }
+  popup.innerHTML = `
+    <div class="canvas-link-popup-title">${linkType.toUpperCase()} dependency</div>
+    <button class="canvas-link-popup-danger" id="_edge-delete-btn">Delete dependency</button>
+    <button id="_edge-change-btn">${altLabel}</button>
+    <button id="_edge-cancel-btn">Cancel</button>`;
+  document.body.appendChild(popup);
+
+  popup.querySelector('#_edge-delete-btn').addEventListener('click', () =>
+    _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt));
+  popup.querySelector('#_edge-change-btn').addEventListener('click', () =>
+    _changeCanvasLinkType(linkType, altType, srcFn, srcDt, tgtFn, tgtDt));
+  popup.querySelector('#_edge-cancel-btn').addEventListener('click', _closeLinkPopup);
+
+  setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
+  _closeLinkPopup();
+  try {
+    const res = await fetch('/api/link', {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ linkType, sourceType: srcDt, sourceFilename: srcFn, targetType: tgtDt, targetFilename: tgtFn }),
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error?.message || 'Delete failed'); }
+    await loadDocs();
+    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    _restoreManageLinksState();
+  } catch (e) {
+    showJiraToast('error', e.message);
   }
 }
+
+async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtFn, tgtDt) {
+  _closeLinkPopup();
+  try {
+    const delRes = await fetch('/api/link', {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ linkType: oldType, sourceType: srcDt, sourceFilename: srcFn, targetType: tgtDt, targetFilename: tgtFn }),
+    });
+    if (!delRes.ok) throw new Error('Delete failed');
+
+    const addRes = await fetch('/api/link', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ linkType: newType, sourceType: srcDt, sourceFilename: srcFn, targetType: tgtDt, targetFilename: tgtFn }),
+    });
+    if (!addRes.ok) { const d = await addRes.json(); throw new Error(d.error?.message || 'Create failed'); }
+    await loadDocs();
+    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    _restoreManageLinksState();
+  } catch (e) {
+    showJiraToast('error', e.message);
+  }
+}
+
+function _restoreManageLinksState() {
+  if (!_canvasManageLinks) return;
+  const btn = document.getElementById('manage-links-btn');
+  if (btn) btn.classList.add('active');
+  const canvas = document.getElementById('refine-canvas');
+  if (canvas) canvas.classList.add('manage-links-active');
+  document.querySelectorAll('.canvas-card').forEach(c => c.setAttribute('draggable', 'false'));
+}
+
 
 async function saveCanvasLayout(epicFilename) {
   try {
@@ -537,9 +647,12 @@ function toggleManageLinks() {
   _canvasManageLinks = !_canvasManageLinks;
   const btn = document.getElementById('manage-links-btn');
   if (btn) btn.classList.toggle('active', _canvasManageLinks);
-  // Show/hide handles on all cards
-  document.querySelectorAll('.canvas-card .canvas-handle').forEach(h => {
-    h.style.display = _canvasManageLinks ? 'block' : 'none';
+  // CSS controls handle visibility via this class
+  const canvas = document.getElementById('refine-canvas');
+  if (canvas) canvas.classList.toggle('manage-links-active', _canvasManageLinks);
+  // Disable card drag while in manage-links mode so handles don't compete with HTML5 drag
+  document.querySelectorAll('.canvas-card').forEach(c => {
+    c.setAttribute('draggable', _canvasManageLinks ? 'false' : 'true');
   });
 }
 
@@ -577,12 +690,24 @@ async function _createCanvasLink(linkType, srcFilename, srcDocType, tgtFilename,
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || 'Link failed');
+
+    // A new BLOCKS dependency changes row ordering — clear saved layout so
+    // computeAutoLayout re-runs and shifts the blocked card to a lower swimlane.
+    if (linkType === 'blocks') {
+      try {
+        await fetch(`/api/canvas/layout/${encodeURIComponent(_canvasEpicFilename)}`, { method: 'DELETE' });
+      } catch {}
+    }
+
     await loadDocs();
     await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    // Restore manage-links state after re-render
     if (_canvasManageLinks) {
       const btn = document.getElementById('manage-links-btn');
       if (btn) btn.classList.add('active');
-      _canvasManageLinks = true;
+      const canvas = document.getElementById('refine-canvas');
+      if (canvas) canvas.classList.add('manage-links-active');
+      document.querySelectorAll('.canvas-card').forEach(c => { c.setAttribute('draggable', 'false'); });
     }
   } catch (e) {
     showJiraToast('error', e.message);
