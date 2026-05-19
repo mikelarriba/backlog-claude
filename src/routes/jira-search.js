@@ -111,7 +111,7 @@ export default function jiraSearchRoutes({
       // Epics: find children via Epic Link custom field — paginate to handle large epics
       if (issueType === 'Epic') {
         const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
-        const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} ORDER BY issuetype ASC`;
+        const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
         const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', { maxResults: 100, maxTotal: 500 });
         for (const child of childIssues) addChild(child);
       }

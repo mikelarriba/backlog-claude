@@ -1,3 +1,26 @@
+/* ── Progress bar during story saving ─────────────────────────── */
+.stories-progress {
+  padding: 10px 16px;
+}
+.stories-progress-text {
+  font-size: 0.75rem;
+  color: var(--text-body);
+  margin-bottom: 6px;
+}
+.stories-progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.stories-progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
 /* Streaming preview during generation */
 .stories-stream {
   padding: 14px 16px;

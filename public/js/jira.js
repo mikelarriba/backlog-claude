@@ -60,14 +60,17 @@ function showSyncPreviewModal(title, items, confirmLabel) {
 
     const createCount = items.filter(i => i.action === 'create').length;
     const updateCount = items.filter(i => i.action === 'update').length;
+    const deleteCount = items.filter(i => i.action === 'delete').length;
     const parts = [];
     if (createCount) parts.push(`${createCount} new`);
     if (updateCount) parts.push(`${updateCount} update`);
+    if (deleteCount) parts.push(`${deleteCount} to delete`);
     document.getElementById('sync-preview-counts').textContent = parts.join(' · ');
 
     const list = document.getElementById('sync-preview-list');
     list.innerHTML = items.map(function(item, idx) {
       const isCreate = item.action === 'create';
+      const isDelete = item.action === 'delete';
       const keyLabel = item.jiraKey || item.jiraId || '';
       const titleText = item.jiraTitle || item.title || '';
 
@@ -86,17 +89,24 @@ function showSyncPreviewModal(title, items, confirmLabel) {
             return '<div class="sync-preview-change"><span class="sync-preview-field">' + escHtml(c.field) + '</span>' + fromHtml + toHtml + '</div>';
           }).join('') +
         '</div>';
-      } else if (!isCreate) {
+      } else if (!isCreate && !isDelete) {
         changesHtml = '<div class="sync-preview-no-changes">No field changes detected</div>';
+      }
+      if (isDelete && item.reason) {
+        changesHtml += '<div class="sync-preview-changes"><div class="sync-preview-change"><span class="sync-preview-field">reason</span><span class="sync-preview-to" style="color:var(--error-text)">' + escHtml(item.reason) + '</span></div></div>';
       }
 
       const typeLabel = item.docType || item.localDocType || '';
       const typeBadge = typeLabel ? '<span class="type-badge ' + escHtml(typeLabel) + '" style="font-size:0.6rem;padding:1px 6px">' + escHtml((TYPE_LABEL && TYPE_LABEL[typeLabel]) || typeLabel) + '</span>' : '';
 
-      return '<div class="sync-preview-item">' +
+      const actionClass = isDelete ? 'delete' : isCreate ? 'create' : 'update';
+      const actionLabel = isDelete ? '✕ Delete' : isCreate ? '+ Create' : '↺ Update';
+      const unchecked = ' checked';
+
+      return '<div class="sync-preview-item' + (isDelete ? ' sync-preview-item--delete' : '') + '">' +
         '<label class="sync-preview-item-header">' +
-          '<input type="checkbox" checked data-idx="' + idx + '" class="sync-preview-cb" />' +
-          '<span class="sync-preview-action ' + (isCreate ? 'create' : 'update') + '">' + (isCreate ? '+ Create' : '↺ Update') + '</span>' +
+          '<input type="checkbox"' + unchecked + ' data-idx="' + idx + '" class="sync-preview-cb" />' +
+          '<span class="sync-preview-action ' + actionClass + '">' + actionLabel + '</span>' +
           typeBadge +
           '<span class="sync-preview-item-title">' + escHtml(titleText) + '</span>' +
           (keyLabel ? '<span class="sync-preview-item-key">' + escHtml(keyLabel) + '</span>' : '') +
@@ -294,12 +304,14 @@ async function updateFromJira(jiraKeyOverride) {
 
   // 3. Execute: update selected items with progress tracking
   const parentItem = previewItems[0];
-  const parentSelected = selected.some(s => s.jiraKey === parentItem.jiraKey);
-  const selectedChildren = selected.filter(s => s.jiraKey !== parentItem.jiraKey);
-  const totalSteps = (parentSelected ? 1 : 0) + (selectedChildren.length > 0 ? 1 : 0);
+  const parentSelected = selected.some(s => s.jiraKey === parentItem.jiraKey && s.action !== 'delete');
+  const selectedChildren = selected.filter(s => s.jiraKey !== parentItem.jiraKey && s.action !== 'delete');
+  const selectedDeletes  = selected.filter(s => s.action === 'delete');
+  const totalSteps = (parentSelected ? 1 : 0) + (selectedChildren.length > 0 ? 1 : 0) + (selectedDeletes.length > 0 ? 1 : 0);
   let pullErrors = 0;
   let updatedKey = null;
   let childrenSynced = 0;
+  let childrenDeleted = 0;
   let step = 0;
 
   try {
@@ -324,6 +336,22 @@ async function updateFromJira(jiraKeyOverride) {
         parentLink: { filename: currentFilename, docType: currentDocType },
       });
       childrenSynced = childKeys.length;
+      step++;
+    }
+
+    if (selectedDeletes.length > 0) {
+      updateJiraProgress(step, totalSteps, `Deleting ${selectedDeletes.length} closed item(s)…`);
+      const docsToDelete = selectedDeletes
+        .filter(d => d.localFilename && d.localDocType)
+        .map(d => ({ type: d.localDocType, filename: d.localFilename }));
+      if (docsToDelete.length) {
+        await postJSON('/api/docs/batch-delete', { docs: docsToDelete });
+        childrenDeleted = docsToDelete.length;
+      }
+      step++;
+    }
+
+    if (childrenSynced || childrenDeleted) {
       await loadDocs();
     }
   } catch (e) {
@@ -333,6 +361,7 @@ async function updateFromJira(jiraKeyOverride) {
     const pullParts = [];
     if (updatedKey) pullParts.push(`Updated ${updatedKey}`);
     if (childrenSynced) pullParts.push(`${childrenSynced} child(ren) synced`);
+    if (childrenDeleted) pullParts.push(`${childrenDeleted} closed item(s) deleted`);
     finishJiraProgress(pullParts.join(', ') || 'No changes applied', pullErrors > 0);
     updateJiraPushBtn();
   }

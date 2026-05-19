@@ -114,7 +114,7 @@ async function deleteJSON(url) {
 // ── Shared streaming SSE fetch helper ─────────────────────────
 // Replaces duplicated streaming logic in upgrade.js, stories.js,
 // refine.js, and quickcreate.js.
-async function streamSSE(url, body, { onText, onDone, onError }) {
+async function streamSSE(url, body, { onText, onDone, onError, onProgress }) {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -136,6 +136,7 @@ async function streamSSE(url, body, { onText, onDone, onError }) {
         const payload = JSON.parse(line.slice(6));
         if (payload.error) throw new Error(getErrorMessage(payload.error, 'Request failed'));
         if (payload.text && onText) onText(payload.text);
+        if (payload.progress && onProgress) onProgress(payload.progress);
         if (payload.done && onDone) onDone(payload);
       } catch (e) {
         if (e.message.includes('Unexpected token')) continue;
