@@ -45,6 +45,10 @@ Data model: `Users → Datapools → Tests → Files`
 4. **Sequence the stories** — order them so dependencies are visible (e.g. backend API before frontend).
 5. **Flag what's missing** — if the Epic is too vague to slice confidently, state what clarification is needed before proceeding.
 
+## Metadata Detection
+
+The input may contain a YAML-like metadata block (from JIRA or other sources) with fields such as `JIRA_ID`, `Story_Points`, `Priority`, `Squad`, `PI`, `Sprint`, `Type`. When present, use these values to pre-fill the corresponding frontmatter fields instead of defaulting to TBD. Strip the metadata block from the description body — do not duplicate it in the output.
+
 ## Output Format
 
 Output ONLY the markdown content — no commentary, no preamble, no summary table. Do not write any files, do not ask for permissions.

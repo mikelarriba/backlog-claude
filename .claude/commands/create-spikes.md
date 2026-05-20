@@ -28,6 +28,10 @@ A Spike is a time-boxed investigation. Unlike an Epic or Story, it produces **kn
 | **V - Value** | What decision will this spike enable? What risk does it retire? |
 | **E - Example** | What the investigation should show up as a result |
 
+## Metadata Detection
+
+The input may contain a YAML-like metadata block (from JIRA or other sources) with fields such as `JIRA_ID`, `Story_Points`, `Priority`, `Squad`, `PI`, `Sprint`, `Type`. When present, use these values to pre-fill the corresponding frontmatter fields instead of defaulting to TBD. Strip the metadata block from the description body — do not duplicate it in the output.
+
 ## Output Format
 
 Output ONLY the markdown content — do not write any files, do not ask for permissions.
@@ -36,13 +40,13 @@ Start with YAML frontmatter:
 
 ```yaml
 ---
-JIRA_ID: TBD
-Story_Points: TBD
+JIRA_ID: [from metadata or TBD]
+Story_Points: [from metadata or TBD]
 Status: Ready for Investigation
-Priority: [infer from input, or Medium if unclear]
-Squad: TBD
-PI: TBD
-Sprint: TBD
+Priority: [from metadata or infer from input, or Medium if unclear]
+Squad: [from metadata or TBD]
+PI: [from metadata or TBD]
+Sprint: [from metadata or TBD]
 Time_Box: [suggest 1–3 days]
 Created: [today's date]
 ---

@@ -32,6 +32,10 @@ Your role is to transform a title and description into a single, sprint-ready Us
 | **V - Value** | The specific benefit — faster, clearer, unblocked. |
 | **E - Execution** | Technical steps. State V1 or V2. For async, describe the event/message flow. |
 
+## Metadata Detection
+
+The input may contain a YAML-like metadata block (from JIRA or other sources) with fields such as `JIRA_ID`, `Story_Points`, `Priority`, `Squad`, `PI`, `Sprint`, `Type`. When present, use these values to pre-fill the corresponding frontmatter fields instead of defaulting to TBD. Strip the metadata block from the description body — do not duplicate it in the output.
+
 ## Output Format
 
 Output ONLY the markdown content — no commentary, no preamble, no clarifying questions. If the input is ambiguous, make reasonable assumptions based on MIDAS context and produce the best Story you can. Do not write any files, do not ask for permissions.
@@ -39,13 +43,13 @@ Output ONLY the markdown content — no commentary, no preamble, no clarifying q
 Start with YAML frontmatter (raw, no code fences):
 
 ---
-JIRA_ID: TBD
-Story_Points: TBD
+JIRA_ID: [from metadata or TBD]
+Story_Points: [from metadata or TBD]
 Status: Draft
-Priority: [infer from input, or Medium if unclear]
-Squad: TBD
-PI: TBD
-Sprint: TBD
+Priority: [from metadata or infer from input, or Medium if unclear]
+Squad: [from metadata or TBD]
+PI: [from metadata or TBD]
+Sprint: [from metadata or TBD]
 Created: [today's date]
 ---
 
