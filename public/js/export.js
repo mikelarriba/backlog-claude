@@ -45,11 +45,19 @@ async function exportEpicToPdf(filename, docType) {
     // ── 4. Compute layout for visual plan ──────────────────────
     const childFilenames = new Set(children.map(c => c.filename));
     const blocks = [];
+    const parallel = [];
+    const seenParallel = new Set();
     for (const child of children) {
       const doc = allDocs.find(d => d.filename === child.filename);
       if (!doc) continue;
       for (const fn of (doc.blocks || [])) {
         if (childFilenames.has(fn)) blocks.push({ src: child.filename, tgt: fn });
+      }
+      for (const fn of (doc.parallel || [])) {
+        if (childFilenames.has(fn)) {
+          const key = [child.filename, fn].sort().join('|');
+          if (!seenParallel.has(key)) { seenParallel.add(key); parallel.push({ a: child.filename, b: fn }); }
+        }
       }
     }
 
@@ -59,13 +67,13 @@ async function exportEpicToPdf(filename, docType) {
       if (res.ok) layout = await res.json();
     } catch {}
     if (!Object.keys(layout).length && children.length) {
-      layout = computeAutoLayout(children, blocks, []);
+      layout = computeAutoLayout(children, blocks, parallel);
     }
 
     const totalSP = childData.reduce((sum, c) => sum + (c.storyPoints || 0), 0);
 
     // ── 5. Build full HTML page ────────────────────────────────
-    const html = _buildPrintPage(epicTitle, docType, totalSP, epicDoc, epicContent, childData, layout, blocks);
+    const html = _buildPrintPage(epicTitle, docType, totalSP, epicDoc, epicContent, childData, layout, blocks, parallel);
 
     // ── 6. Open in new tab → auto-print ────────────────────────
     const win = window.open('', '_blank');
@@ -84,12 +92,12 @@ async function exportEpicToPdf(filename, docType) {
 
 // ── Full HTML page builder ─────────────────────────────────────
 
-function _buildPrintPage(epicTitle, docType, totalSP, epicDoc, epicContent, childData, layout, blocks) {
+function _buildPrintPage(epicTitle, docType, totalSP, epicDoc, epicContent, childData, layout, blocks, parallel) {
   const status   = epicDoc?.status || 'Draft';
   const priority = epicDoc?.priority || '';
   const count    = childData.length;
   const descHtml = _renderDesc(epicContent);
-  const gridHtml = _renderGrid(childData, layout, blocks);
+  const gridHtml = _renderGrid(childData, layout, blocks, parallel || [], epicTitle, docType);
   const listHtml = _renderStoryCards(childData);
   const dateStr  = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const badgeColor = { epic: '#0066cc', feature: '#8b5cf6', story: '#2563eb', spike: '#b45309', bug: '#dc2626' };
@@ -144,14 +152,20 @@ function _buildPrintPage(epicTitle, docType, totalSP, epicDoc, epicContent, chil
   }
 
   /* ── Grid (visual plan) ───────────────────────────────── */
-  .grid-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .grid-wrap { position: relative; overflow: hidden; margin-bottom: 8px; }
+  .grid-epic-node {
+    position: absolute; text-align: center;
+    background: #fff; border: 2px solid; border-radius: 6px;
+    padding: 4px 8px; font-size: 9px; font-weight: 700;
+    box-sizing: border-box; line-height: 1.3;
+  }
   .grid-cell {
-    flex: 1; min-height: 56px; border: 1.5px dashed #cbd5e1;
-    border-radius: 8px; padding: 4px;
+    position: absolute; border: 1.5px dashed #cbd5e1;
+    border-radius: 7px; box-sizing: border-box;
   }
   .grid-card {
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
-    padding: 7px 9px; height: 100%;
+    position: absolute; background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 6px 8px; box-sizing: border-box; overflow: hidden;
   }
   .grid-card-type {
     display: inline-block; padding: 1px 5px; border-radius: 3px;
@@ -160,7 +174,10 @@ function _buildPrintPage(epicTitle, docType, totalSP, epicDoc, epicContent, chil
   }
   .grid-card-title { font-size: 9px; font-weight: 600; line-height: 1.35; }
   .grid-card-sp { font-size: 8px; color: #64748b; margin-top: 3px; }
-  .grid-arrow { text-align: center; color: #ef4444; font-size: 11px; font-weight: 700; padding: 2px 0; }
+  .grid-svg { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+  .pdf-edge-label { font-size: 7px; fill: #94a3b8; font-family: sans-serif; }
+  .pdf-edge-label-blocks { fill: #ef4444; font-weight: 700; }
+  .pdf-edge-label-parallel { fill: #3b82f6; font-weight: 700; }
 
   /* ── Description ──────────────────────────────────────── */
   .desc { font-size: 11px; line-height: 1.65; }
@@ -246,53 +263,149 @@ function _renderDesc(epicContent) {
   return `<div class="sec-title">Description</div><div class="desc">${marked.parse(stripped)}</div>`;
 }
 
-function _renderGrid(childData, layout, blocks) {
+function _renderGrid(childData, layout, blocks, parallel, epicTitle, docType) {
   if (!childData.length) return '';
 
-  const maxCol = Math.max(0, ...Object.values(layout).map(p => p.col));
-  const maxRow = Math.max(0, ...Object.values(layout).map(p => p.row));
-  const cols = maxCol + 1;
-  const rows = maxRow + 1;
+  // ── Dimensions (scaled for print page ~700px wide) ────────────
+  const CELL_W  = 160;
+  const CELL_H  = 72;
+  const GUTTER_X = 18;
+  const GUTTER_Y = 28;
+  const TOP_OFFSET = 60; // space for epic title node
 
-  const cellMap = {};
+  const positions = {};
   for (const child of childData) {
-    const pos = layout[child.filename] || { col: 0, row: 0 };
-    cellMap[`${pos.col},${pos.row}`] = child;
+    positions[child.filename] = layout[child.filename] || { col: 0, row: 0 };
+  }
+
+  const usedCols = [...new Set(Object.values(positions).map(p => p.col))].sort((a, b) => a - b);
+  const usedRows = [...new Set(Object.values(positions).map(p => p.row))].sort((a, b) => a - b);
+  const colRemap = new Map(usedCols.map((c, i) => [c, i]));
+  const rowRemap = new Map(usedRows.map((r, i) => [r, i]));
+  for (const fn of Object.keys(positions)) {
+    positions[fn] = {
+      col: colRemap.get(positions[fn].col) ?? 0,
+      row: rowRemap.get(positions[fn].row) ?? 0,
+    };
+  }
+
+  const cols = usedCols.length || 1;
+  const rows = usedRows.length || 1;
+
+  const totalW = GUTTER_X + cols * (CELL_W + GUTTER_X);
+  const totalH = TOP_OFFSET + rows * (CELL_H + GUTTER_Y) + GUTTER_Y;
+
+  const cellAt = (col, row) => ({
+    x: GUTTER_X + col * (CELL_W + GUTTER_X),
+    y: TOP_OFFSET + row * (CELL_H + GUTTER_Y),
+  });
+
+  // card centres for arrows
+  const cardPos = {};
+  for (const child of childData) {
+    const { col, row } = positions[child.filename];
+    const { x, y } = cellAt(col, row);
+    cardPos[child.filename] = { cx: x + CELL_W / 2, cy: y + CELL_H / 2, x, y };
   }
 
   const badgeColor = { epic: '#0066cc', feature: '#8b5cf6', story: '#2563eb', spike: '#b45309', bug: '#dc2626' };
+  const epicColor  = badgeColor[docType] || '#666';
 
-  let html = '<div class="sec-title">Visual Plan</div>';
-  for (let row = 0; row < rows; row++) {
-    if (row > 0) {
-      let hasArrow = false;
-      for (const b of blocks) {
-        const sp = layout[b.src], tp = layout[b.tgt];
-        if (sp && tp && sp.row < row && tp.row === row) { hasArrow = true; break; }
-      }
-      if (hasArrow) html += '<div class="grid-arrow">&#9660; BLOCKS</div>';
-    }
+  // ── SVG: lane dividers ────────────────────────────────────────
+  let svgContent = `<defs>
+    <marker id="pdf-arr-sec" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="pdf-arr-blk" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#ef4444"/>
+    </marker>
+  </defs>`;
 
-    html += '<div class="grid-row">';
-    for (let col = 0; col < cols; col++) {
-      const child = cellMap[`${col},${row}`];
-      if (child) {
-        const bc = badgeColor[child.docType] || '#666';
-        const sp = child.storyPoints ? `${child.storyPoints} SP` : '';
-        html += `<div class="grid-cell"><div class="grid-card">
-          <div class="grid-card-title">
-            <span class="grid-card-type" style="background:${bc}">${TYPE_LABEL[child.docType] || child.docType}</span>
-            ${_esc(child.title)}
-          </div>
-          ${sp ? `<div class="grid-card-sp">${sp}</div>` : ''}
-        </div></div>`;
-      } else {
-        html += '<div class="grid-cell"></div>';
-      }
-    }
-    html += '</div>';
+  for (let col = 1; col < cols; col++) {
+    const x = GUTTER_X + col * (CELL_W + GUTTER_X) - GUTTER_X / 2;
+    svgContent += `<line x1="${x}" y1="${TOP_OFFSET}" x2="${x}" y2="${totalH - GUTTER_Y}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 3"/>`;
   }
-  return html;
+
+  // ── SVG: SEC arrows (same column, consecutive rows, no explicit BLOCKS) ──
+  const byCols = {};
+  for (const [fn, pos] of Object.entries(positions)) {
+    if (!byCols[pos.col]) byCols[pos.col] = [];
+    byCols[pos.col].push({ fn, row: pos.row });
+  }
+  for (const colItems of Object.values(byCols)) {
+    colItems.sort((a, b) => a.row - b.row);
+    for (let i = 0; i < colItems.length - 1; i++) {
+      const hasExplicitBlock = blocks.some(b =>
+        (b.src === colItems[i].fn && b.tgt === colItems[i + 1].fn) ||
+        (b.src === colItems[i + 1].fn && b.tgt === colItems[i].fn)
+      );
+      if (hasExplicitBlock) continue;
+      const s = cardPos[colItems[i].fn], t = cardPos[colItems[i + 1].fn];
+      if (!s || !t) continue;
+      const x1 = s.cx, y1 = s.y + CELL_H, x2 = t.cx, y2 = t.y;
+      svgContent += `<path d="M${x1},${y1} C${x1},${y1 + 10} ${x2},${y2 - 10} ${x2},${y2}" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#pdf-arr-sec)"/>`;
+      svgContent += `<text x="${x1 + 4}" y="${y1 + (y2 - y1) / 2}" class="pdf-edge-label">SEC</text>`;
+    }
+  }
+
+  // ── SVG: BLOCKS arrows (red) ──────────────────────────────────
+  for (const { src, tgt } of blocks) {
+    const s = cardPos[src], t = cardPos[tgt];
+    if (!s || !t) continue;
+    const x1 = s.cx, y1 = s.y + CELL_H, x2 = t.cx, y2 = t.y;
+    svgContent += `<path d="M${x1},${y1} C${x1},${y1 + 12} ${x2},${y2 - 12} ${x2},${y2}" stroke="#ef4444" stroke-width="2" fill="none" marker-end="url(#pdf-arr-blk)"/>`;
+    svgContent += `<text x="${(x1 + x2) / 2 + 4}" y="${y1 + (y2 - y1) / 2}" class="pdf-edge-label pdf-edge-label-blocks">BLOCKS</text>`;
+  }
+
+  // ── SVG: PARALLEL brackets (blue dashed) ─────────────────────
+  for (const { a, b } of (parallel || [])) {
+    const pa = cardPos[a], pb = cardPos[b];
+    if (!pa || !pb) continue;
+    const x1 = pa.x, x2 = pb.x + CELL_W;
+    const y  = Math.min(pa.y, pb.y) - 10;
+    const d  = `M${x1},${pa.y - 3} V${y} H${x2} V${pb.y - 3}`;
+    svgContent += `<path d="${d}" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5 3" fill="none"/>`;
+    svgContent += `<text x="${(x1 + x2) / 2}" y="${y - 3}" text-anchor="middle" class="pdf-edge-label pdf-edge-label-parallel">PARALLEL</text>`;
+  }
+
+  // ── Grid cells (dashed backgrounds) ──────────────────────────
+  let cellsHtml = '';
+  for (const child of childData) {
+    const { x, y } = cellAt(positions[child.filename].col, positions[child.filename].row);
+    cellsHtml += `<div class="grid-cell" style="left:${x}px;top:${y}px;width:${CELL_W}px;height:${CELL_H}px;"></div>`;
+  }
+
+  // ── Cards ─────────────────────────────────────────────────────
+  let cardsHtml = '';
+  const INSET = 3;
+  for (const child of childData) {
+    const { x, y } = cellAt(positions[child.filename].col, positions[child.filename].row);
+    const bc = badgeColor[child.docType] || '#666';
+    const sp = child.storyPoints ? `${child.storyPoints} SP` : '';
+    cardsHtml += `<div class="grid-card" style="left:${x + INSET}px;top:${y + INSET}px;width:${CELL_W - INSET * 2}px;height:${CELL_H - INSET * 2}px;">
+      <div class="grid-card-title">
+        <span class="grid-card-type" style="background:${bc}">${_esc(TYPE_LABEL[child.docType] || child.docType)}</span>
+        ${_esc(child.title)}
+      </div>
+      ${sp ? `<div class="grid-card-sp">${sp}</div>` : ''}
+    </div>`;
+  }
+
+  // ── Epic title node (top centre) ─────────────────────────────
+  const nodeW = Math.min(200, totalW - 20);
+  const nodeX = (totalW - nodeW) / 2;
+  const epicNodeHtml = `<div class="grid-epic-node" style="left:${nodeX}px;top:8px;width:${nodeW}px;border-color:${epicColor};color:${epicColor};">
+    <span style="font-size:7px;text-transform:uppercase;letter-spacing:0.05em;">${_esc(TYPE_LABEL[docType] || docType)}</span>
+    <div>${_esc(epicTitle)}</div>
+  </div>`;
+
+  return `<div class="sec-title">Visual Plan</div>
+<div class="grid-wrap" style="width:${totalW}px;height:${totalH}px;">
+  <svg class="grid-svg" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">${svgContent}</svg>
+  ${epicNodeHtml}
+  ${cellsHtml}
+  ${cardsHtml}
+</div>`;
 }
 
 function _renderStoryCards(childData) {
