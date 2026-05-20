@@ -15,7 +15,7 @@ export default function docsAiRoutes({ TYPE_CONFIG, INBOX_DIR, broadcast, loadCo
   // ── POST /api/generate ─────────────────────────────────────────────────────
   router.post('/api/generate', async (req, res) => {
     try {
-      const { title: rawTitle, idea: rawIdea, priority = 'Medium', type = 'epic', parentFeature, parentEpic, fixVersion, team, workCategory } = req.body;
+      const { title: rawTitle, idea: rawIdea, priority = 'Medium', type = 'epic', parentFeature, parentEpic, fixVersion, team, workCategory, pi } = req.body;
       if (!rawIdea?.trim()) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'Idea is required');
       }
@@ -81,6 +81,9 @@ ${idea.trim()}
         }
         if (workCategory && workCategory !== 'TBD') {
           finalContent = setFrontmatterField(finalContent, 'Work_Category', workCategory);
+        }
+        if (pi && pi !== 'TBD') {
+          finalContent = setFrontmatterField(finalContent, 'PI', pi);
         }
         fs.writeFileSync(path.join(destDir, filename), finalContent);
         docIndex.invalidate(normalizedType, filename);

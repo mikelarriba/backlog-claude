@@ -1024,6 +1024,9 @@ async function executeRpCreate(type) {
     const parentDoc = allDocs.find(d => d.filename === _canvasEpicFilename);
     const genBody = { title, idea, type, priority: 'Medium' };
     if (parentDoc?.fixVersion) genBody.fixVersion = parentDoc.fixVersion;
+    if (parentDoc?.pi && parentDoc.pi !== 'TBD') genBody.pi = parentDoc.pi;
+    if (_canvasDocType === 'epic') genBody.parentEpic = _canvasEpicFilename;
+    if (_canvasDocType === 'feature') genBody.parentFeature = _canvasEpicFilename;
     const genRes = await fetch('/api/generate', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },

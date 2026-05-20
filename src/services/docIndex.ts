@@ -39,6 +39,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     const blocks    = blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
     const blockedBy = blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
     const parallel  = parallelRaw  ? parallelRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
+    const piRaw         = extractFrontmatterField(content, 'PI');
     const teamRaw       = extractFrontmatterField(content, 'Team');
     const workCatRaw    = extractFrontmatterField(content, 'Work_Category');
 
@@ -68,6 +69,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
       blocks,
       blockedBy,
       parallel,
+      pi:           piRaw      && piRaw      !== 'TBD' ? piRaw      : null,
       team:         teamRaw    && teamRaw    !== 'TBD' ? teamRaw    : null,
       workCategory: workCatRaw && workCatRaw !== 'TBD' ? workCatRaw : null,
       hasDescription: body.length > 30,
