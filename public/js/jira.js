@@ -180,10 +180,11 @@ function finishJiraProgress(summaryText, hasError) {
   if (labelEl) labelEl.textContent = hasError ? 'Finished with errors' : 'All done ✅';
   const summary = document.getElementById('sync-progress-summary');
   if (summary) {
+    summary.style.whiteSpace = 'pre-wrap';
     summary.textContent = summaryText;
     summary.className = 'sync-progress-summary' + (hasError ? ' error' : ' success');
   }
-  setTimeout(_resetSyncProgressModal, 2500);
+  setTimeout(_resetSyncProgressModal, hasError ? 5000 : 2500);
 }
 
 function _resetSyncProgressModal() {
@@ -309,6 +310,7 @@ async function updateFromJira(jiraKeyOverride) {
   const selectedDeletes  = selected.filter(s => s.action === 'delete');
   const totalSteps = (parentSelected ? 1 : 0) + (selectedChildren.length > 0 ? 1 : 0) + (selectedDeletes.length > 0 ? 1 : 0);
   let pullErrors = 0;
+  let pullErrorMsg = '';
   let updatedKey = null;
   let childrenSynced = 0;
   let childrenDeleted = 0;
@@ -356,13 +358,15 @@ async function updateFromJira(jiraKeyOverride) {
     }
   } catch (e) {
     pullErrors++;
+    pullErrorMsg = e.message;
     console.warn('Pull from JIRA failed:', e.message);
   } finally {
     const pullParts = [];
     if (updatedKey) pullParts.push(`Updated ${updatedKey}`);
     if (childrenSynced) pullParts.push(`${childrenSynced} child(ren) synced`);
     if (childrenDeleted) pullParts.push(`${childrenDeleted} closed item(s) deleted`);
-    finishJiraProgress(pullParts.join(', ') || 'No changes applied', pullErrors > 0);
+    const errorDetail = pullErrorMsg ? '\n' + pullErrorMsg : '';
+    finishJiraProgress((pullParts.join(', ') || 'No changes applied') + errorDetail, pullErrors > 0);
     updateJiraPushBtn();
   }
 }
@@ -441,7 +445,7 @@ async function pushToJira() {
 
   // 4. Execute push for each selected item with progress tracking
   const results = [];
-  let pushErrors = 0;
+  const errorMessages = [];
   for (let idx = 0; idx < selected.length; idx++) {
     const item = selected[idx];
     const fn = item.filename;
@@ -458,7 +462,7 @@ async function pushToJira() {
       }
     } catch (e) {
       console.warn(`Failed to push ${fn}:`, e.message);
-      pushErrors++;
+      errorMessages.push(`${jiraKey}: ${e.message}`);
     }
   }
 
@@ -467,8 +471,11 @@ async function pushToJira() {
   const pushParts = [];
   if (created) pushParts.push(`${created} created`);
   if (updated) pushParts.push(`${updated} synced`);
+  if (errorMessages.length) pushParts.push(`${errorMessages.length} failed`);
   if (currentFilename) openDoc(currentFilename, currentDocType);
-  finishJiraProgress(pushParts.length ? `Pushed ${pushParts.join(', ')}` : 'Nothing pushed', pushErrors > 0);
+  const summaryText = pushParts.length ? `Pushed: ${pushParts.join(', ')}` : 'Nothing pushed';
+  const errorDetail = errorMessages.length ? '\n' + errorMessages.join('\n') : '';
+  finishJiraProgress(summaryText + errorDetail, errorMessages.length > 0);
   updateJiraPushBtn();
 }
 
@@ -518,7 +525,7 @@ async function checkAllJira() {
   // Execute sync-status for each selected item with progress tracking
   btn.disabled = true;
   let synced = 0;
-  let syncErrors = 0;
+  const syncErrorMsgs = [];
 
   for (let i = 0; i < selected.length; i++) {
     const item = selected[i];
@@ -531,14 +538,15 @@ async function checkAllJira() {
       );
       synced++;
     } catch (e) {
-      syncErrors++;
+      syncErrorMsgs.push(`${jiraKey}: ${e.message}`);
       console.warn(`Failed to sync ${item.filename}:`, e.message);
     }
   }
 
+  const errorDetail = syncErrorMsgs.length ? '\n' + syncErrorMsgs.join('\n') : '';
   finishJiraProgress(
-    `Synced ${synced} issue${synced !== 1 ? 's' : ''}` + (syncErrors ? `, ${syncErrors} error(s)` : ''),
-    syncErrors > 0,
+    `Synced ${synced} issue${synced !== 1 ? 's' : ''}` + (syncErrorMsgs.length ? `, ${syncErrorMsgs.length} error(s)` : '') + errorDetail,
+    syncErrorMsgs.length > 0,
   );
 
   if (synced > 0) {

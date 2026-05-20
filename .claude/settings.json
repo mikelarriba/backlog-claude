@@ -39,7 +39,11 @@
       "Bash(git -C /Users/srj9o5d/Development/backlog-claude push -u origin visual-refinement-feature-upgrade)",
       "Bash(git -C /Users/srj9o5d/Development/backlog-claude checkout main)",
       "Bash(git -C /Users/srj9o5d/Development/backlog-claude pull)",
-      "Bash(node --test tests/unit/transforms.test.js)"
+      "Bash(node --test tests/unit/transforms.test.js)",
+      "Bash(node --check /Users/srj9o5d/Development/backlog-claude/src/routes/docs-batch.js)",
+      "Bash(node --check /Users/srj9o5d/Development/backlog-claude/public/js/refine.js)",
+      "Bash(node --check /Users/srj9o5d/Development/backlog-claude/public/js/jira.js)",
+      "Bash(node --check /Users/srj9o5d/Development/backlog-claude/src/utils/transforms.ts)"
     ]
   }
 }

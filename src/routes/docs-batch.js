@@ -323,6 +323,51 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
     }
   });
 
+  // ── POST /api/docs/rerank-canvas ── assign ranks from canvas grid positions ─
+  router.post('/api/docs/rerank-canvas', async (req, res) => {
+    try {
+      const { items } = req.body;
+      if (!Array.isArray(items) || !items.length) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'items array is required and must not be empty');
+      }
+
+      const updated = [];
+      const skipped = [];
+
+      for (const item of items) {
+        try {
+          if (!item.filename || !item.docType || typeof item.rank !== 'number') {
+            skipped.push({ filename: item.filename || '?', reason: 'missing filename, docType, or rank' });
+            continue;
+          }
+          const docType  = assertDocType(item.docType, TYPE_CONFIG);
+          const filename = assertFilename(item.filename);
+          const cfg      = TYPE_CONFIG[docType];
+          const filepath = path.join(cfg.dir(), filename);
+          if (!fs.existsSync(filepath)) { skipped.push({ filename, reason: 'not found' }); continue; }
+
+          const content = fs.readFileSync(filepath, 'utf-8');
+          const patched = setFrontmatterField(content, 'Rank', String(item.rank));
+          fs.writeFileSync(filepath, patched);
+          updated.push(filename);
+        } catch (entryErr) {
+          skipped.push({ filename: item.filename, reason: entryErr.message || 'invalid' });
+        }
+      }
+
+      if (updated.length) {
+        await docIndex.invalidateAll();
+        broadcast({ type: 'title_updated' });
+      }
+
+      logInfo('POST /api/docs/rerank-canvas', `Ranked ${updated.length} item(s) from canvas, skipped ${skipped.length}`);
+      res.json({ success: true, updated: updated.length, skipped });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      sendError(res, ['VALIDATION_ERROR'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
   // ── POST /api/docs/apply-distribution ── batch assign sprints ──────────────
   router.post('/api/docs/apply-distribution', async (req, res) => {
     try {

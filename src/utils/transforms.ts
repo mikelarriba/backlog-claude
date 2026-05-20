@@ -18,9 +18,10 @@ export const WORKFLOW_STATUSES: string[] = ['Draft', 'Created in JIRA', 'Archive
 
 export function extractTitle(content: string): string | null {
   // Template placeholder headings ("## Epic Title", "## Story Title", etc.) -> grab the next non-empty line
+  // Check ## before # — documents use ## for the title; # may appear inside JIRA descriptions
   const m = content.match(/^## \w[\w ]* Title\s*\n+(.+)/m)
-    || content.match(/^# (.+)/m)
-    || content.match(/^## (.+)/m);
+    || content.match(/^## (.+)/m)
+    || content.match(/^# (.+)/m);
   return m ? m[1].trim() : null;
 }
 

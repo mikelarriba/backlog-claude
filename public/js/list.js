@@ -641,9 +641,8 @@ function handleItemContextMenu(e, filename, docType) {
 
   const key = itemKey(filename, docType);
 
-  // If right-clicking an unselected item, select only that item
+  // If right-clicking an unselected item, add it to the current selection
   if (!selectedItems.has(key)) {
-    clearSelection();
     selectedItems.add(key);
     _lastClickedItem = { filename, docType };
     syncSelectionUI();
