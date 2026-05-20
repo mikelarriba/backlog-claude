@@ -1,4 +1,5 @@
 ---
+Fix_Version: Digi PI2026.3
 JIRA_ID: TBD
 Story_Points: TBD
 Status: Draft

@@ -131,6 +131,10 @@ async function buildCanvasGraph(filename, docType) {
     _canvasLayout = savedPositions;
   } else {
     _canvasLayout = computeAutoLayout(children, _canvasBlocks, _canvasParallel);
+    // Save auto-layout and sync ranks so dependency order propagates to list view
+    if (Object.keys(_canvasLayout).length > 0) {
+      saveCanvasLayout(filename);
+    }
   }
 
   renderCanvas(filename, docType);
@@ -682,6 +686,33 @@ async function saveCanvasLayout(epicFilename) {
       body:    JSON.stringify({ positions: _canvasLayout }),
     });
   } catch { /* silent */ }
+  await syncCanvasRanks();
+}
+
+// ── Sync canvas grid order → Rank frontmatter field ──────────
+// Order: col-first (left→right), then row within each col (top→bottom)
+async function syncCanvasRanks() {
+  if (!_canvasStories.length) return;
+  const entries = _canvasStories
+    .filter(c => _canvasLayout[c.filename])
+    .map(c => ({
+      filename: c.filename,
+      docType:  c.docType || c.type || 'story',
+      col:      _canvasLayout[c.filename].col,
+      row:      _canvasLayout[c.filename].row,
+    }))
+    .sort((a, b) => a.col !== b.col ? a.col - b.col : a.row - b.row);
+
+  const items = entries.map((e, i) => ({
+    filename: e.filename,
+    docType:  e.docType,
+    rank:     i + 1,
+  }));
+
+  if (!items.length) return;
+  try {
+    await postJSON('/api/docs/rerank-canvas', { items });
+  } catch { /* silent — rank sync is best-effort */ }
 }
 
 // ── Manage Links mode ──────────────────────────────────────────
