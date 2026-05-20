@@ -232,10 +232,15 @@
 .sync-preview-dialog {
   width: 800px;
   max-width: 94vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .sync-preview-list {
-  max-height: 60vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -330,11 +335,6 @@
 .jira-select-meta { display: flex; gap: 5px; flex-wrap: wrap; }
 
 /* ── Sync preview confirmation modal ─────────────────────────── */
-.sync-preview-dialog {
-  width: 800px;
-  max-width: 94vw;
-}
-
 .sync-preview-header {
   display: flex;
   align-items: center;
@@ -359,7 +359,8 @@
 }
 
 .sync-preview-list {
-  max-height: 60vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
