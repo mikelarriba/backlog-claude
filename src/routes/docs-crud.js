@@ -39,7 +39,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const { status, title, fixVersion, storyPoints, sprint, rank, team, workCategory, priority } = req.body;
+      const { status, title, fixVersion, storyPoints, sprint, rank, team, workCategory, priority, commentsSection } = req.body;
       let content = fs.readFileSync(filepath, 'utf-8');
 
       if (status !== undefined) {
@@ -103,6 +103,13 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
         } else {
           content = content.replace(/^(#{1,2}\s+).+$/m, `$1${trimmed}`);
         }
+      }
+
+      if (commentsSection !== undefined) {
+        // Strip existing ## Comments section, then append the new one
+        const commentIdx = content.search(/\n## Comments\b/);
+        const withoutComments = commentIdx !== -1 ? content.slice(0, commentIdx) : content;
+        content = commentsSection ? withoutComments.trimEnd() + '\n\n' + commentsSection : withoutComments;
       }
 
       fs.writeFileSync(filepath, content);
