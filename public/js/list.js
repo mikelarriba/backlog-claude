@@ -673,6 +673,10 @@ function showContextMenu(x, y) {
     </button>`;
   }).join('');
 
+  const splitOption = count === 1 ? `
+    <div class="ctx-separator"></div>
+    <button class="ctx-item" onclick="contextSplitItem()">✂ Split Issue</button>` : '';
+
   menu.innerHTML = `
     <div class="ctx-header">${count} item${count > 1 ? 's' : ''} selected</div>
     <div class="ctx-separator"></div>
@@ -680,6 +684,7 @@ function showContextMenu(x, y) {
       <button class="ctx-item ctx-has-sub">Move to PI →</button>
       <div class="ctx-submenu">${piItems}</div>
     </div>
+    ${splitOption}
     <div class="ctx-separator"></div>
     <button class="ctx-item ctx-danger" onclick="contextDeleteSelected()">Delete</button>
   `;
@@ -798,4 +803,107 @@ function getSelectedDocs() {
     if (doc) docs.push(doc);
   }
   return docs;
+}
+
+// ── Split Issue (list view) ───────────────────────────────────
+function contextSplitItem() {
+  closeContextMenu();
+  const docs = getSelectedDocs();
+  if (docs.length !== 1) return;
+  const doc = docs[0];
+
+  const modal = document.getElementById('issue-split-modal');
+  if (!modal) return;
+
+  modal.dataset.filename = doc.filename;
+  modal.dataset.doctype  = doc.docType;
+  modal.querySelector('#issue-split-badge').className = `type-badge ${doc.docType}`;
+  modal.querySelector('#issue-split-badge').textContent = TYPE_LABEL[doc.docType] || doc.docType;
+  modal.querySelector('#issue-split-title').textContent = doc.title || doc.filename;
+  modal.querySelector('#issue-split-idea').value = '';
+  modal.querySelector('#issue-split-status').textContent = '';
+  modal.querySelector('#issue-split-generate-btn').disabled = false;
+  modal.querySelector('#issue-split-generate-btn').textContent = 'Generate';
+  modal.classList.remove('hidden');
+  modal.querySelector('#issue-split-idea').focus();
+}
+
+function closeSplitModal() {
+  document.getElementById('issue-split-modal')?.classList.add('hidden');
+}
+
+async function executeSplitIssue() {
+  const modal = document.getElementById('issue-split-modal');
+  if (!modal) return;
+
+  const filename = modal.dataset.filename;
+  const docType  = modal.dataset.doctype;
+  const idea     = modal.querySelector('#issue-split-idea').value.trim();
+  if (!idea) { modal.querySelector('#issue-split-idea').focus(); return; }
+
+  const btn    = modal.querySelector('#issue-split-generate-btn');
+  const status = modal.querySelector('#issue-split-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating…';
+  status.textContent = '⚙ Fetching original…';
+
+  try {
+    const origRes = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
+    if (!origRes.ok) throw new Error('Could not load original issue');
+    const { content: origContent } = await origRes.json();
+    const origDoc = allDocs.find(d => d.filename === filename && d.docType === docType);
+
+    status.textContent = '⚙ Generating new issue…';
+
+    const genBody = {
+      idea: `${idea}\n\n---\nContext from original issue:\n${origContent}`,
+      type: docType,
+      priority: origDoc?.priority || 'Medium',
+    };
+    if (origDoc?.fixVersion) genBody.fixVersion = origDoc.fixVersion;
+    if (origDoc?.pi && origDoc.pi !== 'TBD') genBody.pi = origDoc.pi;
+    if (origDoc?.parentFilename) {
+      const parentDoc = allDocs.find(d => d.filename === origDoc.parentFilename);
+      if (parentDoc?.docType === 'epic')    genBody.parentEpic    = origDoc.parentFilename;
+      if (parentDoc?.docType === 'feature') genBody.parentFeature = origDoc.parentFilename;
+    }
+
+    const genRes = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(genBody),
+    });
+    if (!genRes.ok) throw new Error((await genRes.json()).error?.message || 'Generate failed');
+    const { filename: newFilename } = await genRes.json();
+
+    status.textContent = `✓ Created ${newFilename}`;
+
+    // Link to same parent if original has one
+    if (origDoc?.parentFilename) {
+      const parentDoc = allDocs.find(d => d.filename === origDoc.parentFilename);
+      if (parentDoc) {
+        await fetch('/api/link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceType: docType,
+            sourceFilename: newFilename,
+            targetType: parentDoc.docType,
+            targetFilename: origDoc.parentFilename,
+          }),
+        });
+      }
+    }
+
+    showJiraToast('ok', `Created ${newFilename}`);
+    await loadDocs();
+    closeSplitModal();
+
+    // Open new issue in detail view
+    setTimeout(() => openDoc(newFilename, docType), 100);
+  } catch (e) {
+    status.textContent = `❌ ${e.message}`;
+    btn.disabled = false;
+    btn.textContent = 'Generate';
+  }
 }
