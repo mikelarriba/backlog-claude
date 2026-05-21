@@ -757,5 +757,30 @@
 <script src="/public/js/main.js"></script>
 
 <svg id="dep-connector-svg" aria-hidden="true"></svg>
+
+<!-- Split Issue modal (list view) -->
+<div class="dialog-overlay hidden" id="issue-split-modal" onclick="if(event.target===this)closeSplitModal()">
+  <div class="dialog" style="max-width:480px">
+    <div class="split-dialog-header">
+      <h3>✂ Split Issue</h3>
+      <button class="btn-ghost btn-xs" onclick="closeSplitModal()">&times;</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <span class="type-badge" id="issue-split-badge"></span>
+      <span id="issue-split-title" style="font-size:0.9rem;font-weight:600;"></span>
+    </div>
+    <div class="split-dialog-body">
+      <label class="rp-label" style="margin-bottom:6px;display:block">Describe what to extract into the new issue…</label>
+      <textarea class="rp-textarea" id="issue-split-idea" rows="4"
+        placeholder="What should the new issue cover?"
+        style="width:100%;box-sizing:border-box;"></textarea>
+    </div>
+    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;min-height:20px" id="issue-split-status"></div>
+    <div class="dialog-actions" style="margin-top:12px">
+      <button class="btn-secondary" onclick="closeSplitModal()">Cancel</button>
+      <button class="btn-primary" id="issue-split-generate-btn" onclick="executeSplitIssue()">Generate</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
