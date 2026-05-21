@@ -261,7 +261,7 @@ ${listHtml}
 function _esc(s) { return escHtml(s); }
 
 function _renderDesc(epicContent) {
-  const stripped = stripFrontmatter(epicContent);
+  const stripped = stripFrontmatter(epicContent).replace(/\n## Comments\b[\s\S]*$/, '');
   if (!stripped.trim()) return '';
   return `<div class="sec-title">Description</div><div class="desc">${marked.parse(stripped)}</div>`;
 }
@@ -422,7 +422,7 @@ function _renderStoryCards(childData) {
   for (const child of childData) {
     const bc = badgeColor[child.docType] || '#666';
     const sp = child.storyPoints ? `${child.storyPoints} SP` : '';
-    const stripped = stripFrontmatter(child.content);
+    const stripped = stripFrontmatter(child.content).replace(/\n## Comments\b[\s\S]*$/, '');
     const body = stripped.trim() ? marked.parse(stripped) : '<em style="color:#94a3b8">No description</em>';
 
     const jiraLink = child.jiraId

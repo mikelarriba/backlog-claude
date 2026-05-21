@@ -74,7 +74,7 @@ export default function jiraPushRoutes({
   async function pushSingleIssue({ filename, filepath, content, type }) {
     const jiraId      = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
     const summary     = extractJiraSummary(content);
-    const _bodyOnly   = stripFrontmatter(content).replace(/^#{1,2}\s+.+\n?/, '').trim();
+    const _bodyOnly   = stripFrontmatter(content).replace(/^#{1,2}\s+.+\n?/, '').replace(/\n## Comments\b[\s\S]*$/, '').trim();
     const description = markdownToJira(_bodyOnly);
     const jiraType    = LOCAL_TO_JIRA_TYPE[type] || 'Story';
     const localFixVersion  = extractFrontmatterField(content, 'Fix_Version');

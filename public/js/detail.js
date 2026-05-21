@@ -89,7 +89,7 @@ function renderDocContent(doc, content) {
   document.getElementById('detail-filename').textContent = doc?.filename || currentFilename;
 
   const titleInput = document.getElementById('detail-title-input');
-  const stripped = stripFrontmatter(content);
+  const stripped = stripFrontmatter(content).replace(/\n## Comments\b[\s\S]*$/, '');
   const tplMatch = stripped.match(/^## \w[\w ]* Title\s*\n+(.+)/m);
   const h2Match  = stripped.match(/^##\s+(.+)$/m);
   const docTitle = doc?.title || (tplMatch ? tplMatch[1].trim() : h2Match ? h2Match[1].trim() : '');
@@ -100,6 +100,132 @@ function renderDocContent(doc, content) {
   // JIRA Status badge (read-only, pulled from JIRA)
   const jiraStatusMatch = content.match(/^JIRA_Status:\s*(.+)$/m);
   updateJiraStatus(jiraStatusMatch ? jiraStatusMatch[1].trim() : null);
+
+  // Render internal comments section
+  _renderComments(_parseComments(content), doc?.filename || currentFilename, doc?.docType || currentDocType);
+}
+
+// ── Internal comments ─────────────────────────────────────────
+function _parseComments(content) {
+  const section = (content.match(/\n## Comments\b([\s\S]*)$/) || [])[1] || '';
+  const comments = [];
+  const re = /<!-- comment:([a-z0-9-]+) -->\n([\s\S]*?)<!-- \/comment:\1 -->/g;
+  let m;
+  while ((m = re.exec(section)) !== null) {
+    comments.push({ id: m[1], text: m[2].trim() });
+  }
+  return comments;
+}
+
+function _serializeComments(comments) {
+  if (!comments.length) return '';
+  const blocks = comments.map(c =>
+    `<!-- comment:${c.id} -->\n${c.text}\n<!-- /comment:${c.id} -->`
+  ).join('\n\n');
+  return `## Comments\n\n${blocks}`;
+}
+
+function _renderComments(comments, filename, docType) {
+  const section = document.getElementById('comments-section');
+  if (!section) return;
+
+  const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const rows = comments.map(c => `
+    <div class="comment-item" data-id="${escHtml(c.id)}">
+      <div class="comment-body" id="comment-body-${escHtml(c.id)}">${escHtml(c.text)}</div>
+      <div class="comment-edit-wrap hidden" id="comment-edit-${escHtml(c.id)}">
+        <textarea class="comment-textarea" id="comment-edit-ta-${escHtml(c.id)}">${escHtml(c.text)}</textarea>
+        <div class="comment-btn-row">
+          <button class="btn-xs green" onclick="saveCommentEdit('${escHtml(c.id)}','${escHtml(filename)}','${escHtml(docType)}')">Save</button>
+          <button class="btn-xs" onclick="cancelCommentEdit('${escHtml(c.id)}')">Cancel</button>
+        </div>
+      </div>
+      <div class="comment-actions">
+        <button class="btn-ghost btn-xs" onclick="startCommentEdit('${escHtml(c.id)}')">Edit</button>
+        <button class="btn-ghost btn-xs danger-text" onclick="deleteDocComment('${escHtml(c.id)}','${escHtml(filename)}','${escHtml(docType)}')">Delete</button>
+      </div>
+    </div>`).join('');
+
+  section.innerHTML = `
+    <div class="comments-header">💬 Comments</div>
+    <div id="comment-list">${rows || '<div class="comment-empty">No comments yet.</div>'}</div>
+    <div class="comment-add">
+      <textarea class="comment-textarea" id="new-comment-ta" placeholder="Add a comment…"></textarea>
+      <div class="comment-btn-row">
+        <button class="btn-xs green" onclick="addDocComment('${escHtml(filename)}','${escHtml(docType)}')">Save</button>
+      </div>
+    </div>`;
+  section.classList.remove('hidden');
+}
+
+async function addDocComment(filename, docType) {
+  const ta = document.getElementById('new-comment-ta');
+  const text = (ta?.value || '').trim();
+  if (!text) { ta?.focus(); return; }
+
+  const id = crypto.randomUUID().split('-')[0] + Date.now().toString(36);
+  const now = new Date().toLocaleString('sv-SE', { timeZone: 'UTC' }).slice(0, 16).replace('T', ' ');
+  const fullText = `**${now}** — Me\n${text}`;
+
+  try {
+    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
+    if (!res.ok) throw new Error('Load failed');
+    const { content } = await res.json();
+    const existing = _parseComments(content);
+    existing.push({ id, text: fullText });
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`,
+      { commentsSection: _serializeComments(existing) });
+    ta.value = '';
+    _renderComments(existing, filename, docType);
+    showJiraToast('ok', 'Comment saved');
+  } catch (e) {
+    showJiraToast('error', `Failed to save comment: ${e.message}`);
+  }
+}
+
+function startCommentEdit(id) {
+  document.getElementById(`comment-body-${id}`)?.classList.add('hidden');
+  document.getElementById(`comment-edit-${id}`)?.classList.remove('hidden');
+  document.getElementById(`comment-edit-ta-${id}`)?.focus();
+}
+
+function cancelCommentEdit(id) {
+  document.getElementById(`comment-edit-${id}`)?.classList.add('hidden');
+  document.getElementById(`comment-body-${id}`)?.classList.remove('hidden');
+}
+
+async function saveCommentEdit(id, filename, docType) {
+  const ta = document.getElementById(`comment-edit-ta-${id}`);
+  const text = (ta?.value || '').trim();
+  if (!text) return;
+  try {
+    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
+    if (!res.ok) throw new Error('Load failed');
+    const { content } = await res.json();
+    const comments = _parseComments(content).map(c => c.id === id ? { ...c, text } : c);
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`,
+      { commentsSection: _serializeComments(comments) });
+    _renderComments(comments, filename, docType);
+    showJiraToast('ok', 'Comment updated');
+  } catch (e) {
+    showJiraToast('error', `Failed to update comment: ${e.message}`);
+  }
+}
+
+async function deleteDocComment(id, filename, docType) {
+  if (!confirm('Delete this comment?')) return;
+  try {
+    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
+    if (!res.ok) throw new Error('Load failed');
+    const { content } = await res.json();
+    const comments = _parseComments(content).filter(c => c.id !== id);
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`,
+      { commentsSection: _serializeComments(comments) });
+    _renderComments(comments, filename, docType);
+    showJiraToast('ok', 'Comment deleted');
+  } catch (e) {
+    showJiraToast('error', `Failed to delete comment: ${e.message}`);
+  }
 }
 
 // ── Story points helpers ───────────────────────────────────────
