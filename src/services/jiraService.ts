@@ -64,7 +64,8 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
       const safeText = text.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]').slice(0, 300);
       throw new Error(`JIRA ${method} ${urlPath} → ${res.status}: ${safeText}`);
     }
-    return res.json();
+    const text = await res.text();
+    return text ? JSON.parse(text) : undefined;
   }
 
   async function jiraPagedRequest(jql: string, fields: string, { maxResults = 100, maxTotal = 500 } = {}): Promise<any[]> {

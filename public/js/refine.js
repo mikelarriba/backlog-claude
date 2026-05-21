@@ -24,6 +24,29 @@ const GUTTER_X  = 60;
 const GUTTER_Y  = 36;
 const TOP_OFFSET = 80;
 
+// ── Card search / filter ──────────────────────────────────────
+function onCanvasSearch(query) {
+  const cards = document.querySelectorAll('#refine-canvas .canvas-card');
+  const q = (query || '').trim().toLowerCase();
+
+  if (q.length < 3) {
+    // Clear all filter classes
+    cards.forEach(c => { c.classList.remove('search-dimmed', 'search-match'); });
+    return;
+  }
+
+  cards.forEach(card => {
+    const title = (card.querySelector('.canvas-card-title')?.textContent || '').toLowerCase();
+    if (title.includes(q)) {
+      card.classList.add('search-match');
+      card.classList.remove('search-dimmed');
+    } else {
+      card.classList.add('search-dimmed');
+      card.classList.remove('search-match');
+    }
+  });
+}
+
 // ── Entry / Exit ───────────────────────────────────────────────
 async function openManualRefine(filename, docType) {
   if (!filename) return;
@@ -40,6 +63,10 @@ async function openManualRefine(filename, docType) {
   document.getElementById('list-view').style.display  = 'none';
   document.getElementById('detail-view').classList.remove('show');
   document.getElementById('refine-view').classList.add('show');
+
+  // Clear search
+  const searchInput = document.getElementById('refine-search');
+  if (searchInput) searchInput.value = '';
 
   // Render the correct "+ Create" buttons for this doc type
   _canvasManageLinks = false;
@@ -395,6 +422,12 @@ function renderCanvas(epicFilename, docType) {
       openRefinePanel(child.filename, child.docType || docType);
     });
 
+    // Right-click → move context menu
+    card.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      _showCardContextMenu(e.clientX, e.clientY, child.filename, epicFilename, docType);
+    });
+
     // HTML5 drag to reposition
     card.addEventListener('dragstart', e => {
       e.dataTransfer.setData('text/plain', child.filename);
@@ -733,6 +766,64 @@ function _closeLinkPopup() {
   document.querySelectorAll('.canvas-link-popup').forEach(el => el.remove());
 }
 
+// ── Card context menu (right-click → move to edge) ──────────
+function _showCardContextMenu(x, y, filename, epicFilename, docType) {
+  _closeLinkPopup();
+  const popup = document.createElement('div');
+  popup.className = 'canvas-link-popup';
+  popup.style.left = `${x}px`;
+  popup.style.top  = `${y}px`;
+  popup.innerHTML = `
+    <div class="canvas-link-popup-title">Move card</div>
+    <button id="_ctx-left">← Move to Left</button>
+    <button id="_ctx-right">Move to Right →</button>
+    <button id="_ctx-top">↑ Move to Top</button>
+    <button id="_ctx-bottom">Move to Bottom ↓</button>`;
+  document.body.appendChild(popup);
+
+  popup.querySelector('#_ctx-left').addEventListener('click', () =>
+    _moveCardToEdge(filename, 'left', epicFilename, docType));
+  popup.querySelector('#_ctx-right').addEventListener('click', () =>
+    _moveCardToEdge(filename, 'right', epicFilename, docType));
+  popup.querySelector('#_ctx-top').addEventListener('click', () =>
+    _moveCardToEdge(filename, 'top', epicFilename, docType));
+  popup.querySelector('#_ctx-bottom').addEventListener('click', () =>
+    _moveCardToEdge(filename, 'bottom', epicFilename, docType));
+
+  setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+async function _moveCardToEdge(filename, direction, epicFilename, docType) {
+  _closeLinkPopup();
+  const cur = _canvasLayout[filename];
+  if (!cur) return;
+
+  const positions = Object.values(_canvasLayout);
+  let newCol = cur.col;
+  let newRow = cur.row;
+
+  switch (direction) {
+    case 'left':
+      newCol = 0;
+      break;
+    case 'right':
+      newCol = Math.max(...positions.map(p => p.col)) + 1;
+      break;
+    case 'top':
+      newRow = 0;
+      break;
+    case 'bottom':
+      newRow = Math.max(...positions.map(p => p.row)) + 1;
+      break;
+  }
+
+  if (newCol === cur.col && newRow === cur.row) return;
+
+  _canvasLayout[filename] = { col: newCol, row: newRow };
+  await saveCanvasLayout(epicFilename);
+  renderCanvas(epicFilename, docType);
+}
+
 function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDocType) {
   _closeLinkPopup();
   const popup = document.createElement('div');
@@ -804,13 +895,40 @@ async function openRefinePanel(filename, docType) {
     const ef = escHtml(filename);
     const et = escHtml(docType);
 
+    const sp = doc?.storyPoints != null ? doc.storyPoints : '';
+    const pri = doc?.priority || 'Medium';
+    const isLeaf = ['story', 'spike', 'bug'].includes(docType);
+
     panel.innerHTML = `
       <div class="rp-header">
         <div class="rp-meta">
           <span class="type-badge ${docType}">${TYPE_LABEL[docType] || docType}</span>
-          <span class="rp-title">${escHtml(title)}</span>
+          <button class="rp-close" onclick="closeRefinePanel()" title="Close">✕</button>
         </div>
-        <button class="rp-close" onclick="closeRefinePanel()" title="Close">✕</button>
+        <input class="rp-title-input" id="rp-title-input" type="text"
+          value="${escHtml(title)}" data-original="${escHtml(title)}"
+          data-filename="${ef}" data-doctype="${et}"
+          onblur="saveRpTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelRpTitleEdit()}" />
+        <div class="rp-edit-row">
+          ${isLeaf ? `<div class="rp-edit-field">
+            <label class="rp-edit-label">SP</label>
+            <input class="rp-sp-input" id="rp-sp-input" type="number" min="0" max="999"
+              value="${sp}" data-original="${sp}"
+              placeholder="—"
+              onblur="saveRpStoryPoints('${ef}','${et}')"
+              onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){this.blur()}" />
+          </div>` : ''}
+          <div class="rp-edit-field">
+            <label class="rp-edit-label">Priority</label>
+            <select class="rp-priority-select" id="rp-priority-select"
+              onchange="saveRpPriority('${ef}','${et}')">
+              <option value="Critical"${pri === 'Critical' ? ' selected' : ''}>Critical</option>
+              <option value="High"${pri === 'High' ? ' selected' : ''}>High</option>
+              <option value="Medium"${pri === 'Medium' ? ' selected' : ''}>Medium</option>
+              <option value="Low"${pri === 'Low' ? ' selected' : ''}>Low</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div class="rp-toolbar">
         <button class="btn-xs" onclick="toggleRpUpgrade()">↑ Upgrade</button>
@@ -903,6 +1021,72 @@ async function _removeCanvasLink(linkType, srcFilename, srcDocType, tgtFilename,
     openRefinePanel(srcFilename, srcDocType);
   } catch (e) {
     showJiraToast('error', e.message);
+  }
+}
+
+// ── Inline field editing (refine panel) ───────────────────────
+async function saveRpTitle() {
+  const input = document.getElementById('rp-title-input');
+  if (!input) return;
+  const newTitle = input.value.trim();
+  const original = input.dataset.original;
+  const filename = input.dataset.filename;
+  const docType  = input.dataset.doctype;
+  if (!newTitle || newTitle === original || !filename) return;
+  try {
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, { title: newTitle });
+    input.dataset.original = newTitle;
+    // Update canvas card title instantly
+    const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(filename)}"] .canvas-card-title`);
+    if (card) card.textContent = newTitle;
+    // Update in-memory allDocs
+    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    if (doc) doc.title = newTitle;
+    // Update markdown heading in panel content
+    const h2 = document.querySelector('#rp-content h2');
+    if (h2) h2.textContent = newTitle;
+  } catch {
+    input.value = original;
+  }
+}
+
+function cancelRpTitleEdit() {
+  const input = document.getElementById('rp-title-input');
+  if (input) { input.value = input.dataset.original || ''; input.blur(); }
+}
+
+async function saveRpStoryPoints(filename, docType) {
+  const input = document.getElementById('rp-sp-input');
+  if (!input) return;
+  const newVal = input.value.trim();
+  const orig   = input.dataset.original || '';
+  if (newVal === orig) return;
+  try {
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`,
+      { storyPoints: newVal === '' ? null : Number(newVal) });
+    input.dataset.original = newVal;
+    // Update canvas card SP badge instantly
+    const spEl = document.querySelector(`.canvas-card[data-filename="${CSS.escape(filename)}"] .canvas-card-sp`);
+    if (spEl) spEl.textContent = newVal ? `${newVal} SP` : '';
+    // Update in-memory
+    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    if (doc) doc.storyPoints = newVal === '' ? null : Number(newVal);
+  } catch {
+    input.value = orig;
+  }
+}
+
+async function saveRpPriority(filename, docType) {
+  const sel = document.getElementById('rp-priority-select');
+  if (!sel) return;
+  const newPri = sel.value;
+  try {
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, { priority: newPri });
+    // Update in-memory
+    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    if (doc) doc.priority = newPri;
+  } catch (e) {
+    showJiraToast('error', `Failed to save priority: ${e.message}`);
   }
 }
 

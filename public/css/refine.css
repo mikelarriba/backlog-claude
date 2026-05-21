@@ -36,6 +36,22 @@
   flex-shrink: 0;
 }
 
+/* ── Canvas search input ────────────────────────────────────── */
+.refine-search {
+  width: 160px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  font-family: inherit;
+  transition: border-color 0.15s, width 0.2s;
+  flex-shrink: 0;
+}
+.refine-search::placeholder { color: var(--muted); }
+.refine-search:focus { outline: none; border-color: var(--accent); width: 200px; }
+
 /* ── Body: canvas + slide-in panel ──────────────────────────── */
 .refine-body {
   display: flex;
@@ -71,10 +87,9 @@
 /* ── Panel header ────────────────────────────────────────────── */
 .rp-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 14px 16px 12px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 10px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   background: var(--surface2);
@@ -86,8 +101,8 @@
 .rp-meta {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 9px;
-  flex: 1;
   min-width: 0;
 }
 
@@ -100,6 +115,80 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Editable title input ───────────────────────────────────── */
+.rp-title-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 4px 8px;
+  margin-top: 4px;
+  line-height: 1.35;
+  transition: border-color 0.15s, background 0.15s;
+}
+.rp-title-input:hover { border-color: var(--border); background: var(--surface2); }
+.rp-title-input:focus { outline: none; border-color: var(--accent); background: var(--surface2); }
+
+/* ── Inline edit row (SP + Priority) ─────────────────────────── */
+.rp-edit-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 0 4px;
+}
+
+.rp-edit-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rp-edit-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.rp-sp-input {
+  width: 52px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-family: inherit;
+  padding: 2px 6px;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+  -moz-appearance: textfield;
+}
+.rp-sp-input::-webkit-inner-spin-button,
+.rp-sp-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.rp-sp-input:hover { border-color: var(--border); background: var(--surface2); }
+.rp-sp-input:focus { outline: none; border-color: var(--accent); background: var(--surface2); }
+.rp-sp-input::placeholder { color: var(--muted); }
+
+.rp-priority-select {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-family: inherit;
+  padding: 2px 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.rp-priority-select:hover { border-color: var(--border); background: var(--surface2); }
+.rp-priority-select:focus { outline: none; border-color: var(--accent); background: var(--surface2); }
 
 .rp-close {
   background: transparent;
@@ -317,6 +406,17 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ── Search filter states ───────────────────────────────────── */
+.canvas-card.search-dimmed {
+  opacity: 0.25;
+  transition: opacity 0.2s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.canvas-card.search-match {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0,150,214,0.18)), 0 2px 10px var(--shadow);
 }
 
 /* ── SVG edge labels ─────────────────────────────────────────── */

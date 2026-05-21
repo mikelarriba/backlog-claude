@@ -475,6 +475,7 @@
         <button class="btn-ghost" onclick="closeRefineView()">← Back</button>
         <span class="refine-title">✨ Refine: <span id="refine-epic-title"></span></span>
         <div class="refine-add-btns" id="refine-add-btns"></div>
+        <input type="text" id="refine-search" class="refine-search" placeholder="Search cards…" oninput="onCanvasSearch(this.value)" autocomplete="off" />
         <button class="btn-ghost btn-xs" onclick="resetCanvasLayout(_canvasEpicFilename)" title="Reset card positions to auto-layout">↺ Reset Layout</button>
         <button class="btn-ghost btn-xs" onclick="exportEpicToPdf(_canvasEpicFilename, _canvasDocType)" title="Export epic to PDF">PDF</button>
       </div>

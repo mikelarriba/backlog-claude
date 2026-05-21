@@ -39,7 +39,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const { status, title, fixVersion, storyPoints, sprint, rank, team, workCategory } = req.body;
+      const { status, title, fixVersion, storyPoints, sprint, rank, team, workCategory, priority } = req.body;
       let content = fs.readFileSync(filepath, 'utf-8');
 
       if (status !== undefined) {
@@ -82,6 +82,14 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
         content = setFrontmatterField(content, 'Work_Category', workCategory || 'TBD');
       }
 
+      if (priority !== undefined) {
+        const allowed = ['Critical', 'High', 'Medium', 'Low'];
+        if (!allowed.includes(priority)) {
+          return sendError(res, 400, 'VALIDATION_ERROR', `Priority must be one of: ${allowed.join(', ')}`);
+        }
+        content = setFrontmatterField(content, 'Priority', priority);
+      }
+
       if (title !== undefined) {
         const trimmed = title.trim();
         if (!trimmed) return sendError(res, 400, 'INVALID_TITLE', 'Title cannot be empty');
@@ -100,7 +108,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       fs.writeFileSync(filepath, content);
       docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
-      res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }), ...(rank !== undefined && { rank }), ...(team !== undefined && { team }), ...(workCategory !== undefined && { workCategory }) });
+      res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }), ...(rank !== undefined && { rank }), ...(team !== undefined && { team }), ...(workCategory !== undefined && { workCategory }), ...(priority !== undefined && { priority }) });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(
