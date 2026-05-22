@@ -968,11 +968,48 @@ async function _executeCanvasSplit(originalFilename, childDocType, epicFilename,
   const stream = document.getElementById('rp-split-stream');
   btn.disabled = true;
   btn.textContent = '⏳ Generating…';
-  stream.textContent = '⚙ Fetching original…';
+  stream.textContent = '⚙ Generating…';
   stream.style.display = 'block';
 
   try {
-    // Fetch original content as context
+    // Epic splitting uses the composite /api/split-epic endpoint
+    if (childDocType === 'epic') {
+      stream.textContent = '⚙ Splitting epic…';
+      const splitRes = await fetch('/api/split-epic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ epicFilename: originalFilename, description: idea }),
+      });
+      if (!splitRes.ok) throw new Error((await splitRes.json()).error?.message || 'Split failed');
+      const result = await splitRes.json();
+
+      stream.textContent = `✓ Created ${result.newEpicFilename}`;
+      if (result.featureCreated) {
+        stream.textContent += `\n✓ Auto-created feature: ${result.featureTitle}`;
+        showJiraToast('ok', `Created feature "${result.featureTitle}" and new epic`);
+      } else {
+        showJiraToast('ok', `Created ${result.newEpicFilename}`);
+      }
+
+      await loadDocs();
+      // If a feature was auto-created, switch to the feature canvas
+      if (result.featureCreated) {
+        await buildCanvasGraph(result.featureFilename, 'feature');
+      } else {
+        await buildCanvasGraph(epicFilename, epicDocType);
+      }
+
+      setTimeout(() => {
+        const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(result.newEpicFilename)}"]`);
+        if (card) {
+          card.classList.add('selected');
+          openRefinePanel(result.newEpicFilename, 'epic');
+        }
+      }, 100);
+      return;
+    }
+
+    // Non-epic splitting: existing generate + link flow
     const origRes = await fetch(`/api/doc/${childDocType}/${encodeURIComponent(originalFilename)}`);
     if (!origRes.ok) throw new Error('Could not load original issue');
     const { content: origContent } = await origRes.json();

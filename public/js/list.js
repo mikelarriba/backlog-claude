@@ -845,9 +845,35 @@ async function executeSplitIssue() {
   const status = modal.querySelector('#issue-split-status');
   btn.disabled = true;
   btn.textContent = '⏳ Generating…';
-  status.textContent = '⚙ Fetching original…';
+  status.textContent = '⚙ Generating…';
 
   try {
+    // Epic splitting uses the composite /api/split-epic endpoint
+    if (docType === 'epic') {
+      status.textContent = '⚙ Splitting epic…';
+      const splitRes = await fetch('/api/split-epic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ epicFilename: filename, description: idea }),
+      });
+      if (!splitRes.ok) throw new Error((await splitRes.json()).error?.message || 'Split failed');
+      const result = await splitRes.json();
+
+      status.textContent = `✓ Created ${result.newEpicFilename}`;
+      if (result.featureCreated) {
+        showJiraToast('ok', `Created feature "${result.featureTitle}" and new epic`);
+      } else {
+        showJiraToast('ok', `Created ${result.newEpicFilename}`);
+      }
+
+      await loadDocs();
+      closeSplitModal();
+      setTimeout(() => openDoc(result.newEpicFilename, 'epic'), 100);
+      return;
+    }
+
+    // Non-epic splitting: existing generate + link flow
+    status.textContent = '⚙ Fetching original…';
     const origRes = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     if (!origRes.ok) throw new Error('Could not load original issue');
     const { content: origContent } = await origRes.json();
