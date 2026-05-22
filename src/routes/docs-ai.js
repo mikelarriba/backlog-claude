@@ -280,5 +280,174 @@ Created: ${isoDate()}
     }
   });
 
+  // ── POST /api/split-epic ── Split an epic, auto-creating a Feature if needed ─
+  router.post('/api/split-epic', async (req, res) => {
+    try {
+      const { epicFilename: rawFilename, description } = req.body;
+      if (!rawFilename?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'epicFilename is required');
+      if (!description?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'description is required');
+      if (description.length > 5000) return sendError(res, 400, 'VALIDATION_ERROR', 'description must be 5000 characters or fewer');
+
+      const epicFilename = assertFilename(rawFilename);
+      const epicCfg  = TYPE_CONFIG.epic;
+      const epicPath = path.join(epicCfg.dir(), epicFilename);
+      if (!fs.existsSync(epicPath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
+
+      const epicContent   = fs.readFileSync(epicPath, 'utf-8');
+      const epicTitle     = extractTitle(epicContent) || epicFilename;
+      const epicPriority  = extractFrontmatterField(epicContent, 'Priority') || 'Medium';
+      const epicFixVer    = extractFrontmatterField(epicContent, 'Fix_Version');
+      const epicPi        = extractFrontmatterField(epicContent, 'PI');
+      const epicTeam      = extractFrontmatterField(epicContent, 'Team');
+      const epicWorkCat   = extractFrontmatterField(epicContent, 'Work_Category');
+      let   featureId     = extractFrontmatterField(epicContent, 'Feature_ID');
+
+      let featureFilename = null;
+      let featureCreated  = false;
+      let featureTitle    = null;
+
+      // Step 1: Resolve or create the parent Feature
+      if (!featureId || featureId === 'TBD') {
+        // Auto-create a draft Feature
+        const featureCfg = TYPE_CONFIG.feature;
+        const date = isoDate();
+        const slug = slugify(epicTitle);
+        featureFilename = `${date}-${slug}.md`;
+        featureTitle = epicTitle;
+
+        const featureContent = `---
+JIRA_ID: TBD
+Story_Points: TBD
+Status: Draft
+Priority: ${epicPriority}
+Created: ${date}
+---
+
+## ${epicTitle}
+
+## Context
+
+Auto-created feature to group related epics split from: ${epicTitle}.
+
+## Objective
+
+TBD — refine after reviewing the epics grouped under this feature.
+
+## Value
+
+TBD
+
+## Execution
+
+1. **Epic:** ${epicTitle} — original epic
+2. **Epic:** (new) — split from original
+
+## Out of Scope
+
+TBD
+`;
+
+        ensureDir(featureCfg.dir());
+        fs.writeFileSync(path.join(featureCfg.dir(), featureFilename), featureContent);
+        docIndex.invalidate('feature', featureFilename);
+        broadcast({ type: 'feature_created', filename: featureFilename, docType: 'feature' });
+
+        // Link original epic to the new feature
+        let updated = setFrontmatterField(epicContent, 'Feature_ID', featureFilename);
+        fs.writeFileSync(epicPath, updated);
+        docIndex.invalidate('epic', epicFilename);
+
+        featureId = featureFilename;
+        featureCreated = true;
+
+        logInfo('POST /api/split-epic', `Auto-created feature ${featureFilename} for epic ${epicFilename}`);
+      } else {
+        featureFilename = featureId;
+        // Resolve feature title
+        const featureCfg = TYPE_CONFIG.feature;
+        const featurePath = path.join(featureCfg.dir(), featureFilename);
+        if (fs.existsSync(featurePath)) {
+          featureTitle = extractTitle(fs.readFileSync(featurePath, 'utf-8')) || featureFilename;
+        } else {
+          featureTitle = featureFilename;
+        }
+      }
+
+      // Step 2: Generate new epic via AI
+      const stripControls = s => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      const idea = stripControls(`${description.trim()}\n\n---\nContext from original epic:\n${epicContent}`);
+
+      const genBody = {
+        idea,
+        type: 'epic',
+        priority: epicPriority,
+        parentFeature: featureFilename,
+      };
+      if (epicFixVer && epicFixVer !== 'TBD') genBody.fixVersion = epicFixVer;
+      if (epicPi && epicPi !== 'TBD') genBody.pi = epicPi;
+      if (epicTeam && epicTeam !== 'TBD') genBody.team = epicTeam;
+      if (epicWorkCat && epicWorkCat !== 'TBD') genBody.workCategory = epicWorkCat;
+
+      const date = isoDate();
+      const slug = slugify(description.slice(0, 40));
+      const newEpicFilename = `${date}-${slug}.md`;
+
+      const rawContent = `---
+JIRA_ID: TBD
+Story_Points: TBD
+Status: Inbox — Awaiting Refinement
+Priority: ${epicPriority}
+Created: ${new Date().toISOString()}
+---
+
+# ${description.trim().slice(0, 80)}
+
+## Raw Idea
+
+${idea}
+`;
+
+      _apiInFlight.add(newEpicFilename);
+      try {
+        ensureDir(INBOX_DIR);
+        fs.writeFileSync(path.join(INBOX_DIR, newEpicFilename), rawContent);
+
+        const template = loadCommand(epicCfg.command);
+        const prompt = template
+          ? template.replace('$ARGUMENTS', `File: ${newEpicFilename}\n\n${rawContent}`)
+          : `Generate a complete epic using the COVE Framework. Output ONLY the markdown content.\n\nFile: ${newEpicFilename}\n\n${rawContent}`;
+        const generatedContent = await callClaude(prompt);
+
+        const destDir = epicCfg.dir();
+        ensureDir(destDir);
+        let finalContent = setFrontmatterField(generatedContent, 'Status', 'Draft');
+        finalContent = setFrontmatterField(finalContent, 'Feature_ID', featureFilename);
+        if (epicFixVer && epicFixVer !== 'TBD') finalContent = setFrontmatterField(finalContent, 'Fix_Version', epicFixVer);
+        if (epicPi && epicPi !== 'TBD') finalContent = setFrontmatterField(finalContent, 'PI', epicPi);
+        if (epicTeam && epicTeam !== 'TBD') finalContent = setFrontmatterField(finalContent, 'Team', epicTeam);
+        if (epicWorkCat && epicWorkCat !== 'TBD') finalContent = setFrontmatterField(finalContent, 'Work_Category', epicWorkCat);
+        fs.writeFileSync(path.join(destDir, newEpicFilename), finalContent);
+        docIndex.invalidate('epic', newEpicFilename);
+      } finally {
+        _apiInFlight.delete(newEpicFilename);
+      }
+
+      broadcast({ type: 'epic_created', filename: newEpicFilename, docType: 'epic' });
+      logInfo('POST /api/split-epic', `Split epic ${epicFilename} → new epic ${newEpicFilename}, feature ${featureFilename}`);
+
+      res.json({
+        success: true,
+        featureFilename,
+        featureTitle,
+        newEpicFilename,
+        featureCreated,
+      });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/split-epic', apiErr.message, apiErr.details || {});
+      sendError(res, apiErr.code === 'VALIDATION_ERROR' || apiErr.code === 'NOT_FOUND' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
   return router;
 }
