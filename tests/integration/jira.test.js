@@ -190,24 +190,25 @@ describe('GET /api/jira/children/:key — happy path (JIRA fetch mocked)', () =>
     process.env.JIRA_API_TOKEN = 'fake-test-token';
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/')) {
+        const body = {
+          fields: {
+            issuetype:  { name: 'Epic' },
+            issuelinks: [
+              {
+                inwardIssue: {
+                  key: 'EAMDM-42',
+                  fields: { summary: 'Child story', issuetype: { name: 'Story' }, status: { name: 'In Progress' } },
+                },
+              },
+            ],
+            subtasks: [],
+          },
+        };
         return {
           ok: true,
           status: 200,
-          json: async () => ({
-            fields: {
-              issuetype:  { name: 'Epic' },
-              issuelinks: [
-                {
-                  inwardIssue: {
-                    key: 'EAMDM-42',
-                    fields: { summary: 'Child story', issuetype: { name: 'Story' }, status: { name: 'In Progress' } },
-                  },
-                },
-              ],
-              subtasks: [],
-            },
-          }),
-          text: async () => '{}',
+          json: async () => body,
+          text: async () => JSON.stringify(body),
         };
       }
       return originalFetch(url, opts);
@@ -257,16 +258,17 @@ Test.
     process.env.JIRA_API_TOKEN = 'fake-test-token';
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/')) {
+        const body = {
+          fields: {
+            status:              { name: 'In Progress' },
+            customfield_10006:   5,
+          },
+        };
         return {
           ok: true,
           status: 200,
-          json: async () => ({
-            fields: {
-              status:              { name: 'In Progress' },
-              customfield_10006:   5,
-            },
-          }),
-          text: async () => '{}',
+          json: async () => body,
+          text: async () => JSON.stringify(body),
         };
       }
       return originalFetch(url, opts);
@@ -332,23 +334,24 @@ Local context.
     process.env.JIRA_API_TOKEN = 'fake-test-token';
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/')) {
+        const body = {
+          key:    'EAMDM-777',
+          fields: {
+            summary:            'Updated From JIRA Title',
+            issuetype:          { name: 'Epic' },
+            status:             { name: 'In Review' },
+            priority:           { name: 'High' },
+            description:        null,
+            fixVersions:        [{ name: 'PI-2026.2' }],
+            customfield_10002:  null,
+            customfield_10006:  8,
+          },
+        };
         return {
           ok: true,
           status: 200,
-          json: async () => ({
-            key:    'EAMDM-777',
-            fields: {
-              summary:            'Updated From JIRA Title',
-              issuetype:          { name: 'Epic' },
-              status:             { name: 'In Review' },
-              priority:           { name: 'High' },
-              description:        null,
-              fixVersions:        [{ name: 'PI-2026.2' }],
-              customfield_10002:  null,
-              customfield_10006:  8,
-            },
-          }),
-          text: async () => '{}',
+          json: async () => body,
+          text: async () => JSON.stringify(body),
         };
       }
       return originalFetch(url, opts);

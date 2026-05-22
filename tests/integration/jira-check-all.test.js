@@ -64,31 +64,33 @@ Stable description text.
     process.env.JIRA_API_TOKEN = 'fake-token';
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/') && url.includes('EAMDM-901')) {
+        const body = {
+          fields: {
+            summary:           'New Title From JIRA',
+            status:            { name: 'In Progress' },
+            customfield_10006: 3,
+            description:       'New description text.',
+          },
+        };
         return {
           ok: true, status: 200,
-          json: async () => ({
-            fields: {
-              summary:           'New Title From JIRA',
-              status:            { name: 'In Progress' },
-              customfield_10006: 3,
-              description:       'New description text.',
-            },
-          }),
-          text: async () => '{}',
+          json: async () => body,
+          text: async () => JSON.stringify(body),
         };
       }
       if (typeof url === 'string' && url.includes('/rest/api/') && url.includes('EAMDM-902')) {
+        const body = {
+          fields: {
+            summary:           'Stable Title',
+            status:            { name: 'In Progress' },
+            customfield_10006: 5,
+            description:       'Stable description text.',
+          },
+        };
         return {
           ok: true, status: 200,
-          json: async () => ({
-            fields: {
-              summary:           'Stable Title',
-              status:            { name: 'In Progress' },
-              customfield_10006: 5,
-              description:       'Stable description text.',
-            },
-          }),
-          text: async () => '{}',
+          json: async () => body,
+          text: async () => JSON.stringify(body),
         };
       }
       return originalFetch(url, opts);
