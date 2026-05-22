@@ -177,6 +177,10 @@ export default function jiraSearchRoutes({
         // Link child to local parent file so the "└" hierarchy renders correctly
         if (parentFieldName && parentLink.filename) {
           content = setFrontmatterField(content, parentFieldName, parentLink.filename);
+          // Force children into Backlog — each JIRA issue may carry a different
+          // fixVersion, scattering children across PI swimlanes on import.
+          content = setFrontmatterField(content, 'Fix_Version', 'TBD');
+          content = setFrontmatterField(content, 'Sprint', 'TBD');
         }
 
         const destDir = TYPE_CONFIG[docType].dir();

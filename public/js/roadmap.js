@@ -598,6 +598,17 @@ function initRoadmapDragDrop() {
         await patchJSON(`/api/doc/${data.docType}/${encodeURIComponent(data.filename)}`, { sprint: toSprint });
         const doc = allDocs.find(d => d.filename === data.filename && d.docType === data.docType);
         if (doc) doc.sprint = toSprint;
+
+        // Cascade sprint to all descendants for parent types
+        if (data.docType === 'epic' || data.docType === 'feature') {
+          const childrenMap = buildChildrenMap(allDocs);
+          const descendants = getDescendants(data.filename, childrenMap);
+          for (const desc of descendants) {
+            await patchJSON(`/api/doc/${desc.docType}/${encodeURIComponent(desc.filename)}`, { sprint: toSprint });
+            desc.sprint = toSprint;
+          }
+        }
+
         renderRoadmapBoard();
       } catch (err) { console.warn('Failed to update sprint assignment:', err.message); }
     });
