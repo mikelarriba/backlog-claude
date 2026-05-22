@@ -43,7 +43,14 @@ function highlightSelectedItem(filename, docType) {
   }
 }
 
-window.addEventListener('resize', updateSplitMode);
+let _lastInnerWidth = window.innerWidth;
+window.addEventListener('resize', debounce(() => {
+  // Skip if physical width hasn't changed (macOS virtual desktop switch fires
+  // resize events without changing innerWidth; zoom changes do alter it).
+  if (window.innerWidth === _lastInnerWidth) return;
+  _lastInnerWidth = window.innerWidth;
+  updateSplitMode();
+}, 150));
 
 // ── Model settings ────────────────────────────────────────────
 function toggleModelSection() {
