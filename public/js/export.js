@@ -38,6 +38,8 @@ async function exportEpicToPdf(filename, docType) {
         storyPoints: doc?.storyPoints || null,
         priority: doc?.priority || 'Medium',
         status: doc?.status || 'Draft',
+        jiraId: doc?.jiraId || null,
+        jiraUrl: doc?.jiraUrl || null,
         content,
       };
     }));
@@ -237,6 +239,7 @@ function _buildPrintPage(epicTitle, docType, totalSP, epicDoc, epicContent, chil
   <b>${count}</b> item${count !== 1 ? 's' : ''}
   ${priority ? ` &middot; Priority: <b>${priority}</b>` : ''}
   &middot; Status: <b>${status}</b>
+  ${epicDoc?.jiraId ? ` &middot; JIRA: <a href="${_esc(epicDoc.jiraUrl || '#')}" style="color:#0066cc;font-weight:700;">${_esc(epicDoc.jiraId)}</a>` : ''}
 </div>
 
 ${gridHtml}
@@ -258,7 +261,7 @@ ${listHtml}
 function _esc(s) { return escHtml(s); }
 
 function _renderDesc(epicContent) {
-  const stripped = stripFrontmatter(epicContent);
+  const stripped = stripFrontmatter(epicContent).replace(/\n## Comments\b[\s\S]*$/, '');
   if (!stripped.trim()) return '';
   return `<div class="sec-title">Description</div><div class="desc">${marked.parse(stripped)}</div>`;
 }
@@ -382,12 +385,15 @@ function _renderGrid(childData, layout, blocks, parallel, epicTitle, docType) {
     const { x, y } = cellAt(positions[child.filename].col, positions[child.filename].row);
     const bc = badgeColor[child.docType] || '#666';
     const sp = child.storyPoints ? `${child.storyPoints} SP` : '';
+    const gridJiraLink = child.jiraId
+      ? `<a href="${_esc(child.jiraUrl || '#')}" style="font-size:7px;color:#0066cc;font-weight:700;">${_esc(child.jiraId)}</a>`
+      : '';
     cardsHtml += `<div class="grid-card" style="left:${x + INSET}px;top:${y + INSET}px;width:${CELL_W - INSET * 2}px;height:${CELL_H - INSET * 2}px;">
       <div class="grid-card-title">
         <span class="grid-card-type" style="background:${bc}">${_esc(TYPE_LABEL[child.docType] || child.docType)}</span>
         ${_esc(child.title)}
       </div>
-      ${sp ? `<div class="grid-card-sp">${sp}</div>` : ''}
+      ${sp || gridJiraLink ? `<div class="grid-card-sp">${sp}${sp && gridJiraLink ? ' &middot; ' : ''}${gridJiraLink}</div>` : ''}
     </div>`;
   }
 
@@ -416,14 +422,18 @@ function _renderStoryCards(childData) {
   for (const child of childData) {
     const bc = badgeColor[child.docType] || '#666';
     const sp = child.storyPoints ? `${child.storyPoints} SP` : '';
-    const stripped = stripFrontmatter(child.content);
+    const stripped = stripFrontmatter(child.content).replace(/\n## Comments\b[\s\S]*$/, '');
     const body = stripped.trim() ? marked.parse(stripped) : '<em style="color:#94a3b8">No description</em>';
 
+    const jiraLink = child.jiraId
+      ? `<a href="${_esc(child.jiraUrl || '#')}" style="font-size:9px;color:#0066cc;font-weight:700;white-space:nowrap;">${_esc(child.jiraId)}</a>`
+      : '';
     html += `<div class="story-card">
       <div class="story-card-hdr">
         <div class="story-card-title">
           <span class="grid-card-type" style="background:${bc}">${TYPE_LABEL[child.docType] || child.docType}</span>
           ${_esc(child.title)}
+          ${jiraLink ? `&nbsp;${jiraLink}` : ''}
         </div>
         ${sp ? `<span class="story-card-sp">${sp}</span>` : ''}
       </div>

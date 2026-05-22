@@ -27,7 +27,7 @@ export default function jiraSyncRoutes({
 
   function _extractBodyText(content) {
     const body = stripFrontmatter(content);
-    return body.replace(/^## .+\n?/m, '').trim();
+    return body.replace(/^## .+\n?/m, '').replace(/\n## Comments\b[\s\S]*$/, '').trim();
   }
 
   // ── POST /api/jira/sync-status/:type/:filename ────────────────────────────
@@ -62,13 +62,16 @@ export default function jiraSyncRoutes({
         }
       }
 
-      // Detect description change and update body + write history
+      // Detect description change and update body + write history (preserve ## Comments)
       const existingBodyText = _extractBodyText(content);
       if (jiraDesc && jiraDesc !== existingBodyText) {
         _appendDescriptionHistory(path.join(INBOX_DIR, filename), existingBodyText, jiraDesc);
-        // Reconstruct everything up through the heading, then replace the body
         const match = updated.match(/^(---[\s\S]*?---\n+## [^\n]+\n)/);
-        if (match) updated = match[1] + '\n' + jiraDesc + '\n';
+        if (match) {
+          const commentsMatch = updated.match(/\n## Comments\b[\s\S]*$/);
+          const commentsSection = commentsMatch ? commentsMatch[0] : '';
+          updated = match[1] + '\n' + jiraDesc + '\n' + commentsSection;
+        }
       }
 
       fs.writeFileSync(filepath, updated);
@@ -121,13 +124,15 @@ export default function jiraSyncRoutes({
         _appendDescriptionHistory(path.join(INBOX_DIR, filename), existingBodyText, newBodyText);
       }
 
-      // Preserve local-only frontmatter fields
+      // Preserve local-only frontmatter fields and the ## Comments section
       const LOCAL_FIELDS = ['Sprint', 'Squad', 'PI', 'Feature_ID', 'Epic_ID', 'Created'];
       let merged = freshContent;
       for (const field of LOCAL_FIELDS) {
         const localVal = extractFrontmatterField(existing, field);
         if (localVal) merged = setFrontmatterField(merged, field, localVal);
       }
+      const existingComments = existing.match(/\n## Comments\b[\s\S]*$/);
+      if (existingComments) merged = merged.trimEnd() + existingComments[0];
 
       fs.writeFileSync(filepath, merged);
       docIndex.invalidate(docType, filename);

@@ -766,7 +766,7 @@ function _closeLinkPopup() {
   document.querySelectorAll('.canvas-link-popup').forEach(el => el.remove());
 }
 
-// ── Card context menu (right-click → move to edge) ──────────
+// ── Card context menu (right-click → move to edge / split) ──
 function _showCardContextMenu(x, y, filename, epicFilename, docType) {
   _closeLinkPopup();
   const popup = document.createElement('div');
@@ -778,7 +778,9 @@ function _showCardContextMenu(x, y, filename, epicFilename, docType) {
     <button id="_ctx-left">← Move to Left</button>
     <button id="_ctx-right">Move to Right →</button>
     <button id="_ctx-top">↑ Move to Top</button>
-    <button id="_ctx-bottom">Move to Bottom ↓</button>`;
+    <button id="_ctx-bottom">Move to Bottom ↓</button>
+    <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+    <button id="_ctx-split">✂ Split Issue</button>`;
   document.body.appendChild(popup);
 
   popup.querySelector('#_ctx-left').addEventListener('click', () =>
@@ -789,8 +791,116 @@ function _showCardContextMenu(x, y, filename, epicFilename, docType) {
     _moveCardToEdge(filename, 'top', epicFilename, docType));
   popup.querySelector('#_ctx-bottom').addEventListener('click', () =>
     _moveCardToEdge(filename, 'bottom', epicFilename, docType));
+  popup.querySelector('#_ctx-split').addEventListener('click', () => {
+    _closeLinkPopup();
+    _openCanvasSplit(filename, docType, epicFilename, _canvasDocType);
+  });
 
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+function _openCanvasSplit(filename, childDocType, epicFilename, epicDocType) {
+  const doc = allDocs.find(d => d.filename === filename);
+  const typeName = TYPE_LABEL[childDocType] || childDocType;
+  const panel = document.getElementById('refine-panel');
+  panel.classList.add('open');
+  document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
+
+  panel.innerHTML = `
+    <div class="rp-header">
+      <div class="rp-meta">
+        <span class="type-badge ${childDocType}">${typeName}</span>
+        <span class="rp-title">Split: ${escHtml(doc?.title || filename)}</span>
+      </div>
+      <button class="rp-close" onclick="closeRefinePanel()" title="Close">✕</button>
+    </div>
+    <div class="rp-create-form">
+      <div class="rp-field">
+        <label class="rp-label">Describe what to extract into the new ${typeName}…</label>
+        <textarea class="rp-textarea rp-textarea-tall" id="rp-split-idea"
+          placeholder="What should the new ${typeName.toLowerCase()} cover?"></textarea>
+      </div>
+      <div class="rp-btn-row">
+        <button class="btn-xs green" id="rp-split-btn"
+          onclick="_executeCanvasSplit('${escHtml(filename)}','${escHtml(childDocType)}','${escHtml(epicFilename)}','${escHtml(epicDocType)}')">Generate &amp; Link</button>
+        <button class="btn-xs" onclick="closeRefinePanel()">Cancel</button>
+      </div>
+      <div class="rp-stream" id="rp-split-stream" style="display:none"></div>
+    </div>`;
+
+  document.getElementById('rp-split-idea').focus();
+}
+
+async function _executeCanvasSplit(originalFilename, childDocType, epicFilename, epicDocType) {
+  const idea = document.getElementById('rp-split-idea')?.value.trim();
+  if (!idea) { document.getElementById('rp-split-idea')?.focus(); return; }
+
+  const btn    = document.getElementById('rp-split-btn');
+  const stream = document.getElementById('rp-split-stream');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating…';
+  stream.textContent = '⚙ Fetching original…';
+  stream.style.display = 'block';
+
+  try {
+    // Fetch original content as context
+    const origRes = await fetch(`/api/doc/${childDocType}/${encodeURIComponent(originalFilename)}`);
+    if (!origRes.ok) throw new Error('Could not load original issue');
+    const { content: origContent } = await origRes.json();
+    const origDoc = allDocs.find(d => d.filename === originalFilename);
+
+    stream.textContent = '⚙ Generating new issue…';
+
+    const genBody = {
+      idea: `${idea}\n\n---\nContext from original issue:\n${origContent}`,
+      type: childDocType,
+      priority: origDoc?.priority || 'Medium',
+    };
+    if (origDoc?.fixVersion) genBody.fixVersion = origDoc.fixVersion;
+    if (origDoc?.pi && origDoc.pi !== 'TBD') genBody.pi = origDoc.pi;
+    if (epicDocType === 'epic') genBody.parentEpic = epicFilename;
+    if (epicDocType === 'feature') genBody.parentFeature = epicFilename;
+
+    const genRes = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(genBody),
+    });
+    if (!genRes.ok) throw new Error((await genRes.json()).error?.message || 'Generate failed');
+    const { filename: newFilename } = await genRes.json();
+
+    stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
+
+    const linkRes = await fetch('/api/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceType: childDocType,
+        sourceFilename: newFilename,
+        targetType: epicDocType,
+        targetFilename: epicFilename,
+      }),
+    });
+    if (!linkRes.ok) throw new Error('Link failed');
+
+    stream.textContent += '\n✓ Linked successfully.';
+    showJiraToast('ok', `Created ${newFilename}`);
+
+    await loadDocs();
+    await buildCanvasGraph(epicFilename, epicDocType);
+
+    setTimeout(() => {
+      const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(newFilename)}"]`);
+      if (card) {
+        card.classList.add('selected');
+        openRefinePanel(newFilename, childDocType);
+      }
+    }, 100);
+  } catch (e) {
+    stream.textContent += `\n\n❌ ${e.message}`;
+    btn.disabled = false;
+    btn.textContent = 'Generate & Link';
+  }
 }
 
 async function _moveCardToEdge(filename, direction, epicFilename, docType) {
