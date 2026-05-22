@@ -1222,14 +1222,17 @@ async function openRefinePanel(filename, docType) {
         <div class="rp-stream" id="rp-upgrade-stream" style="display:none"></div>
       </div>
       <div class="rp-content markdown" id="rp-content">
-        ${marked.parse(stripFrontmatter(content))}
+        ${marked.parse(stripFrontmatter(content).replace(/\n## Comments\b[\s\S]*$/, ''))}
       </div>
       <div class="rp-deps-section" id="rp-deps-section">
         <div class="rp-loading">Loading dependencies…</div>
-      </div>`;
+      </div>
+      <div class="rp-comments-section comments-section hidden" id="rp-comments-section"></div>`;
 
-    // Load and render dependency section
+    // Load and render dependency section and comments
     _loadRpDeps(filename, docType);
+    _renderComments(_parseComments(content), filename, docType,
+      document.getElementById('rp-comments-section'));
   } catch {
     panel.innerHTML = '<div class="rp-loading">Failed to load content.</div>';
   }

@@ -125,8 +125,8 @@ function _serializeComments(comments) {
   return `## Comments\n\n${blocks}`;
 }
 
-function _renderComments(comments, filename, docType) {
-  const section = document.getElementById('comments-section');
+function _renderComments(comments, filename, docType, containerEl) {
+  const section = containerEl || document.getElementById('comments-section');
   if (!section) return;
 
   const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
