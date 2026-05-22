@@ -84,7 +84,11 @@ async function openManualRefine(filename, docType) {
   }
 
   closeRefinePanel();
-  await buildCanvasGraph(filename, docType);
+  if (docType === 'feature') {
+    await renderFeatureMultiPanel(filename);
+  } else {
+    await buildCanvasGraph(filename, docType);
+  }
   document.addEventListener('keydown', _onCanvasKeydown);
 }
 
@@ -116,6 +120,243 @@ function closeRefineView() {
     document.getElementById('detail-view').classList.add('show');
   } else {
     document.getElementById('list-view').style.display = 'flex';
+  }
+}
+
+// ── Feature multi-panel view ───────────────────────────────────
+const _FP_COLLAPSED_KEY = fn => `fp:collapsed:${fn}`;
+
+async function renderFeatureMultiPanel(featureFilename) {
+  const container = document.getElementById('refine-canvas');
+  container.innerHTML = '<div class="canvas-empty">Loading feature…</div>';
+  _panelStates.clear();
+
+  let data;
+  try {
+    const res = await fetch(`/api/links/feature/${encodeURIComponent(featureFilename)}/deep`);
+    if (!res.ok) throw new Error('Failed to load feature hierarchy');
+    data = await res.json();
+  } catch (e) {
+    container.innerHTML = `<div class="canvas-empty">Error: ${escHtml(e.message)}</div>`;
+    return;
+  }
+
+  const collapsedSet = _fpLoadCollapsed(featureFilename);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'feature-panels-container';
+
+  for (const epic of data.epics) {
+    const children = epic.children || [];
+    const ps = { stories: children, layout: {}, blocks: epic.blocks || [], parallel: epic.parallel || [] };
+    _panelStates.set(epic.filename, ps);
+
+    // Load or compute layout for this epic's panel
+    try {
+      const lr = await fetch(`/api/canvas/layout/${encodeURIComponent(epic.filename)}`);
+      if (lr.ok) {
+        const saved = await lr.json();
+        if (Object.keys(saved).length) ps.layout = saved;
+      }
+    } catch {}
+    if (!Object.keys(ps.layout).length && children.length) {
+      ps.layout = computeAutoLayout(children, ps.blocks, ps.parallel);
+    }
+
+    const isCollapsed = collapsedSet.has(epic.filename);
+    wrapper.appendChild(_renderEpicPanel(epic, ps, featureFilename, isCollapsed));
+  }
+
+  if (!data.epics.length) {
+    wrapper.innerHTML = '<div class="canvas-empty">No epics linked to this feature yet.</div>';
+  }
+
+  container.innerHTML = '';
+  container.appendChild(wrapper);
+}
+
+function _fpLoadCollapsed(featureFilename) {
+  try { return new Set(JSON.parse(localStorage.getItem(_FP_COLLAPSED_KEY(featureFilename)) || '[]')); }
+  catch { return new Set(); }
+}
+
+function _fpSaveCollapsed(featureFilename) {
+  const collapsed = [];
+  document.querySelectorAll('.feature-panel.fp-collapsed').forEach(p => collapsed.push(p.dataset.epicFilename));
+  try { localStorage.setItem(_FP_COLLAPSED_KEY(featureFilename), JSON.stringify(collapsed)); } catch {}
+}
+
+function _toggleEpicPanel(epicFilename, featureFilename) {
+  const panel = document.querySelector(`.feature-panel[data-epic-filename="${CSS.escape(epicFilename)}"]`);
+  if (!panel) return;
+  panel.classList.toggle('fp-collapsed');
+  const chevron = panel.querySelector('.fp-chevron');
+  if (chevron) chevron.textContent = panel.classList.contains('fp-collapsed') ? '▶' : '▼';
+  _fpSaveCollapsed(featureFilename);
+}
+
+function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
+  const totalSP = ps.stories.reduce((s, c) => s + (allDocs.find(d => d.filename === c.filename)?.storyPoints || 0), 0);
+  const count   = ps.stories.length;
+  const ef = escHtml(epic.filename);
+  const ff = escHtml(featureFilename);
+
+  const panel = document.createElement('div');
+  panel.className = 'feature-panel' + (isCollapsed ? ' fp-collapsed' : '');
+  panel.dataset.epicFilename = epic.filename;
+
+  panel.innerHTML = `
+    <div class="fp-header" onclick="_toggleEpicPanel('${ef}','${ff}')">
+      <span class="fp-chevron">${isCollapsed ? '▶' : '▼'}</span>
+      <span class="type-badge epic">Epic</span>
+      <span class="fp-title">${escHtml(epic.title || epic.filename)}</span>
+      <span class="fp-meta">${count} item${count !== 1 ? 's' : ''}${totalSP ? ` · ${totalSP} SP` : ''}</span>
+    </div>
+    <div class="fp-body">
+      <div class="fp-toolbar">
+        <button class="btn-xs green" onclick="_fpCreateChild('story','${ef}','${ff}')">＋ Story</button>
+        <button class="btn-xs" onclick="_fpCreateChild('spike','${ef}','${ff}')">＋ Spike</button>
+        <button class="btn-xs red" onclick="_fpCreateChild('bug','${ef}','${ff}')">＋ Bug</button>
+        <button class="btn-xs" onclick="openManualRefine('${ef}','epic')">↗ Open Epic</button>
+      </div>
+      <div class="fp-canvas" id="fp-canvas-${ef}"></div>
+    </div>`;
+
+  // Render mini-canvas after DOM insertion
+  setTimeout(() => _renderFpCanvas(epic.filename, ps, featureFilename), 0);
+  return panel;
+}
+
+function _renderFpCanvas(epicFilename, ps, featureFilename) {
+  const container = document.getElementById(`fp-canvas-${epicFilename}`);
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!ps.stories.length) {
+    container.innerHTML = '<div class="fp-canvas-empty">No stories yet</div>';
+    return;
+  }
+
+  const CELL_W = 200, CELL_H = 90, GUTTER_X = 14, GUTTER_Y = 14;
+  const positions = {};
+  for (const c of ps.stories) positions[c.filename] = ps.layout[c.filename] || { col: 0, row: 0 };
+
+  const usedCols = [...new Set(Object.values(positions).map(p => p.col))].sort((a, b) => a - b);
+  const usedRows = [...new Set(Object.values(positions).map(p => p.row))].sort((a, b) => a - b);
+  const colRemap = new Map(usedCols.map((c, i) => [c, i]));
+  const rowRemap = new Map(usedRows.map((r, i) => [r, i]));
+  for (const fn of Object.keys(positions)) {
+    positions[fn] = {
+      col: colRemap.get(positions[fn].col) ?? 0,
+      row: rowRemap.get(positions[fn].row) ?? 0,
+    };
+  }
+
+  const cols = usedCols.length || 1;
+  const rows = usedRows.length || 1;
+  const totalW = GUTTER_X + cols * (CELL_W + GUTTER_X);
+  const totalH = GUTTER_Y + rows * (CELL_H + GUTTER_Y);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = `position:relative;width:${totalW}px;min-height:${totalH}px`;
+
+  const cellAt = (col, row) => ({
+    x: GUTTER_X + col * (CELL_W + GUTTER_X),
+    y: GUTTER_Y + row * (CELL_H + GUTTER_Y),
+  });
+
+  // SVG edges
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.style.cssText = `position:absolute;top:0;left:0;width:${totalW}px;height:${totalH}px;pointer-events:none;overflow:visible;z-index:1`;
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  defs.innerHTML = `<marker id="fp-arr-${epicFilename}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#ef4444"/></marker>`;
+  svg.appendChild(defs);
+  const cardPos = {};
+  for (const c of ps.stories) {
+    const p = positions[c.filename];
+    const { x, y } = cellAt(p.col, p.row);
+    cardPos[c.filename] = { cx: x + CELL_W / 2, cy: y + CELL_H / 2, x, y };
+  }
+  for (const { src, tgt } of ps.blocks) {
+    const s = cardPos[src], t = cardPos[tgt];
+    if (!s || !t) continue;
+    const x1 = s.cx, y1 = s.y + CELL_H, x2 = t.cx, y2 = t.y;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${x1},${y1} C${x1},${y1 + 10} ${x2},${y2 - 10} ${x2},${y2}`);
+    path.setAttribute('stroke', '#ef4444');
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('marker-end', `url(#fp-arr-${epicFilename})`);
+    svg.appendChild(path);
+  }
+  wrap.appendChild(svg);
+
+  // Cards
+  for (const c of ps.stories) {
+    const p = positions[c.filename];
+    const { x, y } = cellAt(p.col, p.row);
+    const doc = allDocs.find(d => d.filename === c.filename);
+    const sp = doc?.storyPoints ? `${doc.storyPoints} SP` : '';
+    const card = document.createElement('div');
+    card.className = 'fp-card';
+    card.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${CELL_W}px;height:${CELL_H}px`;
+    card.setAttribute('draggable', 'true');
+    card.dataset.filename = c.filename;
+    card.innerHTML = `
+      <div class="fp-card-header">
+        <span class="type-badge ${c.docType || 'story'}">${TYPE_LABEL[c.docType || 'story'] || c.docType}</span>
+        ${sp ? `<span class="canvas-card-sp">${sp}</span>` : ''}
+      </div>
+      <div class="fp-card-title">${escHtml(c.title || c.filename)}</div>`;
+    card.addEventListener('click', () => openRefinePanel(c.filename, c.docType || 'story'));
+    // Drag-drop to reposition within panel
+    card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', c.filename); });
+    wrap.appendChild(card);
+
+    // Drop zone cells
+    const cell = document.createElement('div');
+    cell.className = 'canvas-swimlane-cell fp-drop-cell';
+    cell.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${CELL_W}px;height:${CELL_H}px`;
+    cell.dataset.col = p.col;
+    cell.dataset.row = p.row;
+    cell.addEventListener('dragover', e => { e.preventDefault(); cell.classList.add('drag-over'); });
+    cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+    cell.addEventListener('drop', async e => {
+      e.preventDefault();
+      cell.classList.remove('drag-over');
+      const fn = e.dataTransfer.getData('text/plain');
+      if (!fn || fn === c.filename) return;
+      ps.layout[fn] = { col: p.col, row: p.row };
+      await saveCanvasLayout(ps, epicFilename);
+      _renderFpCanvas(epicFilename, ps, featureFilename);
+    });
+    wrap.insertBefore(cell, card);
+  }
+
+  container.appendChild(wrap);
+}
+
+async function _fpCreateChild(type, epicFilename, featureFilename) {
+  const title = prompt(`Title for new ${type}:`);
+  if (!title) return;
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idea: title, type, parentEpic: epicFilename }),
+    });
+    if (!res.ok) throw new Error('Generate failed');
+    const data = await res.json();
+    if (data.filename) {
+      await fetch('/api/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceType: type, sourceFilename: data.filename, targetType: 'epic', targetFilename: epicFilename }),
+      });
+      showJiraToast('ok', `Created ${data.filename}`);
+      await renderFeatureMultiPanel(featureFilename);
+    }
+  } catch (e) {
+    showJiraToast('error', `Failed: ${e.message}`);
   }
 }
 
