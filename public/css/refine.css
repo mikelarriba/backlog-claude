@@ -399,6 +399,12 @@
   box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0,150,214,0.15));
 }
 
+.canvas-card.canvas-multi-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0,150,214,0.15)), 0 0 0 4px rgba(0,150,214,0.08);
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent));
+}
+
 /* Cursor changes for drag state */
 .canvas-card[draggable="true"] { cursor: grab; }
 .canvas-card.dragging          { opacity: 0.3; cursor: grabbing; }

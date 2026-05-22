@@ -16,6 +16,7 @@ let _canvasStories       = [];
 let _canvasParallel      = [];   // [{ a, b }] pairs
 let _canvasBlocks        = [];   // [{ src, tgt }] pairs
 let _canvasManageLinks   = false; // "Manage Links" mode
+let _canvasSelectedCards = new Set(); // multi-select (filenames)
 
 // Grid constants
 const CELL_W    = 240;
@@ -83,10 +84,19 @@ async function openManualRefine(filename, docType) {
 
   closeRefinePanel();
   await buildCanvasGraph(filename, docType);
+  document.addEventListener('keydown', _onCanvasKeydown);
+}
+
+function _onCanvasKeydown(e) {
+  if (e.key === 'Escape' && _canvasSelectedCards.size > 0) {
+    _canvasSelectedCards.clear();
+    document.querySelectorAll('.canvas-card.canvas-multi-selected').forEach(el => el.classList.remove('canvas-multi-selected'));
+  }
 }
 
 function closeRefineView() {
   document.getElementById('refine-view').classList.remove('show');
+  document.removeEventListener('keydown', _onCanvasKeydown);
   updateSplitMode();
 
   // Clear canvas state
@@ -97,6 +107,7 @@ function closeRefineView() {
   _canvasParallel     = [];
   _canvasBlocks       = [];
   _canvasManageLinks  = false;
+  _canvasSelectedCards.clear();
   const canvas = document.getElementById('refine-canvas');
   if (canvas) canvas.classList.remove('manage-links-active');
 
@@ -109,6 +120,7 @@ function closeRefineView() {
 
 // ── Graph construction ─────────────────────────────────────────
 async function buildCanvasGraph(filename, docType) {
+  _canvasSelectedCards.clear();
   let children = [];
   let blocks    = [];
   let parallel  = [];
@@ -442,18 +454,44 @@ function renderCanvas(epicFilename, docType) {
       <div class="canvas-handle canvas-handle--left"   data-side="left"></div>
       <div class="canvas-handle canvas-handle--right"  data-side="right"></div>`;
 
-    // Click → open panel
+    // Click → open panel (plain) or toggle multi-select (Cmd/Ctrl)
     card.addEventListener('click', e => {
       if (e.target.classList.contains('canvas-handle')) return;
+      if (e.metaKey || e.ctrlKey) {
+        // Cmd/Ctrl+Click: toggle multi-select without opening panel
+        if (_canvasSelectedCards.has(child.filename)) {
+          _canvasSelectedCards.delete(child.filename);
+          card.classList.remove('canvas-multi-selected');
+        } else {
+          _canvasSelectedCards.add(child.filename);
+          card.classList.add('canvas-multi-selected');
+        }
+        return;
+      }
+      // Plain click: clear multi-select, select single card, open panel
+      _canvasSelectedCards.clear();
+      document.querySelectorAll('.canvas-card.canvas-multi-selected').forEach(el => el.classList.remove('canvas-multi-selected'));
       document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
       card.classList.add('selected');
       openRefinePanel(child.filename, child.docType || docType);
     });
 
-    // Right-click → move context menu
+    // Right-click → context menu (multi-select aware)
     card.addEventListener('contextmenu', e => {
       e.preventDefault();
-      _showCardContextMenu(e.clientX, e.clientY, child.filename, epicFilename, docType);
+      // If right-clicking a card not in multi-selection, reset to single
+      if (_canvasSelectedCards.size > 0 && !_canvasSelectedCards.has(child.filename)) {
+        _canvasSelectedCards.clear();
+        document.querySelectorAll('.canvas-card.canvas-multi-selected').forEach(el => el.classList.remove('canvas-multi-selected'));
+      }
+      // If no multi-selection, treat as single-card context menu
+      if (_canvasSelectedCards.size <= 1) {
+        _canvasSelectedCards.clear();
+        document.querySelectorAll('.canvas-card.canvas-multi-selected').forEach(el => el.classList.remove('canvas-multi-selected'));
+        _showCardContextMenu(e.clientX, e.clientY, child.filename, epicFilename, docType);
+      } else {
+        _showMultiCardContextMenu(e.clientX, e.clientY, epicFilename, docType);
+      }
     });
 
     // HTML5 drag to reposition
@@ -825,6 +863,69 @@ function _showCardContextMenu(x, y, filename, epicFilename, docType) {
   });
 
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+// ── Multi-card context menu (batch operations) ───────────────
+function _showMultiCardContextMenu(x, y, epicFilename, docType) {
+  _closeLinkPopup();
+  const count = _canvasSelectedCards.size;
+  const popup = document.createElement('div');
+  popup.className = 'canvas-link-popup';
+  popup.style.left = `${x}px`;
+  popup.style.top  = `${y}px`;
+  popup.innerHTML = `
+    <div class="canvas-link-popup-title">${count} cards selected</div>
+    <button id="_ctx-m-left">← Move all Left</button>
+    <button id="_ctx-m-right">Move all Right →</button>
+    <button id="_ctx-m-top">↑ Move all Top</button>
+    <button id="_ctx-m-bottom">Move all Bottom ↓</button>
+    <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+    <button id="_ctx-m-delete" style="color:var(--danger,#ef4444)">🗑 Delete ${count} cards</button>`;
+  document.body.appendChild(popup);
+
+  popup.querySelector('#_ctx-m-left').addEventListener('click', () =>
+    _moveCardsToEdge([..._canvasSelectedCards], 'left', epicFilename, docType));
+  popup.querySelector('#_ctx-m-right').addEventListener('click', () =>
+    _moveCardsToEdge([..._canvasSelectedCards], 'right', epicFilename, docType));
+  popup.querySelector('#_ctx-m-top').addEventListener('click', () =>
+    _moveCardsToEdge([..._canvasSelectedCards], 'top', epicFilename, docType));
+  popup.querySelector('#_ctx-m-bottom').addEventListener('click', () =>
+    _moveCardsToEdge([..._canvasSelectedCards], 'bottom', epicFilename, docType));
+  popup.querySelector('#_ctx-m-delete').addEventListener('click', async () => {
+    _closeLinkPopup();
+    if (!confirm(`Delete ${count} selected items? This cannot be undone.`)) return;
+    for (const fn of _canvasSelectedCards) {
+      const doc = allDocs.find(d => d.filename === fn);
+      if (!doc) continue;
+      await fetch(`/api/doc/${doc.docType}/${encodeURIComponent(fn)}`, { method: 'DELETE' });
+    }
+    _canvasSelectedCards.clear();
+    await loadDocs();
+    await buildCanvasGraph(epicFilename, docType);
+  });
+
+  setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+async function _moveCardsToEdge(filenames, direction, epicFilename, docType) {
+  _closeLinkPopup();
+  const positions = Object.values(_canvasLayout);
+  for (const fn of filenames) {
+    const cur = _canvasLayout[fn];
+    if (!cur) continue;
+    let newCol = cur.col;
+    let newRow = cur.row;
+    switch (direction) {
+      case 'left':   newCol = 0; break;
+      case 'right':  newCol = Math.max(...positions.map(p => p.col)) + 1; break;
+      case 'top':    newRow = 0; break;
+      case 'bottom': newRow = Math.max(...positions.map(p => p.row)) + 1; break;
+    }
+    _canvasLayout[fn] = { col: newCol, row: newRow };
+  }
+  _canvasSelectedCards.clear();
+  await saveCanvasLayout(epicFilename);
+  renderCanvas(epicFilename, docType);
 }
 
 function _openCanvasSplit(filename, childDocType, epicFilename, epicDocType) {
