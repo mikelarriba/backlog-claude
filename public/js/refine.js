@@ -308,6 +308,10 @@ function _renderFpCanvas(epicFilename, ps, featureFilename) {
       </div>
       <div class="fp-card-title">${escHtml(c.title || c.filename)}</div>`;
     card.addEventListener('click', () => openRefinePanel(c.filename, c.docType || 'story'));
+    card.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      _showFpCardContextMenu(e.clientX, e.clientY, c.filename, c.docType || 'story', epicFilename, featureFilename);
+    });
     // Drag-drop to reposition within panel
     card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', c.filename); });
     wrap.appendChild(card);
@@ -1107,6 +1111,63 @@ function _showCardContextMenu(x, y, filename, epicFilename, docType) {
   });
 
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+// ── Feature multi-panel card context menu ─────────────────────
+function _showFpCardContextMenu(x, y, filename, docType, currentEpicFilename, featureFilename) {
+  _closeLinkPopup();
+  const popup = document.createElement('div');
+  popup.className = 'canvas-link-popup';
+  popup.style.left = `${x}px`;
+  popup.style.top  = `${y}px`;
+
+  // Build "Move to Epic" submenu items from _panelStates
+  const epicItems = [..._panelStates.keys()].map(ef => {
+    const isCurrent = ef === currentEpicFilename;
+    const epicDoc = allDocs.find(d => d.filename === ef && d.docType === 'epic');
+    const label = epicDoc?.title || ef;
+    return `<button class="fp-ctx-epic-btn${isCurrent ? ' fp-ctx-epic-current' : ''}"
+      ${isCurrent ? 'disabled' : ''}
+      data-epic="${escHtml(ef)}">
+      ${escHtml(label)}${isCurrent ? ' (current)' : ''}
+    </button>`;
+  }).join('');
+
+  popup.innerHTML = `
+    <div class="canvas-link-popup-title">Move to Epic</div>
+    ${epicItems || '<div style="font-size:0.75rem;color:var(--muted);padding:4px 8px">No other epics</div>'}
+    <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+    <button id="_fp-ctx-open">↗ Open in panel</button>`;
+  document.body.appendChild(popup);
+
+  popup.querySelectorAll('.fp-ctx-epic-btn:not([disabled])').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      _closeLinkPopup();
+      await _fpMoveToEpic(filename, docType, currentEpicFilename, btn.dataset.epic, featureFilename);
+    });
+  });
+  popup.querySelector('#_fp-ctx-open')?.addEventListener('click', () => {
+    _closeLinkPopup();
+    openRefinePanel(filename, docType);
+  });
+
+  setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+async function _fpMoveToEpic(filename, docType, fromEpic, toEpic, featureFilename) {
+  try {
+    const res = await fetch('/api/link', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sourceType: docType, sourceFilename: filename, targetType: 'epic', targetFilename: toEpic }),
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error?.message || 'Move failed'); }
+    await loadDocs();
+    showJiraToast('ok', `Moved to ${allDocs.find(d => d.filename === toEpic)?.title || toEpic}`);
+    await renderFeatureMultiPanel(featureFilename);
+  } catch (e) {
+    showJiraToast('error', e.message);
+  }
 }
 
 // ── Multi-card context menu (batch operations) ───────────────
