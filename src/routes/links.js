@@ -76,6 +76,70 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
     }
   });
 
+  // ── GET /api/links/feature/:filename/deep ─────────────────────────────────
+  // Returns the full feature → epics → children hierarchy in one call,
+  // eliminating N+1 fetches from the multi-panel view.
+  router.get('/api/links/feature/:filename/deep', (req, res) => {
+    try {
+      const filename = assertFilename(req.params.filename);
+      const featureEntry = docIndex.get(filename);
+
+      const featureObj = {
+        filename,
+        title: featureEntry?.title || filename,
+      };
+
+      const epicEntries = docIndex.getAll()
+        .filter(e => e.docType === 'epic' && e.parentFilename === filename);
+
+      const epics = epicEntries.map(epicEntry => {
+        const epicFilename = epicEntry.filename;
+
+        const children = docIndex.getAll()
+          .filter(e => ['story', 'spike', 'bug'].includes(e.docType) && e.parentFilename === epicFilename)
+          .map(e => ({
+            docType: e.docType,
+            filename: e.filename,
+            title: e.title,
+            jiraId: e.jiraId || 'TBD',
+            status: e.status || 'Draft',
+            storyPoints: e.storyPoints ?? null,
+          }));
+
+        const blocks = (epicEntry.blocks || []).map(fn => {
+          const e = docIndex.get(fn);
+          return { filename: fn, title: e?.title || fn, docType: e?.docType || null };
+        });
+        const blockedBy = (epicEntry.blockedBy || []).map(fn => {
+          const e = docIndex.get(fn);
+          return { filename: fn, title: e?.title || fn, docType: e?.docType || null };
+        });
+        const parallel = (epicEntry.parallel || []).map(fn => {
+          const e = docIndex.get(fn);
+          return { filename: fn, title: e?.title || fn, docType: e?.docType || null };
+        });
+
+        return {
+          filename: epicFilename,
+          title: epicEntry.title,
+          docType: 'epic',
+          storyPoints: epicEntry.storyPoints ?? null,
+          status: epicEntry.status || 'Draft',
+          jiraId: epicEntry.jiraId || 'TBD',
+          children,
+          blocks,
+          blockedBy,
+          parallel,
+        };
+      });
+
+      res.json({ feature: featureObj, epics });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      sendError(res, apiErr.code === 'INVALID_FILENAME' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
   // ── POST /api/link ─────────────────────────────────────────────────────────
   router.post('/api/link', (req, res) => {
     const LINK_RULES = {

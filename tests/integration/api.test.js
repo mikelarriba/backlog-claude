@@ -319,6 +319,41 @@ describe('GET /api/links — with linked documents', () => {
   });
 });
 
+// ── GET /api/links/feature/:filename/deep ─────────────────────────────────────
+describe('GET /api/links/feature/:filename/deep', () => {
+  let featureFilename, epicFilename, storyFilename;
+
+  before(async () => {
+    const { data: feature } = await api('POST', '/api/generate', { idea: 'Deep feature test', type: 'feature' });
+    featureFilename = feature.filename;
+    const { data: epic } = await api('POST', '/api/generate', { idea: 'Deep epic test', type: 'epic' });
+    epicFilename = epic.filename;
+    const { data: story } = await api('POST', '/api/generate', { idea: 'Deep story test', type: 'story' });
+    storyFilename = story.filename;
+    await api('POST', '/api/link', { sourceType: 'epic', sourceFilename: epicFilename, targetType: 'feature', targetFilename: featureFilename });
+    await api('POST', '/api/link', { sourceType: 'story', sourceFilename: storyFilename, targetType: 'epic', targetFilename: epicFilename });
+  });
+
+  test('returns feature + epics with their children in one call', async () => {
+    const { status, data } = await api('GET', `/api/links/feature/${encodeURIComponent(featureFilename)}/deep`);
+    assert.equal(status, 200);
+    assert.equal(data.feature.filename, featureFilename);
+    assert.ok(Array.isArray(data.epics));
+    const epic = data.epics.find(e => e.filename === epicFilename);
+    assert.ok(epic, 'epic should appear in epics array');
+    assert.equal(epic.docType, 'epic');
+    assert.ok(Array.isArray(epic.children));
+    assert.ok(epic.children.some(c => c.filename === storyFilename), 'story should appear under epic children');
+    assert.ok(Array.isArray(epic.blocks));
+    assert.ok(Array.isArray(epic.parallel));
+  });
+
+  test('returns 400 for invalid filename', async () => {
+    const { status } = await api('GET', '/api/links/feature/..%2Fetc%2Fpasswd/deep');
+    assert.equal(status, 400);
+  });
+});
+
 // ── POST /api/docs/batch-fix-version ─────────────────────────────────────────
 describe('POST /api/docs/batch-fix-version', () => {
   let epicFilename, storyFilename;
