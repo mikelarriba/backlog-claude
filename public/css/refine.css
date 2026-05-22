@@ -700,3 +700,8 @@
 .fp-drop-cell {
   z-index: 1;
 }
+
+.fp-ctx-epic-current {
+  color: var(--muted);
+  font-style: italic;
+}
