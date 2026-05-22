@@ -2,6 +2,7 @@
 .app {
   display: grid;
   grid-template-columns: 370px 1fr;
+  grid-template-rows: 100vh;
   height: 100vh;
   overflow: hidden;
 }

@@ -248,7 +248,7 @@ button:active:not(:disabled) { transform: scale(0.97); }
   transition: max-height 0.3s ease;
 }
 
-.collapsible-body.open { max-height: 900px; overflow-y: auto; }
+.collapsible-body.open { max-height: min(900px, 55vh); overflow-y: auto; }
 
 .collapsible-inner { padding: 14px; }
 
