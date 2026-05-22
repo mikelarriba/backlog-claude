@@ -315,6 +315,32 @@
   text-align: center;
 }
 
+/* ── Feature parent banner (shown above epic node) ──────────── */
+.canvas-feature-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface2);
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px var(--shadow);
+}
+
+.canvas-feature-title {
+  font-size: 0.78rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.canvas-feature-banner:hover {
+  background: var(--surface);
+  border-left-color: var(--accent-hover, var(--accent));
+}
+
 /* ── Epic node ───────────────────────────────────────────────── */
 .canvas-epic-node {
   position: absolute;
