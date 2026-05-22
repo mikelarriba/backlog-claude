@@ -11,12 +11,13 @@
 // ── Canvas state ───────────────────────────────────────────────
 let _canvasEpicFilename  = null;
 let _canvasDocType       = null;
-let _canvasLayout        = {};   // { storyFilename: { col, row } }
-let _canvasStories       = [];
-let _canvasParallel      = [];   // [{ a, b }] pairs
-let _canvasBlocks        = [];   // [{ src, tgt }] pairs
 let _canvasManageLinks   = false; // "Manage Links" mode
 let _canvasSelectedCards = new Set(); // multi-select (filenames)
+
+// PanelState shape: { stories, layout, blocks, parallel }
+// Single-epic mode uses _activePanelState; multi-panel mode adds to _panelStates.
+let _activePanelState = { stories: [], layout: {}, blocks: [], parallel: [] };
+const _panelStates = new Map(); // epicFilename → PanelState (multi-panel)
 
 // Grid constants
 const CELL_W    = 240;
@@ -102,10 +103,10 @@ function closeRefineView() {
   // Clear canvas state
   _canvasEpicFilename = null;
   _canvasDocType      = null;
-  _canvasLayout       = {};
-  _canvasStories      = [];
-  _canvasParallel     = [];
-  _canvasBlocks       = [];
+  _activePanelState.layout       = {};
+  _activePanelState.stories      = [];
+  _activePanelState.parallel     = [];
+  _activePanelState.blocks       = [];
   _canvasManageLinks  = false;
   _canvasSelectedCards.clear();
   const canvas = document.getElementById('refine-canvas');
@@ -142,9 +143,9 @@ async function buildCanvasGraph(filename, docType) {
     if (res.ok) savedPositions = await res.json();
   } catch {}
 
-  _canvasStories  = children;
-  _canvasParallel = [];
-  _canvasBlocks   = [];
+  _activePanelState.stories  = children;
+  _activePanelState.parallel = [];
+  _activePanelState.blocks   = [];
 
   // Build blocks pairs from child blockedBy info
   const childFilenames = new Set(children.map(c => c.filename));
@@ -153,26 +154,26 @@ async function buildCanvasGraph(filename, docType) {
     if (!doc) continue;
     for (const blockedFn of (doc.blocks || [])) {
       if (childFilenames.has(blockedFn)) {
-        _canvasBlocks.push({ src: child.filename, tgt: blockedFn });
+        _activePanelState.blocks.push({ src: child.filename, tgt: blockedFn });
       }
     }
     for (const parallelFn of (doc.parallel || [])) {
       if (childFilenames.has(parallelFn)) {
         const pairKey = [child.filename, parallelFn].sort().join('|');
-        if (!_canvasParallel.find(p => [p.a, p.b].sort().join('|') === pairKey)) {
-          _canvasParallel.push({ a: child.filename, b: parallelFn });
+        if (!_activePanelState.parallel.find(p => [p.a, p.b].sort().join('|') === pairKey)) {
+          _activePanelState.parallel.push({ a: child.filename, b: parallelFn });
         }
       }
     }
   }
 
   if (Object.keys(savedPositions).length > 0) {
-    _canvasLayout = savedPositions;
+    _activePanelState.layout = savedPositions;
   } else {
-    _canvasLayout = computeAutoLayout(children, _canvasBlocks, _canvasParallel);
+    _activePanelState.layout = computeAutoLayout(children, _activePanelState.blocks, _activePanelState.parallel);
     // Save auto-layout and sync ranks so dependency order propagates to list view
-    if (Object.keys(_canvasLayout).length > 0) {
-      saveCanvasLayout(filename);
+    if (Object.keys(_activePanelState.layout).length > 0) {
+      saveCanvasLayout(_activePanelState, filename);
     }
   }
 
@@ -180,23 +181,23 @@ async function buildCanvasGraph(filename, docType) {
 }
 
 // ── Lightweight edge rebuild (preserves card positions) ────────
-function rebuildCanvasEdges() {
-  const childFilenames = new Set(_canvasStories.map(c => c.filename));
-  _canvasBlocks   = [];
-  _canvasParallel = [];
-  for (const child of _canvasStories) {
+function rebuildCanvasEdges(ps = _activePanelState) {
+  const childFilenames = new Set(ps.stories.map(c => c.filename));
+  ps.blocks   = [];
+  ps.parallel = [];
+  for (const child of ps.stories) {
     const doc = allDocs.find(d => d.filename === child.filename);
     if (!doc) continue;
     for (const blockedFn of (doc.blocks || [])) {
       if (childFilenames.has(blockedFn)) {
-        _canvasBlocks.push({ src: child.filename, tgt: blockedFn });
+        ps.blocks.push({ src: child.filename, tgt: blockedFn });
       }
     }
     for (const parallelFn of (doc.parallel || [])) {
       if (childFilenames.has(parallelFn)) {
         const pairKey = [child.filename, parallelFn].sort().join('|');
-        if (!_canvasParallel.find(p => [p.a, p.b].sort().join('|') === pairKey)) {
-          _canvasParallel.push({ a: child.filename, b: parallelFn });
+        if (!ps.parallel.find(p => [p.a, p.b].sort().join('|') === pairKey)) {
+          ps.parallel.push({ a: child.filename, b: parallelFn });
         }
       }
     }
@@ -298,7 +299,7 @@ function renderCanvas(epicFilename, docType) {
   container.style.position = 'relative';
   container.style.overflow = 'auto';
 
-  if (!_canvasStories.length) {
+  if (!_activePanelState.stories.length) {
     container.innerHTML = '<div class="canvas-empty">No stories linked to this epic yet. Use the buttons above to add some.</div>';
     return;
   }
@@ -318,19 +319,19 @@ function renderCanvas(epicFilename, docType) {
   const effectiveTopOffset = TOP_OFFSET + bannerOffset;
 
   // Compact layout: remap col/row values to remove gaps
-  const usedCols = [...new Set(Object.values(_canvasLayout).map(p => p.col))].sort((a, b) => a - b);
-  const usedRows = [...new Set(Object.values(_canvasLayout).map(p => p.row))].sort((a, b) => a - b);
+  const usedCols = [...new Set(Object.values(_activePanelState.layout).map(p => p.col))].sort((a, b) => a - b);
+  const usedRows = [...new Set(Object.values(_activePanelState.layout).map(p => p.row))].sort((a, b) => a - b);
   if (usedCols.length || usedRows.length) {
     const colRemap = new Map(usedCols.map((c, i) => [c, i]));
     const rowRemap = new Map(usedRows.map((r, i) => [r, i]));
     let changed = false;
-    for (const fn of Object.keys(_canvasLayout)) {
-      const newCol = colRemap.get(_canvasLayout[fn].col) ?? _canvasLayout[fn].col;
-      const newRow = rowRemap.get(_canvasLayout[fn].row) ?? _canvasLayout[fn].row;
-      if (newCol !== _canvasLayout[fn].col || newRow !== _canvasLayout[fn].row) changed = true;
-      _canvasLayout[fn] = { col: newCol, row: newRow };
+    for (const fn of Object.keys(_activePanelState.layout)) {
+      const newCol = colRemap.get(_activePanelState.layout[fn].col) ?? _activePanelState.layout[fn].col;
+      const newRow = rowRemap.get(_activePanelState.layout[fn].row) ?? _activePanelState.layout[fn].row;
+      if (newCol !== _activePanelState.layout[fn].col || newRow !== _activePanelState.layout[fn].row) changed = true;
+      _activePanelState.layout[fn] = { col: newCol, row: newRow };
     }
-    if (changed) saveCanvasLayout(epicFilename);
+    if (changed) saveCanvasLayout(_activePanelState, epicFilename);
   }
 
   // Grid dimensions: occupied + 1 extra row/col for expansion
@@ -413,10 +414,10 @@ function renderCanvas(epicFilename, docType) {
         if (!fn) return;
         const newCol = parseInt(cell.dataset.col);
         const newRow = parseInt(cell.dataset.row);
-        const cur = _canvasLayout[fn] || {};
+        const cur = _activePanelState.layout[fn] || {};
         if (cur.col === newCol && cur.row === newRow) return;
-        _canvasLayout[fn] = { col: newCol, row: newRow };
-        await saveCanvasLayout(epicFilename);
+        _activePanelState.layout[fn] = { col: newCol, row: newRow };
+        await saveCanvasLayout(_activePanelState, epicFilename);
         renderCanvas(epicFilename, docType);
       });
 
@@ -426,8 +427,8 @@ function renderCanvas(epicFilename, docType) {
 
   // ── Story cards ───────────────────────────────────────────────
   const cardPositions = {};
-  for (const child of _canvasStories) {
-    const pos = _canvasLayout[child.filename] || { col: 0, row: 0 };
+  for (const child of _activePanelState.stories) {
+    const pos = _activePanelState.layout[child.filename] || { col: 0, row: 0 };
     const { x, y } = cellAt(pos.col, pos.row);
     const cx = x + CELL_W / 2;
     const cy = y + CELL_H / 2;
@@ -590,7 +591,7 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
 
   // SEC arrows: cards sharing a column, consecutive rows
   const byCols = {};
-  for (const [fn, pos] of Object.entries(_canvasLayout)) {
+  for (const [fn, pos] of Object.entries(_activePanelState.layout)) {
     if (!byCols[pos.col]) byCols[pos.col] = [];
     byCols[pos.col].push({ fn, row: pos.row });
   }
@@ -600,7 +601,7 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
       const src = cardPositions[colItems[i].fn];
       const tgt = cardPositions[colItems[i + 1].fn];
       if (!src || !tgt || src === tgt) continue;
-      const hasBlocks = _canvasBlocks.some(b =>
+      const hasBlocks = _activePanelState.blocks.some(b =>
         (b.src === colItems[i].fn && b.tgt === colItems[i + 1].fn) ||
         (b.src === colItems[i + 1].fn && b.tgt === colItems[i].fn)
       );
@@ -626,14 +627,14 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
   }
 
   // BLOCKS arrows (red) — clickable
-  for (const { src, tgt } of _canvasBlocks) {
+  for (const { src, tgt } of _activePanelState.blocks) {
     if (src === tgt) continue;
     const s = cardPositions[src];
     const t = cardPositions[tgt];
     if (!s || !t) continue;
 
-    const srcDt = _canvasStories.find(c => c.filename === src)?.docType || _canvasDocType;
-    const tgtDt = _canvasStories.find(c => c.filename === tgt)?.docType || _canvasDocType;
+    const srcDt = _activePanelState.stories.find(c => c.filename === src)?.docType || _canvasDocType;
+    const tgtDt = _activePanelState.stories.find(c => c.filename === tgt)?.docType || _canvasDocType;
 
     const x1 = s.cx, y1 = s.y + CELL_H;
     const x2 = t.cx, y2 = t.y;
@@ -661,13 +662,13 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
   }
 
   // PARALLEL brackets — clickable
-  for (const { a, b } of _canvasParallel) {
+  for (const { a, b } of _activePanelState.parallel) {
     const pa = cardPositions[a];
     const pb = cardPositions[b];
     if (!pa || !pb) continue;
 
-    const aDt = _canvasStories.find(c => c.filename === a)?.docType || _canvasDocType;
-    const bDt = _canvasStories.find(c => c.filename === b)?.docType || _canvasDocType;
+    const aDt = _activePanelState.stories.find(c => c.filename === a)?.docType || _canvasDocType;
+    const bDt = _activePanelState.stories.find(c => c.filename === b)?.docType || _canvasDocType;
 
     const x1 = pa.x;
     const x2 = pb.x + CELL_W;
@@ -777,28 +778,30 @@ function _restoreManageLinksState() {
 }
 
 
-async function saveCanvasLayout(epicFilename) {
+async function saveCanvasLayout(ps = _activePanelState, parentFilename) {
+  const fn = parentFilename || _canvasEpicFilename;
+  if (!fn) return;
   try {
-    await fetch(`/api/canvas/layout/${encodeURIComponent(epicFilename)}`, {
+    await fetch(`/api/canvas/layout/${encodeURIComponent(fn)}`, {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ positions: _canvasLayout }),
+      body:    JSON.stringify({ positions: ps.layout }),
     });
   } catch { /* silent */ }
-  await syncCanvasRanks();
+  await syncCanvasRanks(ps);
 }
 
 // ── Sync canvas grid order → Rank frontmatter field ──────────
 // Order: col-first (left→right), then row within each col (top→bottom)
-async function syncCanvasRanks() {
-  if (!_canvasStories.length) return;
-  const entries = _canvasStories
-    .filter(c => _canvasLayout[c.filename])
+async function syncCanvasRanks(ps = _activePanelState) {
+  if (!ps.stories.length) return;
+  const entries = ps.stories
+    .filter(c => ps.layout[c.filename])
     .map(c => ({
       filename: c.filename,
       docType:  c.docType || c.type || 'story',
-      col:      _canvasLayout[c.filename].col,
-      row:      _canvasLayout[c.filename].row,
+      col:      ps.layout[c.filename].col,
+      row:      ps.layout[c.filename].row,
     }))
     .sort((a, b) => a.col !== b.col ? a.col - b.col : a.row - b.row);
 
@@ -909,9 +912,9 @@ function _showMultiCardContextMenu(x, y, epicFilename, docType) {
 
 async function _moveCardsToEdge(filenames, direction, epicFilename, docType) {
   _closeLinkPopup();
-  const positions = Object.values(_canvasLayout);
+  const positions = Object.values(_activePanelState.layout);
   for (const fn of filenames) {
-    const cur = _canvasLayout[fn];
+    const cur = _activePanelState.layout[fn];
     if (!cur) continue;
     let newCol = cur.col;
     let newRow = cur.row;
@@ -921,10 +924,10 @@ async function _moveCardsToEdge(filenames, direction, epicFilename, docType) {
       case 'top':    newRow = 0; break;
       case 'bottom': newRow = Math.max(...positions.map(p => p.row)) + 1; break;
     }
-    _canvasLayout[fn] = { col: newCol, row: newRow };
+    _activePanelState.layout[fn] = { col: newCol, row: newRow };
   }
   _canvasSelectedCards.clear();
-  await saveCanvasLayout(epicFilename);
+  await saveCanvasLayout(_activePanelState, epicFilename);
   renderCanvas(epicFilename, docType);
 }
 
@@ -1071,10 +1074,10 @@ async function _executeCanvasSplit(originalFilename, childDocType, epicFilename,
 
 async function _moveCardToEdge(filename, direction, epicFilename, docType) {
   _closeLinkPopup();
-  const cur = _canvasLayout[filename];
+  const cur = _activePanelState.layout[filename];
   if (!cur) return;
 
-  const positions = Object.values(_canvasLayout);
+  const positions = Object.values(_activePanelState.layout);
   let newCol = cur.col;
   let newRow = cur.row;
 
@@ -1095,8 +1098,8 @@ async function _moveCardToEdge(filename, direction, epicFilename, docType) {
 
   if (newCol === cur.col && newRow === cur.row) return;
 
-  _canvasLayout[filename] = { col: newCol, row: newRow };
-  await saveCanvasLayout(epicFilename);
+  _activePanelState.layout[filename] = { col: newCol, row: newRow };
+  await saveCanvasLayout(_activePanelState, epicFilename);
   renderCanvas(epicFilename, docType);
 }
 
@@ -1144,7 +1147,7 @@ async function resetCanvasLayout(epicFilename) {
   try {
     await fetch(`/api/canvas/layout/${encodeURIComponent(epicFilename)}`, { method: 'DELETE' });
   } catch {}
-  _canvasLayout = computeAutoLayout(_canvasStories, _canvasBlocks, _canvasParallel);
+  _activePanelState.layout = computeAutoLayout(_activePanelState.stories, _activePanelState.blocks, _activePanelState.parallel);
   renderCanvas(epicFilename, _canvasDocType);
 }
 
