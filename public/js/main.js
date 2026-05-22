@@ -52,6 +52,29 @@ window.addEventListener('resize', debounce(() => {
   updateSplitMode();
 }, 150));
 
+// ── Left panel collapse toggle ────────────────────────────────
+function toggleLeftPanel() {
+  const app = document.getElementById('app-root');
+  const btn = document.getElementById('left-toggle-btn');
+  const collapsed = app.classList.toggle('left-collapsed');
+  btn.textContent = collapsed ? '▶' : '◀';
+  try { localStorage.setItem('leftPanelCollapsed', collapsed ? '1' : '0'); } catch {}
+}
+
+(function _restoreLeftPanel() {
+  try {
+    if (localStorage.getItem('leftPanelCollapsed') === '1') {
+      const app = document.getElementById('app-root');
+      const btn = document.getElementById('left-toggle-btn');
+      if (app) { app.classList.add('left-collapsed'); if (btn) btn.textContent = '▶'; }
+    }
+  } catch {}
+})();
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); toggleLeftPanel(); }
+});
+
 // ── Model settings ────────────────────────────────────────────
 function toggleModelSection() {
   toggleSection('model-section-body', 'model-chevron');
