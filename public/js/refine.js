@@ -291,6 +291,20 @@ function renderCanvas(epicFilename, docType) {
     return;
   }
 
+  // Resolve feature parent banner (only when viewing an epic)
+  let featureDoc = null;
+  let bannerOffset = 0;
+  if (docType === 'epic') {
+    const epicEntry = allDocs.find(d => d.filename === epicFilename && d.docType === 'epic');
+    if (epicEntry?.parentFilename) {
+      featureDoc = allDocs.find(d => d.filename === epicEntry.parentFilename && d.docType === 'feature');
+    }
+  }
+  if (featureDoc) bannerOffset = 44;
+
+  // Effective top offset for grid (shifted down when banner is present)
+  const effectiveTopOffset = TOP_OFFSET + bannerOffset;
+
   // Compact layout: remap col/row values to remove gaps
   const usedCols = [...new Set(Object.values(_canvasLayout).map(p => p.col))].sort((a, b) => a - b);
   const usedRows = [...new Set(Object.values(_canvasLayout).map(p => p.row))].sort((a, b) => a - b);
@@ -314,7 +328,7 @@ function renderCanvas(epicFilename, docType) {
   const gridRows = occupiedRows + 1;
 
   const totalW = GUTTER_X + gridCols * (CELL_W + GUTTER_X);
-  const totalH = TOP_OFFSET + gridRows * (CELL_H + GUTTER_Y) + GUTTER_Y;
+  const totalH = effectiveTopOffset + gridRows * (CELL_H + GUTTER_Y) + GUTTER_Y;
 
   // Wrapper sized to content (enables scrolling)
   const wrapper = document.createElement('div');
@@ -326,12 +340,26 @@ function renderCanvas(epicFilename, docType) {
   svg.style.cssText = `position:absolute;top:0;left:0;width:${totalW}px;height:${totalH}px;pointer-events:none;overflow:visible;z-index:3`;
   wrapper.appendChild(svg);
 
+  // Feature parent banner (when viewing an epic with a Feature parent)
+  if (featureDoc) {
+    const banner = document.createElement('div');
+    banner.className = 'canvas-feature-banner';
+    banner.style.cssText = `position:absolute;left:${GUTTER_X}px;top:8px;right:${GUTTER_X}px;z-index:2`;
+    banner.innerHTML = `
+      <span class="type-badge feature">Feature</span>
+      <span class="canvas-feature-title">${escHtml(featureDoc.title || featureDoc.filename)}</span>`;
+    banner.style.cursor = 'pointer';
+    banner.title = 'Open feature in refinement view';
+    banner.addEventListener('click', () => openManualRefine(featureDoc.filename, 'feature'));
+    wrapper.appendChild(banner);
+  }
+
   // Epic title node at top center
   const epicDoc = allDocs.find(d => d.filename === epicFilename && d.docType === docType);
   const epicNode = document.createElement('div');
   epicNode.className = 'canvas-epic-node';
   const epicCenterX = totalW / 2;
-  epicNode.style.cssText = `position:absolute;left:${epicCenterX - 110}px;top:14px;width:220px;z-index:2`;
+  epicNode.style.cssText = `position:absolute;left:${epicCenterX - 110}px;top:${14 + bannerOffset}px;width:220px;z-index:2`;
   epicNode.innerHTML = `
     <span class="type-badge ${docType}">${TYPE_LABEL[docType] || docType}</span>
     <span class="canvas-epic-title">${escHtml(epicDoc?.title || epicFilename)}</span>`;
@@ -347,7 +375,7 @@ function renderCanvas(epicFilename, docType) {
   // pointer-events:none on all cards, letting dragover fall through to cells.
   const cellAt = (col, row) => ({
     x: GUTTER_X + col * (CELL_W + GUTTER_X),
-    y: TOP_OFFSET + row * (CELL_H + GUTTER_Y),
+    y: effectiveTopOffset + row * (CELL_H + GUTTER_Y),
   });
 
   for (let row = 0; row < gridRows; row++) {
