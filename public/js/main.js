@@ -75,7 +75,7 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); toggleLeftPanel(); }
 });
 
-// ── Model settings ────────────────────────────────────────────
+// ── Model / Provider settings ─────────────────────────────────
 function toggleModelSection() {
   toggleSection('model-section-body', 'model-chevron');
 }
@@ -87,20 +87,66 @@ async function loadAppConfig() {
   } catch (e) { console.warn('Failed to load app config:', e.message); }
 }
 
+let _availableProviders = [];
+
 async function loadModelSetting() {
   try {
-    const { model } = await fetchJSON('/api/settings/model');
-    const sel = document.getElementById('model-select');
-    if (sel) sel.value = model || '';
+    const [{ providers }, { model, provider }] = await Promise.all([
+      fetchJSON('/api/settings/providers'),
+      fetchJSON('/api/settings/model'),
+    ]);
+    _availableProviders = providers || [];
+    _renderProviderDropdown(provider || 'claude-cli');
+    _renderModelDropdown(provider || 'claude-cli', model || '');
   } catch (e) { console.warn('Failed to load model setting:', e.message); }
 }
 
+function _renderProviderDropdown(selectedProvider) {
+  const sel = document.getElementById('provider-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+  for (const p of _availableProviders) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if (p.id === selectedProvider) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function _renderModelDropdown(providerId, selectedModel) {
+  const sel = document.getElementById('model-select');
+  if (!sel) return;
+  const provider = _availableProviders.find(p => p.id === providerId);
+  sel.innerHTML = '';
+  if (!provider) return;
+  for (const m of provider.models) {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = m.name;
+    if (m.id === selectedModel) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+async function onProviderChange(providerId) {
+  _renderModelDropdown(providerId, '');
+  await _saveModelSetting(providerId, '');
+}
+
 async function updateModelSetting(model) {
+  const providerSel = document.getElementById('provider-select');
+  const providerId = providerSel ? providerSel.value : 'claude-cli';
+  await _saveModelSetting(providerId, model);
+}
+
+async function _saveModelSetting(provider, model) {
   const statusEl = document.getElementById('model-status');
   try {
-    await putJSON('/api/settings/model', { model: model || null });
+    await putJSON('/api/settings/model', { provider: provider || null, model: model || null });
     statusEl.className = 'model-status show success';
-    statusEl.textContent = model ? `Using ${model}` : 'Using default model';
+    const pName = (_availableProviders.find(p => p.id === provider) || {}).name || provider;
+    statusEl.textContent = model ? `Using ${pName} / ${model}` : `Using ${pName} default`;
     setTimeout(() => { statusEl.className = 'model-status'; }, 3000);
   } catch (e) {
     statusEl.className = 'model-status show error';

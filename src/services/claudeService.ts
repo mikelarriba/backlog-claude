@@ -39,17 +39,59 @@ N/A
 
 // Model override — read from settings file if present
 let _modelOverride: string | null = null;
+// Provider override — 'claude-cli' (default) | 'github-models'
+let _providerOverride: string | null = null;
 
-/**
- * Override the Claude model used for all subsequent spawns (session-scoped).
- * Pass null or undefined to clear the override and use the CLI default.
- */
 export function setModelOverride(model: string | null | undefined): void {
   _modelOverride = model || null;
 }
 
 export function getModelOverride(): string | null {
   return _modelOverride;
+}
+
+export function setProviderOverride(provider: string | null | undefined): void {
+  _providerOverride = provider || null;
+}
+
+export function getProviderOverride(): string | null {
+  return _providerOverride;
+}
+
+/**
+ * Returns the list of available providers based on configured tokens/binaries.
+ * Always includes 'claude-cli'. Adds 'github-models' when GITHUB_MODELS_TOKEN is set.
+ */
+export function getAvailableProviders(): Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }> {
+  const providers: Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }> = [
+    {
+      id: 'claude-cli',
+      name: 'Claude (Anthropic)',
+      models: [
+        { id: '', name: 'Default (Sonnet)' },
+        { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6' },
+        { id: 'claude-haiku-4-5', name: 'Haiku 4.5' },
+        { id: 'claude-opus-4-6', name: 'Opus 4.6' },
+      ],
+    },
+  ];
+
+  if (process.env.GITHUB_MODELS_TOKEN) {
+    providers.push({
+      id: 'github-models',
+      name: 'GitHub Models',
+      models: [
+        { id: 'openai/gpt-4o', name: 'GPT-4o' },
+        { id: 'openai/gpt-4o-mini', name: 'GPT-4o mini' },
+        { id: 'deepseek/DeepSeek-V3-0324', name: 'DeepSeek V3' },
+        { id: 'deepseek/DeepSeek-R1', name: 'DeepSeek R1' },
+        { id: 'meta/Llama-3.1-405B-Instruct', name: 'Llama 3.1 405B' },
+        { id: 'Mistral-large-2411', name: 'Mistral Large' },
+      ],
+    });
+  }
+
+  return providers;
 }
 
 function buildClaudeArgs(prompt: string): string[] {
@@ -95,22 +137,128 @@ function _spawnClaude(rootDir: string, prompt: string, timeoutMs: number): Promi
   });
 }
 
+const GITHUB_MODELS_ENDPOINT = 'https://models.github.ai/inference/chat/completions';
+
+async function _callGitHubModels(prompt: string): Promise<string> {
+  const token = process.env.GITHUB_MODELS_TOKEN;
+  if (!token) throw new Error('GITHUB_MODELS_TOKEN is not set');
+
+  const model = _modelOverride || 'openai/gpt-4o';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CALL_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(GITHUB_MODELS_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`GitHub Models API error ${res.status}: ${errText}`);
+  }
+
+  const json = await res.json() as any;
+  const content = json?.choices?.[0]?.message?.content ?? '';
+  return normalizeOutput(content);
+}
+
+async function _streamGitHubModels(prompt: string, onChunk: (chunk: string) => void): Promise<void> {
+  const token = process.env.GITHUB_MODELS_TOKEN;
+  if (!token) throw new Error('GITHUB_MODELS_TOKEN is not set');
+
+  const model = _modelOverride || 'openai/gpt-4o';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(GITHUB_MODELS_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        stream: true,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timer);
+    throw err;
+  }
+
+  if (!res.ok) {
+    clearTimeout(timer);
+    const errText = await res.text().catch(() => '');
+    throw new Error(`GitHub Models API error ${res.status}: ${errText}`);
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop()!;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const data = trimmed.slice(5).trim();
+        if (data === '[DONE]') return;
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed?.choices?.[0]?.delta?.content;
+          if (delta) onChunk(delta);
+        } catch {}
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+    reader.releaseLock();
+  }
+}
+
 /**
- * Invoke the Claude CLI non-streaming. Retries up to `maxAttempts` times
- * with exponential back-off (2s, 4s, 8s). User-content errors (bad API key,
- * content policy, context too long) are not retried.
+ * Invoke the AI provider non-streaming. Dispatches to GitHub Models or Claude CLI
+ * based on the current provider override. Retries up to `maxAttempts` times with
+ * exponential back-off (2s, 4s, 8s). User-content errors are not retried.
  */
 export async function callClaude(rootDir: string, prompt: string, { maxAttempts = 3 } = {}): Promise<string> {
   if (process.env.MOCK_CLAUDE) return Promise.resolve(MOCK_RESPONSE);
+
+  const provider = _providerOverride || 'claude-cli';
   let lastErr: any;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      if (provider === 'github-models') {
+        return await _callGitHubModels(prompt);
+      }
       return await _spawnClaude(rootDir, prompt, CALL_TIMEOUT_MS);
     } catch (err: any) {
       lastErr = err;
       const isUserError = !err.isTimeout && NO_RETRY_PATTERNS.some((p: RegExp) => p.test(err.message));
       if (isUserError || attempt === maxAttempts) break;
-      // Exponential back-off: 2s, 4s, 8s
       await new Promise(r => setTimeout(r, 2 ** attempt * 1000));
     }
   }
@@ -118,14 +266,20 @@ export async function callClaude(rootDir: string, prompt: string, { maxAttempts 
 }
 
 /**
- * Invoke the Claude CLI in streaming mode. Each stdout chunk is forwarded to
- * `onChunk` as it arrives. Times out after 5 minutes.
+ * Invoke the AI provider in streaming mode. Dispatches to GitHub Models (SSE) or
+ * Claude CLI based on the current provider override. Each chunk is forwarded to `onChunk`.
  */
 export function streamClaude(rootDir: string, prompt: string, onChunk: (chunk: string) => void): Promise<void> {
   if (process.env.MOCK_CLAUDE) {
     onChunk(MOCK_RESPONSE);
     return Promise.resolve();
   }
+
+  const provider = _providerOverride || 'claude-cli';
+  if (provider === 'github-models') {
+    return _streamGitHubModels(prompt, onChunk);
+  }
+
   return new Promise((resolve, reject) => {
     let err = '';
     const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });

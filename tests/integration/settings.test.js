@@ -156,12 +156,36 @@ describe('GET/PUT /api/settings/pi/sprints/:piName', () => {
   });
 });
 
+// ── GET /api/settings/providers ──────────────────────────────────────────────
+describe('GET /api/settings/providers', () => {
+  test('returns 200 with providers array', async () => {
+    const { status, data } = await api('GET', '/api/settings/providers');
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(data.providers), 'providers must be an array');
+  });
+
+  test('providers array always contains claude-cli', async () => {
+    const { data } = await api('GET', '/api/settings/providers');
+    assert.ok(data.providers.some(p => p.id === 'claude-cli'), 'claude-cli must be present');
+  });
+
+  test('each provider has id, name, and models array', async () => {
+    const { data } = await api('GET', '/api/settings/providers');
+    for (const p of data.providers) {
+      assert.ok(typeof p.id === 'string', 'provider.id must be string');
+      assert.ok(typeof p.name === 'string', 'provider.name must be string');
+      assert.ok(Array.isArray(p.models), 'provider.models must be array');
+    }
+  });
+});
+
 // ── GET/PUT /api/settings/model ───────────────────────────────────────────────
 describe('GET/PUT /api/settings/model', () => {
-  test('GET returns model field', async () => {
+  test('GET returns model and provider fields', async () => {
     const { status, data } = await api('GET', '/api/settings/model');
     assert.equal(status, 200);
     assert.ok('model' in data);
+    assert.ok('provider' in data);
   });
 
   test('PUT sets model and GET returns updated value', async () => {
@@ -173,9 +197,19 @@ describe('GET/PUT /api/settings/model', () => {
     assert.equal(read.model, 'claude-haiku-4-5-20251001');
   });
 
-  test('PUT with null clears the model override', async () => {
+  test('PUT sets provider and GET returns it', async () => {
+    const { status, data } = await api('PUT', '/api/settings/model', { provider: 'claude-cli', model: null });
+    assert.equal(status, 200);
+    assert.equal(data.provider, 'claude-cli');
+
+    const { data: read } = await api('GET', '/api/settings/model');
+    assert.equal(read.provider, 'claude-cli');
+  });
+
+  test('PUT with null clears the model override and defaults provider to claude-cli', async () => {
     const { status, data } = await api('PUT', '/api/settings/model', { model: null });
     assert.equal(status, 200);
     assert.equal(data.model, null);
+    assert.equal(data.provider, 'claude-cli');
   });
 });
