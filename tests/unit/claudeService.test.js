@@ -9,6 +9,9 @@ import {
   streamClaude,
   setModelOverride,
   getModelOverride,
+  setProviderOverride,
+  getProviderOverride,
+  getAvailableProviders,
   normalizeOutput,
 } from '../../src/services/claudeService.js';
 
@@ -126,5 +129,104 @@ describe('model override', () => {
     setModelOverride('claude-haiku-4-5');
     setModelOverride('');
     assert.equal(getModelOverride(), null);
+  });
+});
+
+// ── provider override ─────────────────────────────────────────────────────────
+describe('provider override', () => {
+  after(() => setProviderOverride(null));
+
+  test('defaults to null', () => {
+    setProviderOverride(null);
+    assert.equal(getProviderOverride(), null);
+  });
+
+  test('setProviderOverride stores the provider', () => {
+    setProviderOverride('github-models');
+    assert.equal(getProviderOverride(), 'github-models');
+  });
+
+  test('setProviderOverride with empty string resets to null', () => {
+    setProviderOverride('github-models');
+    setProviderOverride('');
+    assert.equal(getProviderOverride(), null);
+  });
+});
+
+// ── getAvailableProviders ─────────────────────────────────────────────────────
+describe('getAvailableProviders', () => {
+  const origToken = process.env.GITHUB_MODELS_TOKEN;
+
+  after(() => {
+    if (origToken === undefined) delete process.env.GITHUB_MODELS_TOKEN;
+    else process.env.GITHUB_MODELS_TOKEN = origToken;
+  });
+
+  test('always includes claude-cli provider', () => {
+    delete process.env.GITHUB_MODELS_TOKEN;
+    const providers = getAvailableProviders();
+    assert.ok(providers.some(p => p.id === 'claude-cli'), 'claude-cli must be present');
+  });
+
+  test('does not include github-models when token is absent', () => {
+    delete process.env.GITHUB_MODELS_TOKEN;
+    const providers = getAvailableProviders();
+    assert.ok(!providers.some(p => p.id === 'github-models'), 'github-models must be absent without token');
+  });
+
+  test('includes github-models when GITHUB_MODELS_TOKEN is set', () => {
+    process.env.GITHUB_MODELS_TOKEN = 'ghp_test_token';
+    const providers = getAvailableProviders();
+    assert.ok(providers.some(p => p.id === 'github-models'), 'github-models must appear when token is set');
+    delete process.env.GITHUB_MODELS_TOKEN;
+  });
+
+  test('claude-cli provider has at least one model entry', () => {
+    delete process.env.GITHUB_MODELS_TOKEN;
+    const providers = getAvailableProviders();
+    const claudeProvider = providers.find(p => p.id === 'claude-cli');
+    assert.ok(claudeProvider);
+    assert.ok(Array.isArray(claudeProvider.models) && claudeProvider.models.length > 0);
+  });
+
+  test('github-models provider has expected models', () => {
+    process.env.GITHUB_MODELS_TOKEN = 'ghp_test_token';
+    const providers = getAvailableProviders();
+    const ghProvider = providers.find(p => p.id === 'github-models');
+    assert.ok(ghProvider);
+    assert.ok(ghProvider.models.some(m => m.id === 'openai/gpt-4o'));
+    delete process.env.GITHUB_MODELS_TOKEN;
+  });
+});
+
+// ── callClaude — mock mode with provider override ─────────────────────────────
+describe('callClaude — mock mode with provider override', () => {
+  before(() => { process.env.MOCK_CLAUDE = '1'; });
+  after(() => {
+    delete process.env.MOCK_CLAUDE;
+    setProviderOverride(null);
+  });
+
+  test('returns mock response when provider is github-models (MOCK_CLAUDE=1)', async () => {
+    setProviderOverride('github-models');
+    const result = await callClaude('/tmp', 'test prompt');
+    assert.match(result, /Mock Epic Title/);
+  });
+});
+
+// ── streamClaude — mock mode with provider override ──────────────────────────
+describe('streamClaude — mock mode with provider override', () => {
+  before(() => { process.env.MOCK_CLAUDE = '1'; });
+  after(() => {
+    delete process.env.MOCK_CLAUDE;
+    setProviderOverride(null);
+  });
+
+  test('calls onChunk with mock response when provider is github-models (MOCK_CLAUDE=1)', async () => {
+    setProviderOverride('github-models');
+    const chunks = [];
+    await streamClaude('/tmp', 'test prompt', chunk => chunks.push(chunk));
+    assert.equal(chunks.length, 1);
+    assert.match(chunks[0], /Mock Epic Title/);
   });
 });

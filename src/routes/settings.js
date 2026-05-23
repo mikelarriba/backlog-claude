@@ -2,7 +2,13 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { setModelOverride, getModelOverride } from '../services/claudeService.js';
+import {
+  setModelOverride,
+  getModelOverride,
+  setProviderOverride,
+  getProviderOverride,
+  getAvailableProviders,
+} from '../services/claudeService.js';
 
 export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }) {
   const router = Router();
@@ -26,11 +32,12 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     fs.writeFileSync(PI_SETTINGS_PATH, JSON.stringify(settings, null, 2));
   }
 
-  // Apply saved model on startup
+  // Apply saved model and provider on startup
   try {
     if (fs.existsSync(MODEL_SETTINGS_PATH)) {
       const saved = JSON.parse(fs.readFileSync(MODEL_SETTINGS_PATH, 'utf-8'));
       if (saved.model) setModelOverride(saved.model);
+      if (saved.provider) setProviderOverride(saved.provider);
     }
   } catch {}
 
@@ -111,17 +118,24 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     res.json({ success: true, piName, sprints: settings.sprints[piName] });
   });
 
+  // ── Provider discovery ─────────────────────────────────────────────────────
+  router.get('/api/settings/providers', (req, res) => {
+    res.json({ providers: getAvailableProviders() });
+  });
+
   // ── Model settings ─────────────────────────────────────────────────────────
   router.get('/api/settings/model', (req, res) => {
-    res.json({ model: getModelOverride() });
+    res.json({ model: getModelOverride(), provider: getProviderOverride() || 'claude-cli' });
   });
 
   router.put('/api/settings/model', (req, res) => {
-    const { model } = req.body;
+    const { model, provider } = req.body;
     setModelOverride(model || null);
-    fs.writeFileSync(MODEL_SETTINGS_PATH, JSON.stringify({ model: model || null }, null, 2));
-    logInfo('PUT /api/settings/model', `Model set to: ${model || 'default'}`);
-    res.json({ success: true, model: getModelOverride() });
+    setProviderOverride(provider || null);
+    const saved = { model: model || null, provider: provider || null };
+    fs.writeFileSync(MODEL_SETTINGS_PATH, JSON.stringify(saved, null, 2));
+    logInfo('PUT /api/settings/model', `Provider: ${provider || 'claude-cli'}, Model: ${model || 'default'}`);
+    res.json({ success: true, model: getModelOverride(), provider: getProviderOverride() || 'claude-cli' });
   });
 
   return router;
