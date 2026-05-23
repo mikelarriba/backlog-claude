@@ -45,7 +45,9 @@ function highlightSelectedItem(filename, docType) {
 
 window.addEventListener('resize', updateSplitMode);
 
-// ── Model settings ────────────────────────────────────────────
+// ── Model + provider settings ─────────────────────────────────
+let _providerData = [];
+
 function toggleModelSection() {
   toggleSection('model-section-body', 'model-chevron');
 }
@@ -57,20 +59,52 @@ async function loadAppConfig() {
   } catch (e) { console.warn('Failed to load app config:', e.message); }
 }
 
-async function loadModelSetting() {
+async function loadProviders() {
   try {
-    const { model } = await fetchJSON('/api/settings/model');
-    const sel = document.getElementById('model-select');
-    if (sel) sel.value = model || '';
+    const { providers } = await fetchJSON('/api/settings/providers');
+    _providerData = providers;
+    const providerSel = document.getElementById('provider-select');
+    providerSel.innerHTML = providers.map(p =>
+      `<option value="${p.id}">${p.name}</option>`
+    ).join('');
+  } catch (e) { console.warn('Failed to load providers:', e.message); }
+}
+
+function populateModels(providerId) {
+  const provider = _providerData.find(p => p.id === providerId);
+  const modelSel = document.getElementById('model-select');
+  if (!provider) { modelSel.innerHTML = ''; return; }
+  modelSel.innerHTML = provider.models.map(m =>
+    `<option value="${m.id}">${m.name}</option>`
+  ).join('');
+}
+
+function onProviderChange(providerId) {
+  populateModels(providerId);
+  updateModelSetting();
+}
+
+async function loadModelSetting() {
+  await loadProviders();
+  try {
+    const { provider, model } = await fetchJSON('/api/settings/model');
+    const providerSel = document.getElementById('provider-select');
+    providerSel.value = provider || 'claude-cli';
+    populateModels(provider || 'claude-cli');
+    const modelSel = document.getElementById('model-select');
+    modelSel.value = model || '';
   } catch (e) { console.warn('Failed to load model setting:', e.message); }
 }
 
-async function updateModelSetting(model) {
+async function updateModelSetting() {
+  const provider = document.getElementById('provider-select').value;
+  const model = document.getElementById('model-select').value;
   const statusEl = document.getElementById('model-status');
   try {
-    await putJSON('/api/settings/model', { model: model || null });
+    await putJSON('/api/settings/model', { provider, model: model || null });
+    const providerName = _providerData.find(p => p.id === provider)?.name || provider;
     statusEl.className = 'model-status show success';
-    statusEl.textContent = model ? `Using ${model}` : 'Using default model';
+    statusEl.textContent = model ? `${providerName}: ${model}` : `${providerName}: default`;
     setTimeout(() => { statusEl.className = 'model-status'; }, 3000);
   } catch (e) {
     statusEl.className = 'model-status show error';

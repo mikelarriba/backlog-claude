@@ -9,6 +9,9 @@ import {
   streamClaude,
   setModelOverride,
   getModelOverride,
+  setProviderOverride,
+  getProviderOverride,
+  getAvailableProviders,
   normalizeOutput,
 } from '../../src/services/claudeService.js';
 
@@ -126,5 +129,65 @@ describe('model override', () => {
     setModelOverride('claude-haiku-4-5');
     setModelOverride('');
     assert.equal(getModelOverride(), null);
+  });
+});
+
+describe('provider override', () => {
+  after(() => {
+    setProviderOverride(null);
+    delete process.env.GITHUB_MODELS_TOKEN;
+  });
+
+  test('defaults to claude-cli', () => {
+    setProviderOverride(null);
+    assert.equal(getProviderOverride(), 'claude-cli');
+  });
+
+  test('setting github-models without token falls back to claude-cli', () => {
+    delete process.env.GITHUB_MODELS_TOKEN;
+    setProviderOverride('github-models');
+    assert.equal(getProviderOverride(), 'claude-cli');
+  });
+
+  test('setting github-models with token stores it', () => {
+    process.env.GITHUB_MODELS_TOKEN = 'test-token';
+    setProviderOverride('github-models');
+    assert.equal(getProviderOverride(), 'github-models');
+  });
+
+  test('empty string resets to claude-cli', () => {
+    process.env.GITHUB_MODELS_TOKEN = 'test-token';
+    setProviderOverride('github-models');
+    setProviderOverride('');
+    assert.equal(getProviderOverride(), 'claude-cli');
+  });
+});
+
+describe('getAvailableProviders', () => {
+  after(() => { delete process.env.GITHUB_MODELS_TOKEN; });
+
+  test('returns only claude-cli when no GITHUB_MODELS_TOKEN', () => {
+    delete process.env.GITHUB_MODELS_TOKEN;
+    const providers = getAvailableProviders();
+    assert.equal(providers.length, 1);
+    assert.equal(providers[0].id, 'claude-cli');
+    assert.ok(providers[0].models.length > 0);
+  });
+
+  test('returns both providers when GITHUB_MODELS_TOKEN is set', () => {
+    process.env.GITHUB_MODELS_TOKEN = 'test-token';
+    const providers = getAvailableProviders();
+    assert.equal(providers.length, 2);
+    assert.equal(providers[0].id, 'claude-cli');
+    assert.equal(providers[1].id, 'github-models');
+    assert.ok(providers[1].models.length > 0);
+  });
+
+  test('mock mode returns mock response regardless of provider', async () => {
+    process.env.GITHUB_MODELS_TOKEN = 'test-token';
+    setProviderOverride('github-models');
+    const result = await callClaude('/tmp', 'test prompt');
+    assert.match(result, /Mock Epic Title/);
+    setProviderOverride(null);
   });
 });

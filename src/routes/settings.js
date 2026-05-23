@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { setModelOverride, getModelOverride } from '../services/claudeService.js';
+import { setModelOverride, getModelOverride, setProviderOverride, getProviderOverride, getAvailableProviders } from '../services/claudeService.js';
 
 export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }) {
   const router = Router();
@@ -26,11 +26,12 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     fs.writeFileSync(PI_SETTINGS_PATH, JSON.stringify(settings, null, 2));
   }
 
-  // Apply saved model on startup
+  // Apply saved model + provider on startup
   try {
     if (fs.existsSync(MODEL_SETTINGS_PATH)) {
       const saved = JSON.parse(fs.readFileSync(MODEL_SETTINGS_PATH, 'utf-8'));
       if (saved.model) setModelOverride(saved.model);
+      if (saved.provider) setProviderOverride(saved.provider);
     }
   } catch {}
 
@@ -111,17 +112,25 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     res.json({ success: true, piName, sprints: settings.sprints[piName] });
   });
 
-  // ── Model settings ─────────────────────────────────────────────────────────
+  // ── Model + provider settings ───────────────────────────────────────────────
+  router.get('/api/settings/providers', (req, res) => {
+    res.json({ providers: getAvailableProviders() });
+  });
+
   router.get('/api/settings/model', (req, res) => {
-    res.json({ model: getModelOverride() });
+    res.json({ provider: getProviderOverride(), model: getModelOverride() });
   });
 
   router.put('/api/settings/model', (req, res) => {
-    const { model } = req.body;
+    const { provider, model } = req.body;
+    setProviderOverride(provider || null);
     setModelOverride(model || null);
-    fs.writeFileSync(MODEL_SETTINGS_PATH, JSON.stringify({ model: model || null }, null, 2));
-    logInfo('PUT /api/settings/model', `Model set to: ${model || 'default'}`);
-    res.json({ success: true, model: getModelOverride() });
+    fs.writeFileSync(MODEL_SETTINGS_PATH, JSON.stringify({
+      provider: getProviderOverride(),
+      model: getModelOverride(),
+    }, null, 2));
+    logInfo('PUT /api/settings/model', `Provider: ${getProviderOverride()}, Model: ${getModelOverride() || 'default'}`);
+    res.json({ success: true, provider: getProviderOverride(), model: getModelOverride() });
   });
 
   return router;

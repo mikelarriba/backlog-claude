@@ -502,8 +502,8 @@
 
 /* ── Model Settings section ─────────────────────────────────── */
 .model-section { margin-top: 12px; }
-.model-body.open { max-height: 200px; }
-.model-section .collapsible-inner .field { margin-bottom: 0; }
+.model-body.open { max-height: 300px; }
+.model-section .collapsible-inner .field { margin-bottom: 6px; }
 
 .model-status {
   font-size: 0.72rem;
