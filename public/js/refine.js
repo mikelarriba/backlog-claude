@@ -172,6 +172,12 @@ async function renderFeatureMultiPanel(featureFilename) {
 
   container.innerHTML = '';
   container.appendChild(wrapper);
+
+  // Render mini-canvases now that panels are in the DOM
+  for (const epic of data.epics) {
+    const ps = _panelStates.get(epic.filename);
+    if (ps) _renderFpCanvas(epic.filename, ps, featureFilename);
+  }
 }
 
 function _fpLoadCollapsed(featureFilename) {
@@ -221,8 +227,16 @@ function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
       <div class="fp-canvas" id="fp-canvas-${ef}"></div>
     </div>`;
 
-  // Render mini-canvas after DOM insertion
-  setTimeout(() => _renderFpCanvas(epic.filename, ps, featureFilename), 0);
+  // Right-click on epic header → context menu with Split Epic
+  const header = panel.querySelector('.fp-header');
+  header.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    _showEpicContextMenu(e.clientX, e.clientY, epic.filename, featureFilename);
+  });
+
+  // Canvas rendering is deferred — called from renderFeatureMultiPanel
+  // after the panel is actually inserted into the DOM.
   return panel;
 }
 
@@ -626,6 +640,12 @@ function renderCanvas(epicFilename, docType) {
     document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
     openRefinePanel(epicFilename, docType);
   });
+  if (docType === 'epic') {
+    epicNode.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      _showEpicContextMenu(e.clientX, e.clientY, epicFilename, featureDoc?.filename || null);
+    });
+  }
   wrapper.appendChild(epicNode);
 
   // ── Swimlane grid cells (visible + drop targets) ──────────────
@@ -635,6 +655,13 @@ function renderCanvas(epicFilename, docType) {
     x: GUTTER_X + col * (CELL_W + GUTTER_X),
     y: effectiveTopOffset + row * (CELL_H + GUTTER_Y),
   });
+
+  // Build set of occupied cell positions for empty-cell detection
+  const _occupiedCells = new Set();
+  for (const child of _activePanelState.stories) {
+    const pos = _activePanelState.layout[child.filename] || { col: 0, row: 0 };
+    _occupiedCells.add(`${pos.col},${pos.row}`);
+  }
 
   for (let row = 0; row < gridRows; row++) {
     for (let col = 0; col < gridCols; col++) {
@@ -665,6 +692,14 @@ function renderCanvas(epicFilename, docType) {
         await saveCanvasLayout(_activePanelState, epicFilename);
         renderCanvas(epicFilename, docType);
       });
+
+      // Right-click on empty cell → create new story/spike/bug
+      if (!_occupiedCells.has(`${col},${row}`)) {
+        cell.addEventListener('contextmenu', e => {
+          e.preventDefault();
+          _showEmptyCellMenu(e.clientX, e.clientY, col, row, epicFilename, docType);
+        });
+      }
 
       wrapper.appendChild(cell);
     }
@@ -1137,7 +1172,8 @@ function _showFpCardContextMenu(x, y, filename, docType, currentEpicFilename, fe
     <div class="canvas-link-popup-title">Move to Epic</div>
     ${epicItems || '<div style="font-size:0.75rem;color:var(--muted);padding:4px 8px">No other epics</div>'}
     <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
-    <button id="_fp-ctx-open">↗ Open in panel</button>`;
+    <button id="_fp-ctx-open">↗ Open in panel</button>
+    <button id="_fp-ctx-split">✂ Split Issue</button>`;
   document.body.appendChild(popup);
 
   popup.querySelectorAll('.fp-ctx-epic-btn:not([disabled])').forEach(btn => {
@@ -1149,6 +1185,10 @@ function _showFpCardContextMenu(x, y, filename, docType, currentEpicFilename, fe
   popup.querySelector('#_fp-ctx-open')?.addEventListener('click', () => {
     _closeLinkPopup();
     openRefinePanel(filename, docType);
+  });
+  popup.querySelector('#_fp-ctx-split')?.addEventListener('click', () => {
+    _closeLinkPopup();
+    _openCanvasSplit(filename, docType, currentEpicFilename, 'epic');
   });
 
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
@@ -1167,6 +1207,154 @@ async function _fpMoveToEpic(filename, docType, fromEpic, toEpic, featureFilenam
     await renderFeatureMultiPanel(featureFilename);
   } catch (e) {
     showJiraToast('error', e.message);
+  }
+}
+
+// ── Epic context menu (right-click on epic header) ──────────
+function _showEpicContextMenu(x, y, epicFilename, featureFilename) {
+  _closeLinkPopup();
+  const epicDoc = allDocs.find(d => d.filename === epicFilename && d.docType === 'epic');
+  const popup = document.createElement('div');
+  popup.className = 'canvas-link-popup';
+  popup.style.left = `${x}px`;
+  popup.style.top  = `${y}px`;
+  popup.innerHTML = `
+    <div class="canvas-link-popup-title">${escHtml(epicDoc?.title || epicFilename)}</div>
+    <button id="_epic-ctx-split">✂ Split Epic</button>
+    <button id="_epic-ctx-open">↗ Open in panel</button>`;
+  document.body.appendChild(popup);
+
+  popup.querySelector('#_epic-ctx-split').addEventListener('click', () => {
+    _closeLinkPopup();
+    _openCanvasSplit(epicFilename, 'epic', featureFilename || epicFilename, featureFilename ? 'feature' : 'epic');
+  });
+  popup.querySelector('#_epic-ctx-open').addEventListener('click', () => {
+    _closeLinkPopup();
+    openRefinePanel(epicFilename, 'epic');
+  });
+
+  setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+// ── Empty cell context menu (create new story/spike/bug) ─────
+function _showEmptyCellMenu(x, y, col, row, epicFilename, epicDocType) {
+  _closeLinkPopup();
+  const popup = document.createElement('div');
+  popup.className = 'canvas-link-popup';
+  popup.style.left = `${x}px`;
+  popup.style.top  = `${y}px`;
+  popup.innerHTML = `
+    <div class="canvas-link-popup-title">Create new</div>
+    <button id="_cell-story" class="green">＋ Story</button>
+    <button id="_cell-spike">＋ Spike</button>
+    <button id="_cell-bug" style="color:var(--danger,#ef4444)">＋ Bug</button>`;
+  document.body.appendChild(popup);
+
+  const handleCreate = (type) => {
+    _closeLinkPopup();
+    _openCellCreateForm(type, col, row, epicFilename, epicDocType);
+  };
+  popup.querySelector('#_cell-story').addEventListener('click', () => handleCreate('story'));
+  popup.querySelector('#_cell-spike').addEventListener('click', () => handleCreate('spike'));
+  popup.querySelector('#_cell-bug').addEventListener('click', () => handleCreate('bug'));
+
+  setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
+}
+
+function _openCellCreateForm(type, col, row, epicFilename, epicDocType) {
+  const typeName = TYPE_LABEL[type] || type;
+  const panel = document.getElementById('refine-panel');
+  panel.classList.add('open');
+  document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
+
+  panel.innerHTML = `
+    <div class="rp-header">
+      <div class="rp-meta">
+        <span class="type-badge ${type}">${typeName}</span>
+        <span class="rp-title">New ${typeName}</span>
+      </div>
+      <button class="rp-close" onclick="closeRefinePanel()" title="Close">✕</button>
+    </div>
+    <div class="rp-create-form">
+      <div class="rp-field">
+        <label class="rp-label">Describe the ${typeName.toLowerCase()}…</label>
+        <textarea class="rp-textarea rp-textarea-tall" id="rp-cell-idea"
+          placeholder="What should this ${typeName.toLowerCase()} cover?"></textarea>
+      </div>
+      <div class="rp-btn-row">
+        <button class="btn-xs green" id="rp-cell-create-btn">Generate &amp; Link</button>
+        <button class="btn-xs" onclick="closeRefinePanel()">Cancel</button>
+      </div>
+      <div class="rp-stream" id="rp-cell-stream" style="display:none"></div>
+    </div>`;
+
+  document.getElementById('rp-cell-create-btn').addEventListener('click', () =>
+    _executeEmptyCellCreate(type, col, row, epicFilename, epicDocType));
+  document.getElementById('rp-cell-idea').focus();
+}
+
+async function _executeEmptyCellCreate(type, col, row, epicFilename, epicDocType) {
+  const idea = document.getElementById('rp-cell-idea')?.value.trim();
+  if (!idea) { document.getElementById('rp-cell-idea')?.focus(); return; }
+
+  const btn    = document.getElementById('rp-cell-create-btn');
+  const stream = document.getElementById('rp-cell-stream');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating…';
+  stream.textContent = '⚙ Generating…';
+  stream.style.display = 'block';
+
+  try {
+    const parentDoc = allDocs.find(d => d.filename === epicFilename);
+    const genBody = { idea, type, priority: 'Medium' };
+    if (parentDoc?.fixVersion) genBody.fixVersion = parentDoc.fixVersion;
+    if (parentDoc?.pi && parentDoc.pi !== 'TBD') genBody.pi = parentDoc.pi;
+    if (epicDocType === 'epic') genBody.parentEpic = epicFilename;
+    if (epicDocType === 'feature') genBody.parentFeature = epicFilename;
+
+    const genRes = await fetch('/api/generate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(genBody),
+    });
+    if (!genRes.ok) throw new Error((await genRes.json()).error?.message || 'Generate failed');
+    const { filename: newFilename } = await genRes.json();
+
+    stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
+
+    const linkRes = await fetch('/api/link', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        sourceType:     type,
+        sourceFilename: newFilename,
+        targetType:     epicDocType,
+        targetFilename: epicFilename,
+      }),
+    });
+    if (!linkRes.ok) throw new Error('Link failed');
+
+    stream.textContent += '\n✓ Linked successfully.';
+    showJiraToast('ok', `Created ${newFilename}`);
+
+    await loadDocs();
+
+    // Place the new card at the clicked cell position
+    _activePanelState.layout[newFilename] = { col, row };
+    await saveCanvasLayout(_activePanelState, epicFilename);
+    await buildCanvasGraph(epicFilename, epicDocType);
+
+    setTimeout(() => {
+      const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(newFilename)}"]`);
+      if (card) {
+        card.classList.add('selected');
+        openRefinePanel(newFilename, type);
+      }
+    }, 100);
+  } catch (e) {
+    stream.textContent += `\n\n❌ ${e.message}`;
+    btn.disabled = false;
+    btn.textContent = 'Generate & Link';
   }
 }
 
@@ -1297,20 +1485,10 @@ async function _executeCanvasSplit(originalFilename, childDocType, epicFilename,
       }
 
       await loadDocs();
-      // If a feature was auto-created, switch to the feature canvas
-      if (result.featureCreated) {
-        await buildCanvasGraph(result.featureFilename, 'feature');
-      } else {
-        await buildCanvasGraph(epicFilename, epicDocType);
-      }
-
-      setTimeout(() => {
-        const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(result.newEpicFilename)}"]`);
-        if (card) {
-          card.classList.add('selected');
-          openRefinePanel(result.newEpicFilename, 'epic');
-        }
-      }, 100);
+      // Always switch to feature multi-panel so both epics are visible
+      // side by side and stories can be moved between them
+      closeRefinePanel();
+      await openManualRefine(result.featureFilename, 'feature');
       return;
     }
 

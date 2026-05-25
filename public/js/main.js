@@ -57,7 +57,7 @@ function toggleLeftPanel() {
   const app = document.getElementById('app-root');
   const btn = document.getElementById('left-toggle-btn');
   const collapsed = app.classList.toggle('left-collapsed');
-  btn.textContent = collapsed ? '▶' : '◀';
+  btn.textContent = collapsed ? '»' : '«';
   try { localStorage.setItem('leftPanelCollapsed', collapsed ? '1' : '0'); } catch {}
 }
 
@@ -66,7 +66,7 @@ function toggleLeftPanel() {
     if (localStorage.getItem('leftPanelCollapsed') === '1') {
       const app = document.getElementById('app-root');
       const btn = document.getElementById('left-toggle-btn');
-      if (app) { app.classList.add('left-collapsed'); if (btn) btn.textContent = '▶'; }
+      if (app) { app.classList.add('left-collapsed'); if (btn) btn.textContent = '»'; }
     }
   } catch {}
 })();

@@ -824,12 +824,12 @@ function contextSplitItem() {
   modal.querySelector('#issue-split-status').textContent = '';
   modal.querySelector('#issue-split-generate-btn').disabled = false;
   modal.querySelector('#issue-split-generate-btn').textContent = 'Generate';
-  modal.classList.remove('hidden');
+  modal.classList.add('show');
   modal.querySelector('#issue-split-idea').focus();
 }
 
-function closeSplitModal() {
-  document.getElementById('issue-split-modal')?.classList.add('hidden');
+function closeIssueSplitModal() {
+  document.getElementById('issue-split-modal')?.classList.remove('show');
 }
 
 async function executeSplitIssue() {
@@ -867,7 +867,7 @@ async function executeSplitIssue() {
       }
 
       await loadDocs();
-      closeSplitModal();
+      closeIssueSplitModal();
       setTimeout(() => openDoc(result.newEpicFilename, 'epic'), 100);
       return;
     }
@@ -923,7 +923,7 @@ async function executeSplitIssue() {
 
     showJiraToast('ok', `Created ${newFilename}`);
     await loadDocs();
-    closeSplitModal();
+    closeIssueSplitModal();
 
     // Open new issue in detail view
     setTimeout(() => openDoc(newFilename, docType), 100);
