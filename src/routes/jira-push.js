@@ -89,6 +89,22 @@ export default function jiraPushRoutes({
         updateFields.fixVersions = [{ name: localFixVersion }];
       }
       if (spValue !== null) updateFields[FIELD_STORY_POINTS] = spValue;
+
+      // Sync Epic Link when a story/spike/bug has been moved to a different epic
+      if (type === 'story' || type === 'spike' || type === 'bug') {
+        const epicFilename = extractFrontmatterField(content, 'Epic_ID');
+        if (epicFilename && epicFilename !== 'TBD') {
+          const epicPath = path.join(EPICS_DIR, epicFilename);
+          if (fs.existsSync(epicPath)) {
+            const epicJiraId = extractFrontmatterField(fs.readFileSync(epicPath, 'utf-8'), 'JIRA_ID');
+            if (epicJiraId && epicJiraId !== 'TBD') updateFields[FIELD_EPIC_LINK] = epicJiraId;
+          }
+        } else {
+          // Epic_ID cleared — remove Epic Link in JIRA
+          updateFields[FIELD_EPIC_LINK] = null;
+        }
+      }
+
       await jiraRequest('PUT', `/issue/${jiraId}`, { fields: updateFields });
       key = jiraId; action = 'updated';
     } else {
@@ -179,11 +195,23 @@ export default function jiraPushRoutes({
         const localTitle = extractJiraSummary(content);
         const localSP    = extractFrontmatterField(content, 'Story_Points');
         const spValue    = localSP && localSP !== 'TBD' ? Number(localSP) : null;
-        return [{ filename, docType, content, jiraId, localTitle, spValue }];
+        // Resolve local Epic Link for stories/spikes/bugs
+        let localEpicJiraId = null;
+        if (docType === 'story' || docType === 'spike' || docType === 'bug') {
+          const epicFilename = extractFrontmatterField(content, 'Epic_ID');
+          if (epicFilename && epicFilename !== 'TBD') {
+            const epicPath = path.join(EPICS_DIR, epicFilename);
+            if (fs.existsSync(epicPath)) {
+              const eid = extractFrontmatterField(fs.readFileSync(epicPath, 'utf-8'), 'JIRA_ID');
+              if (eid && eid !== 'TBD') localEpicJiraId = eid;
+            }
+          }
+        }
+        return [{ filename, docType, content, jiraId, localTitle, spValue, localEpicJiraId }];
       });
 
       // Fetch JIRA data for existing issues in parallel (capped at JIRA_CONCURRENCY)
-      const previews = await pMap(localItems, async ({ filename, docType, jiraId, localTitle, spValue }) => {
+      const previews = await pMap(localItems, async ({ filename, docType, jiraId, localTitle, spValue, localEpicJiraId }) => {
         const preview = {
           filename, docType, title: localTitle,
           jiraId: jiraId !== 'TBD' ? jiraId : null,
@@ -193,7 +221,8 @@ export default function jiraPushRoutes({
 
         if (jiraId !== 'TBD') {
           try {
-            const issue = await jiraRequest('GET', `/issue/${jiraId}?fields=summary,${FIELD_STORY_POINTS}`);
+            const fetchFields = `summary,${FIELD_STORY_POINTS}` + (FIELD_EPIC_LINK ? `,${FIELD_EPIC_LINK}` : '');
+            const issue = await jiraRequest('GET', `/issue/${jiraId}?fields=${fetchFields}`);
             const jiraSummary = (issue.fields?.summary || '').trim();
             const jiraSP      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
 
@@ -203,6 +232,13 @@ export default function jiraPushRoutes({
             preview.changes.push({ field: 'description', changed: true });
             if (spValue !== null && spValue !== jiraSP) {
               preview.changes.push({ field: 'storyPoints', from: jiraSP, to: spValue });
+            }
+            // Detect Epic Link changes for stories/spikes/bugs
+            if (docType === 'story' || docType === 'spike' || docType === 'bug') {
+              const jiraEpicLink = issue.fields?.[FIELD_EPIC_LINK] || null;
+              if ((localEpicJiraId || null) !== jiraEpicLink) {
+                preview.changes.push({ field: 'epicLink', from: jiraEpicLink, to: localEpicJiraId });
+              }
             }
           } catch (e) {
             preview.changes.push({ field: 'error', message: e.message });

@@ -33,8 +33,6 @@
 
 <div class="app" id="app-root">
 
-  <button class="left-toggle-btn" id="left-toggle-btn" onclick="toggleLeftPanel()" title="Toggle panel (Ctrl+B)">◀</button>
-
   <!-- ── Left Panel: Form ──────────────────────────────────────── -->
   <div class="left">
     <div class="app-header">
@@ -204,6 +202,7 @@
         </div>
       </div>
     </div>
+    <button class="left-toggle-btn" id="left-toggle-btn" onclick="toggleLeftPanel()" title="Toggle panel (Ctrl+B)">«</button>
   </div>
 
   <!-- ── Right Panel ───────────────────────────────────────────── -->
@@ -760,11 +759,11 @@
 <svg id="dep-connector-svg" aria-hidden="true"></svg>
 
 <!-- Split Issue modal (list view) -->
-<div class="dialog-overlay hidden" id="issue-split-modal" onclick="if(event.target===this)closeSplitModal()">
+<div class="dialog-overlay" id="issue-split-modal" onclick="if(event.target===this)closeIssueSplitModal()">
   <div class="dialog" style="max-width:480px">
     <div class="split-dialog-header">
       <h3>✂ Split Issue</h3>
-      <button class="btn-ghost btn-xs" onclick="closeSplitModal()">&times;</button>
+      <button class="btn-ghost btn-xs" onclick="closeIssueSplitModal()">&times;</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
       <span class="type-badge" id="issue-split-badge"></span>
@@ -778,7 +777,7 @@
     </div>
     <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;min-height:20px" id="issue-split-status"></div>
     <div class="dialog-actions" style="margin-top:12px">
-      <button class="btn-secondary" onclick="closeSplitModal()">Cancel</button>
+      <button class="btn-secondary" onclick="closeIssueSplitModal()">Cancel</button>
       <button class="btn-primary" id="issue-split-generate-btn" onclick="executeSplitIssue()">Generate</button>
     </div>
   </div>
