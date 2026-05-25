@@ -9,6 +9,7 @@ import { translateToEnglish, processAttachment } from '../services/bugService.js
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
+/** @param {import('../types.js').BugRouteContext} ctx */
 export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex }) {
   const router = Router();
 
@@ -50,7 +51,7 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
           const result = await processAttachment(file, callClaude);
           processed.push(result);
         } catch (e) {
-          logError('bugs/create', `Failed to process attachment ${file.originalname}: ${e.message}`);
+          logError('bugs/create', `Failed to process attachment ${file.originalname}: ${e instanceof Error ? e.message : String(e)}`);
           // Save original on failure
           processed.push({ filename: file.originalname, buffer: file.buffer });
         }

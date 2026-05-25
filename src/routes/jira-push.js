@@ -10,6 +10,7 @@ import {
 import { parseStorySections, serializeStoryFile } from '../services/storyService.js';
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 
+/** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraPushRoutes({
   TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, BUGS_DIR, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE,
   FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
@@ -19,6 +20,9 @@ export default function jiraPushRoutes({
   const router = Router();
 
   // ── Multi-story push helper ─────────────────────────────────────────────────
+  /**
+   * @param {{ filename: string; filepath: string; sections: string[]; frontmatter: string; type: string }} opts
+   */
   async function pushMultiStory({ filename, filepath, sections, frontmatter, type }) {
     const epicFilename = filename.replace('-stories.md', '.md');
     const epicPath     = path.join(EPICS_DIR, epicFilename);
@@ -48,19 +52,21 @@ export default function jiraPushRoutes({
           key = existingKey;
           results.push({ action: 'updated', key });
         } else {
+          /** @type {Record<string, unknown>} */
           const fields = {
             project: { key: JIRA_PROJECT }, summary: storyTitle,
             description: markdownToJira(section), issuetype: { name: 'Story' }, labels: [JIRA_LABEL],
           };
           if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
-          const created = await jiraRequest('POST', '/issue', { fields });
+          const created = /** @type {{ key: string }} */ (await jiraRequest('POST', '/issue', { fields }));
           key = created.key;
           results.push({ action: 'created', key });
           section = section.replace(/^(## Story \d+:\s*.+?)(\s*)$/m, `$1 <!-- JIRA:${key} -->`);
         }
       } catch (e) {
-        errors.push({ story: storyTitle, error: e.message });
-        logWarn('jira/pushMultiStory', `Failed to push story "${storyTitle}": ${e.message}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push({ story: storyTitle, error: msg });
+        logWarn('jira/pushMultiStory', `Failed to push story "${storyTitle}": ${msg}`);
       }
       updatedSections.push(section);
     }
@@ -71,6 +77,9 @@ export default function jiraPushRoutes({
   }
 
   // ── Single-issue push helper ──────────────────────────────────────────────
+  /**
+   * @param {{ filename: string; filepath: string; content: string; type: string }} opts
+   */
   async function pushSingleIssue({ filename, filepath, content, type }) {
     const jiraId      = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
     const summary     = extractJiraSummary(content);
@@ -84,9 +93,10 @@ export default function jiraPushRoutes({
     let key, action;
 
     if (jiraId !== 'TBD') {
+      /** @type {Record<string, unknown>} */
       const updateFields = { summary, description };
       if (localFixVersion && localFixVersion !== 'TBD') {
-        updateFields.fixVersions = [{ name: localFixVersion }];
+        updateFields['fixVersions'] = [{ name: localFixVersion }];
       }
       if (spValue !== null) updateFields[FIELD_STORY_POINTS] = spValue;
 
@@ -108,11 +118,12 @@ export default function jiraPushRoutes({
       await jiraRequest('PUT', `/issue/${jiraId}`, { fields: updateFields });
       key = jiraId; action = 'updated';
     } else {
+      /** @type {Record<string, unknown>} */
       const fields = {
         project: { key: JIRA_PROJECT }, summary, description,
         issuetype: { name: jiraType }, labels: type === 'bug' ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues'] : [JIRA_LABEL],
       };
-      if (localFixVersion && localFixVersion !== 'TBD') fields.fixVersions = [{ name: localFixVersion }];
+      if (localFixVersion && localFixVersion !== 'TBD') fields['fixVersions'] = [{ name: localFixVersion }];
       if (spValue !== null) fields[FIELD_STORY_POINTS] = spValue;
       if (type === 'epic') fields[FIELD_EPIC_NAME] = summary.slice(0, 60);
 
@@ -127,7 +138,7 @@ export default function jiraPushRoutes({
         }
       }
 
-      const created = await jiraRequest('POST', '/issue', { fields });
+      const created = /** @type {{ key: string }} */ (await jiraRequest('POST', '/issue', { fields }));
       key = created.key; action = 'created';
 
       if (type === 'epic') {
@@ -139,7 +150,7 @@ export default function jiraPushRoutes({
             if (featureJiraId && featureJiraId !== 'TBD') {
               await jiraRequest('POST', '/issueLink', {
                 type: { name: 'Is Contained' }, inwardIssue: { key }, outwardIssue: { key: featureJiraId },
-              }).catch(e => logWarn('jira/push', `Could not create "Is Contained" link: ${e.message}`));
+              }).catch(e => logWarn('jira/push', `Could not create "Is Contained" link: ${e instanceof Error ? e.message : String(e)}`));
             }
           }
         }
@@ -164,7 +175,7 @@ export default function jiraPushRoutes({
             await jiraUploadAttachment(key, attFile, buf);
             logInfo('jira/push', `Uploaded attachment ${attFile} to ${key}`);
           } catch (e) {
-            logWarn('jira/push', `Failed to upload attachment ${attFile}: ${e.message}`);
+            logWarn('jira/push', `Failed to upload attachment ${attFile}: ${e instanceof Error ? e.message : String(e)}`);
           }
         }
       }
@@ -185,7 +196,7 @@ export default function jiraPushRoutes({
       const { items = [] } = req.body;
 
       // Build local metadata for each item (synchronous, no I/O limit needed)
-      const localItems = items.flatMap(({ filename, docType }) => {
+      const localItems = items.flatMap((/** @type {{ filename: string; docType: string }} */ { filename, docType }) => {
         const cfg = TYPE_CONFIG[docType];
         if (!cfg) return [];
         const filepath = path.join(cfg.dir(), filename);
@@ -212,41 +223,43 @@ export default function jiraPushRoutes({
 
       // Fetch JIRA data for existing issues in parallel (capped at JIRA_CONCURRENCY)
       const previews = await pMap(localItems, async ({ filename, docType, jiraId, localTitle, spValue, localEpicJiraId }) => {
+        /** @type {Record<string, unknown>[]} */
+        const changes = [];
         const preview = {
           filename, docType, title: localTitle,
           jiraId: jiraId !== 'TBD' ? jiraId : null,
           action: jiraId !== 'TBD' ? 'update' : 'create',
-          changes: [],
+          changes,
         };
 
         if (jiraId !== 'TBD') {
           try {
             const fetchFields = `summary,${FIELD_STORY_POINTS}` + (FIELD_EPIC_LINK ? `,${FIELD_EPIC_LINK}` : '');
-            const issue = await jiraRequest('GET', `/issue/${jiraId}?fields=${fetchFields}`);
+            const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${jiraId}?fields=${fetchFields}`));
             const jiraSummary = (issue.fields?.summary || '').trim();
             const jiraSP      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
 
             if (localTitle !== jiraSummary) {
-              preview.changes.push({ field: 'title', from: jiraSummary, to: localTitle });
+              changes.push({ field: 'title', from: jiraSummary, to: localTitle });
             }
-            preview.changes.push({ field: 'description', changed: true });
+            changes.push({ field: 'description', changed: true });
             if (spValue !== null && spValue !== jiraSP) {
-              preview.changes.push({ field: 'storyPoints', from: jiraSP, to: spValue });
+              changes.push({ field: 'storyPoints', from: jiraSP, to: spValue });
             }
             // Detect Epic Link changes for stories/spikes/bugs
             if (docType === 'story' || docType === 'spike' || docType === 'bug') {
               const jiraEpicLink = issue.fields?.[FIELD_EPIC_LINK] || null;
               if ((localEpicJiraId || null) !== jiraEpicLink) {
-                preview.changes.push({ field: 'epicLink', from: jiraEpicLink, to: localEpicJiraId });
+                changes.push({ field: 'epicLink', from: jiraEpicLink, to: localEpicJiraId });
               }
             }
           } catch (e) {
-            preview.changes.push({ field: 'error', message: e.message });
+            changes.push({ field: 'error', message: e instanceof Error ? e.message : String(e) });
           }
         } else {
-          if (localTitle) preview.changes.push({ field: 'title', to: localTitle });
-          preview.changes.push({ field: 'description', changed: true });
-          if (spValue !== null) preview.changes.push({ field: 'storyPoints', to: spValue });
+          if (localTitle) changes.push({ field: 'title', to: localTitle });
+          changes.push({ field: 'description', changed: true });
+          if (spValue !== null) changes.push({ field: 'storyPoints', to: spValue });
         }
 
         return preview;

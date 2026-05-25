@@ -7,6 +7,7 @@ import { extractTitle, extractFrontmatterField, setFrontmatterField, isoDate, sl
 import { parseStorySections, serializeStoryFile, extractStoryTitle } from '../services/storyService.js';
 import { normalizeOutput } from '../services/claudeService.js';
 
+/** @param {import('../types.js').RouteContext} ctx */
 export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, logError, docIndex }) {
   const router = Router();
 
@@ -41,7 +42,8 @@ export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INB
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
 
     setupSSE(res);
-    const send =p => res.write(`data: ${JSON.stringify(p)}\n\n`);
+    /** @param {unknown} p */
+    const send = p => res.write(`data: ${JSON.stringify(p)}\n\n`);
 
     try {
       const { storyIndex, feedback } = req.body;
@@ -129,7 +131,8 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
 
     setupSSE(res);
-    const send =(payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    /** @param {unknown} payload */
+    const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
       const epicContent = fs.readFileSync(filepath, 'utf-8');

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import type { BroadcastFn } from '../types.js';
 import type { Logger } from '../utils/logger.js';
 
 interface InboxWatcherOptions {
@@ -10,7 +11,7 @@ interface InboxWatcherOptions {
   ensureDir: (dir: string) => void;
   loadCommand: (name: string) => string | null;
   callClaude: (prompt: string) => Promise<string>;
-  broadcast: (event: Record<string, any>) => void;
+  broadcast: BroadcastFn;
   logInfo: Logger['logInfo'];
   logError: Logger['logError'];
 }
@@ -67,8 +68,8 @@ export function watchInbox({
       fs.writeFileSync(path.join(EPICS_DIR, filename), epicContent);
       broadcast({ type: 'epic_created', filename });
       logInfo('watchInbox', `Epic saved: docs/epics/${filename}`);
-    } catch (err: any) {
-      logError('watchInbox', `Failed to process ${filename}`, { error: err.message });
+    } catch (err: unknown) {
+      logError('watchInbox', `Failed to process ${filename}`, { error: err instanceof Error ? err.message : String(err) });
     }
   }
 }
