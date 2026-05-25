@@ -10,6 +10,7 @@ import {
   getAvailableProviders,
 } from '../services/claudeService.js';
 
+/** @param {import('../types.js').SettingsRouteContext} ctx */
 export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }) {
   const router = Router();
 
@@ -28,6 +29,7 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     return { currentPi: null, nextPi: null };
   }
 
+  /** @param {Record<string, unknown>} settings */
   function savePiSettings(settings) {
     fs.writeFileSync(PI_SETTINGS_PATH, JSON.stringify(settings, null, 2));
   }

@@ -6,6 +6,7 @@ import { sendError, ensureDir, parseApiError, assertFilename, normalizeType } fr
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 
+/** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraSearchRoutes({
   TYPE_CONFIG, JIRA_PROJECT, JIRA_LABEL, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
   jiraRequest, jiraPagedRequest, findLocalFileByJiraId, jiraIssueToMarkdown,
@@ -37,14 +38,15 @@ export default function jiraSearchRoutes({
       const rawIssues = await jiraPagedRequest(jql, fields, { maxResults: 100, maxTotal: 500 });
 
       const issues = rawIssues.map(issue => {
-        const existing = docIndex.findByJiraId(issue.key) || findLocalFileByJiraId(issue.key);
+        const iss = /** @type {Record<string, any>} */ (issue);
+        const existing = docIndex.findByJiraId(iss.key) || findLocalFileByJiraId(iss.key);
         return {
-          key:           issue.key,
-          summary:       issue.fields.summary || '',
-          epicName:      issue.fields[FIELD_EPIC_NAME] || '',
-          issuetype:     issue.fields.issuetype?.name || '',
-          status:        issue.fields.status?.name || '',
-          priority:      issue.fields.priority?.name || '',
+          key:           iss.key,
+          summary:       iss.fields.summary || '',
+          epicName:      iss.fields[FIELD_EPIC_NAME] || '',
+          issuetype:     iss.fields.issuetype?.name || '',
+          status:        iss.fields.status?.name || '',
+          priority:      iss.fields.priority?.name || '',
           localExists:   !!existing,
           localFilename: existing?.filename || null,
           localDocType:  existing?.docType  || null,
@@ -63,8 +65,8 @@ export default function jiraSearchRoutes({
   router.get('/api/jira/versions', async (req, res) => {
     if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     try {
-      const data = await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`);
-      const versions = (data || []).map(v => ({
+      const data = /** @type {Array<Record<string, any>>} */ (await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`) || []);
+      const versions = data.map(v => ({
         id:       v.id,
         name:     v.name,
         released: !!v.released,
@@ -88,11 +90,13 @@ export default function jiraSearchRoutes({
 
     try {
       const key = req.params.key;
-      const issue = await jiraRequest('GET', `/issue/${key}?fields=issuetype,issuelinks,subtasks`);
+      const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${key}?fields=issuetype,issuelinks,subtasks`));
       const issueType = issue.fields.issuetype?.name;
+      /** @type {Array<Record<string, unknown>>} */
       const children = [];
       const seen = new Set();
 
+      /** @param {Record<string, any>} child */
       function addChild(child) {
         if (seen.has(child.key)) return;
         seen.add(child.key);
@@ -113,7 +117,7 @@ export default function jiraSearchRoutes({
         const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
         const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
         const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', { maxResults: 100, maxTotal: 500 });
-        for (const child of childIssues) addChild(child);
+        for (const child of childIssues) addChild(/** @type {Record<string, any>} */ (child));
       }
 
       // New Features / Epics: check issue links (inward = contained children)
@@ -163,7 +167,7 @@ export default function jiraSearchRoutes({
           continue;
         }
 
-        const issue = await jiraRequest('GET', `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`);
+        const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`));
         let { docType, content } = jiraIssueToMarkdown(issue);
 
         let filename;

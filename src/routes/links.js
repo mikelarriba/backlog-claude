@@ -5,6 +5,7 @@ import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename, normalizeType } from '../utils/routeHelpers.js';
 import { setFrontmatterField, extractFrontmatterField, removeFrontmatterField } from '../utils/transforms.js';
 
+/** @param {import('../types.js').RouteContext} ctx */
 export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, broadcast, logInfo, docIndex }) {
   const router = Router();
 
@@ -15,6 +16,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
       const filename = assertFilename(req.params.filename);
 
       let parent   = null;
+      /** @type {Array<{ docType: string; filename: string; title: string; jiraId: string; status: string; }>} */
       let children = [];
 
       if (docType === 'epic') {
@@ -142,6 +144,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
 
   // ── POST /api/link ─────────────────────────────────────────────────────────
   router.post('/api/link', (req, res) => {
+    /** @type {Record<string, { field: string; sourceDir: () => string; targetDir: () => string }>} */
     const LINK_RULES = {
       'epic→feature': { field: 'Feature_ID', sourceDir: () => EPICS_DIR,   targetDir: () => FEATURES_DIR },
       'story→epic':   { field: 'Epic_ID',    sourceDir: () => STORIES_DIR, targetDir: () => EPICS_DIR    },
@@ -182,7 +185,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
         const visited = new Set();
         const queue   = [tgtFile];
         while (queue.length) {
-          const fn = queue.shift();
+          const fn = /** @type {string} */ (queue.shift());
           if (fn === srcFile) {
             return sendError(res, 400, 'CYCLE_DETECTED', `Adding this dependency would create a cycle: ${tgtFile} already (directly or transitively) blocks ${srcFile}`);
           }

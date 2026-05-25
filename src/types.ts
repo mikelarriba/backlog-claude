@@ -1,6 +1,7 @@
 // ── Shared TypeScript type definitions ────────────────────────────────────────
 
 import type { Request, Response } from 'express';
+import type { Logger } from './utils/logger.js';
 
 // ── Document types ──────────────────────────────────────────────────────────
 
@@ -107,3 +108,67 @@ export interface SSEEvent {
 }
 
 export type BroadcastFn = (event: SSEEvent) => void;
+
+// ── Route context shapes ─────────────────────────────────────────────────────
+
+export interface RouteContext {
+  rootDir: string;
+  TYPE_CONFIG: TypeConfig;
+  FEATURES_DIR: string;
+  EPICS_DIR: string;
+  STORIES_DIR: string;
+  SPIKES_DIR: string;
+  BUGS_DIR: string;
+  INBOX_DIR: string;
+  broadcast: BroadcastFn;
+  loadCommand: (name: string) => string | null;
+  callClaude: (prompt: string) => Promise<string>;
+  streamClaude: (prompt: string, onChunk: (chunk: string) => void) => Promise<void>;
+  _apiInFlight: Set<string>;
+  logInfo: Logger['logInfo'];
+  logWarn: Logger['logWarn'];
+  logError: Logger['logError'];
+  docIndex: DocIndexInstance;
+}
+
+export interface JiraRouteContext extends RouteContext {
+  JIRA_PROJECT: string;
+  JIRA_LABEL: string;
+  JIRA_BASE: string;
+  FIELD_EPIC_NAME: string;
+  FIELD_EPIC_LINK: string;
+  FIELD_STORY_POINTS: string;
+  jiraRequest: (method: string, urlPath: string, body?: unknown, opts?: { _retryOn429?: boolean }) => Promise<unknown>;
+  jiraPagedRequest: (jql: string, fields: string, opts?: { maxResults?: number; maxTotal?: number }) => Promise<unknown[]>;
+  jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
+  findLocalFileByJiraId: (jiraId: string) => { docType: string; filename: string } | null;
+  jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };
+  extractJiraSummary: (content: string) => string;
+}
+
+// ── Settings route context ───────────────────────────────────────────────────
+
+export interface SettingsRouteContext {
+  rootDir: string;
+  broadcast: BroadcastFn;
+  logInfo: Logger['logInfo'];
+  jiraBase: string;
+}
+
+// ── Bug route context ────────────────────────────────────────────────────────
+
+export interface BugRouteContext {
+  BUGS_DIR: string;
+  broadcast: BroadcastFn;
+  callClaude: (prompt: string) => Promise<string>;
+  logInfo: Logger['logInfo'];
+  logError: Logger['logError'];
+  docIndex: DocIndexInstance;
+}
+
+// ── Canvas route context ─────────────────────────────────────────────────────
+
+export interface CanvasRouteContext {
+  rootDir: string;
+  logInfo: Logger['logInfo'];
+}

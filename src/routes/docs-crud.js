@@ -5,6 +5,7 @@ import path from 'path';
 import { sendError, ensureDir, parseApiError, assertDocType, assertStatus, assertFilename, resolveDocPath } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 
+/** @param {import('../types.js').RouteContext} ctx */
 export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docIndex }) {
   const router = Router();
 

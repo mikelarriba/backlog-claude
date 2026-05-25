@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { BroadcastFn } from '../types.js';
+import type { BroadcastFn, SSEEvent } from '../types.js';
 
 export function createEventService(): { handleEvents: (req: Request, res: Response) => void; broadcast: BroadcastFn } {
   const sseClients = new Set<Response>();
@@ -31,7 +31,7 @@ export function createEventService(): { handleEvents: (req: Request, res: Respon
     }
   }
 
-  function broadcast(payload: Record<string, any>): void {
+  function broadcast(payload: SSEEvent): void {
     const data = `data: ${JSON.stringify(payload)}\n\n`;
     for (const client of sseClients) {
       try { client.write(data); } catch { sseClients.delete(client); }

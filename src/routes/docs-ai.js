@@ -9,6 +9,7 @@ import {
   setFrontmatterField, extractFrontmatterField,
 } from '../utils/transforms.js';
 
+/** @param {import('../types.js').RouteContext} ctx */
 export default function docsAiRoutes({ TYPE_CONFIG, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logError, docIndex }) {
   const router = Router();
 
@@ -27,6 +28,7 @@ export default function docsAiRoutes({ TYPE_CONFIG, INBOX_DIR, broadcast, loadCo
       }
       // Strip control characters (except \t and \n which are valid in body text)
       // to prevent prompt injection via crafted null bytes or escape sequences.
+      /** @param {string} s */
       const stripControls = s => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
       const title = rawTitle ? stripControls(rawTitle) : rawTitle;
       const idea  = stripControls(rawIdea);
@@ -112,6 +114,7 @@ ${idea.trim()}
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
     setupSSE(res);
+    /** @param {unknown} payload */
     const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
@@ -183,6 +186,7 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
     setupSSE(res);
+    /** @param {unknown} payload */
     const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
@@ -374,9 +378,11 @@ TBD
       }
 
       // Step 2: Generate new epic via AI
+      /** @param {string} s */
       const stripControls = s => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
       const idea = stripControls(`${description.trim()}\n\n---\nContext from original epic:\n${epicContent}`);
 
+      /** @type {{ idea: string; type: string; priority: string; parentFeature: string; fixVersion?: string; pi?: string; team?: string; workCategory?: string }} */
       const genBody = {
         idea,
         type: 'epic',

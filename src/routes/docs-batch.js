@@ -8,6 +8,7 @@ import { pMap } from '../utils/pMap.js';
 
 const BATCH_CONCURRENCY = 5;
 
+/** @param {import('../types.js').RouteContext} ctx */
 export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logInfo, docIndex }) {
   const router = Router();
 
@@ -19,7 +20,9 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         return sendError(res, 400, 'VALIDATION_ERROR', 'docs array is required and must not be empty');
       }
 
+      /** @type {Array<{ filename: string; docType: string }>} */
       const deleted = [];
+      /** @type {Array<{ filename: string; reason: string }>} */
       const skipped = [];
 
       await pMap(docs, async (entry) => {
@@ -39,7 +42,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           await fs.promises.unlink(filepath);
           deleted.push({ filename, docType });
         } catch (entryErr) {
-          skipped.push({ filename: entry.filename, reason: entryErr.message || 'invalid' });
+          skipped.push({ filename: entry.filename, reason: entryErr instanceof Error ? entryErr.message : 'invalid' });
         }
       }, { concurrency: BATCH_CONCURRENCY });
 
@@ -65,7 +68,9 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       const newValue = fixVersion || 'TBD';
+      /** @type {Array<{ filename: string; docType: string }>} */
       const updated  = [];
+      /** @type {Array<{ filename: string; reason: string }>} */
       const skipped  = [];
 
       await pMap(docs, async (entry) => {
@@ -87,7 +92,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           await fs.promises.writeFile(filepath, patched);
           updated.push({ filename, docType });
         } catch (entryErr) {
-          skipped.push({ filename: entry.filename, reason: entryErr.message || 'invalid' });
+          skipped.push({ filename: entry.filename, reason: entryErr instanceof Error ? entryErr.message : 'invalid' });
         }
       }, { concurrency: BATCH_CONCURRENCY });
 
@@ -112,6 +117,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
       // Load sprint config
       const piSettingsPath = path.join(rootDir, '.pi-settings.json');
+      /** @type {Array<{ name: string; capacity: number }>} */
       let sprintCfg = [];
       try {
         const raw = await fs.promises.readFile(piSettingsPath, 'utf-8');
@@ -121,6 +127,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       if (!sprintCfg.length) return sendError(res, 400, 'NO_SPRINTS', 'No sprints configured for this PI');
 
       // Collect leaf docs in this PI using the index (includes rank, blockedBy, parentFilename)
+      /** @type {Record<string, number>} */
       const PRIORITY_RANK = { Critical: 0, Major: 0, High: 1, Medium: 2, Low: 3 };
       const leafTypes = new Set(['story', 'spike', 'bug']);
       const leafDocs = docIndex.getAll()
@@ -144,7 +151,10 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const assigned   = leafDocs.filter(d => d.sprint);
       const unassigned = leafDocs.filter(d => !d.sprint);
 
-      // ── Comparator: rank first, then priority, then SP desc ─────────────────
+      /**
+       * @param {{ rank: number; priority: string; storyPoints: number }} a
+       * @param {{ rank: number; priority: string; storyPoints: number }} b
+       */
       function sortByRankPriority(a, b) {
         if (a.rank !== b.rank) return a.rank - b.rank;
         const pa = PRIORITY_RANK[a.priority] ?? 2;
@@ -198,7 +208,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       // ── Build buckets; pre-fill with already-assigned docs ───────────────────
-      const buckets = sprintCfg.map((s, idx) => ({
+      const buckets = sprintCfg.map((/** @type {{ name: string; capacity: number }} */ s, idx) => ({
         name:       s.name,
         capacity:   s.capacity,
         idx,
@@ -209,6 +219,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const sprintIdx    = new Map(buckets.map(b => [b.name, b.idx]));
       // Track placed sprint for dep constraint computation (seed with already-assigned)
       const placementMap = new Map(assigned.map(d => [d.filename, d.sprint]));
+      /** @type {string[]} */
       const depAdjusted  = []; // warnings for items bumped due to deps
 
       // ── Greedy fill with dep-constraint floor ────────────────────────────────
@@ -218,7 +229,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         let minIdx = 0;
         for (const blockerFn of doc.blockedBy) {
           const blockerSprint = placementMap.get(blockerFn);
-          if (blockerSprint !== undefined) {
+          if (blockerSprint != null) {
             const bi = sprintIdx.get(blockerSprint) ?? -1;
             if (bi + 1 > minIdx) minIdx = bi + 1;
           }
@@ -228,7 +239,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         let preferredIdx = minIdx;
         for (const siblingFn of (doc.parallel || [])) {
           const sibSprint = placementMap.get(siblingFn);
-          if (sibSprint !== undefined) {
+          if (sibSprint != null) {
             preferredIdx = Math.max(preferredIdx, sprintIdx.get(sibSprint) ?? 0);
           }
         }
@@ -301,7 +312,9 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
       const docType = assertDocType(type, TYPE_CONFIG);
       const cfg     = TYPE_CONFIG[docType];
+      /** @type {string[]} */
       const updated = [];
+      /** @type {Array<{ filename: string; reason: string }>} */
       const skipped = [];
 
       await pMap(orderedFilenames, async (rawFilename, i) => {
@@ -319,7 +332,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           await fs.promises.writeFile(filepath, patched);
           updated.push(filename);
         } catch (entryErr) {
-          skipped.push({ filename: rawFilename, reason: entryErr.message || 'invalid' });
+          skipped.push({ filename: rawFilename, reason: entryErr instanceof Error ? entryErr.message : 'invalid' });
         }
       }, { concurrency: BATCH_CONCURRENCY });
 
@@ -344,7 +357,9 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         return sendError(res, 400, 'VALIDATION_ERROR', 'items array is required and must not be empty');
       }
 
+      /** @type {string[]} */
       const updated = [];
+      /** @type {Array<{ filename: string; reason: string }>} */
       const skipped = [];
 
       await pMap(items, async (item) => {
@@ -369,7 +384,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           await fs.promises.writeFile(filepath, patched);
           updated.push(filename);
         } catch (entryErr) {
-          skipped.push({ filename: item.filename, reason: entryErr.message || 'invalid' });
+          skipped.push({ filename: item.filename, reason: entryErr instanceof Error ? entryErr.message : 'invalid' });
         }
       }, { concurrency: BATCH_CONCURRENCY });
 
@@ -402,12 +417,13 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
       // Build a global sprint order from .pi-settings.json so we can enforce dependency ordering
       const piSettingsPath = path.join(rootDir, '.pi-settings.json');
+      /** @type {string[]} */
       let sprintOrder = [];
       try {
         const raw = await fs.promises.readFile(piSettingsPath, 'utf-8');
         const settings = JSON.parse(raw);
         for (const piSprints of Object.values(settings.sprints || {})) {
-          for (const s of piSprints) {
+          for (const s of /** @type {Array<{ name: string }>} */ (piSprints)) {
             if (!sprintOrder.includes(s.name)) sprintOrder.push(s.name);
           }
         }
@@ -446,7 +462,9 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         }
       }
 
+      /** @type {Array<{ filename: string; docType: string; sprint: string | undefined }>} */
       const updated = [];
+      /** @type {Array<{ filename: string; reason: string }>} */
       const skipped = [];
 
       await pMap(assignments, async (entry) => {
@@ -468,7 +486,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           await fs.promises.writeFile(filepath, patched);
           updated.push({ filename, docType, sprint: adjustedSprint });
         } catch (entryErr) {
-          skipped.push({ filename: entry.filename, reason: entryErr.message || 'invalid' });
+          skipped.push({ filename: entry.filename, reason: entryErr instanceof Error ? entryErr.message : 'invalid' });
         }
       }, { concurrency: BATCH_CONCURRENCY });
 

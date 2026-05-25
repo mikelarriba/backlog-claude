@@ -3,6 +3,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 
+/** @param {import('../types.js').CanvasRouteContext} ctx */
 export default function canvasRoutes({ rootDir, logInfo }) {
   const router = Router();
 
@@ -15,6 +16,7 @@ export default function canvasRoutes({ rootDir, logInfo }) {
     return {};
   }
 
+  /** @param {Record<string, unknown>} data */
   function saveLayout(data) {
     fs.writeFileSync(CANVAS_LAYOUT_PATH, JSON.stringify(data, null, 2));
   }

@@ -116,8 +116,11 @@ app.use((req, _res, next) => {
 const { handleEvents, broadcast } = createEventService();
 app.get('/api/events', handleEvents);
 
+/** @param {string} name @returns {string | null} */
 const loadCommand  = name => loadCommandService(__dirname, name);
+/** @param {string} prompt @returns {Promise<string>} */
 const callClaude   = prompt => callClaudeService(__dirname, prompt);
+/** @param {string} prompt @param {(chunk: string) => void} onChunk @returns {Promise<void>} */
 const streamClaude = (prompt, onChunk) => streamClaudeService(__dirname, prompt, onChunk);
 
 // ── Mount route modules ──────────────────────────────────────────────────────

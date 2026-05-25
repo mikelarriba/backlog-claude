@@ -1,5 +1,6 @@
 import path from 'path';
 import MsgReaderModule from '@kenjiuno/msgreader';
+// @ts-ignore — pdfkit has no bundled types and no @types package
 import PDFDocument from 'pdfkit';
 import type { EmailSegment, ProcessedAttachment, ParsedMsg } from '../types.js';
 

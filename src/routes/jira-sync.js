@@ -6,6 +6,7 @@ import { sendError, parseApiError, assertDocType, assertFilename } from '../util
 import { setFrontmatterField, extractFrontmatterField, stripFrontmatter, jiraToMarkdown } from '../utils/transforms.js';
 import { JIRA_TO_LOCAL_TYPE } from '../services/jiraService.js';
 
+/** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraSyncRoutes({
   TYPE_CONFIG, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS, INBOX_DIR,
   JIRA_PROJECT,
@@ -14,6 +15,11 @@ export default function jiraSyncRoutes({
 }) {
   const router = Router();
 
+  /**
+   * @param {string} inboxPath
+   * @param {string} oldBody
+   * @param {string} newBody
+   */
   function _appendDescriptionHistory(inboxPath, oldBody, newBody) {
     const ts = new Date().toISOString().slice(0, 16).replace('T', ' ');
     const note = `\n\n---\n\n## JIRA Description Update — ${ts}\n\n**Previous description:**\n${oldBody || '_empty_'}\n\n**New description from JIRA:**\n${newBody || '_empty_'}\n`;
@@ -25,6 +31,7 @@ export default function jiraSyncRoutes({
     }
   }
 
+  /** @param {string} content */
   function _extractBodyText(content) {
     const body = stripFrontmatter(content);
     return body.replace(/^## .+\n?/m, '').replace(/\n## Comments\b[\s\S]*$/, '').trim();
@@ -44,7 +51,7 @@ export default function jiraSyncRoutes({
       const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
       if (!jiraId || jiraId === 'TBD') return sendError(res, 400, 'NO_JIRA_ID', 'Document has no JIRA_ID');
 
-      const issue      = await jiraRequest('GET', `/issue/${jiraId}?fields=status,${FIELD_STORY_POINTS},summary,description`);
+      const issue      = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${jiraId}?fields=status,${FIELD_STORY_POINTS},summary,description`));
       const jiraStatus = issue.fields?.status?.name || null;
       const jiraSp     = issue.fields?.[FIELD_STORY_POINTS] ?? null;
       const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
@@ -138,7 +145,7 @@ export default function jiraSyncRoutes({
       docIndex.invalidate(docType, filename);
       broadcast({ type: `${docType}_created`, filename, docType });
 
-      logInfo(`Updated ${filename} from JIRA ${jiraKey}`);
+      logInfo('POST /api/jira/update-from-jira', `Updated ${filename} from JIRA ${jiraKey}`);
       res.json({ key: jiraKey, filename, docType });
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -148,6 +155,7 @@ export default function jiraSyncRoutes({
   });
 
   // ── Shared helper: build preview item from a JIRA issue ──────
+  /** @param {Record<string, any>} iss */
   function _buildPreviewItem(iss) {
     const existing = docIndex.findByJiraId(iss.key) || findLocalFileByJiraId(iss.key);
     const jiraTitle = (iss.fields?.summary || '').trim();
@@ -155,12 +163,14 @@ export default function jiraSyncRoutes({
     const jiraTypeName = iss.fields?.issuetype?.name || '';
     const localType = JIRA_TO_LOCAL_TYPE[jiraTypeName] || 'story';
 
+    /** @type {Record<string, unknown>[]} */
+    const changes = [];
     const item = {
       jiraKey: iss.key, jiraTitle, jiraType: jiraTypeName,
       localFilename: existing?.filename || null,
       localDocType:  existing?.docType  || localType,
       action: existing ? 'update' : 'create',
-      changes: [],
+      changes,
     };
 
     if (existing) {
@@ -172,16 +182,16 @@ export default function jiraSyncRoutes({
         const localBody    = _extractBodyText(localContent);
         const jiraDesc     = jiraToMarkdown(iss.fields?.description || '').trim();
 
-        if (jiraTitle !== localTitle)  item.changes.push({ field: 'title', from: localTitle, to: jiraTitle });
-        if (jiraDesc  !== localBody)   item.changes.push({ field: 'description', changed: true });
-        if (jiraSP    !== localSP)     item.changes.push({ field: 'storyPoints', from: localSP, to: jiraSP });
+        if (jiraTitle !== localTitle)  changes.push({ field: 'title', from: localTitle, to: jiraTitle });
+        if (jiraDesc  !== localBody)   changes.push({ field: 'description', changed: true });
+        if (jiraSP    !== localSP)     changes.push({ field: 'storyPoints', from: localSP, to: jiraSP });
       } catch {
-        item.changes.push({ field: 'description', changed: true });
+        changes.push({ field: 'description', changed: true });
       }
     } else {
-      if (jiraTitle) item.changes.push({ field: 'title', to: jiraTitle });
-      item.changes.push({ field: 'description', changed: true });
-      if (jiraSP !== null) item.changes.push({ field: 'storyPoints', to: jiraSP });
+      if (jiraTitle) changes.push({ field: 'title', to: jiraTitle });
+      changes.push({ field: 'description', changed: true });
+      if (jiraSP !== null) changes.push({ field: 'storyPoints', to: jiraSP });
     }
     return item;
   }
@@ -197,7 +207,7 @@ export default function jiraSyncRoutes({
       if (!jiraKey) return sendError(res, 400, 'VALIDATION_ERROR', 'jiraKey is required');
 
       const fields = `summary,issuetype,status,priority,description,fixVersions,issuelinks,subtasks,${FIELD_EPIC_NAME},${FIELD_EPIC_LINK},${FIELD_STORY_POINTS}`;
-      const issue = await jiraRequest('GET', `/issue/${jiraKey}?fields=${fields}`);
+      const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${jiraKey}?fields=${fields}`));
       const items = [];
 
       items.push(_buildPreviewItem(issue));
@@ -205,6 +215,7 @@ export default function jiraSyncRoutes({
       // ── Children ──────────────────────────────────────────────
       if (includeChildren) {
         const issueType = issue.fields?.issuetype?.name;
+        /** @type {Array<Record<string, any>>} */
         const childIssues = [];
         const seen = new Set([jiraKey]);
 
@@ -212,7 +223,7 @@ export default function jiraSyncRoutes({
         if (issueType === 'Epic' && FIELD_EPIC_LINK) {
           const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
           const jql = `cf[${fieldId}] = ${jiraKey} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
-          const data = await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`);
+          const data = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`));
           for (const c of (data.issues || [])) { if (!seen.has(c.key)) { seen.add(c.key); childIssues.push(c); } }
         }
 
@@ -222,7 +233,7 @@ export default function jiraSyncRoutes({
           if (inw && !seen.has(inw.key)) {
             seen.add(inw.key);
             try {
-              const full = await jiraRequest('GET', `/issue/${inw.key}?fields=${fields}`);
+              const full = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${inw.key}?fields=${fields}`));
               childIssues.push(full);
             } catch { /* skip unreachable children */ }
           }
@@ -244,7 +255,7 @@ export default function jiraSyncRoutes({
             if (jiraChildKeys.has(local.jiraId) || seen.has(local.jiraId)) continue;
             // This local child wasn't in the open JIRA children — check if it's closed or gone
             try {
-              const remoteIssue = await jiraRequest('GET', `/issue/${local.jiraId}?fields=status,summary,issuetype`);
+              const remoteIssue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${local.jiraId}?fields=status,summary,issuetype`));
               const statusCat = remoteIssue.fields?.status?.statusCategory?.key;
               if (statusCat === 'done') {
                 items.push({
@@ -313,7 +324,7 @@ export default function jiraSyncRoutes({
 
       for (const doc of linkedDocs) {
         try {
-          const issue      = await jiraRequest('GET', `/issue/${doc.jiraId}?fields=${fields}`);
+          const issue      = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${doc.jiraId}?fields=${fields}`));
           const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
           const jiraSp      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
           const jiraDesc    = jiraToMarkdown(issue.fields?.description || '').trim();
@@ -365,7 +376,7 @@ export default function jiraSyncRoutes({
             skipped.push(doc.jiraId);
           }
         } catch (e) {
-          errors.push({ jiraId: doc.jiraId, filename: doc.filename, docType: doc.docType, error: e.message });
+          errors.push({ jiraId: doc.jiraId, filename: doc.filename, docType: doc.docType, error: e instanceof Error ? e.message : String(e) });
         }
       }
 
