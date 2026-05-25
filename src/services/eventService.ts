@@ -1,9 +1,25 @@
 import type { Request, Response } from 'express';
 import type { BroadcastFn, SSEEvent } from '../types.js';
+import { createLogger } from '../utils/logger.js';
+
+const { logDebug } = createLogger('[eventService]');
+
+const SSE_IDLE_TIMEOUT_MS = parseInt(process.env.SSE_IDLE_TIMEOUT_MS || '300000', 10);
+const SWEEP_INTERVAL_MS = 60_000;
+
+interface SseClient {
+  res: Response;
+  lastWriteAt: number;
+}
 
 export function createEventService(): { handleEvents: (req: Request, res: Response) => void; broadcast: BroadcastFn } {
-  const sseClients = new Set<Response>();
+  const sseClients = new Set<SseClient>();
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+  function removeClient(client: SseClient): void {
+    sseClients.delete(client);
+    try { client.res.end(); } catch { /* already ended */ }
+  }
 
   function handleEvents(req: Request, res: Response): void {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -12,10 +28,11 @@ export function createEventService(): { handleEvents: (req: Request, res: Respon
     res.flushHeaders();
 
     res.write('data: {"type":"connected"}\n\n');
-    sseClients.add(res);
-    req.on('close', () => sseClients.delete(res));
+    const client: SseClient = { res, lastWriteAt: Date.now() };
+    sseClients.add(client);
+    req.on('close', () => sseClients.delete(client));
 
-    // Start heartbeat when first client connects
+    // Start heartbeat + idle-sweep when first client connects
     if (!heartbeatTimer && sseClients.size > 0) {
       heartbeatTimer = setInterval(() => {
         if (sseClients.size === 0) {
@@ -23,18 +40,40 @@ export function createEventService(): { handleEvents: (req: Request, res: Respon
           heartbeatTimer = null;
           return;
         }
-        for (const client of sseClients) {
-          try { client.write(':\n\n'); } catch { sseClients.delete(client); }
+
+        const now = Date.now();
+        for (const c of sseClients) {
+          // Heartbeat write
+          try {
+            c.res.write(':\n\n');
+            c.lastWriteAt = now;
+          } catch {
+            sseClients.delete(c);
+            continue;
+          }
+
+          // Idle-timeout eviction
+          if (now - c.lastWriteAt > SSE_IDLE_TIMEOUT_MS) {
+            removeClient(c);
+          }
         }
-      }, 30000);
+
+        logDebug('sweep', `Active SSE clients: ${sseClients.size}`);
+      }, SWEEP_INTERVAL_MS);
       heartbeatTimer.unref();
     }
   }
 
   function broadcast(payload: SSEEvent): void {
     const data = `data: ${JSON.stringify(payload)}\n\n`;
+    const now = Date.now();
     for (const client of sseClients) {
-      try { client.write(data); } catch { sseClients.delete(client); }
+      try {
+        client.res.write(data);
+        client.lastWriteAt = now;
+      } catch {
+        sseClients.delete(client);
+      }
     }
   }
 
