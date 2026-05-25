@@ -74,6 +74,31 @@ const { jiraRequest, jiraPagedRequest, jiraUploadAttachment, findLocalFileByJira
 const docIndex = createDocIndex({ TYPE_CONFIG });
 await docIndex.build();
 
+// ── Security headers ─────────────────────────────────────────────────────────
+app.use((_req, res, next) => {
+  // Prevent MIME-type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Block framing (clickjacking)
+  res.setHeader('X-Frame-Options', 'DENY');
+  // Limit referrer information on cross-origin requests
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // CSP: scripts/styles from same origin only; marked is now vendored locally
+  // 'unsafe-inline' is required because index.html uses inline event handlers
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "connect-src 'self'",
+      "font-src 'self'",
+      "frame-ancestors 'none'",
+    ].join('; '),
+  );
+  next();
+});
+
 // ── Middleware & SSE ─────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.static(__dirname));

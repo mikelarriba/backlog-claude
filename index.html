@@ -23,8 +23,8 @@
   <!-- Theme (load before render to avoid flash) -->
   <script src="/public/js/theme.js"></script>
 
-  <!-- Markdown renderer -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Markdown renderer (vendored locally; removes CDN dependency) -->
+  <script src="/public/js/vendor/marked.umd.js" integrity="sha384-8RA8Ah4c9upJmKfg5nH01OgjZoQ3mRX+ngrKYWXQYj2dHYxFqYz8POSlii33f0wB" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/public/css/refine.css" />
   <link rel="stylesheet" href="/public/css/split.css" />
   <link rel="stylesheet" href="/public/css/swimlanes.css" />
