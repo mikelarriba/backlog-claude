@@ -1,6 +1,40 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import { createLogger } from '../utils/logger.js';
+
+const { logDebug } = createLogger('[claudeService]');
+
+// ── Concurrency semaphore ─────────────────────────────────────────────────────
+class Semaphore {
+  private readonly pending: Array<() => void> = [];
+  private running = 0;
+
+  constructor(private readonly limit: number) {}
+
+  acquire(): Promise<void> {
+    if (this.running < this.limit) {
+      this.running++;
+      return Promise.resolve();
+    }
+    logDebug('semaphore', `AI call queued (queue depth: ${this.pending.length + 1})`);
+    return new Promise(resolve => this.pending.push(resolve));
+  }
+
+  release(): void {
+    this.running--;
+    const next = this.pending.shift();
+    if (next) {
+      this.running++;
+      next();
+    }
+  }
+
+  get queueDepth(): number { return this.pending.length; }
+}
+
+const _concurrency = parseInt(process.env.CLAUDE_CONCURRENCY || '3', 10);
+const _semaphore = new Semaphore(Number.isFinite(_concurrency) && _concurrency > 0 ? _concurrency : 3);
 
 export function loadCommand(rootDir: string, name: string): string | null {
   const commandPath = path.join(rootDir, '.claude', 'commands', `${name}.md`);
@@ -247,51 +281,61 @@ async function _streamGitHubModels(prompt: string, onChunk: (chunk: string) => v
 export async function callClaude(rootDir: string, prompt: string, { maxAttempts = 3 } = {}): Promise<string> {
   if (process.env.MOCK_CLAUDE) return Promise.resolve(MOCK_RESPONSE);
 
-  const provider = _providerOverride || 'claude-cli';
-  let lastErr: any;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      if (provider === 'github-models') {
-        return await _callGitHubModels(prompt);
+  await _semaphore.acquire();
+  try {
+    const provider = _providerOverride || 'claude-cli';
+    let lastErr: any;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (provider === 'github-models') {
+          return await _callGitHubModels(prompt);
+        }
+        return await _spawnClaude(rootDir, prompt, CALL_TIMEOUT_MS);
+      } catch (err: any) {
+        lastErr = err;
+        const isUserError = !err.isTimeout && NO_RETRY_PATTERNS.some((p: RegExp) => p.test(err.message));
+        if (isUserError || attempt === maxAttempts) break;
+        await new Promise(r => setTimeout(r, 2 ** attempt * 1000));
       }
-      return await _spawnClaude(rootDir, prompt, CALL_TIMEOUT_MS);
-    } catch (err: any) {
-      lastErr = err;
-      const isUserError = !err.isTimeout && NO_RETRY_PATTERNS.some((p: RegExp) => p.test(err.message));
-      if (isUserError || attempt === maxAttempts) break;
-      await new Promise(r => setTimeout(r, 2 ** attempt * 1000));
     }
+    throw lastErr;
+  } finally {
+    _semaphore.release();
   }
-  throw lastErr;
 }
 
 /**
  * Invoke the AI provider in streaming mode. Dispatches to GitHub Models (SSE) or
  * Claude CLI based on the current provider override. Each chunk is forwarded to `onChunk`.
  */
-export function streamClaude(rootDir: string, prompt: string, onChunk: (chunk: string) => void): Promise<void> {
+export async function streamClaude(rootDir: string, prompt: string, onChunk: (chunk: string) => void): Promise<void> {
   if (process.env.MOCK_CLAUDE) {
     onChunk(MOCK_RESPONSE);
-    return Promise.resolve();
+    return;
   }
 
-  const provider = _providerOverride || 'claude-cli';
-  if (provider === 'github-models') {
-    return _streamGitHubModels(prompt, onChunk);
-  }
+  await _semaphore.acquire();
+  try {
+    const provider = _providerOverride || 'claude-cli';
+    if (provider === 'github-models') {
+      return await _streamGitHubModels(prompt, onChunk);
+    }
 
-  return new Promise((resolve, reject) => {
-    let err = '';
-    const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });
-    const timer = setTimeout(() => {
-      proc.kill();
-      reject(new Error('Claude subprocess timed out after 5 min'));
-    }, STREAM_TIMEOUT_MS);
-    proc.stdout!.on('data', (d: Buffer) => onChunk(d.toString()));
-    proc.stderr!.on('data', (d: Buffer) => (err += d.toString()));
-    proc.on('close', (code: number | null) => {
-      clearTimeout(timer);
-      code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`));
+    return await new Promise<void>((resolve, reject) => {
+      let err = '';
+      const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });
+      const timer = setTimeout(() => {
+        proc.kill();
+        reject(new Error('Claude subprocess timed out after 5 min'));
+      }, STREAM_TIMEOUT_MS);
+      proc.stdout!.on('data', (d: Buffer) => onChunk(d.toString()));
+      proc.stderr!.on('data', (d: Buffer) => (err += d.toString()));
+      proc.on('close', (code: number | null) => {
+        clearTimeout(timer);
+        code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`));
+      });
     });
-  });
+  } finally {
+    _semaphore.release();
+  }
 }
