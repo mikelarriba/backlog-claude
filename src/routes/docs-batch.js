@@ -4,6 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
 import { setFrontmatterField } from '../utils/transforms.js';
+import { pMap } from '../utils/pMap.js';
+
+const BATCH_CONCURRENCY = 5;
 
 export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logInfo, docIndex }) {
   const router = Router();
@@ -19,24 +22,26 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const deleted = [];
       const skipped = [];
 
-      for (const entry of docs) {
+      await pMap(docs, async (entry) => {
         try {
           const docType  = assertDocType(entry.type, TYPE_CONFIG);
           const filename = assertFilename(entry.filename);
           const cfg      = TYPE_CONFIG[docType];
           const filepath = path.join(cfg.dir(), filename);
 
-          if (!fs.existsSync(filepath)) {
+          try {
+            await fs.promises.access(filepath);
+          } catch {
             skipped.push({ filename, reason: 'not found' });
-            continue;
+            return;
           }
 
-          fs.unlinkSync(filepath);
+          await fs.promises.unlink(filepath);
           deleted.push({ filename, docType });
         } catch (entryErr) {
           skipped.push({ filename: entry.filename, reason: entryErr.message || 'invalid' });
         }
-      }
+      }, { concurrency: BATCH_CONCURRENCY });
 
       if (deleted.length) {
         await docIndex.invalidateAll();
@@ -63,26 +68,28 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const updated  = [];
       const skipped  = [];
 
-      for (const entry of docs) {
+      await pMap(docs, async (entry) => {
         try {
           const docType  = assertDocType(entry.type, TYPE_CONFIG);
           const filename = assertFilename(entry.filename);
           const cfg      = TYPE_CONFIG[docType];
           const filepath = path.join(cfg.dir(), filename);
 
-          if (!fs.existsSync(filepath)) {
+          try {
+            await fs.promises.access(filepath);
+          } catch {
             skipped.push({ filename, reason: 'not found' });
-            continue;
+            return;
           }
 
-          const content = fs.readFileSync(filepath, 'utf-8');
+          const content = await fs.promises.readFile(filepath, 'utf-8');
           const patched = setFrontmatterField(content, 'Fix_Version', newValue);
-          fs.writeFileSync(filepath, patched);
+          await fs.promises.writeFile(filepath, patched);
           updated.push({ filename, docType });
         } catch (entryErr) {
           skipped.push({ filename: entry.filename, reason: entryErr.message || 'invalid' });
         }
-      }
+      }, { concurrency: BATCH_CONCURRENCY });
 
       if (updated.length) {
         await docIndex.invalidateAll();
@@ -98,7 +105,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
   });
 
   // ── POST /api/docs/distribute ── propose sprint assignments ─────────────────
-  router.post('/api/docs/distribute', (req, res) => {
+  router.post('/api/docs/distribute', async (req, res) => {
     try {
       const { piName } = req.body;
       if (!piName) return sendError(res, 400, 'VALIDATION_ERROR', 'piName is required');
@@ -107,7 +114,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const piSettingsPath = path.join(rootDir, '.pi-settings.json');
       let sprintCfg = [];
       try {
-        const settings = JSON.parse(fs.readFileSync(piSettingsPath, 'utf-8'));
+        const raw = await fs.promises.readFile(piSettingsPath, 'utf-8');
+        const settings = JSON.parse(raw);
         sprintCfg = (settings.sprints && settings.sprints[piName]) || [];
       } catch {}
       if (!sprintCfg.length) return sendError(res, 400, 'NO_SPRINTS', 'No sprints configured for this PI');
@@ -296,19 +304,24 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const updated = [];
       const skipped = [];
 
-      for (let i = 0; i < orderedFilenames.length; i++) {
+      await pMap(orderedFilenames, async (rawFilename, i) => {
         try {
-          const filename = assertFilename(orderedFilenames[i]);
+          const filename = assertFilename(rawFilename);
           const filepath = path.join(cfg.dir(), filename);
-          if (!fs.existsSync(filepath)) { skipped.push({ filename, reason: 'not found' }); continue; }
-          const content = fs.readFileSync(filepath, 'utf-8');
+          try {
+            await fs.promises.access(filepath);
+          } catch {
+            skipped.push({ filename, reason: 'not found' });
+            return;
+          }
+          const content = await fs.promises.readFile(filepath, 'utf-8');
           const patched = setFrontmatterField(content, 'Rank', String(i + 1));
-          fs.writeFileSync(filepath, patched);
+          await fs.promises.writeFile(filepath, patched);
           updated.push(filename);
         } catch (entryErr) {
-          skipped.push({ filename: orderedFilenames[i], reason: entryErr.message || 'invalid' });
+          skipped.push({ filename: rawFilename, reason: entryErr.message || 'invalid' });
         }
-      }
+      }, { concurrency: BATCH_CONCURRENCY });
 
       if (updated.length) {
         await docIndex.invalidateAll();
@@ -334,26 +347,31 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const updated = [];
       const skipped = [];
 
-      for (const item of items) {
+      await pMap(items, async (item) => {
         try {
           if (!item.filename || !item.docType || typeof item.rank !== 'number') {
             skipped.push({ filename: item.filename || '?', reason: 'missing filename, docType, or rank' });
-            continue;
+            return;
           }
           const docType  = assertDocType(item.docType, TYPE_CONFIG);
           const filename = assertFilename(item.filename);
           const cfg      = TYPE_CONFIG[docType];
           const filepath = path.join(cfg.dir(), filename);
-          if (!fs.existsSync(filepath)) { skipped.push({ filename, reason: 'not found' }); continue; }
+          try {
+            await fs.promises.access(filepath);
+          } catch {
+            skipped.push({ filename, reason: 'not found' });
+            return;
+          }
 
-          const content = fs.readFileSync(filepath, 'utf-8');
+          const content = await fs.promises.readFile(filepath, 'utf-8');
           const patched = setFrontmatterField(content, 'Rank', String(item.rank));
-          fs.writeFileSync(filepath, patched);
+          await fs.promises.writeFile(filepath, patched);
           updated.push(filename);
         } catch (entryErr) {
           skipped.push({ filename: item.filename, reason: entryErr.message || 'invalid' });
         }
-      }
+      }, { concurrency: BATCH_CONCURRENCY });
 
       if (updated.length) {
         await docIndex.invalidateAll();
@@ -386,7 +404,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const piSettingsPath = path.join(rootDir, '.pi-settings.json');
       let sprintOrder = [];
       try {
-        const settings = JSON.parse(fs.readFileSync(piSettingsPath, 'utf-8'));
+        const raw = await fs.promises.readFile(piSettingsPath, 'utf-8');
+        const settings = JSON.parse(raw);
         for (const piSprints of Object.values(settings.sprints || {})) {
           for (const s of piSprints) {
             if (!sprintOrder.includes(s.name)) sprintOrder.push(s.name);
@@ -430,23 +449,28 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const updated = [];
       const skipped = [];
 
-      for (const entry of assignments) {
+      await pMap(assignments, async (entry) => {
         try {
           const docType  = assertDocType(entry.docType, TYPE_CONFIG);
           const filename = assertFilename(entry.filename);
           const cfg      = TYPE_CONFIG[docType];
           const filepath = path.join(cfg.dir(), filename);
-          if (!fs.existsSync(filepath)) { skipped.push({ filename, reason: 'not found' }); continue; }
+          try {
+            await fs.promises.access(filepath);
+          } catch {
+            skipped.push({ filename, reason: 'not found' });
+            return;
+          }
 
           const adjustedSprint = sprintMap.get(filename) || entry.sprint;
-          const content = fs.readFileSync(filepath, 'utf-8');
+          const content = await fs.promises.readFile(filepath, 'utf-8');
           const patched = setFrontmatterField(content, 'Sprint', adjustedSprint || 'TBD');
-          fs.writeFileSync(filepath, patched);
+          await fs.promises.writeFile(filepath, patched);
           updated.push({ filename, docType, sprint: adjustedSprint });
         } catch (entryErr) {
           skipped.push({ filename: entry.filename, reason: entryErr.message || 'invalid' });
         }
-      }
+      }, { concurrency: BATCH_CONCURRENCY });
 
       if (updated.length) {
         await docIndex.invalidateAll();
