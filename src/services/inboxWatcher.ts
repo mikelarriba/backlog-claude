@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { BroadcastFn } from '../types.js';
 import type { Logger } from '../utils/logger.js';
+import { logAudit } from '../utils/auditLog.js';
 
 interface InboxWatcherOptions {
   INBOX_DIR: string;
@@ -67,6 +68,7 @@ export function watchInbox({
       ensureDir(EPICS_DIR);
       fs.writeFileSync(path.join(EPICS_DIR, filename), epicContent);
       broadcast({ type: 'epic_created', filename });
+      logAudit({ op: 'create', docType: 'epic', filename, source: 'inbox' });
       logInfo('watchInbox', `Epic saved: docs/epics/${filename}`);
     } catch (err: unknown) {
       logError('watchInbox', `Failed to process ${filename}`, { error: err instanceof Error ? err.message : String(err) });

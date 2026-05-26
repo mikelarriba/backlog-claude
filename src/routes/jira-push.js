@@ -9,6 +9,7 @@ import {
 } from '../utils/transforms.js';
 import { parseStorySections, serializeStoryFile } from '../services/storyService.js';
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
+import { logAudit } from '../utils/auditLog.js';
 
 /** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraPushRoutes({
@@ -162,6 +163,7 @@ export default function jiraPushRoutes({
       fs.writeFileSync(filepath, updated);
       docIndex.invalidate(type, filename);
       broadcast({ type: 'status_updated', filename, docType: type, status: 'Created in JIRA' });
+      logAudit({ op: 'jira-push', docType: type, filename, fields: { jiraId: key }, source: 'api' });
     }
 
     // Upload local attachments for bugs

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { sendError, ensureDir, parseApiError, assertDocType, assertStatus, assertFilename, resolveDocPath } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
+import { logAudit } from '../utils/auditLog.js';
 
 /** @param {import('../types.js').RouteContext} ctx */
 export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docIndex }) {
@@ -116,6 +117,11 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       fs.writeFileSync(filepath, content);
       docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
+      const changedFields = Object.fromEntries(
+        Object.entries({ status, title, fixVersion, storyPoints, sprint, rank, team, workCategory, priority })
+          .filter(([, v]) => v !== undefined)
+      );
+      logAudit({ op: 'update', docType, filename, fields: changedFields, source: 'api' });
       res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }), ...(rank !== undefined && { rank }), ...(team !== undefined && { team }), ...(workCategory !== undefined && { workCategory }), ...(priority !== undefined && { priority }) });
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -136,6 +142,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       fs.unlinkSync(filepath);
       docIndex.invalidate(docType, filename);
       broadcast({ type: 'doc_deleted', filename, docType });
+      logAudit({ op: 'delete', docType, filename, source: 'api' });
       res.json({ success: true });
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -192,6 +199,7 @@ ${notesLine}`;
       fs.writeFileSync(path.join(destDir, filename), content);
       docIndex.invalidate(normalizedType, filename);
       broadcast({ type: cfg.event, filename, docType: normalizedType });
+      logAudit({ op: 'create', docType: normalizedType, filename, fields: { title: title.trim() }, source: 'api' });
       logInfo('POST /api/docs/draft', `Created draft ${filename}`);
       res.json({ success: true, filename, docType: normalizedType });
     } catch (err) {
