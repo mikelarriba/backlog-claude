@@ -11,6 +11,7 @@ import { ensureDir } from './src/utils/routeHelpers.js';
 import { createLogger } from './src/utils/logger.js';
 import { createTypeConfig } from './src/config/docTypes.js';
 import { createDocIndex } from './src/services/docIndex.js';
+import { validateJiraConfig } from './src/services/jiraValidator.js';
 import docsCrudRoutes from './src/routes/docs-crud.js';
 import docsAiRoutes from './src/routes/docs-ai.js';
 import docsBatchRoutes from './src/routes/docs-batch.js';
@@ -159,6 +160,15 @@ export { app };
 if (process.argv[1] === __filename) {
   app.listen(PORT, () => {
     validateStartupConfig();
+    validateJiraConfig({
+      jiraBase: JIRA_BASE,
+      jiraToken: JIRA_TOKEN,
+      fieldStoryPoints: FIELD_STORY_POINTS,
+      fieldEpicLink: FIELD_EPIC_LINK,
+      fieldEpicName: FIELD_EPIC_NAME,
+      logInfo,
+      logWarn,
+    }).catch(err => logWarn('jira-validator', `Unexpected error: ${err.message}`));
     logInfo('startup', `Backlog Claude running on http://localhost:${PORT}`);
     watchInbox({
       INBOX_DIR,
