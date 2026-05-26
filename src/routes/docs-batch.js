@@ -164,8 +164,9 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       // ── Group unassigned by parent epic to maximise epic completion ──────────
-      // Strategy: sort epic groups by their best-priority story, then emit all
-      // stories from that epic before moving to the next group.
+      // Strategy: sort epic groups by the epic's own rank (matching main list
+      // view order, top-to-bottom), then emit all stories from that epic
+      // before moving to the next group.
       const epicGroups  = new Map(); // parentFilename → doc[]
       const standalones = [];
       for (const doc of unassigned) {
@@ -180,16 +181,21 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       // Sort each epic group internally
       for (const [, docs] of epicGroups) docs.sort(sortByRankPriority);
 
-      // Sort epic groups by their highest-priority story, then by total SP desc
-      const sortedGroups = [...epicGroups.values()].sort((docsA, docsB) => {
-        const pa = PRIORITY_RANK[docsA[0].priority] ?? 2;
-        const pb = PRIORITY_RANK[docsB[0].priority] ?? 2;
-        if (pa !== pb) return pa - pb;
-        // Same top priority: group with higher rank story first
-        if (docsA[0].rank !== docsB[0].rank) return docsA[0].rank - docsB[0].rank;
-        // Same rank: prefer the group that finishes an epic (fewer remaining stories)
-        return docsA.length - docsB.length;
-      });
+      // Build epic rank lookup from the index (same order as the main list view)
+      const epicRankMap = new Map();
+      for (const e of docIndex.getAll()) {
+        if (e.docType === 'epic' || e.docType === 'feature') {
+          epicRankMap.set(e.filename, e.rank != null ? e.rank : 9999);
+        }
+      }
+
+      // Sort epic groups by the epic's own rank (list view order)
+      const sortedGroups = [...epicGroups.entries()].sort(([fnA], [fnB]) => {
+        const ra = epicRankMap.get(fnA) ?? 9999;
+        const rb = epicRankMap.get(fnB) ?? 9999;
+        if (ra !== rb) return ra - rb;
+        return fnB.localeCompare(fnA); // fallback: same as _rankSortFn
+      }).map(([, docs]) => docs);
 
       standalones.sort(sortByRankPriority);
 
@@ -222,7 +228,18 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       /** @type {string[]} */
       const depAdjusted  = []; // warnings for items bumped due to deps
 
-      // ── Greedy fill with dep-constraint floor ────────────────────────────────
+      // Track per-epic sprint range: try to finish each epic within 2 sprints
+      const epicStartSprint = new Map(); // parentFilename → first sprint index
+      // Seed from already-assigned items
+      for (const d of assigned) {
+        if (!d.parentFilename) continue;
+        const si = sprintIdx.get(d.sprint) ?? 0;
+        if (!epicStartSprint.has(d.parentFilename) || si < epicStartSprint.get(d.parentFilename)) {
+          epicStartSprint.set(d.parentFilename, si);
+        }
+      }
+
+      // ── Greedy fill with dep-constraint floor + 2-sprint epic window ─────────
       const overflow = [...noEstimateOverflow];
       for (const doc of workQueue) {
         // Compute the minimum allowed sprint index from dependency constraints
@@ -244,10 +261,21 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           }
         }
 
-        // Place in the first bucket at or after preferredIdx with enough capacity
+        // 2-sprint epic window: if this epic has already started, cap the max
+        // sprint to startSprint + 1 so the epic finishes within 2 sprints
+        let maxIdx = buckets.length - 1;
+        if (doc.parentFilename) {
+          const start = epicStartSprint.get(doc.parentFilename);
+          if (start != null) {
+            maxIdx = Math.min(maxIdx, start + 1);
+          }
+        }
+
+        // Place in the first bucket at or after preferredIdx (capped by maxIdx)
         let placed = false;
         for (const bucket of buckets) {
           if (bucket.idx < preferredIdx) continue;
+          if (bucket.idx > maxIdx) break;
           if (bucket.usedPoints + doc.storyPoints <= bucket.capacity) {
             if (minIdx > 0 && bucket.idx > 0) {
               depAdjusted.push(`"${doc.title}" placed in ${bucket.name} due to dependency ordering`);
@@ -255,6 +283,10 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
             bucket.assigned.push({ ...doc, wasAlreadyAssigned: false });
             bucket.usedPoints += doc.storyPoints;
             placementMap.set(doc.filename, bucket.name);
+            // Track epic start sprint
+            if (doc.parentFilename && !epicStartSprint.has(doc.parentFilename)) {
+              epicStartSprint.set(doc.parentFilename, bucket.idx);
+            }
             placed = true;
             break;
           }
