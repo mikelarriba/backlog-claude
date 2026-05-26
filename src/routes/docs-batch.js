@@ -48,9 +48,12 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
       if (deleted.length) {
         await docIndex.invalidateAll();
-        broadcast({ type: 'batch_deleted', filenames: deleted.map(d => d.filename) });
       }
+      broadcast({ type: 'batch_deleted', filenames: deleted.map(d => d.filename) });
 
+      if (skipped.length) {
+        logInfo('POST /api/docs/batch-delete', `Skipped entries: ${JSON.stringify(skipped)}`);
+      }
       logInfo('POST /api/docs/batch-delete', `Deleted ${deleted.length}, skipped ${skipped.length}`);
       res.json({ success: true, deleted: deleted.length, skipped });
     } catch (err) {
