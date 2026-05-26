@@ -87,6 +87,84 @@ async function loadAppConfig() {
   } catch (e) { console.warn('Failed to load app config:', e.message); }
 }
 
+async function loadMetadata() {
+  try {
+    const { teams, workCategories } = await fetchJSON('/api/config/metadata');
+    _populateTeamSelects(teams);
+    _populateWorkCatSelects(workCategories);
+    _renderTeamFilterPills(teams);
+    _renderWorkCatFilterPills(workCategories);
+  } catch (e) { console.warn('Failed to load metadata config:', e.message); }
+}
+
+function _populateTeamSelects(teams) {
+  const selectIds = ['team', 'bug-team', 'detail-team-select'];
+  for (const id of selectIds) {
+    const sel = document.getElementById(id);
+    if (!sel) continue;
+    const firstOpt = sel.querySelector('option:first-child');
+    sel.innerHTML = '';
+    if (firstOpt) sel.appendChild(firstOpt.cloneNode(true));
+    for (const t of teams) {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+function _populateWorkCatSelects(cats) {
+  const selectIds = ['work-category', 'bug-work-category', 'detail-workcat-select'];
+  for (const id of selectIds) {
+    const sel = document.getElementById(id);
+    if (!sel) continue;
+    const firstOpt = sel.querySelector('option:first-child');
+    sel.innerHTML = '';
+    if (firstOpt) sel.appendChild(firstOpt.cloneNode(true));
+    for (const c of cats) {
+      const opt = document.createElement('option');
+      opt.value = c;
+      opt.textContent = c;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+const WORKCAT_SHORT_LABELS = {
+  'Platform Maintenance': 'Maint.',
+  'Technical Debt':       'Tech Debt',
+};
+
+function _renderTeamFilterPills(teams) {
+  const container = document.querySelector('.filter-group [data-team="all"]')?.parentElement;
+  if (!container) return;
+  // Remove old team pills (keep the "All" pill)
+  container.querySelectorAll('[data-team]:not([data-team="all"])').forEach(el => el.remove());
+  for (const t of teams) {
+    const btn = document.createElement('button');
+    btn.className = 'pill';
+    btn.dataset.team = t;
+    btn.textContent = t;
+    btn.setAttribute('onclick', `setTeamFilter('${t}')`);
+    container.appendChild(btn);
+  }
+}
+
+function _renderWorkCatFilterPills(cats) {
+  const container = document.querySelector('.filter-group-workcat [data-workcat="all"]')?.parentElement;
+  if (!container) return;
+  container.querySelectorAll('[data-workcat]:not([data-workcat="all"])').forEach(el => el.remove());
+  for (const c of cats) {
+    const btn = document.createElement('button');
+    btn.className = 'pill';
+    btn.dataset.workcat = c;
+    btn.textContent = WORKCAT_SHORT_LABELS[c] || c;
+    btn.setAttribute('onclick', `setWorkCatFilter('${c}')`);
+    container.appendChild(btn);
+  }
+}
+
 let _availableProviders = [];
 
 async function loadModelSetting() {
@@ -156,7 +234,7 @@ async function _saveModelSetting(provider, model) {
 
 // Bootstrap — load PI settings, JIRA versions, sprint config, model & app config before docs so swimlanes render correctly
 (async () => {
-  await Promise.all([loadPiSettings(), loadJiraVersions(), loadModelSetting(), loadAppConfig()]);
+  await Promise.all([loadPiSettings(), loadJiraVersions(), loadModelSetting(), loadAppConfig(), loadMetadata()]);
   await loadAllSprintConfigs();
   loadDocs();
 })();

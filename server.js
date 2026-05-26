@@ -10,6 +10,7 @@ import { isoDate, slugify } from './src/utils/transforms.js';
 import { ensureDir } from './src/utils/routeHelpers.js';
 import { createLogger } from './src/utils/logger.js';
 import { createTypeConfig } from './src/config/docTypes.js';
+import { TEAMS, WORK_CATEGORIES } from './src/config/metadata.js';
 import { createDocIndex } from './src/services/docIndex.js';
 import { validateJiraConfig } from './src/services/jiraValidator.js';
 import docsCrudRoutes from './src/routes/docs-crud.js';
@@ -116,6 +117,11 @@ app.use((req, _res, next) => {
 
 const { handleEvents, broadcast } = createEventService();
 app.get('/api/events', handleEvents);
+
+// ── Config endpoints ─────────────────────────────────────────────────────────
+app.get('/api/config/metadata', (_req, res) => {
+  res.json({ teams: TEAMS, workCategories: WORK_CATEGORIES });
+});
 
 /** @param {string} name @returns {string | null} */
 const loadCommand  = name => loadCommandService(__dirname, name);

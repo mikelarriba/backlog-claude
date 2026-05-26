@@ -5,6 +5,7 @@ import path from 'path';
 import { sendError, ensureDir, parseApiError, assertDocType, assertStatus, assertFilename, resolveDocPath } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { logAudit } from '../utils/auditLog.js';
+import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
 
 /** @param {import('../types.js').RouteContext} ctx */
 export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docIndex }) {
@@ -77,10 +78,16 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       }
 
       if (team !== undefined) {
+        if (team && team !== 'TBD' && !TEAMS.includes(team)) {
+          return sendError(res, 400, 'VALIDATION_ERROR', `Team must be one of: ${TEAMS.join(', ')}, TBD`);
+        }
         content = setFrontmatterField(content, 'Team', team || 'TBD');
       }
 
       if (workCategory !== undefined) {
+        if (workCategory && workCategory !== 'TBD' && !WORK_CATEGORIES.includes(workCategory)) {
+          return sendError(res, 400, 'VALIDATION_ERROR', `Work Category must be one of: ${WORK_CATEGORIES.join(', ')}, TBD`);
+        }
         content = setFrontmatterField(content, 'Work_Category', workCategory || 'TBD');
       }
 
