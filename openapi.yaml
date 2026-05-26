@@ -1,0 +1,1559 @@
+openapi: 3.1.0
+info:
+  title: Backlog Claude API
+  version: 1.0.0
+  description: >
+    REST API for the Backlog Claude product-management tool.
+    All responses use JSON. Errors share a consistent `{ error: { code, message, details? } }` shape.
+    SSE endpoints stream `data: <json>\n\n` events until a final `{ done: true }` event.
+    All routes are also reachable at `/api/v1/...` (alias middleware).
+
+servers:
+  - url: /
+    description: Local dev server
+
+tags:
+  - name: docs
+    description: Document CRUD
+  - name: ai
+    description: AI-powered generation
+  - name: batch
+    description: Bulk document operations
+  - name: links
+    description: Hierarchy and dependency links
+  - name: canvas
+    description: Canvas layout persistence
+  - name: bugs
+    description: Bug creation and attachments
+  - name: stories
+    description: Multi-story file operations
+  - name: jira
+    description: JIRA integration
+  - name: settings
+    description: Application settings
+  - name: config
+    description: Read-only configuration
+
+components:
+  schemas:
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:    { type: string, example: VALIDATION_ERROR }
+            message: { type: string, example: 'title is required' }
+            details: { type: object }
+
+    DocType:
+      type: string
+      enum: [epic, feature, story, spike, bug]
+
+    Status:
+      type: string
+      enum: [Draft, 'Created in JIRA', Archived]
+
+    Priority:
+      type: string
+      enum: [Critical, High, Medium, Low]
+
+    DocEntry:
+      type: object
+      description: Indexed metadata for a single document (frontmatter fields).
+      properties:
+        filename:       { type: string }
+        docType:        { $ref: '#/components/schemas/DocType' }
+        title:          { type: string }
+        date:           { type: string, format: date }
+        status:         { $ref: '#/components/schemas/Status' }
+        fixVersion:     { type: string, nullable: true }
+        jiraId:         { type: string, nullable: true }
+        jiraUrl:        { type: string, format: uri, nullable: true }
+        storyPoints:    { type: integer, minimum: 0, nullable: true }
+        sprint:         { type: string, nullable: true }
+        rank:           { type: integer, nullable: true }
+        priority:       { $ref: '#/components/schemas/Priority' }
+        parentFilename: { type: string, nullable: true }
+        parentType:     { $ref: '#/components/schemas/DocType', nullable: true }
+        blocks:         { type: array, items: { type: string } }
+        blockedBy:      { type: array, items: { type: string } }
+        parallel:       { type: array, items: { type: string } }
+        pi:             { type: string, nullable: true }
+        team:           { type: string, nullable: true }
+        workCategory:   { type: string, nullable: true }
+        hasDescription: { type: boolean }
+
+    DocContent:
+      type: object
+      required: [filename, docType, content]
+      properties:
+        filename: { type: string }
+        docType:  { $ref: '#/components/schemas/DocType' }
+        content:  { type: string, description: Full markdown content including frontmatter }
+
+    SseTextEvent:
+      type: object
+      description: Incremental text chunk from a streaming SSE endpoint.
+      properties:
+        text: { type: string }
+
+    SseDoneEvent:
+      type: object
+      description: Terminal event from a streaming SSE endpoint.
+      required: [done]
+      properties:
+        done:    { type: boolean, enum: [true] }
+        content: { type: string }
+
+    SseErrorEvent:
+      type: object
+      required: [error]
+      properties:
+        error: { type: object, properties: { message: { type: string } } }
+
+    SseProgressEvent:
+      type: object
+      properties:
+        progress: { type: string }
+
+    LinkType:
+      type: string
+      enum: [blocks, parallel]
+
+    JiraIssue:
+      type: object
+      properties:
+        key:           { type: string }
+        summary:       { type: string }
+        epicName:      { type: string, nullable: true }
+        issuetype:     { type: string }
+        status:        { type: string }
+        priority:      { type: string }
+        localExists:   { type: boolean }
+        localFilename: { type: string, nullable: true }
+        localDocType:  { $ref: '#/components/schemas/DocType', nullable: true }
+
+    JiraVersion:
+      type: object
+      properties:
+        id:       { type: string }
+        name:     { type: string }
+        released: { type: boolean }
+        archived: { type: boolean }
+
+    SprintConfig:
+      type: object
+      required: [name, capacity]
+      properties:
+        name:     { type: string }
+        capacity: { type: integer, minimum: 0, maximum: 999 }
+
+  responses:
+    ErrorBadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    ErrorNotFound:
+      description: Document not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    ErrorJiraNotConfigured:
+      description: JIRA not configured
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    ErrorServer:
+      description: Internal server error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+
+paths:
+  # ── Document CRUD ──────────────────────────────────────────────
+  /api/docs:
+    get:
+      operationId: listDocs
+      tags: [docs]
+      summary: List all documents
+      description: Returns indexed metadata for every document across all types.
+      responses:
+        '200':
+          description: Array of document entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DocEntry' }
+        '500': { $ref: '#/components/responses/ErrorServer' }
+
+  /api/docs/draft:
+    post:
+      operationId: createDraft
+      tags: [docs]
+      summary: Create a draft document without AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:         { type: string }
+                idea:          { type: string }
+                type:          { $ref: '#/components/schemas/DocType', default: epic }
+                priority:      { $ref: '#/components/schemas/Priority', default: Medium }
+                parentEpic:    { type: string }
+                parentFeature: { type: string }
+                fixVersion:    { type: string }
+                team:          { type: string }
+                workCategory:  { type: string }
+      responses:
+        '201':
+          description: Draft created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:  { type: boolean }
+                  filename: { type: string }
+                  docType:  { $ref: '#/components/schemas/DocType' }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+
+  /api/doc/{type}/{filename}:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { $ref: '#/components/schemas/DocType' }
+      - name: filename
+        in: path
+        required: true
+        schema: { type: string }
+
+    get:
+      operationId: getDoc
+      tags: [docs]
+      summary: Fetch a single document
+      responses:
+        '200':
+          description: Document content
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocContent' }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+        '404': { $ref: '#/components/responses/ErrorNotFound' }
+
+    patch:
+      operationId: updateDoc
+      tags: [docs]
+      summary: Update document fields
+      description: Updates one or more frontmatter fields or appends to the comments section.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:          { $ref: '#/components/schemas/Status' }
+                title:           { type: string }
+                fixVersion:      { type: string, nullable: true }
+                storyPoints:     { type: integer, minimum: 0, nullable: true }
+                sprint:          { type: string, nullable: true }
+                rank:            { type: integer, minimum: 1 }
+                team:            { type: string, nullable: true }
+                workCategory:    { type: string, nullable: true }
+                priority:        { $ref: '#/components/schemas/Priority' }
+                commentsSection: { type: string }
+      responses:
+        '200':
+          description: Updated fields echoed back
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+        '404': { $ref: '#/components/responses/ErrorNotFound' }
+
+    delete:
+      operationId: deleteDoc
+      tags: [docs]
+      summary: Delete a document
+      responses:
+        '200':
+          description: Document deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+        '404': { $ref: '#/components/responses/ErrorNotFound' }
+
+  # ── AI Generation ──────────────────────────────────────────────
+  /api/generate:
+    post:
+      operationId: generateDoc
+      tags: [ai]
+      summary: Generate a document using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idea]
+              properties:
+                idea:          { type: string }
+                title:         { type: string }
+                type:          { $ref: '#/components/schemas/DocType', default: epic }
+                priority:      { $ref: '#/components/schemas/Priority', default: Medium }
+                parentEpic:    { type: string }
+                parentFeature: { type: string }
+                fixVersion:    { type: string }
+                team:          { type: string }
+                workCategory:  { type: string }
+                pi:            { type: string }
+      responses:
+        '200':
+          description: Generated document filename
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:  { type: boolean }
+                  filename: { type: string }
+                  docType:  { $ref: '#/components/schemas/DocType' }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+        '500': { $ref: '#/components/responses/ErrorServer' }
+
+  /api/doc/{type}/{filename}/upgrade:
+    post:
+      operationId: upgradeDoc
+      tags: [ai]
+      summary: Upgrade a document with AI feedback (SSE)
+      description: Streams incremental text via Server-Sent Events. Final event contains `done:true` and the complete rewritten content.
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/DocType' }
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [feedback]
+              properties:
+                feedback: { type: string }
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/SseTextEvent' }
+                  - { $ref: '#/components/schemas/SseDoneEvent' }
+                  - { $ref: '#/components/schemas/SseErrorEvent' }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+        '404': { $ref: '#/components/responses/ErrorNotFound' }
+
+  /api/docs/split-story:
+    post:
+      operationId: splitStory
+      tags: [ai]
+      summary: Split a large story into multiple smaller stories (SSE)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, docType]
+              properties:
+                filename:    { type: string }
+                docType:     { $ref: '#/components/schemas/DocType' }
+                targetCount: { type: integer, minimum: 2, default: 2 }
+                sprints:     { type: array, items: { type: string } }
+      responses:
+        '200':
+          description: SSE stream — final event includes created filenames
+          content:
+            text/event-stream:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/SseTextEvent' }
+                  - { $ref: '#/components/schemas/SseDoneEvent' }
+                  - { $ref: '#/components/schemas/SseErrorEvent' }
+
+  /api/split-epic:
+    post:
+      operationId: splitEpic
+      tags: [ai]
+      summary: Split an epic and optionally auto-create a feature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [epicFilename, description]
+              properties:
+                epicFilename: { type: string }
+                description:  { type: string }
+      responses:
+        '200':
+          description: New epic (and optionally feature) created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:         { type: boolean }
+                  featureFilename: { type: string }
+                  featureTitle:    { type: string }
+                  newEpicFilename: { type: string }
+                  featureCreated:  { type: boolean }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+
+  # ── Batch Operations ───────────────────────────────────────────
+  /api/docs/batch-delete:
+    post:
+      operationId: batchDeleteDocs
+      tags: [batch]
+      summary: Delete multiple documents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [docs]
+              properties:
+                docs:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, filename]
+                    properties:
+                      type:     { $ref: '#/components/schemas/DocType' }
+                      filename: { type: string }
+      responses:
+        '200':
+          description: Deletion results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  deleted: { type: integer }
+                  skipped: { type: integer }
+
+  /api/docs/batch-fix-version:
+    post:
+      operationId: batchFixVersion
+      tags: [batch]
+      summary: Set Fix_Version on multiple documents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [docs]
+              properties:
+                fixVersion: { type: string, nullable: true }
+                docs:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, filename]
+                    properties:
+                      type:     { $ref: '#/components/schemas/DocType' }
+                      filename: { type: string }
+      responses:
+        '200':
+          description: Update results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  updated: { type: integer }
+                  skipped: { type: integer }
+
+  /api/docs/distribute:
+    post:
+      operationId: distributeDocs
+      tags: [batch]
+      summary: Propose sprint distribution for a PI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [piName]
+              properties:
+                piName: { type: string }
+      responses:
+        '200':
+          description: Distribution proposal
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  piName:      { type: string }
+                  sprints:     { type: array, items: { type: object } }
+                  overflow:    { type: array, items: { $ref: '#/components/schemas/DocEntry' } }
+                  warnings:    { type: array, items: { type: string } }
+                  suggestions: { type: array, items: { type: string } }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+
+  /api/docs/apply-distribution:
+    post:
+      operationId: applyDistribution
+      tags: [batch]
+      summary: Persist sprint assignments with dependency ordering
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assignments]
+              properties:
+                assignments:
+                  type: array
+                  items:
+                    type: object
+                    required: [docType, filename, sprint]
+                    properties:
+                      docType:  { $ref: '#/components/schemas/DocType' }
+                      filename: { type: string }
+                      sprint:   { type: string }
+      responses:
+        '200':
+          description: Application results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:     { type: boolean }
+                  updated:     { type: integer }
+                  skipped:     { type: integer }
+                  assignments: { type: array, items: { type: object } }
+                  warnings:    { type: array, items: { type: string } }
+
+  /api/docs/rerank:
+    post:
+      operationId: rerankDocs
+      tags: [batch]
+      summary: Reorder documents by setting Rank fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, orderedFilenames]
+              properties:
+                type:             { $ref: '#/components/schemas/DocType' }
+                orderedFilenames: { type: array, items: { type: string } }
+      responses:
+        '200':
+          description: Rerank results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  updated: { type: integer }
+                  skipped: { type: integer }
+
+  /api/docs/rerank-canvas:
+    post:
+      operationId: rerankCanvas
+      tags: [batch]
+      summary: Update ranks from canvas grid positions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [filename, docType, rank]
+                    properties:
+                      filename: { type: string }
+                      docType:  { $ref: '#/components/schemas/DocType' }
+                      rank:     { type: integer }
+      responses:
+        '200':
+          description: Rerank results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  updated: { type: integer }
+                  skipped: { type: integer }
+
+  # ── Links ──────────────────────────────────────────────────────
+  /api/links/{type}/{filename}:
+    get:
+      operationId: getLinks
+      tags: [links]
+      summary: Get all links for a document
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/DocType' }
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Link sets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  parent:    { $ref: '#/components/schemas/DocEntry', nullable: true }
+                  children:  { type: array, items: { $ref: '#/components/schemas/DocEntry' } }
+                  blocks:    { type: array, items: { $ref: '#/components/schemas/DocEntry' } }
+                  blockedBy: { type: array, items: { $ref: '#/components/schemas/DocEntry' } }
+                  parallel:  { type: array, items: { $ref: '#/components/schemas/DocEntry' } }
+
+  /api/links/feature/{filename}/deep:
+    get:
+      operationId: getFeatureDeep
+      tags: [links]
+      summary: Fetch full feature→epics→children tree
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Deep link tree
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feature: { $ref: '#/components/schemas/DocEntry' }
+                  epics:   { type: array, items: { type: object } }
+
+  /api/link:
+    post:
+      operationId: createLink
+      tags: [links]
+      summary: Create a dependency or hierarchy link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceType, sourceFilename, targetType, targetFilename]
+              properties:
+                sourceType:     { $ref: '#/components/schemas/DocType' }
+                sourceFilename: { type: string }
+                targetType:     { $ref: '#/components/schemas/DocType' }
+                targetFilename: { type: string }
+                linkType:       { $ref: '#/components/schemas/LinkType' }
+      responses:
+        '200':
+          description: Link created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:  { type: boolean }
+                  linkType: { type: string }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+        '404': { $ref: '#/components/responses/ErrorNotFound' }
+
+    delete:
+      operationId: deleteLink
+      tags: [links]
+      summary: Remove a dependency or parallel link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceFilename, targetFilename, linkType]
+              properties:
+                sourceFilename: { type: string }
+                sourceType:     { $ref: '#/components/schemas/DocType' }
+                targetFilename: { type: string }
+                targetType:     { $ref: '#/components/schemas/DocType' }
+                linkType:       { $ref: '#/components/schemas/LinkType' }
+      responses:
+        '200':
+          description: Link removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+
+  # ── Canvas ─────────────────────────────────────────────────────
+  /api/canvas/layout/{epicFilename}:
+    parameters:
+      - name: epicFilename
+        in: path
+        required: true
+        schema: { type: string }
+
+    get:
+      operationId: getCanvasLayout
+      tags: [canvas]
+      summary: Load canvas grid positions for an epic
+      responses:
+        '200':
+          description: Position map
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    col: { type: integer }
+                    row: { type: integer }
+
+    put:
+      operationId: saveCanvasLayout
+      tags: [canvas]
+      summary: Save canvas grid positions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [positions]
+              properties:
+                positions:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    required: [col, row]
+                    properties:
+                      col: { type: integer, minimum: 0 }
+                      row: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+
+    delete:
+      operationId: deleteCanvasLayout
+      tags: [canvas]
+      summary: Clear canvas layout for an epic
+      responses:
+        '200':
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+
+  # ── Bugs ───────────────────────────────────────────────────────
+  /api/bugs/create:
+    post:
+      operationId: createBug
+      tags: [bugs]
+      summary: Create a bug with optional file attachments
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [id, title]
+              properties:
+                id:           { type: string }
+                title:        { type: string }
+                description:  { type: string }
+                team:         { type: string }
+                workCategory: { type: string }
+                files:
+                  type: array
+                  maxItems: 5
+                  items: { type: string, format: binary }
+      responses:
+        '201':
+          description: Bug created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename: { type: string }
+                  docType:  { type: string, enum: [bug] }
+                  title:    { type: string }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+
+  /api/bugs/attachments/{slug}/{file}:
+    get:
+      operationId: getBugAttachment
+      tags: [bugs]
+      summary: Serve a bug attachment file
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+        - name: file
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/ErrorNotFound' }
+
+  # ── Stories ────────────────────────────────────────────────────
+  /api/stories/{filename}:
+    get:
+      operationId: getStory
+      tags: [stories]
+      summary: Parse a multi-story file into sections
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Story sections
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename: { type: string }
+                  sections:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        index:   { type: integer }
+                        title:   { type: string }
+                        content: { type: string }
+
+  /api/stories/{filename}/upgrade-story:
+    post:
+      operationId: upgradeStory
+      tags: [stories]
+      summary: Upgrade one story in a multi-story file (SSE)
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storyIndex, feedback]
+              properties:
+                storyIndex: { type: integer }
+                feedback:   { type: string }
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/SseTextEvent' }
+                  - { $ref: '#/components/schemas/SseDoneEvent' }
+                  - { $ref: '#/components/schemas/SseErrorEvent' }
+
+  /api/stories/{filename}/story:
+    delete:
+      operationId: deleteStory
+      tags: [stories]
+      summary: Delete one story from a multi-story file
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storyIndex]
+              properties:
+                storyIndex: { type: integer }
+      responses:
+        '200':
+          description: Story deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:   { type: boolean }
+                  remaining: { type: integer }
+
+  /api/epic/{filename}/stories:
+    post:
+      operationId: generateEpicStories
+      tags: [stories, ai]
+      summary: Generate 3–6 user stories from an epic (SSE)
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: SSE stream — final event includes created filenames
+          content:
+            text/event-stream:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/SseTextEvent' }
+                  - { $ref: '#/components/schemas/SseDoneEvent' }
+                  - { $ref: '#/components/schemas/SseErrorEvent' }
+                  - { $ref: '#/components/schemas/SseProgressEvent' }
+
+  # ── JIRA Push ─────────────────────────────────────────────────
+  /api/jira/push-preview:
+    post:
+      operationId: jiraPushPreview
+      tags: [jira]
+      summary: Preview JIRA changes before pushing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [filename, docType]
+                    properties:
+                      filename: { type: string }
+                      docType:  { $ref: '#/components/schemas/DocType' }
+      responses:
+        '200':
+          description: Preview items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        filename: { type: string }
+                        docType:  { $ref: '#/components/schemas/DocType' }
+                        jiraId:   { type: string, nullable: true }
+                        action:   { type: string, enum: [create, update] }
+                        changes:  { type: array, items: { type: string } }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  /api/jira/push/{type}/{filename}:
+    post:
+      operationId: jiraPush
+      tags: [jira]
+      summary: Push a document to JIRA (create or update)
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/DocType' }
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: JIRA push result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  action:   { type: string, enum: [created, updated] }
+                  key:      { type: string }
+                  filename: { type: string }
+                  docType:  { $ref: '#/components/schemas/DocType' }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+        '404': { $ref: '#/components/responses/ErrorNotFound' }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  /api/jira/push-rank:
+    post:
+      operationId: jiraPushRank
+      tags: [jira]
+      summary: Rank a JIRA issue in the backlog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:       { type: string }
+                beforeKey: { type: string }
+                afterKey:  { type: string }
+      responses:
+        '200':
+          description: Rank updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:   { type: boolean }
+                  key:       { type: string }
+                  beforeKey: { type: string, nullable: true }
+                  afterKey:  { type: string, nullable: true }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  # ── JIRA Search ───────────────────────────────────────────────
+  /api/jira/search:
+    get:
+      operationId: jiraSearch
+      tags: [jira]
+      summary: Search JIRA issues
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string, default: all }
+        - name: text
+          in: query
+          schema: { type: string, default: '' }
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  issues: { type: array, items: { $ref: '#/components/schemas/JiraIssue' } }
+                  total:  { type: integer }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  /api/jira/versions:
+    get:
+      operationId: jiraVersions
+      tags: [jira]
+      summary: List JIRA fix versions
+      responses:
+        '200':
+          description: Fix versions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions: { type: array, items: { $ref: '#/components/schemas/JiraVersion' } }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  /api/jira/children/{key}:
+    get:
+      operationId: jiraChildren
+      tags: [jira]
+      summary: Fetch children of a JIRA issue
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Parent and children
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  parentKey:  { type: string }
+                  parentType: { type: string }
+                  children:
+                    type: array
+                    items: { $ref: '#/components/schemas/JiraIssue' }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  /api/jira/pull:
+    post:
+      operationId: jiraPull
+      tags: [jira]
+      summary: Pull JIRA issues into local documents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keys]
+              properties:
+                keys:
+                  type: array
+                  items: { type: string }
+                overwriteKeys:
+                  type: array
+                  items: { type: string }
+                parentLink:
+                  type: object
+                  properties:
+                    docType:  { $ref: '#/components/schemas/DocType' }
+                    filename: { type: string }
+      responses:
+        '200':
+          description: Pull results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pulled:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:     { type: string }
+                        filename: { type: string }
+                        docType: { $ref: '#/components/schemas/DocType' }
+                  conflicts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:             { type: string }
+                        existingFilename: { type: string }
+                        existingDocType: { $ref: '#/components/schemas/DocType' }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  # ── JIRA Sync ─────────────────────────────────────────────────
+  /api/jira/sync-status/{type}/{filename}:
+    post:
+      operationId: jiraSyncStatus
+      tags: [jira]
+      summary: Sync JIRA status and story points into local document
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/DocType' }
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Synced values
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:     { type: boolean }
+                  jiraStatus:  { type: string }
+                  storyPoints: { type: integer, nullable: true }
+        '404': { $ref: '#/components/responses/ErrorNotFound' }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  /api/jira/update-from-jira/{docType}/{filename}:
+    post:
+      operationId: jiraUpdateFromJira
+      tags: [jira]
+      summary: Overwrite local document with fresh JIRA data
+      parameters:
+        - name: docType
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/DocType' }
+        - name: filename
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jiraKey: { type: string }
+      responses:
+        '200':
+          description: Document updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:      { type: string }
+                  filename: { type: string }
+                  docType:  { $ref: '#/components/schemas/DocType' }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  /api/jira/pull-preview:
+    post:
+      operationId: jiraPullPreview
+      tags: [jira]
+      summary: Preview JIRA pull with child detection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jiraKey]
+              properties:
+                jiraKey:         { type: string }
+                includeChildren: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Preview items with change detection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        jiraKey:       { type: string }
+                        jiraTitle:     { type: string }
+                        jiraType:      { type: string }
+                        localFilename: { type: string, nullable: true }
+                        localDocType:  { $ref: '#/components/schemas/DocType', nullable: true }
+                        action:        { type: string, enum: [create, update, skip] }
+                        changes:       { type: array, items: { type: string } }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  /api/jira/check-all:
+    post:
+      operationId: jiraCheckAll
+      tags: [jira]
+      summary: Scan all locally-linked JIRA issues for changes
+      responses:
+        '200':
+          description: Scan results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  changed: { type: integer }
+                  skipped: { type: integer }
+                  errors:  { type: integer }
+                  total:   { type: integer }
+        '503': { $ref: '#/components/responses/ErrorJiraNotConfigured' }
+
+  # ── Settings ──────────────────────────────────────────────────
+  /api/settings/pi:
+    get:
+      operationId: getPiSettings
+      tags: [settings]
+      summary: Get current and next PI names
+      responses:
+        '200':
+          description: PI settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  currentPi: { type: string, nullable: true }
+                  nextPi:    { type: string, nullable: true }
+    put:
+      operationId: updatePiSettings
+      tags: [settings]
+      summary: Update PI settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentPi: { type: string, nullable: true }
+                nextPi:    { type: string, nullable: true }
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:   { type: boolean }
+                  currentPi: { type: string, nullable: true }
+                  nextPi:    { type: string, nullable: true }
+
+  /api/settings/pi/split-threshold:
+    get:
+      operationId: getSplitThreshold
+      tags: [settings]
+      summary: Get story point split threshold
+      responses:
+        '200':
+          description: Threshold value
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  splitThreshold: { type: integer }
+    put:
+      operationId: updateSplitThreshold
+      tags: [settings]
+      summary: Update split threshold (1–50)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [splitThreshold]
+              properties:
+                splitThreshold: { type: integer, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: Updated threshold
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:        { type: boolean }
+                  splitThreshold: { type: integer }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+
+  /api/settings/pi/sprints/{piName}:
+    parameters:
+      - name: piName
+        in: path
+        required: true
+        schema: { type: string }
+
+    get:
+      operationId: getPiSprints
+      tags: [settings]
+      summary: Get sprint configuration for a PI
+      responses:
+        '200':
+          description: Sprint config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  piName:  { type: string }
+                  sprints: { type: array, items: { $ref: '#/components/schemas/SprintConfig' } }
+
+    put:
+      operationId: updatePiSprints
+      tags: [settings]
+      summary: Configure sprints for a PI (1–10 sprints)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sprints]
+              properties:
+                sprints: { type: array, minItems: 1, maxItems: 10, items: { $ref: '#/components/schemas/SprintConfig' } }
+      responses:
+        '200':
+          description: Updated sprints
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  piName:  { type: string }
+                  sprints: { type: array, items: { $ref: '#/components/schemas/SprintConfig' } }
+        '400': { $ref: '#/components/responses/ErrorBadRequest' }
+
+  /api/settings/providers:
+    get:
+      operationId: getProviders
+      tags: [settings]
+      summary: List available AI providers
+      responses:
+        '200':
+          description: Provider list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:     { type: string }
+                        name:   { type: string }
+                        models: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string } } } }
+
+  /api/settings/model:
+    get:
+      operationId: getModel
+      tags: [settings]
+      summary: Get current AI model override
+      responses:
+        '200':
+          description: Model setting
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  model:    { type: string, nullable: true }
+                  provider: { type: string, nullable: true }
+    put:
+      operationId: updateModel
+      tags: [settings]
+      summary: Override AI model and provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model:    { type: string, nullable: true }
+                provider: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Updated model
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:  { type: boolean }
+                  model:    { type: string, nullable: true }
+                  provider: { type: string, nullable: true }
+
+  # ── Config (read-only) ────────────────────────────────────────
+  /api/config:
+    get:
+      operationId: getConfig
+      tags: [config]
+      summary: Get read-only app configuration
+      responses:
+        '200':
+          description: App config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jiraBase: { type: string, format: uri }
+
+  /api/config/metadata:
+    get:
+      operationId: getMetadata
+      tags: [config]
+      summary: Get static enum metadata (teams, work categories)
+      responses:
+        '200':
+          description: Metadata enums
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  teams:          { type: array, items: { type: string } }
+                  workCategories: { type: array, items: { type: string } }
+
+  # ── Events ────────────────────────────────────────────────────
+  /api/events:
+    get:
+      operationId: sseEvents
+      tags: [config]
+      summary: SSE stream for real-time document change events
+      description: >
+        Long-lived Server-Sent Events stream. Events have `type` fields such as:
+        `feature_created`, `epic_created`, `story_created`, `spike_created`, `bug_created`,
+        `status_updated`, `title_updated`, `doc_deleted`, `batch_deleted`,
+        `batch_fix_version_updated`, `link_updated`, `pi_settings_updated`,
+        `sprint_settings_updated`, `batch_sprint_updated`, `split_threshold_updated`.
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: object
+                properties:
+                  type:    { type: string }
+                  payload: { type: object }
