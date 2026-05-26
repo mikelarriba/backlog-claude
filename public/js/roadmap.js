@@ -248,11 +248,14 @@ function renderEpicPanel(sprints) {
     }
   }
 
-  // Sort: named epics first (by title)
+  // Sort: same order as main list view (by rank, then filename descending)
   const sorted = [...epicMap.entries()].sort(([ka, a], [kb, b]) => {
     if (ka === '__none__') return 1;
     if (kb === '__none__') return -1;
-    return (a.epicDoc?.title || ka).localeCompare(b.epicDoc?.title || kb);
+    const ra = a.epicDoc?.rank != null ? a.epicDoc.rank : 9999;
+    const rb = b.epicDoc?.rank != null ? b.epicDoc.rank : 9999;
+    if (ra !== rb) return ra - rb;
+    return kb.localeCompare(ka); // fallback: same as _rankSortFn
   });
 
   document.getElementById('rm-count-epics').textContent = sorted.length;
