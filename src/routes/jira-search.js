@@ -5,6 +5,7 @@ import path from 'path';
 import { sendError, ensureDir, parseApiError, assertFilename, normalizeType } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
+import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 
 /** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraSearchRoutes({
@@ -167,8 +168,17 @@ export default function jiraSearchRoutes({
           continue;
         }
 
-        const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`));
+        const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`));
         let { docType, content } = jiraIssueToMarkdown(issue);
+
+        // Resolve team from JIRA labels
+        const issueLabels = /** @type {string[]} */ (issue.fields?.labels ?? []);
+        const teamLabel   = issueLabels.find(l => ALL_TEAM_JIRA_LABELS.has(l));
+        if (teamLabel && issueLabels.filter(l => ALL_TEAM_JIRA_LABELS.has(l)).length > 1) {
+          console.warn(`[jira/pull] ${key} has multiple team labels — using first: ${teamLabel}`);
+        }
+        const localTeam = teamLabel ? JIRA_LABEL_TO_TEAM[teamLabel] : 'TBD';
+        content = setFrontmatterField(content, 'Team', localTeam);
 
         let filename;
         if (existing && overwriteKeys.includes(key)) {
