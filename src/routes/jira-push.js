@@ -10,6 +10,7 @@ import {
 import { parseStorySections, serializeStoryFile } from '../services/storyService.js';
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 import { logAudit } from '../utils/auditLog.js';
+import { TEAM_TO_JIRA_LABEL, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 
 /** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraPushRoutes({
@@ -53,10 +54,13 @@ export default function jiraPushRoutes({
           key = existingKey;
           results.push({ action: 'updated', key });
         } else {
+          const fmTeam = extractFrontmatterField(frontmatter, 'Team');
+          const fmTeamLabel = (fmTeam && fmTeam !== 'TBD') ? (TEAM_TO_JIRA_LABEL[fmTeam] ?? null) : null;
+          const multiLabels = fmTeamLabel ? [JIRA_LABEL, fmTeamLabel] : [JIRA_LABEL];
           /** @type {Record<string, unknown>} */
           const fields = {
             project: { key: JIRA_PROJECT }, summary: storyTitle,
-            description: markdownToJira(section), issuetype: { name: 'Story' }, labels: [JIRA_LABEL],
+            description: markdownToJira(section), issuetype: { name: 'Story' }, labels: multiLabels,
           };
           if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
           const created = /** @type {{ key: string }} */ (await jiraRequest('POST', '/issue', { fields }));
@@ -90,6 +94,8 @@ export default function jiraPushRoutes({
     const localFixVersion  = extractFrontmatterField(content, 'Fix_Version');
     const localStoryPoints = extractFrontmatterField(content, 'Story_Points');
     const spValue = localStoryPoints && localStoryPoints !== 'TBD' ? Number(localStoryPoints) : null;
+    const localTeam = extractFrontmatterField(content, 'Team');
+    const teamLabel = (localTeam && localTeam !== 'TBD') ? (TEAM_TO_JIRA_LABEL[localTeam] ?? null) : null;
 
     let key, action;
 
@@ -116,13 +122,28 @@ export default function jiraPushRoutes({
         }
       }
 
+      // Update team label: fetch current labels, strip old team labels, add new one
+      try {
+        const issue = /** @type {{ fields: { labels?: string[] } }} */ (await jiraRequest('GET', `/issue/${jiraId}?fields=labels`));
+        const existingLabels = issue.fields?.labels ?? [];
+        const nonTeamLabels  = existingLabels.filter(l => !ALL_TEAM_JIRA_LABELS.has(l));
+        const newLabels = teamLabel ? [...nonTeamLabels, teamLabel] : nonTeamLabels;
+        if (JSON.stringify(existingLabels.sort()) !== JSON.stringify(newLabels.sort())) {
+          updateFields['labels'] = newLabels;
+        }
+      } catch (e) {
+        logWarn('jira/push', `Could not fetch labels for ${jiraId}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
       await jiraRequest('PUT', `/issue/${jiraId}`, { fields: updateFields });
       key = jiraId; action = 'updated';
     } else {
+      const baseLabels = type === 'bug' ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues'] : [JIRA_LABEL];
+      if (teamLabel) baseLabels.push(teamLabel);
       /** @type {Record<string, unknown>} */
       const fields = {
         project: { key: JIRA_PROJECT }, summary, description,
-        issuetype: { name: jiraType }, labels: type === 'bug' ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues'] : [JIRA_LABEL],
+        issuetype: { name: jiraType }, labels: baseLabels,
       };
       if (localFixVersion && localFixVersion !== 'TBD') fields['fixVersions'] = [{ name: localFixVersion }];
       if (spValue !== null) fields[FIELD_STORY_POINTS] = spValue;
@@ -208,6 +229,8 @@ export default function jiraPushRoutes({
         const localTitle = extractJiraSummary(content);
         const localSP    = extractFrontmatterField(content, 'Story_Points');
         const spValue    = localSP && localSP !== 'TBD' ? Number(localSP) : null;
+        const localTeamFm = extractFrontmatterField(content, 'Team');
+        const localTeamLabel = (localTeamFm && localTeamFm !== 'TBD') ? (TEAM_TO_JIRA_LABEL[localTeamFm] ?? null) : null;
         // Resolve local Epic Link for stories/spikes/bugs
         let localEpicJiraId = null;
         if (docType === 'story' || docType === 'spike' || docType === 'bug') {
@@ -220,11 +243,11 @@ export default function jiraPushRoutes({
             }
           }
         }
-        return [{ filename, docType, content, jiraId, localTitle, spValue, localEpicJiraId }];
+        return [{ filename, docType, content, jiraId, localTitle, spValue, localEpicJiraId, localTeamLabel }];
       });
 
       // Fetch JIRA data for existing issues in parallel (capped at JIRA_CONCURRENCY)
-      const previews = await pMap(localItems, async ({ filename, docType, jiraId, localTitle, spValue, localEpicJiraId }) => {
+      const previews = await pMap(localItems, async ({ filename, docType, jiraId, localTitle, spValue, localEpicJiraId, localTeamLabel }) => {
         /** @type {Record<string, unknown>[]} */
         const changes = [];
         const preview = {
@@ -236,7 +259,7 @@ export default function jiraPushRoutes({
 
         if (jiraId !== 'TBD') {
           try {
-            const fetchFields = `summary,${FIELD_STORY_POINTS}` + (FIELD_EPIC_LINK ? `,${FIELD_EPIC_LINK}` : '');
+            const fetchFields = `summary,labels,${FIELD_STORY_POINTS}` + (FIELD_EPIC_LINK ? `,${FIELD_EPIC_LINK}` : '');
             const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${jiraId}?fields=${fetchFields}`));
             const jiraSummary = (issue.fields?.summary || '').trim();
             const jiraSP      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
@@ -247,6 +270,12 @@ export default function jiraPushRoutes({
             changes.push({ field: 'description', changed: true });
             if (spValue !== null && spValue !== jiraSP) {
               changes.push({ field: 'storyPoints', from: jiraSP, to: spValue });
+            }
+            // Detect team label changes
+            const jiraLabels = (issue.fields?.labels ?? []);
+            const currentTeamLabel = jiraLabels.find(l => ALL_TEAM_JIRA_LABELS.has(l)) ?? null;
+            if (currentTeamLabel !== localTeamLabel) {
+              changes.push({ field: 'teamLabel', from: currentTeamLabel, to: localTeamLabel });
             }
             // Detect Epic Link changes for stories/spikes/bugs
             if (docType === 'story' || docType === 'spike' || docType === 'bug') {
@@ -262,6 +291,7 @@ export default function jiraPushRoutes({
           if (localTitle) changes.push({ field: 'title', to: localTitle });
           changes.push({ field: 'description', changed: true });
           if (spValue !== null) changes.push({ field: 'storyPoints', to: spValue });
+          if (localTeamLabel) changes.push({ field: 'teamLabel', to: localTeamLabel });
         }
 
         return preview;
