@@ -782,7 +782,15 @@ async function contextDeleteSelected() {
       });
       closeDeleteDialog();
       clearSelection();
-      showJiraToast('success', `Deleted ${data.deleted} item(s)`);
+      if (data.deleted === 0) {
+        const reasons = (data.skipped || []).map(s => s.reason).join('; ');
+        showJiraToast('error', `Nothing deleted${reasons ? ': ' + reasons : ''}`);
+      } else {
+        showJiraToast('success', `Deleted ${data.deleted} item(s)`);
+        if (data.skipped && data.skipped.length) {
+          showJiraToast('error', `${data.skipped.length} item(s) could not be deleted`);
+        }
+      }
     } catch (err) {
       btn.disabled = false;
       btn.textContent = 'Delete';
