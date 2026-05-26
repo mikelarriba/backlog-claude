@@ -1,12 +1,11 @@
 // ── Doc list coordinator ───────────────────────────────────────
-// All global state lives here. Other modules read/write these directly
-// since all scripts share the same global scope (no ES modules).
+// State vars registered here so they are available before sub-modules call them.
 
-// PI settings state
-var piSettings    = { currentPi: null, nextPi: null };
-var jiraVersions  = [];
-var _swimlanesCollapsed = { currentPi: false, nextPi: false, backlog: false };
-var _collapsedItems = new Set(); // filenames of collapsed epics/features
+// PI settings state — store-backed so store.subscribe('piSettings', fn) works
+_storeVar('piSettings',          { currentPi: null, nextPi: null });
+_storeVar('jiraVersions',        []);
+_storeVar('_swimlanesCollapsed', { currentPi: false, nextPi: false, backlog: false });
+_storeVar('_collapsedItems',     new Set());
 
 async function moveDocRank(filename, docType, delta) {
   const group  = allDocs.filter(d => d.docType === docType);
@@ -29,7 +28,7 @@ async function moveDocRank(filename, docType, delta) {
 async function loadDocs() {
   try {
     allDocs = await fetchJSON('/api/docs');
-    applyFilters();
+    // store.subscribe('allDocs', applyFilters) in main.js drives the re-render
   } catch (e) {
     console.warn('Could not load docs:', e.message);
   }

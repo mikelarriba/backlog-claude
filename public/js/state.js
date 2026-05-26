@@ -2,23 +2,63 @@
 // All global state lives here. Other modules read/write these directly
 // since all scripts share the same global scope (no ES modules).
 
-var allDocs             = [];
-var jiraBase            = '';
-var currentFilename     = null;
-var currentDocType      = null;
-var activeTypeFilter    = 'all';
-var activeStatusFilter  = 'all';
-var activeTeamFilter    = 'all';
-var activeWorkCatFilter = 'all';
-var currentJiraId       = null;
-var _justDragged        = false;
-var _quickCreateType    = null;
-var _toastTimer         = null;
-var selectedItems       = new Set();  // Set of "docType:filename" keys
-var _lastClickedItem    = null;       // { filename, docType } for shift-range select
-var jiraSearchResults   = [];
-var sprintConfig        = {}; // { piName: [{ name, capacity }] }
-var splitThreshold      = 8;  // SP value above which a card spans two sprints
+// ── Reactive store ─────────────────────────────────────────────
+// Minimal pub/sub store. Modules can subscribe to state changes via
+// store.subscribe(key, fn). All global state vars below are backed
+// by this store via Object.defineProperty so existing code that reads
+// or writes them directly transparently goes through the store.
+var store = (function () {
+  var _state = {};
+  var _listeners = {};
+  return {
+    set: function (key, value) {
+      _state[key] = value;
+      var fns = _listeners[key] || [];
+      for (var i = 0; i < fns.length; i++) fns[i](value);
+    },
+    get: function (key) { return _state[key]; },
+    subscribe: function (key, fn) {
+      if (!_listeners[key]) _listeners[key] = [];
+      _listeners[key].push(fn);
+      // returns an unsubscribe function
+      return function () {
+        _listeners[key] = _listeners[key].filter(function (f) { return f !== fn; });
+      };
+    },
+  };
+})();
+
+// Declare a store-backed global variable.  Existing code that reads or writes
+// the named global transparently routes through the store, enabling
+// store.subscribe(key, fn) callbacks to fire on every write.
+function _storeVar(name, initial) {
+  store.set(name, initial);
+  Object.defineProperty(window, name, {
+    get: function () { return store.get(name); },
+    set: function (v) { store.set(name, v); },
+    configurable: true,
+    enumerable: true,
+  });
+}
+
+// ── Store-backed global state ──────────────────────────────────
+_storeVar('allDocs',             []);
+_storeVar('jiraBase',            '');
+_storeVar('currentFilename',     null);
+_storeVar('currentDocType',      null);
+_storeVar('activeTypeFilter',    'all');
+_storeVar('activeStatusFilter',  'all');
+_storeVar('activeTeamFilter',    'all');
+_storeVar('activeWorkCatFilter', 'all');
+_storeVar('currentJiraId',       null);
+_storeVar('_justDragged',        false);
+_storeVar('_quickCreateType',    null);
+_storeVar('_toastTimer',         null);
+_storeVar('selectedItems',       new Set());
+_storeVar('_lastClickedItem',    null);
+_storeVar('jiraSearchResults',   []);
+_storeVar('sprintConfig',        {});
+_storeVar('splitThreshold',      8);
 
 const TYPE_LABEL  = { epic: 'Epic', story: 'Story', spike: 'Spike', feature: 'Feature', bug: 'Bug' };
 const STATUS_LABEL = { Draft: 'Draft', 'Created in JIRA': 'In JIRA', Archived: 'Archived' };

@@ -232,6 +232,10 @@ async function _saveModelSetting(provider, model) {
   }
 }
 
+// ── Store subscriptions ───────────────────────────────────────
+// Wire re-render callbacks so views automatically update when key state changes.
+store.subscribe('allDocs', applyFilters);
+
 // Bootstrap — load PI settings, JIRA versions, sprint config, model & app config before docs so swimlanes render correctly
 (async () => {
   await Promise.all([loadPiSettings(), loadJiraVersions(), loadModelSetting(), loadAppConfig(), loadMetadata()]);
