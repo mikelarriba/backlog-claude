@@ -32,3 +32,9 @@ export const TEAM_TO_JIRA_LABEL = {
 
 // All possible MIDAS team label values (used to strip old team labels)
 export const ALL_TEAM_JIRA_LABELS = new Set(Object.values(TEAM_TO_JIRA_LABEL));
+
+// Reverse mapping: JIRA label → local Team name
+/** @type {Record<string, string>} */
+export const JIRA_LABEL_TO_TEAM = Object.fromEntries(
+  Object.entries(TEAM_TO_JIRA_LABEL).map(([team, label]) => [label, team])
+);

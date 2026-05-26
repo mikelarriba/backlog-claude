@@ -6,6 +6,7 @@ import { sendError, parseApiError, assertDocType, assertFilename } from '../util
 import { setFrontmatterField, extractFrontmatterField, stripFrontmatter, jiraToMarkdown } from '../utils/transforms.js';
 import { JIRA_TO_LOCAL_TYPE } from '../services/jiraService.js';
 import { logAudit } from '../utils/auditLog.js';
+import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 
 /** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraSyncRoutes({
@@ -52,15 +53,25 @@ export default function jiraSyncRoutes({
       const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
       if (!jiraId || jiraId === 'TBD') return sendError(res, 400, 'NO_JIRA_ID', 'Document has no JIRA_ID');
 
-      const issue      = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${jiraId}?fields=status,${FIELD_STORY_POINTS},summary,description`));
+      const issue      = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${jiraId}?fields=status,labels,${FIELD_STORY_POINTS},summary,description`));
       const jiraStatus = issue.fields?.status?.name || null;
       const jiraSp     = issue.fields?.[FIELD_STORY_POINTS] ?? null;
       const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
       const jiraDesc    = jiraToMarkdown(issue.fields?.description || '').trim();
 
+      // Resolve team from JIRA labels
+      const issueLabels = /** @type {string[]} */ (issue.fields?.labels ?? []);
+      const teamLabel   = issueLabels.find(l => ALL_TEAM_JIRA_LABELS.has(l));
+      const jiraTeam    = teamLabel ? JIRA_LABEL_TO_TEAM[teamLabel] : null;
+
       let updated = content;
       if (jiraStatus) updated = setFrontmatterField(updated, 'JIRA_Status', jiraStatus);
       if (jiraSp !== null) updated = setFrontmatterField(updated, 'Story_Points', String(jiraSp));
+      // Update team only if JIRA label changed — if no team label in JIRA, leave local Team as-is
+      if (jiraTeam !== null) {
+        const localTeam = extractFrontmatterField(content, 'Team') || 'TBD';
+        if (jiraTeam !== localTeam) updated = setFrontmatterField(updated, 'Team', jiraTeam);
+      }
 
       // Update title heading if JIRA summary changed
       if (jiraSummary) {
@@ -118,10 +129,10 @@ export default function jiraSyncRoutes({
         return sendError(res, 400, 'VALIDATION_ERROR', 'No JIRA key provided and JIRA_ID in file is TBD');
       }
 
-      // Fetch from JIRA
+      // Fetch from JIRA — include labels to resolve team assignment
       const issue = await jiraRequest(
         'GET',
-        `/issue/${jiraKey}?fields=summary,issuetype,status,priority,description,fixVersions,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`
+        `/issue/${jiraKey}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`
       );
 
       // Build fresh content from JIRA data
@@ -134,7 +145,8 @@ export default function jiraSyncRoutes({
       }
 
       // Preserve local-only frontmatter fields and the ## Comments section
-      const LOCAL_FIELDS = ['Sprint', 'Squad', 'PI', 'Feature_ID', 'Epic_ID', 'Created'];
+      // Team is also preserved here but may be overridden below if JIRA label changed
+      const LOCAL_FIELDS = ['Sprint', 'Squad', 'PI', 'Feature_ID', 'Epic_ID', 'Created', 'Team'];
       let merged = freshContent;
       for (const field of LOCAL_FIELDS) {
         const localVal = extractFrontmatterField(existing, field);
@@ -142,6 +154,15 @@ export default function jiraSyncRoutes({
       }
       const existingComments = existing.match(/\n## Comments\b[\s\S]*$/);
       if (existingComments) merged = merged.trimEnd() + existingComments[0];
+
+      // Override Team if JIRA team label changed
+      const issLabels  = /** @type {string[]} */ ((/** @type {Record<string,any>} */ (issue)).fields?.labels ?? []);
+      const issTeamLbl = issLabels.find(l => ALL_TEAM_JIRA_LABELS.has(l));
+      if (issTeamLbl) {
+        const jiraTeam = JIRA_LABEL_TO_TEAM[issTeamLbl];
+        const localTeam = extractFrontmatterField(existing, 'Team') || 'TBD';
+        if (jiraTeam !== localTeam) merged = setFrontmatterField(merged, 'Team', jiraTeam);
+      }
 
       fs.writeFileSync(filepath, merged);
       docIndex.invalidate(docType, filename);
