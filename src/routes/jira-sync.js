@@ -5,6 +5,7 @@ import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
 import { setFrontmatterField, extractFrontmatterField, stripFrontmatter, jiraToMarkdown } from '../utils/transforms.js';
 import { JIRA_TO_LOCAL_TYPE } from '../services/jiraService.js';
+import { logAudit } from '../utils/auditLog.js';
 
 /** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraSyncRoutes({
@@ -85,6 +86,7 @@ export default function jiraSyncRoutes({
       docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
 
+      logAudit({ op: 'jira-sync', docType, filename, fields: { jiraStatus, storyPoints: jiraSp }, source: 'jira-sync' });
       logInfo('POST /api/jira/sync-status', `Synced status for ${jiraId}: ${jiraStatus}, SP: ${jiraSp}`);
       res.json({ success: true, jiraStatus, storyPoints: jiraSp });
     } catch (err) {
@@ -145,6 +147,7 @@ export default function jiraSyncRoutes({
       docIndex.invalidate(docType, filename);
       broadcast({ type: `${docType}_created`, filename, docType });
 
+      logAudit({ op: 'jira-sync', docType, filename, fields: { jiraKey }, source: 'jira-sync' });
       logInfo('POST /api/jira/update-from-jira', `Updated ${filename} from JIRA ${jiraKey}`);
       res.json({ key: jiraKey, filename, docType });
     } catch (err) {

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { sendError, ensureDir, parseApiError, assertDocType, assertFilename, setupSSE, resolveDocPath } from '../utils/routeHelpers.js';
 import { normalizeOutput } from '../services/claudeService.js';
+import { logAudit } from '../utils/auditLog.js';
 import {
   isoDate, slugify, extractTitle, extractWorkflowStatus,
   setFrontmatterField, extractFrontmatterField,
@@ -94,6 +95,7 @@ ${idea.trim()}
       }
 
       broadcast({ type: cfg.event, filename, docType: normalizedType });
+      logAudit({ op: 'create', docType: normalizedType, filename, fields: { title: title || idea.slice(0, 60) }, source: 'api' });
       res.json({ success: true, filename, docType: normalizedType });
     } catch (err) {
       const apiErr = parseApiError(err);

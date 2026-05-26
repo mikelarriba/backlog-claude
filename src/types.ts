@@ -100,6 +100,20 @@ export interface ParsedMsg {
   attachmentImages: Array<{ filename: string; buffer: Buffer }>;
 }
 
+// ── Audit log ───────────────────────────────────────────────────────────────
+
+export type AuditOp = 'create' | 'update' | 'delete' | 'jira-push' | 'jira-sync';
+export type AuditSource = 'api' | 'inbox' | 'jira-sync';
+
+export interface AuditEvent {
+  ts: string;
+  op: AuditOp;
+  docType: string;
+  filename: string;
+  fields?: Record<string, unknown>;
+  source: AuditSource;
+}
+
 // ── SSE events ──────────────────────────────────────────────────────────────
 
 export interface SSEEvent {

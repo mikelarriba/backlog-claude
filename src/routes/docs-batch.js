@@ -5,6 +5,7 @@ import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
 import { setFrontmatterField } from '../utils/transforms.js';
 import { pMap } from '../utils/pMap.js';
+import { logAudit } from '../utils/auditLog.js';
 
 const BATCH_CONCURRENCY = 5;
 
@@ -51,6 +52,9 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
       broadcast({ type: 'batch_deleted', filenames: deleted.map(d => d.filename) });
 
+      for (const d of deleted) {
+        logAudit({ op: 'delete', docType: d.docType, filename: d.filename, source: 'api' });
+      }
       if (skipped.length) {
         logInfo('POST /api/docs/batch-delete', `Skipped entries: ${JSON.stringify(skipped)}`);
       }
@@ -530,6 +534,9 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         broadcast({ type: 'batch_sprint_updated', filenames: updated.map(u => u.filename) });
       }
 
+      for (const u of updated) {
+        logAudit({ op: 'update', docType: u.docType, filename: u.filename, fields: { sprint: u.sprint }, source: 'api' });
+      }
       logInfo('POST /api/docs/apply-distribution', `Assigned ${updated.length} item(s), skipped ${skipped.length}`);
       res.json({ success: true, updated: updated.length, skipped, assignments: updated, warnings: depWarnings });
     } catch (err) {
