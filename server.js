@@ -123,6 +123,48 @@ app.get('/api/config/metadata', (_req, res) => {
   res.json({ teams: TEAMS, workCategories: WORK_CATEGORIES });
 });
 
+// ── OpenAPI spec & Swagger UI ─────────────────────────────────────────────────
+app.get('/swagger/openapi.yaml', (_req, res) => {
+  res.setHeader('Content-Type', 'application/yaml; charset=utf-8');
+  res.sendFile(path.join(__dirname, 'openapi.yaml'));
+});
+
+app.get('/swagger', (_req, res) => {
+  // Relax CSP for this single route to allow Swagger UI CDN assets
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://unpkg.com",
+    "style-src 'self' 'unsafe-inline' https://unpkg.com",
+    "img-src 'self' data: https://unpkg.com",
+    "connect-src 'self'",
+    "font-src 'self' https://unpkg.com",
+    "frame-ancestors 'none'",
+  ].join('; '));
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backlog Claude – API Docs</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+    <style>body { margin: 0; }</style>
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+      SwaggerUIBundle({
+        url: '/swagger/openapi.yaml',
+        dom_id: '#swagger-ui',
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+        layout: 'BaseLayout',
+        deepLinking: true,
+      });
+    </script>
+  </body>
+</html>`);
+});
+
 /** @param {string} name @returns {string | null} */
 const loadCommand  = name => loadCommandService(__dirname, name);
 /** @param {string} prompt @returns {Promise<string>} */
