@@ -711,6 +711,12 @@
   padding-left: 6px;
 }
 
+/* Unestimated cards — dashed border to flag missing story points */
+.roadmap-card.rm-no-estimate {
+  border-style: dashed;
+  border-color: #F59E0B;
+}
+
 /* ── In-column drag zones ───────────────────────────────────── */
 /* Center zone: highlight as dep/link target */
 .roadmap-card.rm-drop-center {

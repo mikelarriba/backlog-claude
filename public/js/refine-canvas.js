@@ -79,7 +79,7 @@ function _renderFpCanvas(epicFilename, ps, featureFilename) {
     const doc = allDocs.find(d => d.filename === c.filename);
     const sp = doc?.storyPoints ? `${doc.storyPoints} SP` : '';
     const card = document.createElement('div');
-    card.className = 'fp-card';
+    card.className = `fp-card${sp ? '' : ' no-estimate'}`;
     card.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${CELL_W}px;height:${CELL_H}px`;
     card.setAttribute('draggable', 'true');
     card.dataset.filename = c.filename;
@@ -460,7 +460,7 @@ function renderCanvas(epicFilename, docType) {
     const sp  = doc?.storyPoints ? `${doc.storyPoints} SP` : '';
 
     const card = document.createElement('div');
-    card.className = 'canvas-card';
+    card.className = `canvas-card${sp ? '' : ' no-estimate'}`;
     card.dataset.filename = child.filename;
     card.dataset.doctype  = child.docType || docType;
     // Inset 4px inside the cell so the dashed cell border stays visible

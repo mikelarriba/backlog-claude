@@ -318,6 +318,8 @@ async function contextDeleteSelected() {
       });
       closeDeleteDialog();
       clearSelection();
+      // Always reload to purge stale entries from the list
+      await loadDocs();
       if (data.deleted === 0) {
         const reasons = (data.skipped || []).map(s => s.reason).join('; ');
         showJiraToast('error', `Nothing deleted${reasons ? ': ' + reasons : ''}`);

@@ -301,9 +301,10 @@ function renderRoadmapCard(d, sprintName) {
   if (parallel.length)  depHtml += `<div class="dep-badge dep-parallel"># parallel ${parallel.length}</div>`;
 
   const depBlockedClass = blockedBy.length ? ' rm-dep-blocked' : '';
+  const noEstimateClass = sp ? '' : ' rm-no-estimate';
 
   return `
-    <div class="roadmap-card${depBlockedClass}" draggable="true"
+    <div class="roadmap-card${depBlockedClass}${noEstimateClass}" draggable="true"
          onclick="openDoc('${escHtml(d.filename)}','${d.docType}')"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"

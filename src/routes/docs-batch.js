@@ -47,9 +47,9 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         }
       }, { concurrency: BATCH_CONCURRENCY });
 
-      if (deleted.length) {
-        await docIndex.invalidateAll();
-      }
+      // Always invalidate the index — stale entries must be purged even when
+      // the file was already gone from disk (deleted === 0, skipped > 0).
+      await docIndex.invalidateAll();
       broadcast({ type: 'batch_deleted', filenames: deleted.map(d => d.filename) });
 
       for (const d of deleted) {
@@ -268,21 +268,25 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           }
         }
 
-        // 2-sprint epic window: if this epic has already started, cap the max
-        // sprint to startSprint + 1 so the epic finishes within 2 sprints
-        let maxIdx = buckets.length - 1;
+        // 2-sprint epic window (soft preference): prefer finishing an epic
+        // within 2 sprints (deploy cadence), but allow spillover to later
+        // sprints if the preferred window has no capacity.
+        const hardMaxIdx = buckets.length - 1;
+        let softMaxIdx = hardMaxIdx;
         if (doc.parentFilename) {
           const start = epicStartSprint.get(doc.parentFilename);
           if (start != null) {
-            maxIdx = Math.min(maxIdx, start + 1);
+            softMaxIdx = Math.min(hardMaxIdx, start + 1);
           }
         }
 
-        // Place in the first bucket at or after preferredIdx (capped by maxIdx)
+        // Place in the first bucket at or after preferredIdx.
+        // Pass 1: try within preferred 2-sprint window.
+        // Pass 2: if no capacity, allow any later sprint.
         let placed = false;
         for (const bucket of buckets) {
           if (bucket.idx < preferredIdx) continue;
-          if (bucket.idx > maxIdx) break;
+          if (bucket.idx > softMaxIdx) break;
           if (bucket.usedPoints + doc.storyPoints <= bucket.capacity) {
             if (minIdx > 0 && bucket.idx > 0) {
               depAdjusted.push(`"${doc.title}" placed in ${bucket.name} due to dependency ordering`);
@@ -290,12 +294,30 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
             bucket.assigned.push({ ...doc, wasAlreadyAssigned: false });
             bucket.usedPoints += doc.storyPoints;
             placementMap.set(doc.filename, bucket.name);
-            // Track epic start sprint
             if (doc.parentFilename && !epicStartSprint.has(doc.parentFilename)) {
               epicStartSprint.set(doc.parentFilename, bucket.idx);
             }
             placed = true;
             break;
+          }
+        }
+        // Pass 2: spill beyond the 2-sprint window if needed
+        if (!placed) {
+          for (const bucket of buckets) {
+            if (bucket.idx <= softMaxIdx) continue;
+            if (bucket.idx < minIdx) continue;
+            if (bucket.idx > hardMaxIdx) break;
+            if (bucket.usedPoints + doc.storyPoints <= bucket.capacity) {
+              depAdjusted.push(`"${doc.title}" spilled beyond preferred 2-sprint window into ${bucket.name}`);
+              bucket.assigned.push({ ...doc, wasAlreadyAssigned: false });
+              bucket.usedPoints += doc.storyPoints;
+              placementMap.set(doc.filename, bucket.name);
+              if (doc.parentFilename && !epicStartSprint.has(doc.parentFilename)) {
+                epicStartSprint.set(doc.parentFilename, bucket.idx);
+              }
+              placed = true;
+              break;
+            }
           }
         }
         if (!placed) overflow.push(doc);
