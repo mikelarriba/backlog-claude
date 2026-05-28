@@ -159,7 +159,10 @@
         <div class="collapsible-inner">
           <div class="field">
             <label for="provider-select">Provider</label>
-            <select id="provider-select" onchange="onProviderChange(this.value)"></select>
+            <div class="provider-select-row">
+              <select id="provider-select" onchange="onProviderChange(this.value)"></select>
+              <button id="provider-refresh-btn" class="provider-refresh-btn" onclick="refreshProviders()" title="Refresh providers (re-detect Ollama)" aria-label="Refresh providers">↺</button>
+            </div>
           </div>
           <div class="field">
             <label for="model-select">Model</label>

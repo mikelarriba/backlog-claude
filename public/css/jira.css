@@ -505,6 +505,16 @@
 .model-body.open { max-height: 200px; }
 .model-section .collapsible-inner .field { margin-bottom: 0; }
 
+.provider-select-row { display: flex; align-items: center; gap: 4px; }
+.provider-select-row select { flex: 1; }
+.provider-refresh-btn {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-muted); cursor: pointer; font-size: 0.9rem; padding: 2px 6px;
+  line-height: 1; flex-shrink: 0;
+}
+.provider-refresh-btn:hover { background: var(--hover-bg); color: var(--text); }
+.provider-refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .model-status {
   font-size: 0.72rem;
   border-radius: 6px;

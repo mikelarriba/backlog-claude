@@ -212,6 +212,25 @@ async function onProviderChange(providerId) {
   await _saveModelSetting(providerId, '');
 }
 
+async function refreshProviders() {
+  const btn = document.getElementById('provider-refresh-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const { providers } = await fetchJSON('/api/settings/providers');
+    _availableProviders = providers || [];
+    const providerSel = document.getElementById('provider-select');
+    const currentProvider = providerSel ? providerSel.value : 'claude-cli';
+    const modelSel = document.getElementById('model-select');
+    const currentModel = modelSel ? modelSel.value : '';
+    _renderProviderDropdown(currentProvider);
+    _renderModelDropdown(currentProvider, currentModel);
+  } catch (e) {
+    console.warn('Failed to refresh providers:', e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function updateModelSetting(model) {
   const providerSel = document.getElementById('provider-select');
   const providerId = providerSel ? providerSel.value : 'claude-cli';
