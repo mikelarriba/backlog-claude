@@ -173,27 +173,22 @@ function _spawnClaude(rootDir: string, prompt: string, timeoutMs: number): Promi
 
 const GITHUB_MODELS_ENDPOINT = 'https://models.github.ai/inference/chat/completions';
 
-async function _callGitHubModels(prompt: string): Promise<string> {
-  const token = process.env.GITHUB_MODELS_TOKEN;
-  if (!token) throw new Error('GITHUB_MODELS_TOKEN is not set');
-
-  const model = _modelOverride || 'openai/gpt-4o';
+async function _callOpenAICompatible(
+  endpoint: string,
+  model: string,
+  prompt: string,
+  extraHeaders: Record<string, string>,
+  timeoutMs: number,
+): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CALL_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let res: Response;
   try {
-    res = await fetch(GITHUB_MODELS_ENDPOINT, {
+    res = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        stream: false,
-      }),
+      headers: { 'Content-Type': 'application/json', ...extraHeaders },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: false }),
       signal: controller.signal,
     });
   } finally {
@@ -202,7 +197,7 @@ async function _callGitHubModels(prompt: string): Promise<string> {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`GitHub Models API error ${res.status}: ${errText}`);
+    throw new Error(`OpenAI-compatible API error ${res.status}: ${errText}`);
   }
 
   const json = await res.json() as any;
@@ -210,27 +205,23 @@ async function _callGitHubModels(prompt: string): Promise<string> {
   return normalizeOutput(content);
 }
 
-async function _streamGitHubModels(prompt: string, onChunk: (chunk: string) => void): Promise<void> {
-  const token = process.env.GITHUB_MODELS_TOKEN;
-  if (!token) throw new Error('GITHUB_MODELS_TOKEN is not set');
-
-  const model = _modelOverride || 'openai/gpt-4o';
+async function _streamOpenAICompatible(
+  endpoint: string,
+  model: string,
+  prompt: string,
+  extraHeaders: Record<string, string>,
+  onChunk: (chunk: string) => void,
+  timeoutMs: number,
+): Promise<void> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let res: Response;
   try {
-    res = await fetch(GITHUB_MODELS_ENDPOINT, {
+    res = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        stream: true,
-      }),
+      headers: { 'Content-Type': 'application/json', ...extraHeaders },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: true }),
       signal: controller.signal,
     });
   } catch (err: any) {
@@ -241,7 +232,7 @@ async function _streamGitHubModels(prompt: string, onChunk: (chunk: string) => v
   if (!res.ok) {
     clearTimeout(timer);
     const errText = await res.text().catch(() => '');
-    throw new Error(`GitHub Models API error ${res.status}: ${errText}`);
+    throw new Error(`OpenAI-compatible API error ${res.status}: ${errText}`);
   }
 
   const reader = res.body!.getReader();
@@ -271,6 +262,31 @@ async function _streamGitHubModels(prompt: string, onChunk: (chunk: string) => v
     clearTimeout(timer);
     reader.releaseLock();
   }
+}
+
+async function _callGitHubModels(prompt: string): Promise<string> {
+  const token = process.env.GITHUB_MODELS_TOKEN;
+  if (!token) throw new Error('GITHUB_MODELS_TOKEN is not set');
+  return _callOpenAICompatible(
+    GITHUB_MODELS_ENDPOINT,
+    _modelOverride || 'openai/gpt-4o',
+    prompt,
+    { Authorization: `Bearer ${token}` },
+    CALL_TIMEOUT_MS,
+  );
+}
+
+async function _streamGitHubModels(prompt: string, onChunk: (chunk: string) => void): Promise<void> {
+  const token = process.env.GITHUB_MODELS_TOKEN;
+  if (!token) throw new Error('GITHUB_MODELS_TOKEN is not set');
+  return _streamOpenAICompatible(
+    GITHUB_MODELS_ENDPOINT,
+    _modelOverride || 'openai/gpt-4o',
+    prompt,
+    { Authorization: `Bearer ${token}` },
+    onChunk,
+    STREAM_TIMEOUT_MS,
+  );
 }
 
 /**
