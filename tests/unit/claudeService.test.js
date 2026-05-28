@@ -13,6 +13,7 @@ import {
   getProviderOverride,
   getAvailableProviders,
   normalizeOutput,
+  _resetOllamaCache,
 } from '../../src/services/claudeService.js';
 
 // All tests run with MOCK_CLAUDE=1 to avoid spawning the real claude process.
@@ -156,46 +157,147 @@ describe('provider override', () => {
 // ── getAvailableProviders ─────────────────────────────────────────────────────
 describe('getAvailableProviders', () => {
   const origToken = process.env.GITHUB_MODELS_TOKEN;
+  const origFetch = global.fetch;
+
+  before(() => {
+    // Stub fetch so Ollama health check fails instantly (no real server)
+    global.fetch = async (url, opts) => {
+      const u = String(url);
+      if (u.includes('localhost:11434') || u.includes(process.env.OLLAMA_BASE_URL || 'localhost:11434')) {
+        throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+      }
+      return origFetch(url, opts);
+    };
+  });
 
   after(() => {
+    global.fetch = origFetch;
+    _resetOllamaCache();
     if (origToken === undefined) delete process.env.GITHUB_MODELS_TOKEN;
     else process.env.GITHUB_MODELS_TOKEN = origToken;
   });
 
-  test('always includes claude-cli provider', () => {
+  test('always includes claude-cli provider', async () => {
     delete process.env.GITHUB_MODELS_TOKEN;
-    const providers = getAvailableProviders();
+    _resetOllamaCache();
+    const providers = await getAvailableProviders();
     assert.ok(providers.some(p => p.id === 'claude-cli'), 'claude-cli must be present');
   });
 
-  test('does not include github-models when token is absent', () => {
+  test('does not include github-models when token is absent', async () => {
     delete process.env.GITHUB_MODELS_TOKEN;
-    const providers = getAvailableProviders();
+    _resetOllamaCache();
+    const providers = await getAvailableProviders();
     assert.ok(!providers.some(p => p.id === 'github-models'), 'github-models must be absent without token');
   });
 
-  test('includes github-models when GITHUB_MODELS_TOKEN is set', () => {
+  test('includes github-models when GITHUB_MODELS_TOKEN is set', async () => {
     process.env.GITHUB_MODELS_TOKEN = 'ghp_test_token';
-    const providers = getAvailableProviders();
+    _resetOllamaCache();
+    const providers = await getAvailableProviders();
     assert.ok(providers.some(p => p.id === 'github-models'), 'github-models must appear when token is set');
     delete process.env.GITHUB_MODELS_TOKEN;
   });
 
-  test('claude-cli provider has at least one model entry', () => {
+  test('claude-cli provider has at least one model entry', async () => {
     delete process.env.GITHUB_MODELS_TOKEN;
-    const providers = getAvailableProviders();
+    _resetOllamaCache();
+    const providers = await getAvailableProviders();
     const claudeProvider = providers.find(p => p.id === 'claude-cli');
     assert.ok(claudeProvider);
     assert.ok(Array.isArray(claudeProvider.models) && claudeProvider.models.length > 0);
   });
 
-  test('github-models provider has expected models', () => {
+  test('github-models provider has expected models', async () => {
     process.env.GITHUB_MODELS_TOKEN = 'ghp_test_token';
-    const providers = getAvailableProviders();
+    _resetOllamaCache();
+    const providers = await getAvailableProviders();
     const ghProvider = providers.find(p => p.id === 'github-models');
     assert.ok(ghProvider);
     assert.ok(ghProvider.models.some(m => m.id === 'openai/gpt-4o'));
     delete process.env.GITHUB_MODELS_TOKEN;
+  });
+
+  test('omits ollama when Ollama is not running', async () => {
+    _resetOllamaCache();
+    const providers = await getAvailableProviders();
+    assert.ok(!providers.some(p => p.id === 'ollama'), 'ollama must be absent when health check fails');
+  });
+});
+
+// ── Ollama health check and model discovery ────────────────────────────────────
+describe('Ollama provider (mocked fetch)', () => {
+  const origFetch = global.fetch;
+  const origOllamaUrl = process.env.OLLAMA_BASE_URL;
+
+  before(() => {
+    process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
+  });
+
+  after(() => {
+    global.fetch = origFetch;
+    _resetOllamaCache();
+    if (origOllamaUrl === undefined) delete process.env.OLLAMA_BASE_URL;
+    else process.env.OLLAMA_BASE_URL = origOllamaUrl;
+  });
+
+  test('includes ollama provider when health check passes and returns models', async () => {
+    _resetOllamaCache();
+    global.fetch = async (url) => {
+      const u = String(url);
+      if (u === 'http://localhost:11434/') return { ok: true, json: async () => ({}) };
+      if (u === 'http://localhost:11434/api/tags') {
+        return { ok: true, json: async () => ({ models: [{ name: 'llama3' }, { name: 'mistral' }] }) };
+      }
+      return origFetch(url);
+    };
+    const providers = await getAvailableProviders();
+    const ollama = providers.find(p => p.id === 'ollama');
+    assert.ok(ollama, 'ollama provider must appear when health check passes');
+    assert.equal(ollama.name, 'Ollama (local)');
+    assert.ok(ollama.models.some(m => m.id === 'llama3'));
+    assert.ok(ollama.models.some(m => m.id === 'mistral'));
+  });
+
+  test('omits ollama provider when health check returns non-ok', async () => {
+    _resetOllamaCache();
+    global.fetch = async (url) => {
+      if (String(url) === 'http://localhost:11434/') return { ok: false };
+      return origFetch(url);
+    };
+    const providers = await getAvailableProviders();
+    assert.ok(!providers.some(p => p.id === 'ollama'), 'ollama must be absent when health check fails');
+  });
+
+  test('caches health check result for TTL duration', async () => {
+    _resetOllamaCache();
+    let callCount = 0;
+    global.fetch = async (url) => {
+      const u = String(url);
+      if (u === 'http://localhost:11434/') { callCount++; return { ok: true, json: async () => ({}) }; }
+      if (u === 'http://localhost:11434/api/tags') return { ok: true, json: async () => ({ models: [] }) };
+      return origFetch(url);
+    };
+    await getAvailableProviders();
+    await getAvailableProviders();
+    assert.equal(callCount, 1, 'health check should be cached — fetch called only once');
+  });
+
+  test('caches model list for TTL duration', async () => {
+    _resetOllamaCache();
+    let modelCallCount = 0;
+    global.fetch = async (url) => {
+      const u = String(url);
+      if (u === 'http://localhost:11434/') return { ok: true, json: async () => ({}) };
+      if (u === 'http://localhost:11434/api/tags') {
+        modelCallCount++;
+        return { ok: true, json: async () => ({ models: [{ name: 'llama3' }] }) };
+      }
+      return origFetch(url);
+    };
+    await getAvailableProviders();
+    await getAvailableProviders();
+    assert.equal(modelCallCount, 1, 'model list should be cached — /api/tags called only once');
   });
 });
 

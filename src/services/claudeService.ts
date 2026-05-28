@@ -92,11 +92,71 @@ export function getProviderOverride(): string | null {
   return _providerOverride;
 }
 
+// ── Ollama local provider ──────────────────────────────────────────────────────
+function _getOllamaBaseUrl(): string {
+  return process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+}
+
+const OLLAMA_CACHE_TTL_MS = 30_000;
+let _ollamaHealthCache: { result: boolean; expiresAt: number } | null = null;
+let _ollamaModelsCache: { result: Array<{ id: string; name: string }>; expiresAt: number } | null = null;
+
+async function _checkOllamaHealth(): Promise<boolean> {
+  const now = Date.now();
+  if (_ollamaHealthCache && now < _ollamaHealthCache.expiresAt) return _ollamaHealthCache.result;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2_000);
+    try {
+      const res = await fetch(`${_getOllamaBaseUrl()}/`, { signal: controller.signal });
+      _ollamaHealthCache = { result: res.ok, expiresAt: now + OLLAMA_CACHE_TTL_MS };
+      return res.ok;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    _ollamaHealthCache = { result: false, expiresAt: now + OLLAMA_CACHE_TTL_MS };
+    return false;
+  }
+}
+
+async function _fetchOllamaModels(): Promise<Array<{ id: string; name: string }>> {
+  const now = Date.now();
+  if (_ollamaModelsCache && now < _ollamaModelsCache.expiresAt) return _ollamaModelsCache.result;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2_000);
+    let res: Response;
+    try {
+      res = await fetch(`${_getOllamaBaseUrl()}/api/tags`, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!res.ok) {
+      _ollamaModelsCache = { result: [], expiresAt: now + OLLAMA_CACHE_TTL_MS };
+      return [];
+    }
+    const json = await res.json() as any;
+    const models = (json?.models || []).map((m: any) => ({ id: m.name, name: m.name }));
+    _ollamaModelsCache = { result: models, expiresAt: now + OLLAMA_CACHE_TTL_MS };
+    return models;
+  } catch {
+    _ollamaModelsCache = { result: [], expiresAt: now + OLLAMA_CACHE_TTL_MS };
+    return [];
+  }
+}
+
+export function _resetOllamaCache(): void {
+  _ollamaHealthCache = null;
+  _ollamaModelsCache = null;
+}
+
 /**
  * Returns the list of available providers based on configured tokens/binaries.
  * Always includes 'claude-cli'. Adds 'github-models' when GITHUB_MODELS_TOKEN is set.
+ * Adds 'ollama' when a local Ollama instance is reachable (health-checked with 2s timeout).
  */
-export function getAvailableProviders(): Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }> {
+export async function getAvailableProviders(): Promise<Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }>> {
   const providers: Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }> = [
     {
       id: 'claude-cli',
@@ -122,6 +182,15 @@ export function getAvailableProviders(): Array<{ id: string; name: string; model
         { id: 'meta/Llama-3.1-405B-Instruct', name: 'Llama 3.1 405B' },
         { id: 'Mistral-large-2411', name: 'Mistral Large' },
       ],
+    });
+  }
+
+  if (await _checkOllamaHealth()) {
+    const ollamaModels = await _fetchOllamaModels();
+    providers.push({
+      id: 'ollama',
+      name: 'Ollama (local)',
+      models: ollamaModels,
     });
   }
 
