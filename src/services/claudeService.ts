@@ -358,6 +358,31 @@ async function _streamGitHubModels(prompt: string, onChunk: (chunk: string) => v
   );
 }
 
+function _ollamaDefaultModel(): string {
+  return _ollamaModelsCache?.result?.[0]?.id || '';
+}
+
+async function _callOllama(prompt: string): Promise<string> {
+  return _callOpenAICompatible(
+    `${_getOllamaBaseUrl()}/v1/chat/completions`,
+    _modelOverride || _ollamaDefaultModel(),
+    prompt,
+    {},
+    CALL_TIMEOUT_MS,
+  );
+}
+
+async function _streamOllama(prompt: string, onChunk: (chunk: string) => void): Promise<void> {
+  return _streamOpenAICompatible(
+    `${_getOllamaBaseUrl()}/v1/chat/completions`,
+    _modelOverride || _ollamaDefaultModel(),
+    prompt,
+    {},
+    onChunk,
+    STREAM_TIMEOUT_MS,
+  );
+}
+
 /**
  * Invoke the AI provider non-streaming. Dispatches to GitHub Models or Claude CLI
  * based on the current provider override. Retries up to `maxAttempts` times with
@@ -374,6 +399,8 @@ export async function callClaude(rootDir: string, prompt: string, { maxAttempts 
       try {
         if (provider === 'github-models') {
           return await _callGitHubModels(prompt);
+        } else if (provider === 'ollama') {
+          return await _callOllama(prompt);
         }
         return await _spawnClaude(rootDir, prompt, CALL_TIMEOUT_MS);
       } catch (err: any) {
@@ -404,6 +431,8 @@ export async function streamClaude(rootDir: string, prompt: string, onChunk: (ch
     const provider = _providerOverride || 'claude-cli';
     if (provider === 'github-models') {
       return await _streamGitHubModels(prompt, onChunk);
+    } else if (provider === 'ollama') {
+      return await _streamOllama(prompt, onChunk);
     }
 
     return await new Promise<void>((resolve, reject) => {

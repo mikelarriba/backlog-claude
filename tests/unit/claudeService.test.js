@@ -332,3 +332,35 @@ describe('streamClaude — mock mode with provider override', () => {
     assert.match(chunks[0], /Mock Epic Title/);
   });
 });
+
+// ── callClaude — mock mode with Ollama provider override ──────────────────────
+describe('callClaude — mock mode with Ollama provider override', () => {
+  before(() => { process.env.MOCK_CLAUDE = '1'; });
+  after(() => {
+    delete process.env.MOCK_CLAUDE;
+    setProviderOverride(null);
+  });
+
+  test('returns mock response when provider is ollama (MOCK_CLAUDE=1)', async () => {
+    setProviderOverride('ollama');
+    const result = await callClaude('/tmp', 'test prompt');
+    assert.match(result, /Mock Epic Title/);
+  });
+});
+
+// ── streamClaude — mock mode with Ollama provider override ────────────────────
+describe('streamClaude — mock mode with Ollama provider override', () => {
+  before(() => { process.env.MOCK_CLAUDE = '1'; });
+  after(() => {
+    delete process.env.MOCK_CLAUDE;
+    setProviderOverride(null);
+  });
+
+  test('calls onChunk with mock response when provider is ollama (MOCK_CLAUDE=1)', async () => {
+    setProviderOverride('ollama');
+    const chunks = [];
+    await streamClaude('/tmp', 'test prompt', chunk => chunks.push(chunk));
+    assert.equal(chunks.length, 1);
+    assert.match(chunks[0], /Mock Epic Title/);
+  });
+});
