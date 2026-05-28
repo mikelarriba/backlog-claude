@@ -121,8 +121,9 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
   });
 
   // ── Provider discovery ─────────────────────────────────────────────────────
-  router.get('/api/settings/providers', (req, res) => {
-    res.json({ providers: getAvailableProviders() });
+  router.get('/api/settings/providers', async (req, res) => {
+    const providers = await getAvailableProviders();
+    res.json({ providers });
   });
 
   // ── Model settings ─────────────────────────────────────────────────────────
