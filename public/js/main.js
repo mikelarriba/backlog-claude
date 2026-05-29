@@ -90,6 +90,8 @@ async function loadAppConfig() {
 async function loadMetadata() {
   try {
     const { teams, workCategories } = await fetchJSON('/api/config/metadata');
+    _metaTeams = teams;
+    _metaWorkCategories = workCategories;
     _populateTeamSelects(teams);
     _populateWorkCatSelects(workCategories);
     _renderTeamFilterPills(teams);
@@ -271,7 +273,7 @@ const evtSource = new EventSource('/api/events');
 evtSource.onmessage = (e) => {
   try {
     const payload = JSON.parse(e.data);
-    if (['feature_created','epic_created','story_created','spike_created','bug_created','status_updated','title_updated','doc_deleted','batch_deleted','batch_fix_version_updated','link_updated'].includes(payload.type)) {
+    if (['feature_created','epic_created','story_created','spike_created','bug_created','status_updated','title_updated','doc_deleted','batch_deleted','batch_fix_version_updated','batch_field_updated','link_updated'].includes(payload.type)) {
       _loadDocsDebounced();
     }
     if (payload.type === 'pi_settings_updated') {

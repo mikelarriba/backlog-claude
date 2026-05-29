@@ -6,6 +6,7 @@ import { sendError, parseApiError, assertDocType, assertFilename } from '../util
 import { setFrontmatterField } from '../utils/transforms.js';
 import { pMap } from '../utils/pMap.js';
 import { logAudit } from '../utils/auditLog.js';
+import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
 
 const BATCH_CONCURRENCY = 5;
 
@@ -561,6 +562,74 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
       logInfo('POST /api/docs/apply-distribution', `Assigned ${updated.length} item(s), skipped ${skipped.length}`);
       res.json({ success: true, updated: updated.length, skipped, assignments: updated, warnings: depWarnings });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── POST /api/docs/batch-update-field ── bulk assign sprint/team/category ──
+  const BATCH_FIELD_MAP = {
+    sprint:       { frontmatter: 'Sprint',        allowed: null },
+    team:         { frontmatter: 'Team',          allowed: TEAMS },
+    workCategory: { frontmatter: 'Work_Category', allowed: WORK_CATEGORIES },
+  };
+
+  router.post('/api/docs/batch-update-field', async (req, res) => {
+    try {
+      const { field, value, docs } = req.body;
+      const validFields = /** @type {const} */ (['sprint', 'team', 'workCategory']);
+      if (!field || !validFields.includes(field)) {
+        return sendError(res, 400, 'VALIDATION_ERROR', `field must be one of: ${validFields.join(', ')}`);
+      }
+      if (!Array.isArray(docs) || !docs.length) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'docs array is required and must not be empty');
+      }
+
+      const { frontmatter, allowed } = BATCH_FIELD_MAP[/** @type {'sprint'|'team'|'workCategory'} */ (field)];
+      const newValue = value || 'TBD';
+      if (allowed && newValue !== 'TBD' && !allowed.includes(newValue)) {
+        return sendError(res, 400, 'VALIDATION_ERROR', `${field} must be one of: ${allowed.join(', ')}, TBD`);
+      }
+
+      /** @type {Array<{ filename: string; docType: string }>} */
+      const updated = [];
+      /** @type {Array<{ filename: string; reason: string }>} */
+      const skipped = [];
+
+      await pMap(docs, async (entry) => {
+        try {
+          const docType  = assertDocType(entry.type, TYPE_CONFIG);
+          const filename = assertFilename(entry.filename);
+          const cfg      = TYPE_CONFIG[docType];
+          const filepath = path.join(cfg.dir(), filename);
+
+          try {
+            await fs.promises.access(filepath);
+          } catch {
+            skipped.push({ filename, reason: 'not found' });
+            return;
+          }
+
+          const content = await fs.promises.readFile(filepath, 'utf-8');
+          const patched = setFrontmatterField(content, frontmatter, newValue);
+          await fs.promises.writeFile(filepath, patched);
+          updated.push({ filename, docType });
+        } catch (entryErr) {
+          skipped.push({ filename: entry.filename, reason: entryErr instanceof Error ? entryErr.message : 'invalid' });
+        }
+      }, { concurrency: BATCH_CONCURRENCY });
+
+      if (updated.length) {
+        await docIndex.invalidateAll();
+        broadcast({ type: 'batch_field_updated', field, value: newValue, filenames: updated.map(u => u.filename) });
+      }
+
+      for (const u of updated) {
+        logAudit({ op: 'update', docType: u.docType, filename: u.filename, fields: { [field]: newValue }, source: 'api' });
+      }
+      logInfo('POST /api/docs/batch-update-field', `Updated ${updated.length} ${field}→${newValue}, skipped ${skipped.length}`);
+      res.json({ success: true, updated: updated.length, skipped });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
