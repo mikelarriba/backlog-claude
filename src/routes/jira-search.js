@@ -191,8 +191,13 @@ export default function jiraSearchRoutes({
         // Link child to local parent file so the "└" hierarchy renders correctly
         if (parentFieldName && parentLink.filename) {
           content = setFrontmatterField(content, parentFieldName, parentLink.filename);
-          // Force children into Backlog — each JIRA issue may carry a different
-          // fixVersion, scattering children across PI swimlanes on import.
+          // Inherit fixVersion and sprint from the parent so children appear in
+          // the same swimlane section (Current PI, Next PI, or Backlog).
+          const parentDoc = docIndex.get(parentLink.filename);
+          content = setFrontmatterField(content, 'Fix_Version', parentDoc?.fixVersion || 'TBD');
+          content = setFrontmatterField(content, 'Sprint', parentDoc?.sprint || 'TBD');
+        } else {
+          // Fresh import (search or exact key) — always land in Backlog.
           content = setFrontmatterField(content, 'Fix_Version', 'TBD');
           content = setFrontmatterField(content, 'Sprint', 'TBD');
         }
