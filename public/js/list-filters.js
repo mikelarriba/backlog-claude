@@ -209,6 +209,30 @@ function showContextMenu(x, y) {
     </button>`;
   }).join('');
 
+  // "Assign Sprint" submenu — collect sprints from all PIs
+  const allSprints = new Map();
+  for (const [pi, sprints] of Object.entries(sprintConfig)) {
+    for (const s of sprints) {
+      if (!allSprints.has(s.name)) allSprints.set(s.name, pi);
+    }
+  }
+  const sprintItems = Array.from(allSprints.entries()).map(([name, pi]) =>
+    `<button class="ctx-item" onclick="contextAssignField('sprint','${escHtml(name)}')">${escHtml(name)}</button>`
+  ).join('');
+  const sprintClear = `<button class="ctx-item" onclick="contextAssignField('sprint','')">Clear sprint</button>`;
+
+  // "Assign Team" submenu
+  const teamItems = (_metaTeams || []).map(t =>
+    `<button class="ctx-item" onclick="contextAssignField('team','${escHtml(t)}')">${escHtml(t)}</button>`
+  ).join('');
+  const teamClear = `<button class="ctx-item" onclick="contextAssignField('team','')">Clear team</button>`;
+
+  // "Assign Category" submenu
+  const catItems = (_metaWorkCategories || []).map(c =>
+    `<button class="ctx-item" onclick="contextAssignField('workCategory','${escHtml(c)}')">${escHtml(c)}</button>`
+  ).join('');
+  const catClear = `<button class="ctx-item" onclick="contextAssignField('workCategory','')">Clear category</button>`;
+
   const splitOption = count === 1 ? `
     <div class="ctx-separator"></div>
     <button class="ctx-item" onclick="contextSplitItem()">✂ Split Issue</button>` : '';
@@ -219,6 +243,18 @@ function showContextMenu(x, y) {
     <div class="ctx-submenu-wrap">
       <button class="ctx-item ctx-has-sub">Move to PI →</button>
       <div class="ctx-submenu">${piItems}</div>
+    </div>
+    <div class="ctx-submenu-wrap">
+      <button class="ctx-item ctx-has-sub">Assign Sprint →</button>
+      <div class="ctx-submenu">${sprintItems}${sprintItems ? '<div class="ctx-separator"></div>' : ''}${sprintClear}</div>
+    </div>
+    <div class="ctx-submenu-wrap">
+      <button class="ctx-item ctx-has-sub">Assign Team →</button>
+      <div class="ctx-submenu">${teamItems}<div class="ctx-separator"></div>${teamClear}</div>
+    </div>
+    <div class="ctx-submenu-wrap">
+      <button class="ctx-item ctx-has-sub">Assign Category →</button>
+      <div class="ctx-submenu">${catItems}<div class="ctx-separator"></div>${catClear}</div>
     </div>
     ${splitOption}
     <div class="ctx-separator"></div>
@@ -338,6 +374,62 @@ async function contextDeleteSelected() {
       btn.onclick = executeDelete;
     }
   };
+}
+
+async function contextAssignField(field, value) {
+  closeContextMenu();
+  const docs = getSelectedDocs();
+  if (!docs.length) return;
+
+  const fieldLabels = { sprint: 'Sprint', team: 'Team', workCategory: 'Category' };
+  const label = fieldLabels[field] || field;
+  const displayValue = value || '(clear)';
+
+  if (docs.length > 1) {
+    // Show confirmation dialog for multi-select
+    const msg = `Assign ${label} "${displayValue}" to ${docs.length} selected items?`;
+    document.getElementById('bulk-assign-msg').textContent = msg;
+    document.getElementById('bulk-assign-overlay').classList.add('show');
+
+    const btn = document.getElementById('confirm-bulk-assign-btn');
+    btn.disabled = false;
+    btn.textContent = 'Apply';
+    btn.onclick = async () => {
+      btn.disabled = true;
+      btn.textContent = 'Applying…';
+      try {
+        await _executeBatchFieldUpdate(field, value, docs, label, displayValue);
+      } finally {
+        closeBulkAssignDialog();
+      }
+    };
+    return;
+  }
+
+  // Single item — apply directly
+  await _executeBatchFieldUpdate(field, value, docs, label, displayValue);
+}
+
+async function _executeBatchFieldUpdate(field, value, docs, label, displayValue) {
+  try {
+    const data = await postJSON('/api/docs/batch-update-field', {
+      field,
+      value: value || null,
+      docs: docs.map(d => ({ type: d.docType, filename: d.filename })),
+    });
+    clearSelection();
+    if (data.updated > 0) {
+      showJiraToast('success', `${label} → "${displayValue}" applied to ${data.updated} item(s)`);
+    } else {
+      showJiraToast('error', 'No items updated');
+    }
+  } catch (err) {
+    showJiraToast('error', err.message);
+  }
+}
+
+function closeBulkAssignDialog() {
+  document.getElementById('bulk-assign-overlay').classList.remove('show');
 }
 
 function getSelectedDocs() {

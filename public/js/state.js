@@ -59,6 +59,8 @@ _storeVar('_lastClickedItem',    null);
 _storeVar('jiraSearchResults',   []);
 _storeVar('sprintConfig',        {});
 _storeVar('splitThreshold',      8);
+_storeVar('_metaTeams',          []);
+_storeVar('_metaWorkCategories', []);
 
 const TYPE_LABEL  = { epic: 'Epic', story: 'Story', spike: 'Spike', feature: 'Feature', bug: 'Bug' };
 const STATUS_LABEL = { Draft: 'Draft', 'Created in JIRA': 'In JIRA', Archived: 'Archived' };

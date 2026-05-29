@@ -571,6 +571,18 @@
   </div>
 </div>
 
+<!-- ── Bulk assign confirmation dialog ─────────────────────────── -->
+<div class="dialog-overlay" id="bulk-assign-overlay">
+  <div class="dialog">
+    <h3>Bulk assign</h3>
+    <p id="bulk-assign-msg"></p>
+    <div class="dialog-actions">
+      <button class="btn-secondary" onclick="closeBulkAssignDialog()">Cancel</button>
+      <button class="btn-primary" id="confirm-bulk-assign-btn">Apply</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Sync preview confirmation modal ─────────────────────────── -->
 <div class="dialog-overlay" id="sync-preview-overlay">
   <div class="dialog sync-preview-dialog">
