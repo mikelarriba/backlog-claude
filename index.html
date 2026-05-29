@@ -474,6 +474,7 @@
             <option value="">All Sprints</option>
           </select>
           <button class="btn-toolbar" onclick="openDistributionModal(_roadmapPiName)" title="Select a PI filter first to distribute">Distribute</button>
+          <button class="btn-toolbar" onclick="openRoadmapExportDialog()" title="Export roadmap as PDF">Export PDF</button>
         </div>
       </div>
       <div class="roadmap-panels" id="roadmap-panels">
@@ -672,6 +673,51 @@
     <div class="dialog-actions">
       <button class="btn-secondary" onclick="closeDistributionModal()">Cancel</button>
       <button class="btn-primary" id="distribution-apply-btn" onclick="applyDistribution()">Apply Distribution</button>
+    </div>
+  </div>
+</div>
+
+<!-- Roadmap Export dialog -->
+<div class="dialog-overlay" id="roadmap-export-overlay" onclick="if(event.target===this)closeRoadmapExportDialog()">
+  <div class="dialog roadmap-export-dialog">
+    <div class="roadmap-export-header">
+      <h3>Export Roadmap Report</h3>
+      <button class="btn-ghost btn-xs" onclick="closeRoadmapExportDialog()">&times;</button>
+    </div>
+    <div class="roadmap-export-body">
+      <p class="roadmap-export-desc">Select sections to include in the PDF report:</p>
+      <label class="roadmap-export-option">
+        <input type="checkbox" id="rexp-roadmap-graphic" checked />
+        <div>
+          <div class="roadmap-export-option-title">Graphical Roadmap</div>
+          <div class="roadmap-export-option-desc">Epic timeline bars and sprint column layout (landscape)</div>
+        </div>
+      </label>
+      <label class="roadmap-export-option">
+        <input type="checkbox" id="rexp-issue-titles" checked />
+        <div>
+          <div class="roadmap-export-option-title">Issue Titles</div>
+          <div class="roadmap-export-option-desc">Table of all issues with type, priority, and story points</div>
+        </div>
+      </label>
+      <label class="roadmap-export-option">
+        <input type="checkbox" id="rexp-issue-descriptions" />
+        <div>
+          <div class="roadmap-export-option-title">Issue Descriptions</div>
+          <div class="roadmap-export-option-desc">Full descriptions for each issue (increases report length)</div>
+        </div>
+      </label>
+      <label class="roadmap-export-option">
+        <input type="checkbox" id="rexp-distribution-charts" checked />
+        <div>
+          <div class="roadmap-export-option-title">Distribution Charts</div>
+          <div class="roadmap-export-option-desc">Team and work category breakdowns with visual charts</div>
+        </div>
+      </label>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn-secondary" onclick="closeRoadmapExportDialog()">Cancel</button>
+      <button class="btn-primary" id="roadmap-export-btn" onclick="executeRoadmapExport()">Export</button>
     </div>
   </div>
 </div>

@@ -733,3 +733,25 @@
   box-shadow: 0 3px 0 0 var(--accent);
   margin-bottom: 3px;
 }
+
+/* ── Roadmap Export dialog ────────────────────────────────────── */
+.roadmap-export-dialog { width: 420px; }
+.roadmap-export-dialog > .roadmap-export-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.roadmap-export-dialog > .roadmap-export-header h3 { margin: 0; }
+.roadmap-export-dialog > .roadmap-export-body { display: flex; flex-direction: column; gap: 8px; }
+.roadmap-export-dialog > .roadmap-export-body > .roadmap-export-desc { margin-bottom: 4px; }
+.roadmap-export-option {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer; transition: background 0.12s, border-color 0.12s;
+  text-transform: none; letter-spacing: normal; font-weight: normal;
+  margin-bottom: 0;
+}
+.roadmap-export-option:hover { background: var(--surface2); border-color: var(--muted); }
+.roadmap-export-option input[type="checkbox"] {
+  width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px;
+  accent-color: var(--accent); cursor: pointer;
+}
+.roadmap-export-option > div { flex: 1; min-width: 0; }
+.roadmap-export-option-title { font-size: 0.82rem; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: normal; }
+.roadmap-export-option-desc { font-size: 0.72rem; color: var(--muted); margin-top: 1px; text-transform: none; letter-spacing: normal; }

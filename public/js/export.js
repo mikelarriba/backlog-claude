@@ -442,3 +442,468 @@ function _renderStoryCards(childData) {
   }
   return html;
 }
+
+// ── Roadmap PDF Export ──────────────────────────────────────────
+// Opens a dialog with options, then builds a print-ready landscape
+// report in a new tab, following the same pattern as exportEpicToPdf.
+
+function openRoadmapExportDialog() {
+  document.getElementById('roadmap-export-overlay').classList.add('show');
+}
+
+function closeRoadmapExportDialog() {
+  document.getElementById('roadmap-export-overlay').classList.remove('show');
+}
+
+async function executeRoadmapExport() {
+  const includeRoadmap = document.getElementById('rexp-roadmap-graphic').checked;
+  const includeTitles  = document.getElementById('rexp-issue-titles').checked;
+  const includeDescs   = document.getElementById('rexp-issue-descriptions').checked;
+  const includeCharts  = document.getElementById('rexp-distribution-charts').checked;
+
+  if (!includeRoadmap && !includeTitles && !includeDescs && !includeCharts) {
+    showJiraToast('error', 'Select at least one section to export');
+    return;
+  }
+
+  closeRoadmapExportDialog();
+  showJiraToast('info', 'Preparing roadmap report...');
+
+  try {
+    const sprints   = getAllSprints();
+    const piFilter  = _roadmapPiName;
+    const leafTypes = new Set(['story', 'spike', 'bug']);
+    const epicTypes = new Set(['epic', 'feature']);
+
+    // Visible leaf docs (same logic as renderStoryPanel)
+    const visibleLeafs = piFilter
+      ? allDocs.filter(d => leafTypes.has(d.docType) && d.fixVersion === piFilter)
+      : allDocs.filter(d => leafTypes.has(d.docType) && (d.fixVersion === piSettings.currentPi || d.fixVersion === piSettings.nextPi));
+
+    // Build epic map (same logic as renderEpicPanel)
+    const epicMap = new Map();
+    for (const leaf of visibleLeafs) {
+      const key = leaf.parentFilename || '__none__';
+      if (!epicMap.has(key)) {
+        const epicDoc = leaf.parentFilename ? allDocs.find(d => d.filename === leaf.parentFilename) : null;
+        epicMap.set(key, { epicDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
+      }
+      const entry = epicMap.get(key);
+      entry.storyCount++;
+      entry.totalSP += Number(leaf.storyPoints) || 0;
+      if (leaf.sprint) entry.sprints.add(leaf.sprint);
+    }
+    for (const d of allDocs) {
+      if (epicTypes.has(d.docType) && !epicMap.has(d.filename)) {
+        if (piFilter && d.fixVersion !== piFilter) continue;
+        epicMap.set(d.filename, { epicDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
+      }
+    }
+
+    // Sort epics same as renderEpicPanel
+    const epicEntries = [...epicMap.entries()].sort(([ka, a], [kb, b]) => {
+      if (ka === '__none__') return 1;
+      if (kb === '__none__') return -1;
+      const ra = a.epicDoc?.rank != null ? a.epicDoc.rank : 9999;
+      const rb = b.epicDoc?.rank != null ? b.epicDoc.rank : 9999;
+      if (ra !== rb) return ra - rb;
+      return kb.localeCompare(ka);
+    });
+
+    // Fetch descriptions if needed
+    let contentMap = {};
+    if (includeDescs) {
+      const fetches = visibleLeafs.map(async d => {
+        try {
+          const res = await fetch(`/api/doc/${d.docType}/${encodeURIComponent(d.filename)}`);
+          if (res.ok) { const data = await res.json(); contentMap[d.filename] = data.content || ''; }
+        } catch {}
+      });
+      await Promise.all(fetches);
+    }
+
+    const html = _buildRoadmapPrintPage({
+      sprints, epicEntries, visibleLeafs, contentMap, piFilter,
+      includeRoadmap, includeTitles, includeDescs, includeCharts,
+    });
+
+    const win = window.open('', '_blank');
+    if (!win) { showJiraToast('error', 'Pop-up blocked — please allow pop-ups'); return; }
+    win.document.write(html);
+    win.document.close();
+    showJiraToast('ok', 'Report ready — use Save as PDF in the print dialog');
+  } catch (e) {
+    showJiraToast('error', `Export failed: ${e.message}`);
+  }
+}
+
+// ── Roadmap print page builder ──────────────────────────────────
+
+function _buildRoadmapPrintPage(opts) {
+  const { sprints, epicEntries, visibleLeafs, contentMap, piFilter,
+          includeRoadmap, includeTitles, includeDescs, includeCharts } = opts;
+
+  const piLabel  = piFilter || [piSettings.currentPi, piSettings.nextPi].filter(Boolean).join(' + ') || 'All';
+  const dateStr  = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const totalSP  = visibleLeafs.reduce((s, d) => s + (Number(d.storyPoints) || 0), 0);
+  const issueCount = visibleLeafs.length;
+  const epicCount  = epicEntries.filter(([k]) => k !== '__none__').length;
+
+  let sections = '';
+  if (includeRoadmap) sections += _renderRoadmapTimeline(sprints, epicEntries);
+  if (includeCharts)  sections += _renderRoadmapCharts(visibleLeafs);
+  if (includeTitles)  sections += _renderRoadmapIssueTitles(sprints, visibleLeafs);
+  if (includeDescs)   sections += _renderRoadmapIssueDescs(sprints, visibleLeafs, contentMap);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Roadmap Report — ${_esc(piLabel)}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #1a1a2e; font-size: 11px; line-height: 1.55;
+    padding: 28px 32px; margin: 0 auto;
+  }
+  @page { size: A4 landscape; margin: 10mm; }
+  @media print {
+    html { width: 297mm; }
+    body { padding: 0; width: 100%; }
+    .no-print { display: none !important; }
+    .rm-print-card, .rm-issue-row { page-break-inside: avoid; }
+  }
+
+  /* ── Print banner ────────────────────────────────────── */
+  .print-banner {
+    background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 20px; font-size: 12px; color: #0369a1;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .print-banner button {
+    background: #0284c7; color: #fff; border: none; border-radius: 6px;
+    padding: 6px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .print-banner button:hover { background: #0369a1; }
+
+  /* ── Header ──────────────────────────────────────────── */
+  .rpt-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .rpt-meta  { font-size: 11px; color: #64748b; margin-bottom: 20px; }
+  .rpt-meta b { color: #334155; }
+
+  /* ── Section titles ──────────────────────────────────── */
+  .sec-title {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: #64748b; margin: 28px 0 10px;
+    border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;
+  }
+
+  /* ── Timeline grid ───────────────────────────────────── */
+  .rm-tl-table { border-collapse: collapse; width: 100%; margin-bottom: 8px; }
+  .rm-tl-table th {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    color: #64748b; padding: 6px 4px; border-bottom: 2px solid #e2e8f0;
+    text-align: center; white-space: nowrap;
+  }
+  .rm-tl-table th:first-child { text-align: left; width: 200px; min-width: 160px; }
+  .rm-tl-row td { padding: 4px 2px; height: 32px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .rm-tl-row td:first-child {
+    padding: 4px 8px; font-size: 10px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;
+  }
+  .rm-tl-epic-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 5px; vertical-align: middle;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .rm-tl-meta { font-size: 8px; color: #94a3b8; font-weight: 400; margin-left: 4px; }
+  .rm-tl-bar {
+    height: 20px; border-radius: 4px; opacity: 0.85;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+
+  /* ── Issue titles table ──────────────────────────────── */
+  .rm-it-table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+  .rm-it-table th {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    color: #64748b; padding: 5px 6px; border-bottom: 2px solid #e2e8f0; text-align: left;
+  }
+  .rm-it-table td {
+    font-size: 10px; padding: 5px 6px; border-bottom: 1px solid #f1f5f9;
+  }
+  .rm-it-sprint-hdr td {
+    font-size: 11px; font-weight: 700; padding: 10px 6px 4px;
+    border-bottom: 1px solid #cbd5e1; color: #334155;
+  }
+  .rm-it-type {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 8px; font-weight: 700; text-transform: uppercase; color: #fff;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+
+  /* ── Issue description cards ─────────────────────────── */
+  .rm-print-card {
+    border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 12px;
+  }
+  .rm-print-card-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .rm-print-card-title { font-size: 13px; font-weight: 600; }
+  .rm-print-card-sp {
+    font-size: 10px; font-weight: 700; color: #64748b;
+    background: #f1f5f9; padding: 2px 7px; border-radius: 4px; white-space: nowrap;
+  }
+  .rm-print-card-body { font-size: 10px; line-height: 1.55; color: #334155; }
+  .rm-print-card-body h1, .rm-print-card-body h2, .rm-print-card-body h3 { font-size: 11px; margin: 8px 0 4px; }
+  .rm-print-card-body ul, .rm-print-card-body ol { padding-left: 18px; margin: 4px 0; }
+  .rm-print-card-body li { margin: 2px 0; }
+  .rm-print-card-body p { margin: 4px 0; }
+  .rm-print-card-body pre { font-size: 9px; background: #f1f5f9; padding: 8px; border-radius: 4px; overflow-x: auto; }
+  .rm-print-card-body code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-size: 10px; }
+  .rm-print-card-body table { border-collapse: collapse; width: 100%; margin: 6px 0; }
+  .rm-print-card-body th, .rm-print-card-body td { border: 1px solid #e2e8f0; padding: 3px 6px; font-size: 9px; }
+
+  /* ── Charts ──────────────────────────────────────────── */
+  .rm-charts-wrap { display: flex; gap: 40px; flex-wrap: wrap; margin-bottom: 16px; }
+  .rm-chart-box { flex: 1; min-width: 300px; }
+  .rm-chart-title { font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 8px; }
+
+  /* ── Footer ──────────────────────────────────────────── */
+  .rpt-footer {
+    margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0;
+    font-size: 9px; color: #94a3b8; text-align: right;
+  }
+</style>
+</head>
+<body>
+
+<div class="no-print print-banner">
+  <span>Your roadmap report is ready.</span>
+  <button onclick="window.print()">Save as PDF</button>
+  <span style="color:#64748b">or press Cmd+P / Ctrl+P</span>
+</div>
+
+<div class="rpt-title">Roadmap Report</div>
+<div class="rpt-meta">
+  PI: <b>${_esc(piLabel)}</b>
+  &middot; <b>${epicCount}</b> epic${epicCount !== 1 ? 's' : ''}
+  &middot; <b>${issueCount}</b> issue${issueCount !== 1 ? 's' : ''}
+  &middot; <b>${totalSP}</b> Story Points
+  &middot; Exported on <b>${dateStr}</b>
+</div>
+
+${sections}
+
+<div class="rpt-footer">Exported on ${dateStr} &middot; Backlog Claude</div>
+
+<script>
+  setTimeout(() => window.print(), 400);
+</script>
+</body>
+</html>`;
+}
+
+// ── Roadmap timeline (epic bars across sprint columns) ──────────
+
+function _renderRoadmapTimeline(sprints, epicEntries) {
+  if (!sprints.length) return '';
+
+  const N = sprints.length;
+  const sprintIdx = new Map(sprints.map((s, i) => [s.name, i]));
+
+  // Header row
+  let headerCells = '<th>Epic / Feature</th>';
+  for (const s of sprints) headerCells += `<th>${_esc(s.name)}</th>`;
+
+  // Epic rows
+  let rowsHtml = '';
+  for (const [key, { epicDoc, sprints: sprintSet, storyCount, totalSP }] of epicEntries) {
+    const isNone = key === '__none__';
+    const title  = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
+    const color  = isNone ? '#94a3b8' : epicColor(key);
+    const meta   = `${storyCount} item${storyCount !== 1 ? 's' : ''} · ${totalSP} SP`;
+
+    // Compute sprint span
+    const indices = [...sprintSet].filter(s => sprintIdx.has(s)).map(s => sprintIdx.get(s));
+    const minIdx = indices.length ? Math.min(...indices) : -1;
+    const maxIdx = indices.length ? Math.max(...indices) : -1;
+
+    let cells = `<td><span class="rm-tl-epic-dot" style="background:${color}"></span>${_esc(title)}<span class="rm-tl-meta">${_esc(meta)}</span></td>`;
+
+    for (let i = 0; i < N; i++) {
+      if (minIdx >= 0 && i === minIdx) {
+        const span = maxIdx - minIdx + 1;
+        cells += `<td colspan="${span}"><div class="rm-tl-bar" style="background:${color}"></div></td>`;
+        i = maxIdx; // skip spanned columns
+      } else if (minIdx >= 0 && i > minIdx && i <= maxIdx) {
+        continue; // covered by colspan
+      } else {
+        cells += '<td></td>';
+      }
+    }
+
+    rowsHtml += `<tr class="rm-tl-row">${cells}</tr>`;
+  }
+
+  return `<div class="sec-title">Roadmap Timeline</div>
+<table class="rm-tl-table">
+  <thead><tr>${headerCells}</tr></thead>
+  <tbody>${rowsHtml}</tbody>
+</table>`;
+}
+
+// ── Issue titles table (grouped by sprint) ──────────────────────
+
+function _renderRoadmapIssueTitles(sprints, visibleLeafs) {
+  if (!visibleLeafs.length) return '';
+
+  const badgeColor = { story: '#2563eb', spike: '#b45309', bug: '#dc2626' };
+
+  // Group by sprint
+  const grouped = new Map();
+  const unassigned = [];
+  for (const s of sprints) grouped.set(s.name, []);
+  for (const d of visibleLeafs) {
+    if (d.sprint && grouped.has(d.sprint)) grouped.get(d.sprint).push(d);
+    else unassigned.push(d);
+  }
+
+  let html = '<th>Type</th><th>Title</th><th>Priority</th><th>SP</th><th>Parent</th><th>Team</th><th>Category</th>';
+  let rows = '';
+
+  const renderGroup = (label, docs) => {
+    if (!docs.length) return '';
+    const sorted = topoSortCards(docs);
+    let out = `<tr class="rm-it-sprint-hdr"><td colspan="7">${_esc(label)}</td></tr>`;
+    for (const d of sorted) {
+      const bc = badgeColor[d.docType] || '#666';
+      const parent = d.parentFilename ? allDocs.find(p => p.filename === d.parentFilename) : null;
+      out += `<tr class="rm-issue-row">
+        <td><span class="rm-it-type" style="background:${bc}">${TYPE_LABEL[d.docType] || d.docType}</span></td>
+        <td>${_esc(d.title)}</td>
+        <td>${_esc(d.priority || 'Medium')}</td>
+        <td>${d.storyPoints || '—'}</td>
+        <td>${parent ? _esc(parent.title) : '—'}</td>
+        <td>${_esc(d.team || '—')}</td>
+        <td>${_esc(d.workCategory || '—')}</td>
+      </tr>`;
+    }
+    return out;
+  };
+
+  for (const s of sprints) {
+    rows += renderGroup(s.name, grouped.get(s.name) || []);
+  }
+  if (unassigned.length) rows += renderGroup('Unassigned', unassigned);
+
+  return `<div class="sec-title">Issue Titles</div>
+<table class="rm-it-table">
+  <thead><tr>${html}</tr></thead>
+  <tbody>${rows}</tbody>
+</table>`;
+}
+
+// ── Issue descriptions (story cards with markdown) ──────────────
+
+function _renderRoadmapIssueDescs(sprints, visibleLeafs, contentMap) {
+  if (!visibleLeafs.length) return '';
+
+  const badgeColor = { story: '#2563eb', spike: '#b45309', bug: '#dc2626' };
+
+  // Group by sprint
+  const grouped = new Map();
+  const unassigned = [];
+  for (const s of sprints) grouped.set(s.name, []);
+  for (const d of visibleLeafs) {
+    if (d.sprint && grouped.has(d.sprint)) grouped.get(d.sprint).push(d);
+    else unassigned.push(d);
+  }
+
+  let html = '';
+  const renderGroup = (label, docs) => {
+    if (!docs.length) return '';
+    const sorted = topoSortCards(docs);
+    let out = `<div class="sec-title" style="margin-top:20px">${_esc(label)}</div>`;
+    for (const d of sorted) {
+      const bc = badgeColor[d.docType] || '#666';
+      const sp = d.storyPoints ? `${d.storyPoints} SP` : '';
+      const raw = contentMap[d.filename] || '';
+      const stripped = stripFrontmatter(raw).replace(/\n## Comments\b[\s\S]*$/, '');
+      const body = stripped.trim() ? marked.parse(stripped) : '<em style="color:#94a3b8">No description</em>';
+
+      out += `<div class="rm-print-card">
+        <div class="rm-print-card-hdr">
+          <div class="rm-print-card-title">
+            <span class="rm-it-type" style="background:${bc}">${TYPE_LABEL[d.docType] || d.docType}</span>
+            ${_esc(d.title)}
+          </div>
+          ${sp ? `<span class="rm-print-card-sp">${sp}</span>` : ''}
+        </div>
+        <div class="rm-print-card-body">${body}</div>
+      </div>`;
+    }
+    return out;
+  };
+
+  for (const s of sprints) {
+    html += renderGroup(s.name, grouped.get(s.name) || []);
+  }
+  if (unassigned.length) html += renderGroup('Unassigned', unassigned);
+
+  return `<div class="sec-title">Issue Descriptions</div>${html}`;
+}
+
+// ── Distribution charts (SVG horizontal bar charts) ─────────────
+
+function _renderRoadmapCharts(visibleLeafs) {
+  if (!visibleLeafs.length) return '';
+
+  const COLORS = ['#3B82F6','#8B5CF6','#10B981','#14B8A6','#F59E0B','#EC4899','#06B6D4','#6366F1'];
+  const BAR_H = 28;
+  const BAR_GAP = 8;
+  const CHART_W = 460;
+  const LABEL_X = 5;
+  const BAR_X = 160;
+  const BAR_MAX_W = CHART_W - BAR_X - 10;
+
+  // Aggregate by team
+  const teamDist = {};
+  const catDist  = {};
+  for (const d of visibleLeafs) {
+    const team = d.team || 'Unassigned';
+    const cat  = d.workCategory || 'Uncategorized';
+    teamDist[team] = (teamDist[team] || 0) + (Number(d.storyPoints) || 0);
+    catDist[cat]   = (catDist[cat]  || 0) + (Number(d.storyPoints) || 0);
+  }
+
+  const buildChart = (title, dist) => {
+    const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+    if (!entries.length) return '';
+    const maxVal = Math.max(...entries.map(e => e[1]), 1);
+    const totalVal = entries.reduce((s, e) => s + e[1], 0);
+    const svgH = entries.length * (BAR_H + BAR_GAP) + 10;
+
+    let bars = '';
+    entries.forEach(([label, value], i) => {
+      const y = i * (BAR_H + BAR_GAP) + 5;
+      const w = Math.max((value / maxVal) * BAR_MAX_W, 2);
+      const color = COLORS[i % COLORS.length];
+      const pct = totalVal > 0 ? Math.round((value / totalVal) * 100) : 0;
+
+      bars += `<text x="${LABEL_X}" y="${y + BAR_H / 2 + 4}" font-size="10" font-weight="600" fill="#334155">${_esc(label)}</text>`;
+      bars += `<rect x="${BAR_X}" y="${y}" width="${w}" height="${BAR_H}" rx="4" fill="${color}" opacity="0.85"/>`;
+      bars += `<text x="${BAR_X + w + 6}" y="${y + BAR_H / 2 + 4}" font-size="9" fill="#64748b">${value} SP (${pct}%)</text>`;
+    });
+
+    return `<div class="rm-chart-box">
+      <div class="rm-chart-title">${_esc(title)}</div>
+      <svg width="${CHART_W}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">${bars}</svg>
+    </div>`;
+  };
+
+  const teamChart = buildChart('Story Points by Team', teamDist);
+  const catChart  = buildChart('Story Points by Category', catDist);
+
+  return `<div class="sec-title">Distribution</div>
+<div class="rm-charts-wrap">${teamChart}${catChart}</div>`;
+}
