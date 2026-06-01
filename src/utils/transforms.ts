@@ -1,5 +1,6 @@
 // ── Pure transformation utilities ─────────────────────────────────────────────
 // Extracted from server.js so they can be unit-tested independently.
+import { patchFrontmatter, dropFrontmatterField, readFrontmatterField } from './frontmatter.js';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -35,20 +36,15 @@ export function extractWorkflowStatus(content: string): string {
 }
 
 export function setFrontmatterField(content: string, field: string, value: string | number): string {
-  // Strip newlines to prevent frontmatter block corruption via injected "---"
-  const safeValue = String(value).replace(/[\r\n]/g, ' ').trim();
-  const re = new RegExp(`^(${field}:\\s*).*$`, 'm');
-  if (re.test(content)) return content.replace(re, `$1${safeValue}`);
-  return content.replace(/^---\n/, `---\n${field}: ${safeValue}\n`);
+  return patchFrontmatter(content, field, value);
 }
 
 export function removeFrontmatterField(content: string, field: string): string {
-  return content.replace(new RegExp(`^${field}:.*\n?`, 'm'), '');
+  return dropFrontmatterField(content, field);
 }
 
 export function extractFrontmatterField(content: string, field: string): string | null {
-  const m = content.match(new RegExp(`^${field}:\\s*(.+)$`, 'm'));
-  return m ? m[1].trim() : null;
+  return readFrontmatterField(content, field);
 }
 
 export function stripFrontmatter(content: string): string {
