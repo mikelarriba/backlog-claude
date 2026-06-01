@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type ErrorRequestHandler } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -8,6 +8,7 @@ import { createJiraService } from './src/services/jiraService.js';
 import { watchInbox } from './src/services/inboxWatcher.js';
 import { isoDate, slugify } from './src/utils/transforms.js';
 import { ensureDir } from './src/utils/routeHelpers.js';
+import { ValidationError } from './src/utils/validate.js';
 import { createLogger } from './src/utils/logger.js';
 import { createTypeConfig } from './src/config/docTypes.js';
 import { TEAMS, WORK_CATEGORIES } from './src/config/metadata.js';
@@ -186,6 +187,17 @@ app.use(jiraSearchRoutes(jiraShared));
 app.use(settingsRoutes({ rootDir: __dirname, broadcast, logInfo, jiraBase: JIRA_BASE }));
 app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex }));
 app.use(canvasRoutes({ rootDir: __dirname, logInfo }));
+
+// ── Centralised ValidationError handler ─────────────────────────────────────
+// Catches ValidationError instances thrown and forwarded via next(err).
+const validationErrorHandler: ErrorRequestHandler = (err, _req, res, next) => {
+  if (err instanceof ValidationError) {
+    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+    return;
+  }
+  next(err);
+};
+app.use(validationErrorHandler);
 
 // ── Startup ──────────────────────────────────────────────────────────────────
 function validateStartupConfig() {

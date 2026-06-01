@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename, normalizeType } from '../utils/routeHelpers.js';
 import { setFrontmatterField, extractFrontmatterField, removeFrontmatterField } from '../utils/transforms.js';
+import { VALID_LINK_TYPES } from '../utils/validate.js';
 import type { RouteContext } from '../types.js';
 
 export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, broadcast, logInfo, docIndex }: RouteContext) {
@@ -159,6 +160,10 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
         typeof targetFilename !== 'string' || !targetFilename
       ) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'sourceType, sourceFilename, targetType and targetFilename are required');
+      }
+
+      if (linkType !== undefined && !(VALID_LINK_TYPES as readonly string[]).includes(linkType)) {
+        return sendError(res, 400, 'VALIDATION_ERROR', `linkType must be one of: ${VALID_LINK_TYPES.join(', ')}`);
       }
 
       const srcFile = assertFilename(sourceFilename);
