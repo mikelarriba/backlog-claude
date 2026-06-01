@@ -471,22 +471,29 @@ async function executeRoadmapExport() {
 
   try {
     const sprints   = getAllSprints();
-    const piFilter  = _roadmapPiName;
+    const piFilter  = [..._roadmapVisiblePis].join(' + ') || null;
     const leafTypes = new Set(['story', 'spike', 'bug']);
-    const epicTypes = new Set(['epic', 'feature']);
 
     // Visible leaf docs (same logic as renderStoryPanel)
-    const visibleLeafs = piFilter
-      ? allDocs.filter(d => leafTypes.has(d.docType) && d.fixVersion === piFilter)
-      : allDocs.filter(d => leafTypes.has(d.docType) && (d.fixVersion === piSettings.currentPi || d.fixVersion === piSettings.nextPi));
+    const visibleLeafs = allDocs.filter(d =>
+      leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
+    );
 
-    // Build epic map (same logic as renderEpicPanel)
+    // Build epic→feature lookup
+    const epicToFeature = new Map();
+    for (const d of allDocs) {
+      if (d.docType === 'epic' && d.parentFilename) epicToFeature.set(d.filename, d.parentFilename);
+    }
+
+    // Build feature map (same logic as renderEpicPanel)
     const epicMap = new Map();
     for (const leaf of visibleLeafs) {
-      const key = leaf.parentFilename || '__none__';
+      const epicFn = leaf.parentFilename || null;
+      const featureFn = epicFn ? (epicToFeature.get(epicFn) || null) : null;
+      const key = featureFn || '__none__';
       if (!epicMap.has(key)) {
-        const epicDoc = leaf.parentFilename ? allDocs.find(d => d.filename === leaf.parentFilename) : null;
-        epicMap.set(key, { epicDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
+        const featureDoc = featureFn ? allDocs.find(d => d.filename === featureFn) : null;
+        epicMap.set(key, { epicDoc: featureDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
       }
       const entry = epicMap.get(key);
       entry.storyCount++;
@@ -494,13 +501,12 @@ async function executeRoadmapExport() {
       if (leaf.sprint) entry.sprints.add(leaf.sprint);
     }
     for (const d of allDocs) {
-      if (epicTypes.has(d.docType) && !epicMap.has(d.filename)) {
-        if (piFilter && d.fixVersion !== piFilter) continue;
+      if (d.docType === 'feature' && !epicMap.has(d.filename)) {
         epicMap.set(d.filename, { epicDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
       }
     }
 
-    // Sort epics same as renderEpicPanel
+    // Sort features same as renderEpicPanel
     const epicEntries = [...epicMap.entries()].sort(([ka, a], [kb, b]) => {
       if (ka === '__none__') return 1;
       if (kb === '__none__') return -1;

@@ -73,6 +73,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
       team:         teamRaw    && teamRaw    !== 'TBD' ? teamRaw    : null,
       workCategory: workCatRaw && workCatRaw !== 'TBD' ? workCatRaw : null,
       hasDescription: body.length > 30,
+      descriptionSnippet: body.length > 30 ? body.slice(0, 150) : null,
     };
   }
 

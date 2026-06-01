@@ -82,19 +82,54 @@
   align-items: center;
 }
 
-/* PI filter select */
-.rm-pi-filter {
-  font-size: 0.78rem;
-  padding: 5px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  cursor: pointer;
-  outline: none;
+/* PI filter checkboxes */
+.rm-pi-checkboxes {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
-.rm-pi-filter:focus { border-color: var(--accent); }
+.rm-pi-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.rm-pi-checkbox input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Feature tooltip popup */
+.rm-feature-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  max-width: 360px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.rm-feature-tooltip.show { opacity: 1; }
+.rm-tooltip-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.rm-tooltip-desc {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.4;
+  white-space: pre-line;
+}
 
 /* ── Two-panel container ──────────────────────────────────── */
 .roadmap-panels {
@@ -179,8 +214,8 @@
 }
 
 .rm-name-col-header {
-  width: 200px;
-  min-width: 200px;
+  width: 300px;
+  min-width: 300px;
   flex-shrink: 0;
   padding: 6px 12px;
   font-size: 0.65rem;
@@ -235,8 +270,8 @@
 .rm-epic-unlinked { opacity: 0.6; font-style: italic; }
 
 .rm-epic-name-col {
-  width: 200px;
-  min-width: 200px;
+  width: 300px;
+  min-width: 300px;
   flex-shrink: 0;
   padding: 8px 12px;
   display: flex;

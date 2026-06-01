@@ -1,7 +1,7 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
-let _roadmapPiName       = null;  // selected PI filter (null = all)
+let _roadmapVisiblePis   = new Set();  // checked PI names (empty = show none)
 let _roadmapPanelState   = { epics: true, stories: true }; // expanded/collapsed
-let _roadmapFocusedEpic  = null;  // filename of clicked epic (focus mode)
+let _roadmapFocusedFeature = null;  // filename of clicked feature (focus mode)
 
 // ── Open / Close ─────────────────────────────────────────────
 function openRoadmapView() {
@@ -17,11 +17,11 @@ function openRoadmapView() {
   document.getElementById('roadmap-view').classList.add('show');
   document.querySelector('.right').classList.add('roadmap-mode');
 
-  // Populate PI filter dropdown
+  // Populate PI filter checkboxes
   populateRoadmapPiFilter();
 
   // Reset focus
-  _roadmapFocusedEpic = null;
+  _roadmapFocusedFeature = null;
 
   renderRoadmapBoard();
 }
@@ -34,8 +34,8 @@ function closeRoadmapView() {
   currentFilename = null;
   currentDocType  = null;
   document.getElementById('list-view').style.display = '';
-  _roadmapPiName      = null;
-  _roadmapFocusedEpic = null;
+  _roadmapVisiblePis.clear();
+  _roadmapFocusedFeature = null;
 }
 
 function isRoadmapOpen() {
@@ -46,23 +46,24 @@ function refreshRoadmapView() {
   if (isRoadmapOpen()) renderRoadmapBoard();
 }
 
-// ── PI Filter ────────────────────────────────────────────────
+// ── PI Filter (checkboxes) ───────────────────────────────────
 function populateRoadmapPiFilter() {
-  const select = document.getElementById('roadmap-pi-filter');
-  if (!select) return;
-  let html = '<option value="">All Sprints</option>';
-  if (piSettings.currentPi) {
-    html += `<option value="${escHtml(piSettings.currentPi)}">${escHtml(piSettings.currentPi)}</option>`;
+  const container = document.getElementById('roadmap-pi-filter');
+  if (!container) return;
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  // On first open, check all PIs
+  if (!_roadmapVisiblePis.size) pis.forEach(p => _roadmapVisiblePis.add(p));
+  let html = '';
+  for (const pi of pis) {
+    const checked = _roadmapVisiblePis.has(pi) ? ' checked' : '';
+    html += `<label class="rm-pi-checkbox"><input type="checkbox"${checked} onchange="toggleRoadmapPi('${escHtml(pi)}', this.checked)"><span>${escHtml(pi)}</span></label>`;
   }
-  if (piSettings.nextPi) {
-    html += `<option value="${escHtml(piSettings.nextPi)}">${escHtml(piSettings.nextPi)}</option>`;
-  }
-  select.innerHTML = html;
-  if (_roadmapPiName) select.value = _roadmapPiName;
+  container.innerHTML = html;
 }
 
-function filterRoadmapByPi(piName) {
-  _roadmapPiName = piName || null;
+function toggleRoadmapPi(piName, checked) {
+  if (checked) _roadmapVisiblePis.add(piName);
+  else _roadmapVisiblePis.delete(piName);
   renderRoadmapBoard();
 }
 
@@ -80,45 +81,69 @@ function toggleRoadmapPanel(panel) {
   }
 }
 
-// ── Epic focus (click on epic card) ──────────────────────────
-function focusEpic(filename) {
-  if (_roadmapFocusedEpic === filename) {
-    _roadmapFocusedEpic = null; // toggle off
+// ── Feature focus (click on feature row) ────────────────────
+function focusFeature(filename) {
+  if (_roadmapFocusedFeature === filename) {
+    _roadmapFocusedFeature = null; // toggle off
   } else {
-    _roadmapFocusedEpic = filename;
+    _roadmapFocusedFeature = filename;
   }
-  applyEpicFocus();
+  applyFeatureFocus();
 }
 
-function applyEpicFocus() {
-  // Epic panel: highlight focused epic
+function applyFeatureFocus() {
+  // Feature panel: highlight focused feature
   document.querySelectorAll('.rm-epic-card').forEach(card => {
-    card.classList.toggle('rm-focused', card.dataset.filename === _roadmapFocusedEpic);
-    card.classList.toggle('rm-dimmed', _roadmapFocusedEpic && card.dataset.filename !== _roadmapFocusedEpic);
+    card.classList.toggle('rm-focused', card.dataset.filename === _roadmapFocusedFeature);
+    card.classList.toggle('rm-dimmed', _roadmapFocusedFeature && card.dataset.filename !== _roadmapFocusedFeature);
   });
 
-  // Story panel: dim non-matching stories
+  // Story panel: dim stories not under the focused feature
   document.querySelectorAll('.roadmap-card').forEach(card => {
-    if (!_roadmapFocusedEpic) {
+    if (!_roadmapFocusedFeature) {
       card.classList.remove('rm-dimmed');
       return;
     }
-    const parent = card.dataset.parent || '';
-    card.classList.toggle('rm-dimmed', parent !== _roadmapFocusedEpic);
+    const feature = card.dataset.feature || '';
+    card.classList.toggle('rm-dimmed', feature !== _roadmapFocusedFeature);
   });
 }
 
-// ── Gather all sprints across PIs ────────────────────────────
-function getAllSprints() {
-  // If a PI filter is active, only show that PI's sprints
-  if (_roadmapPiName && sprintConfig[_roadmapPiName]) {
-    return sprintConfig[_roadmapPiName];
+// ── Push Sprints to JIRA ────────────────────────────────────
+async function pushSprintsToJira() {
+  const leafTypes = new Set(['story', 'spike', 'bug']);
+  const items = allDocs.filter(d =>
+    leafTypes.has(d.docType) && d.sprint && d.jiraId
+  ).map(d => ({ filename: d.filename, docType: d.docType, sprint: d.sprint }));
+
+  if (!items.length) {
+    showJiraToast('warn', 'No stories with both a sprint and JIRA ID found.');
+    return;
   }
-  // Else merge all PI sprints in order (current then next)
+
+  if (!confirm(`Push sprint assignments for ${items.length} item(s) to JIRA?`)) return;
+
+  try {
+    const res = await postJSON('/api/jira/push-sprints', { items });
+    const ok = (res.results || []).filter(r => r.status === 'ok').length;
+    const skipped = (res.results || []).filter(r => r.status === 'skipped').length;
+    const errors = (res.results || []).filter(r => r.status === 'error').length;
+    let msg = `Sprints pushed: ${ok} updated`;
+    if (skipped) msg += `, ${skipped} skipped`;
+    if (errors) msg += `, ${errors} failed`;
+    showJiraToast(errors ? 'warn' : 'success', msg);
+  } catch (e) {
+    showJiraToast('error', 'Failed to push sprints: ' + e.message);
+  }
+}
+
+// ── Gather all sprints across visible PIs ────────────────────
+function getAllSprints() {
   const all = [];
   const seen = new Set();
   const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
   for (const pi of pis) {
+    if (!_roadmapVisiblePis.has(pi)) continue; // skip unchecked PIs
     for (const s of (sprintConfig[pi] || [])) {
       if (!seen.has(s.name)) {
         seen.add(s.name);

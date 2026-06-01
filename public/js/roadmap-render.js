@@ -77,56 +77,63 @@ function renderRoadmapBoard() {
   renderEpicPanel(sprints);
   renderStoryPanel(sprints);
   injectGhostCards();
-  applyEpicFocus();
+  applyFeatureFocus();
   attachRoadmapDepHoverListeners();
 }
 
-// ── Epic panel rendering ─────────────────────────────────────
+// ── Feature panel rendering (groups by grandparent feature) ──
 function renderEpicPanel(sprints) {
   const body = document.getElementById('rm-body-epics');
 
-  // Get epics that have children in the visible sprints
-  const epicTypes = new Set(['epic', 'feature']);
   const leafTypes = new Set(['story', 'spike', 'bug']);
 
-  // All visible leaf docs (respect PI filter)
-  const piFilter = _roadmapPiName;
-  const visibleLeafs = piFilter
-    ? allDocs.filter(d => leafTypes.has(d.docType) && d.fixVersion === piFilter)
-    : allDocs.filter(d => leafTypes.has(d.docType) && d.sprint);
+  // All visible leaf docs (respect PI checkboxes)
+  const visibleLeafs = allDocs.filter(d =>
+    leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
+  );
 
-  // Map: epicFilename → { epicDoc, sprintSet, storyCount, totalSP }
-  const epicMap = new Map();
-  for (const leaf of visibleLeafs) {
-    const key = leaf.parentFilename || '__none__';
-    if (!epicMap.has(key)) {
-      const epicDoc = leaf.parentFilename
-        ? allDocs.find(d => d.filename === leaf.parentFilename)
-        : null;
-      epicMap.set(key, { epicDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
+  // Build epic→feature lookup
+  const epicToFeature = new Map();
+  for (const d of allDocs) {
+    if (d.docType === 'epic' && d.parentFilename) {
+      epicToFeature.set(d.filename, d.parentFilename);
     }
-    const entry = epicMap.get(key);
+  }
+
+  // Map: featureFilename → { featureDoc, sprintSet, storyCount, totalSP }
+  const featureMap = new Map();
+  for (const leaf of visibleLeafs) {
+    // Walk up: leaf → epic → feature
+    const epicFn = leaf.parentFilename || null;
+    const featureFn = epicFn ? (epicToFeature.get(epicFn) || null) : null;
+    const key = featureFn || '__none__';
+    if (!featureMap.has(key)) {
+      const featureDoc = featureFn
+        ? allDocs.find(d => d.filename === featureFn)
+        : null;
+      featureMap.set(key, { featureDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
+    }
+    const entry = featureMap.get(key);
     entry.storyCount++;
     entry.totalSP += Number(leaf.storyPoints) || 0;
     if (leaf.sprint) entry.sprints.add(leaf.sprint);
   }
 
-  // Also add epics with no children yet but have a sprint assignment
+  // Also add features with no stories yet
   for (const d of allDocs) {
-    if (epicTypes.has(d.docType) && !epicMap.has(d.filename)) {
-      if (piFilter && d.fixVersion !== piFilter) continue;
-      epicMap.set(d.filename, { epicDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
+    if (d.docType === 'feature' && !featureMap.has(d.filename)) {
+      featureMap.set(d.filename, { featureDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
     }
   }
 
-  // Sort: same order as main list view (by rank, then filename descending)
-  const sorted = [...epicMap.entries()].sort(([ka, a], [kb, b]) => {
+  // Sort: by rank, then filename descending
+  const sorted = [...featureMap.entries()].sort(([ka, a], [kb, b]) => {
     if (ka === '__none__') return 1;
     if (kb === '__none__') return -1;
-    const ra = a.epicDoc?.rank != null ? a.epicDoc.rank : 9999;
-    const rb = b.epicDoc?.rank != null ? b.epicDoc.rank : 9999;
+    const ra = a.featureDoc?.rank != null ? a.featureDoc.rank : 9999;
+    const rb = b.featureDoc?.rank != null ? b.featureDoc.rank : 9999;
     if (ra !== rb) return ra - rb;
-    return kb.localeCompare(ka); // fallback: same as _rankSortFn
+    return kb.localeCompare(ka);
   });
 
   document.getElementById('rm-count-epics').textContent = sorted.length;
@@ -140,13 +147,14 @@ function renderEpicPanel(sprints) {
     <div class="rm-sprint-header-cell">${escHtml(s.name)}</div>
   `).join('');
 
-  // Epic rows
+  // Feature rows
   let rowsHtml = '';
-  for (const [key, { epicDoc, sprints: sprintSet, storyCount, totalSP }] of sorted) {
+  for (const [key, { featureDoc, sprints: sprintSet, storyCount, totalSP }] of sorted) {
     const isNone = key === '__none__';
-    const title  = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
+    const title  = featureDoc?.title || (isNone ? 'Unlinked Stories' : key);
     const color  = isNone ? 'var(--muted)' : epicColor(key);
-    const fn     = epicDoc?.filename || '';
+    const fn     = featureDoc?.filename || '';
+    const snippet = featureDoc?.descriptionSnippet || '';
 
     // Compute sprint span
     const indices = [...sprintSet]
@@ -168,10 +176,15 @@ function renderEpicPanel(sprints) {
 
     const meta = `${storyCount} stor${storyCount !== 1 ? 'ies' : 'y'} · ${totalSP} SP`;
 
+    // Tooltip data attributes for hover popup
+    const tooltipAttrs = snippet
+      ? ` data-tooltip-title="${escHtml(title)}" data-tooltip-desc="${escHtml(snippet)}"`
+      : ` data-tooltip-title="${escHtml(title)}"`;
+
     rowsHtml += `
       <div class="rm-epic-card${isNone ? ' rm-epic-unlinked' : ''}"
-           data-filename="${escHtml(fn)}"
-           onclick="${fn ? `focusEpic('${escHtml(fn)}')` : ''}">
+           data-filename="${escHtml(fn)}"${tooltipAttrs}
+           onclick="${fn ? `focusFeature('${escHtml(fn)}')` : ''}">
         <div class="rm-epic-name-col">
           <div class="rm-epic-dot" style="background:${color}"></div>
           <div class="rm-epic-info">
@@ -188,10 +201,16 @@ function renderEpicPanel(sprints) {
 
   body.innerHTML = `
     <div class="rm-board-header">
-      <div class="rm-name-col-header">Epic / Feature</div>
+      <div class="rm-name-col-header">Feature</div>
       <div class="rm-sprint-headers">${headerCells}</div>
     </div>
     ${rowsHtml}`;
+
+  // Attach tooltip hover listeners
+  body.querySelectorAll('.rm-epic-card[data-tooltip-title]').forEach(card => {
+    card.addEventListener('mouseenter', showFeatureTooltip);
+    card.addEventListener('mouseleave', hideFeatureTooltip);
+  });
 }
 
 // ── Story panel rendering ────────────────────────────────────
@@ -199,12 +218,11 @@ function renderStoryPanel(sprints) {
   const body = document.getElementById('rm-body-stories');
 
   const leafTypes = new Set(['story', 'spike', 'bug']);
-  const piFilter  = _roadmapPiName;
 
-  // Get visible stories
-  const piDocs = piFilter
-    ? allDocs.filter(d => leafTypes.has(d.docType) && d.fixVersion === piFilter)
-    : allDocs.filter(d => leafTypes.has(d.docType) && (d.fixVersion === piSettings.currentPi || d.fixVersion === piSettings.nextPi));
+  // Get visible stories (respect PI checkboxes)
+  const piDocs = allDocs.filter(d =>
+    leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
+  );
 
   document.getElementById('rm-count-stories').textContent = piDocs.length;
 
@@ -280,14 +298,17 @@ function renderRoadmapCard(d, sprintName) {
   const spClass = sp ? 'rm-badge rm-sp' : 'rm-badge rm-no-sp';
   const cardHeight = spCardHeight(sp);
 
-  // Find parent epic for focus feature
+  // Find parent epic and grandparent feature for focus
   const parentFn = d.parentFilename || '';
+  let featureFn = '';
   let parentHtml = '';
   if (parentFn) {
     const parent = allDocs.find(p => p.filename === parentFn);
     if (parent) {
       const color = epicColor(parentFn);
       parentHtml = `<div class="roadmap-card-parent"><span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}</div>`;
+      // Walk up to feature (grandparent)
+      if (parent.parentFilename) featureFn = parent.parentFilename;
     }
   }
 
@@ -310,6 +331,7 @@ function renderRoadmapCard(d, sprintName) {
          data-doctype="${d.docType}"
          data-sp="${sp}"
          data-parent="${escHtml(parentFn)}"
+         data-feature="${escHtml(featureFn)}"
          data-sprint="${d.sprint ? escHtml(d.sprint) : ''}"
          style="min-height:${cardHeight}px">
       ${parentHtml}
@@ -323,6 +345,46 @@ function renderRoadmapCard(d, sprintName) {
       <button class="rm-dep-btn" title="Manage dependencies"
               onclick="event.stopPropagation();openDepModal('${escHtml(d.filename)}','${d.docType}')">⛓</button>
     </div>`;
+}
+
+// ── Feature tooltip popup ────────────────────────────────────
+let _tooltipEl = null;
+
+function showFeatureTooltip(e) {
+  const card = e.currentTarget;
+  const title = card.dataset.tooltipTitle || '';
+  const desc  = card.dataset.tooltipDesc  || '';
+  if (!title) return;
+
+  if (!_tooltipEl) {
+    _tooltipEl = document.createElement('div');
+    _tooltipEl.className = 'rm-feature-tooltip';
+    document.body.appendChild(_tooltipEl);
+  }
+
+  let html = `<div class="rm-tooltip-title">${escHtml(title)}</div>`;
+  if (desc) html += `<div class="rm-tooltip-desc">${escHtml(desc)}</div>`;
+  _tooltipEl.innerHTML = html;
+  _tooltipEl.classList.add('show');
+
+  const rect = card.getBoundingClientRect();
+  _tooltipEl.style.left = (rect.left + 12) + 'px';
+  _tooltipEl.style.top  = (rect.bottom + 4) + 'px';
+
+  // Keep tooltip on screen
+  requestAnimationFrame(() => {
+    const tr = _tooltipEl.getBoundingClientRect();
+    if (tr.right > window.innerWidth - 8) {
+      _tooltipEl.style.left = (window.innerWidth - tr.width - 8) + 'px';
+    }
+    if (tr.bottom > window.innerHeight - 8) {
+      _tooltipEl.style.top = (rect.top - tr.height - 4) + 'px';
+    }
+  });
+}
+
+function hideFeatureTooltip() {
+  if (_tooltipEl) _tooltipEl.classList.remove('show');
 }
 
 // ── Ghost cards for stories split across PIs ─────────────────
