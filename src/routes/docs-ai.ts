@@ -9,9 +9,9 @@ import {
   isoDate, slugify, extractTitle, extractWorkflowStatus,
   setFrontmatterField, extractFrontmatterField,
 } from '../utils/transforms.js';
+import type { RouteContext } from '../types.js';
 
-/** @param {import('../types.js').RouteContext} ctx */
-export default function docsAiRoutes({ TYPE_CONFIG, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logError, docIndex }) {
+export default function docsAiRoutes({ TYPE_CONFIG, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logError, docIndex }: RouteContext) {
   const router = Router();
 
   // ── POST /api/generate ─────────────────────────────────────────────────────
@@ -29,8 +29,7 @@ export default function docsAiRoutes({ TYPE_CONFIG, INBOX_DIR, broadcast, loadCo
       }
       // Strip control characters (except \t and \n which are valid in body text)
       // to prevent prompt injection via crafted null bytes or escape sequences.
-      /** @param {string} s */
-      const stripControls = s => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      const stripControls = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
       const title = rawTitle ? stripControls(rawTitle) : rawTitle;
       const idea  = stripControls(rawIdea);
 
@@ -116,8 +115,7 @@ ${idea.trim()}
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
     setupSSE(res);
-    /** @param {unknown} payload */
-    const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
       const { feedback } = req.body;
@@ -145,7 +143,7 @@ ${feedback.trim()}
 Rewrite the complete document incorporating the feedback above. Preserve all COVE sections and YAML frontmatter structure.`;
 
       let fullContent = '';
-      await streamClaude(upgradePrompt, (chunk) => { fullContent += chunk; send({ text: chunk }); });
+      await streamClaude(upgradePrompt, (chunk: string) => { fullContent += chunk; send({ text: chunk }); });
 
       fullContent = normalizeOutput(fullContent);
       fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
@@ -188,8 +186,7 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
     setupSSE(res);
-    /** @param {unknown} payload */
-    const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
       const count = Math.max(2, Math.min(rawCount || 2, 6));
@@ -232,7 +229,7 @@ Created: ${isoDate()}
 - Output ONLY the ${count} story files separated by ===SPLIT===, nothing else`;
 
       let fullOutput = '';
-      await streamClaude(splitPrompt, (chunk) => {
+      await streamClaude(splitPrompt, (chunk: string) => {
         fullOutput += chunk;
         send({ text: chunk });
       });
@@ -380,12 +377,10 @@ TBD
       }
 
       // Step 2: Generate new epic via AI
-      /** @param {string} s */
-      const stripControls = s => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      const stripControls = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
       const idea = stripControls(`${description.trim()}\n\n---\nContext from original epic:\n${epicContent}`);
 
-      /** @type {{ idea: string; type: string; priority: string; parentFeature: string; fixVersion?: string; pi?: string; team?: string; workCategory?: string }} */
-      const genBody = {
+      const genBody: { idea: string; type: string; priority: string; parentFeature: string; fixVersion?: string; pi?: string; team?: string; workCategory?: string } = {
         idea,
         type: 'epic',
         priority: epicPriority,

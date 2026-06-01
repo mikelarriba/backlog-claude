@@ -29,7 +29,7 @@ export async function startTestApp() {
   // Dynamic import: env vars must be set before server.js module-level code runs.
   // Each test file runs in its own process (node --test), so the module cache is
   // always fresh when this is called for the first time in a file.
-  const serverPath = path.resolve(__dirname, '../../server.js');
+  const serverPath = path.resolve(__dirname, '../../server.ts');
   const { app } = await import(serverPath);
 
   const server = http.createServer(app);

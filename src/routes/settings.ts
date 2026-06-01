@@ -9,9 +9,9 @@ import {
   getProviderOverride,
   getAvailableProviders,
 } from '../services/claudeService.js';
+import type { SettingsRouteContext } from '../types.js';
 
-/** @param {import('../types.js').SettingsRouteContext} ctx */
-export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }) {
+export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }: SettingsRouteContext) {
   const router = Router();
 
   // ── App config (read-only, consumed by frontend) ───────────────────────────
@@ -29,8 +29,7 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     return { currentPi: null, nextPi: null };
   }
 
-  /** @param {Record<string, unknown>} settings */
-  function savePiSettings(settings) {
+  function savePiSettings(settings: Record<string, unknown>) {
     fs.writeFileSync(PI_SETTINGS_PATH, JSON.stringify(settings, null, 2));
   }
 

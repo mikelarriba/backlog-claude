@@ -2,22 +2,21 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import type { CanvasRouteContext } from '../types.js';
 
-/** @param {import('../types.js').CanvasRouteContext} ctx */
-export default function canvasRoutes({ rootDir, logInfo }) {
+export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
   const router = Router();
 
   const CANVAS_LAYOUT_PATH = path.join(rootDir, '.canvas-layout.json');
 
-  function loadLayout() {
+  function loadLayout(): Record<string, unknown> {
     try {
       if (fs.existsSync(CANVAS_LAYOUT_PATH)) return JSON.parse(fs.readFileSync(CANVAS_LAYOUT_PATH, 'utf-8'));
     } catch {}
     return {};
   }
 
-  /** @param {Record<string, unknown>} data */
-  function saveLayout(data) {
+  function saveLayout(data: Record<string, unknown>) {
     fs.writeFileSync(CANVAS_LAYOUT_PATH, JSON.stringify(data, null, 2));
   }
 
@@ -37,10 +36,10 @@ export default function canvasRoutes({ rootDir, logInfo }) {
     }
 
     // Validate all positions have non-negative integer col/row
-    for (const [fn, pos] of Object.entries(positions)) {
+    for (const [fn, pos] of Object.entries(positions as Record<string, { col: unknown; row: unknown }>)) {
       if (
-        !Number.isInteger(pos.col) || pos.col < 0 ||
-        !Number.isInteger(pos.row) || pos.row < 0
+        !Number.isInteger(pos.col) || (pos.col as number) < 0 ||
+        !Number.isInteger(pos.row) || (pos.row as number) < 0
       ) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: `Position for "${fn}" must have non-negative integer col and row` } });
       }

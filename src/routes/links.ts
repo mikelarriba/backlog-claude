@@ -4,9 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename, normalizeType } from '../utils/routeHelpers.js';
 import { setFrontmatterField, extractFrontmatterField, removeFrontmatterField } from '../utils/transforms.js';
+import type { RouteContext } from '../types.js';
 
-/** @param {import('../types.js').RouteContext} ctx */
-export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, broadcast, logInfo, docIndex }) {
+export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, broadcast, logInfo, docIndex }: RouteContext) {
   const router = Router();
 
   // ── GET /api/links/:type/:filename ─────────────────────────────────────────
@@ -15,9 +15,8 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
       const docType  = assertDocType(req.params.type, TYPE_CONFIG);
       const filename = assertFilename(req.params.filename);
 
-      let parent   = null;
-      /** @type {Array<{ docType: string; filename: string; title: string; jiraId: string; status: string; }>} */
-      let children = [];
+      let parent: { docType: string; filename: string; title: string; jiraId: string; status: string } | null = null;
+      let children: Array<{ docType: string; filename: string; title: string; jiraId: string; status: string }> = [];
 
       if (docType === 'epic') {
         // Resolve parent feature from the index
@@ -144,8 +143,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
 
   // ── POST /api/link ─────────────────────────────────────────────────────────
   router.post('/api/link', (req, res) => {
-    /** @type {Record<string, { field: string; sourceDir: () => string; targetDir: () => string }>} */
-    const LINK_RULES = {
+    const LINK_RULES: Record<string, { field: string; sourceDir: () => string; targetDir: () => string }> = {
       'epic→feature': { field: 'Feature_ID', sourceDir: () => EPICS_DIR,   targetDir: () => FEATURES_DIR },
       'story→epic':   { field: 'Epic_ID',    sourceDir: () => STORIES_DIR, targetDir: () => EPICS_DIR    },
       'spike→epic':   { field: 'Epic_ID',    sourceDir: () => SPIKES_DIR,  targetDir: () => EPICS_DIR    },
@@ -185,7 +183,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
         const visited = new Set();
         const queue   = [tgtFile];
         while (queue.length) {
-          const fn = /** @type {string} */ (queue.shift());
+          const fn = queue.shift() as string;
           if (fn === srcFile) {
             return sendError(res, 400, 'CYCLE_DETECTED', `Adding this dependency would create a cycle: ${tgtFile} already (directly or transitively) blocks ${srcFile}`);
           }

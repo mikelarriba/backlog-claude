@@ -6,9 +6,9 @@ import { sendError, ensureDir, parseApiError, assertDocType, assertStatus, asser
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { logAudit } from '../utils/auditLog.js';
 import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
+import type { RouteContext } from '../types.js';
 
-/** @param {import('../types.js').RouteContext} ctx */
-export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docIndex }) {
+export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docIndex }: RouteContext) {
   const router = Router();
 
   // ── GET /api/docs ──────────────────────────────────────────────────────────

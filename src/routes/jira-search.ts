@@ -6,13 +6,13 @@ import { sendError, ensureDir, parseApiError, assertFilename, normalizeType } fr
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
+import type { JiraRouteContext } from '../types.js';
 
-/** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraSearchRoutes({
   TYPE_CONFIG, JIRA_PROJECT, JIRA_LABEL, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
   jiraRequest, jiraPagedRequest, findLocalFileByJiraId, jiraIssueToMarkdown,
   broadcast, logError, docIndex,
-}) {
+}: JiraRouteContext) {
   const router = Router();
 
   // ── GET /api/jira/search ───────────────────────────────────────────────────
@@ -36,10 +36,10 @@ export default function jiraSearchRoutes({
       const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
       const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause} ORDER BY updated DESC`;
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
-      const rawIssues = await jiraPagedRequest(jql, fields, { maxResults: 100, maxTotal: 500 });
+      const rawIssues = (await jiraPagedRequest(jql, fields, { maxResults: 100, maxTotal: 500 })) as Record<string, any>[];
 
-      const issues = rawIssues.map(issue => {
-        const iss = /** @type {Record<string, any>} */ (issue);
+      const issues = rawIssues.map((issue) => {
+        const iss = issue;
         const existing = docIndex.findByJiraId(iss.key) || findLocalFileByJiraId(iss.key);
         return {
           key:           iss.key,
@@ -66,14 +66,14 @@ export default function jiraSearchRoutes({
   router.get('/api/jira/versions', async (req, res) => {
     if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     try {
-      const data = /** @type {Array<Record<string, any>>} */ (await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`) || []);
-      const versions = data.map(v => ({
+      const data = (await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`) || []) as Array<Record<string, any>>;
+      const versions = data.map((v: Record<string, any>) => ({
         id:       v.id,
         name:     v.name,
         released: !!v.released,
         archived: !!v.archived,
       }));
-      versions.sort((a, b) => {
+      versions.sort((a: Record<string, any>, b: Record<string, any>) => {
         if (a.released !== b.released) return a.released ? 1 : -1;
         return a.name.localeCompare(b.name);
       });
@@ -91,14 +91,12 @@ export default function jiraSearchRoutes({
 
     try {
       const key = req.params.key;
-      const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${key}?fields=issuetype,issuelinks,subtasks`));
+      const issue = (await jiraRequest('GET', `/issue/${key}?fields=issuetype,issuelinks,subtasks`)) as Record<string, any>;
       const issueType = issue.fields.issuetype?.name;
-      /** @type {Array<Record<string, unknown>>} */
-      const children = [];
+      const children: Array<Record<string, unknown>> = [];
       const seen = new Set();
 
-      /** @param {Record<string, any>} child */
-      function addChild(child) {
+      function addChild(child: Record<string, any>) {
         if (seen.has(child.key)) return;
         seen.add(child.key);
         const existing = docIndex.findByJiraId(child.key) || findLocalFileByJiraId(child.key);
@@ -118,7 +116,7 @@ export default function jiraSearchRoutes({
         const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
         const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
         const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', { maxResults: 100, maxTotal: 500 });
-        for (const child of childIssues) addChild(/** @type {Record<string, any>} */ (child));
+        for (const child of childIssues) addChild(child as Record<string, any>);
       }
 
       // New Features / Epics: check issue links (inward = contained children)
@@ -168,13 +166,13 @@ export default function jiraSearchRoutes({
           continue;
         }
 
-        const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`));
+        const issue = (await jiraRequest('GET', `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`)) as Record<string, any>;
         let { docType, content } = jiraIssueToMarkdown(issue);
 
         // Resolve team from JIRA labels
-        const issueLabels = /** @type {string[]} */ (issue.fields?.labels ?? []);
-        const teamLabel   = issueLabels.find(l => ALL_TEAM_JIRA_LABELS.has(l));
-        if (teamLabel && issueLabels.filter(l => ALL_TEAM_JIRA_LABELS.has(l)).length > 1) {
+        const issueLabels = (issue.fields?.labels ?? []) as string[];
+        const teamLabel   = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
+        if (teamLabel && issueLabels.filter((l: string) => ALL_TEAM_JIRA_LABELS.has(l)).length > 1) {
           console.warn(`[jira/pull] ${key} has multiple team labels — using first: ${teamLabel}`);
         }
         const localTeam = teamLabel ? JIRA_LABEL_TO_TEAM[teamLabel] : 'TBD';

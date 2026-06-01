@@ -4,7 +4,7 @@
   "description": "Epic Generator PWA + Claude PO Agent",
   "type": "module",
   "scripts": {
-    "start": "tsx --watch server.js",
+    "start": "tsx --watch server.ts",
     "test": "tsx --test tests/unit/*.test.js tests/integration/*.test.js",
     "test:unit": "tsx --test tests/unit/*.test.js",
     "test:integration": "tsx --test tests/integration/*.test.js",
