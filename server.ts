@@ -50,7 +50,7 @@ const { logInfo, logWarn, logError } = createLogger('[backlog-claude]');
 const DOCS_ROOT = process.env.TEST_DOCS_ROOT || path.join(__dirname, 'docs');
 const INBOX_DIR = process.env.TEST_INBOX_DIR || path.join(__dirname, 'inbox');
 
-const _apiInFlight = new Set();
+const _apiInFlight = new Set<string>();
 
 const TYPE_CONFIG  = createTypeConfig(DOCS_ROOT);
 // Convenience aliases — derived from TYPE_CONFIG to stay in sync
@@ -166,12 +166,9 @@ app.get('/swagger', (_req, res) => {
 </html>`);
 });
 
-/** @param {string} name @returns {string | null} */
-const loadCommand  = name => loadCommandService(__dirname, name);
-/** @param {string} prompt @returns {Promise<string>} */
-const callClaude   = prompt => callClaudeService(__dirname, prompt);
-/** @param {string} prompt @param {(chunk: string) => void} onChunk @returns {Promise<void>} */
-const streamClaude = (prompt, onChunk) => streamClaudeService(__dirname, prompt, onChunk);
+const loadCommand  = (name: string): string | null => loadCommandService(__dirname, name);
+const callClaude   = (prompt: string): Promise<string> => callClaudeService(__dirname, prompt);
+const streamClaude = (prompt: string, onChunk: (chunk: string) => void): Promise<void> => streamClaudeService(__dirname, prompt, onChunk);
 
 // ── Mount route modules ──────────────────────────────────────────────────────
 const shared = { rootDir: __dirname, TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STORIES_DIR, SPIKES_DIR, BUGS_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logWarn, logError, docIndex };

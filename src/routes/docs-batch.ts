@@ -7,11 +7,11 @@ import { setFrontmatterField } from '../utils/transforms.js';
 import { pMap } from '../utils/pMap.js';
 import { logAudit } from '../utils/auditLog.js';
 import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
+import type { RouteContext } from '../types.js';
 
 const BATCH_CONCURRENCY = 5;
 
-/** @param {import('../types.js').RouteContext} ctx */
-export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logInfo, docIndex }) {
+export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logInfo, docIndex }: RouteContext) {
   const router = Router();
 
   // ── POST /api/docs/batch-delete ──────────────────────────────────────────
@@ -22,10 +22,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         return sendError(res, 400, 'VALIDATION_ERROR', 'docs array is required and must not be empty');
       }
 
-      /** @type {Array<{ filename: string; docType: string }>} */
-      const deleted = [];
-      /** @type {Array<{ filename: string; reason: string }>} */
-      const skipped = [];
+      const deleted: Array<{ filename: string; docType: string }> = [];
+      const skipped: Array<{ filename: string; reason: string }> = [];
 
       await pMap(docs, async (entry) => {
         try {
@@ -76,10 +74,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       const newValue = fixVersion || 'TBD';
-      /** @type {Array<{ filename: string; docType: string }>} */
-      const updated  = [];
-      /** @type {Array<{ filename: string; reason: string }>} */
-      const skipped  = [];
+      const updated: Array<{ filename: string; docType: string }> = [];
+      const skipped: Array<{ filename: string; reason: string }> = [];
 
       await pMap(docs, async (entry) => {
         try {
@@ -125,8 +121,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
       // Load sprint config
       const piSettingsPath = path.join(rootDir, '.pi-settings.json');
-      /** @type {Array<{ name: string; capacity: number }>} */
-      let sprintCfg = [];
+      let sprintCfg: Array<{ name: string; capacity: number }> = [];
       try {
         const raw = await fs.promises.readFile(piSettingsPath, 'utf-8');
         const settings = JSON.parse(raw);
@@ -135,8 +130,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       if (!sprintCfg.length) return sendError(res, 400, 'NO_SPRINTS', 'No sprints configured for this PI');
 
       // Collect leaf docs in this PI using the index (includes rank, blockedBy, parentFilename)
-      /** @type {Record<string, number>} */
-      const PRIORITY_RANK = { Critical: 0, Major: 0, High: 1, Medium: 2, Low: 3 };
+      const PRIORITY_RANK: Record<string, number> = { Critical: 0, Major: 0, High: 1, Medium: 2, Low: 3 };
       const leafTypes = new Set(['story', 'spike', 'bug']);
       const leafDocs = docIndex.getAll()
         .filter(e => leafTypes.has(e.docType) && e.fixVersion === piName)
@@ -159,11 +153,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const assigned   = leafDocs.filter(d => d.sprint);
       const unassigned = leafDocs.filter(d => !d.sprint);
 
-      /**
-       * @param {{ rank: number; priority: string; storyPoints: number }} a
-       * @param {{ rank: number; priority: string; storyPoints: number }} b
-       */
-      function sortByRankPriority(a, b) {
+      function sortByRankPriority(a: { rank: number; priority: string; storyPoints: number }, b: { rank: number; priority: string; storyPoints: number }) {
         if (a.rank !== b.rank) return a.rank - b.rank;
         const pa = PRIORITY_RANK[a.priority] ?? 2;
         const pb = PRIORITY_RANK[b.priority] ?? 2;
@@ -222,7 +212,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       }
 
       // ── Build buckets; pre-fill with already-assigned docs ───────────────────
-      const buckets = sprintCfg.map((/** @type {{ name: string; capacity: number }} */ s, idx) => ({
+      const buckets = sprintCfg.map((s, idx) => ({
         name:       s.name,
         capacity:   s.capacity,
         idx,
@@ -233,15 +223,14 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const sprintIdx    = new Map(buckets.map(b => [b.name, b.idx]));
       // Track placed sprint for dep constraint computation (seed with already-assigned)
       const placementMap = new Map(assigned.map(d => [d.filename, d.sprint]));
-      /** @type {string[]} */
-      const depAdjusted  = []; // warnings for items bumped due to deps
+      const depAdjusted: string[] = []; // warnings for items bumped due to deps
 
       // Track per-epic sprint range: try to finish each epic within 2 sprints
       const epicStartSprint = new Map(); // parentFilename → first sprint index
       // Seed from already-assigned items
       for (const d of assigned) {
         if (!d.parentFilename) continue;
-        const si = sprintIdx.get(d.sprint) ?? 0;
+        const si = sprintIdx.get(d.sprint!) ?? 0;
         if (!epicStartSprint.has(d.parentFilename) || si < epicStartSprint.get(d.parentFilename)) {
           epicStartSprint.set(d.parentFilename, si);
         }
@@ -374,10 +363,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
       const docType = assertDocType(type, TYPE_CONFIG);
       const cfg     = TYPE_CONFIG[docType];
-      /** @type {string[]} */
-      const updated = [];
-      /** @type {Array<{ filename: string; reason: string }>} */
-      const skipped = [];
+      const updated: string[] = [];
+      const skipped: Array<{ filename: string; reason: string }> = [];
 
       await pMap(orderedFilenames, async (rawFilename, i) => {
         try {
@@ -419,10 +406,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         return sendError(res, 400, 'VALIDATION_ERROR', 'items array is required and must not be empty');
       }
 
-      /** @type {string[]} */
-      const updated = [];
-      /** @type {Array<{ filename: string; reason: string }>} */
-      const skipped = [];
+      const updated: string[] = [];
+      const skipped: Array<{ filename: string; reason: string }> = [];
 
       await pMap(items, async (item) => {
         try {
@@ -479,13 +464,12 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
       // Build a global sprint order from .pi-settings.json so we can enforce dependency ordering
       const piSettingsPath = path.join(rootDir, '.pi-settings.json');
-      /** @type {string[]} */
-      let sprintOrder = [];
+      let sprintOrder: string[] = [];
       try {
         const raw = await fs.promises.readFile(piSettingsPath, 'utf-8');
         const settings = JSON.parse(raw);
         for (const piSprints of Object.values(settings.sprints || {})) {
-          for (const s of /** @type {Array<{ name: string }>} */ (piSprints)) {
+          for (const s of (piSprints as Array<{ name: string }>) ) {
             if (!sprintOrder.includes(s.name)) sprintOrder.push(s.name);
           }
         }
@@ -524,10 +508,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         }
       }
 
-      /** @type {Array<{ filename: string; docType: string; sprint: string | undefined }>} */
-      const updated = [];
-      /** @type {Array<{ filename: string; reason: string }>} */
-      const skipped = [];
+      const updated: Array<{ filename: string; docType: string; sprint: string | undefined }> = [];
+      const skipped: Array<{ filename: string; reason: string }> = [];
 
       await pMap(assignments, async (entry) => {
         try {
@@ -569,7 +551,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
   });
 
   // ── POST /api/docs/batch-update-field ── bulk assign sprint/team/category ──
-  const BATCH_FIELD_MAP = {
+  const BATCH_FIELD_MAP: Record<string, { frontmatter: string; allowed: string[] | null }> = {
     sprint:       { frontmatter: 'Sprint',        allowed: null },
     team:         { frontmatter: 'Team',          allowed: TEAMS },
     workCategory: { frontmatter: 'Work_Category', allowed: WORK_CATEGORIES },
@@ -578,7 +560,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
   router.post('/api/docs/batch-update-field', async (req, res) => {
     try {
       const { field, value, docs } = req.body;
-      const validFields = /** @type {const} */ (['sprint', 'team', 'workCategory']);
+      const validFields = ['sprint', 'team', 'workCategory'] as const;
       if (!field || !validFields.includes(field)) {
         return sendError(res, 400, 'VALIDATION_ERROR', `field must be one of: ${validFields.join(', ')}`);
       }
@@ -586,16 +568,14 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
         return sendError(res, 400, 'VALIDATION_ERROR', 'docs array is required and must not be empty');
       }
 
-      const { frontmatter, allowed } = BATCH_FIELD_MAP[/** @type {'sprint'|'team'|'workCategory'} */ (field)];
+      const { frontmatter, allowed } = BATCH_FIELD_MAP[field as 'sprint' | 'team' | 'workCategory'];
       const newValue = value || 'TBD';
       if (allowed && newValue !== 'TBD' && !allowed.includes(newValue)) {
         return sendError(res, 400, 'VALIDATION_ERROR', `${field} must be one of: ${allowed.join(', ')}, TBD`);
       }
 
-      /** @type {Array<{ filename: string; docType: string }>} */
-      const updated = [];
-      /** @type {Array<{ filename: string; reason: string }>} */
-      const skipped = [];
+      const updated: Array<{ filename: string; docType: string }> = [];
+      const skipped: Array<{ filename: string; reason: string }> = [];
 
       await pMap(docs, async (entry) => {
         try {

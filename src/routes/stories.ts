@@ -6,9 +6,9 @@ import { sendError, ensureDir, parseApiError, assertFilename, setupSSE } from '.
 import { extractTitle, extractFrontmatterField, setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
 import { parseStorySections, serializeStoryFile, extractStoryTitle } from '../services/storyService.js';
 import { normalizeOutput } from '../services/claudeService.js';
+import type { RouteContext } from '../types.js';
 
-/** @param {import('../types.js').RouteContext} ctx */
-export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, logError, docIndex }) {
+export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, logError, docIndex }: RouteContext) {
   const router = Router();
 
   // ── GET /api/stories/:filename ─────────────────────────────────────────────
@@ -42,8 +42,7 @@ export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INB
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
 
     setupSSE(res);
-    /** @param {unknown} p */
-    const send = p => res.write(`data: ${JSON.stringify(p)}\n\n`);
+    const send = (p: unknown) => res.write(`data: ${JSON.stringify(p)}\n\n`);
 
     try {
       const { storyIndex, feedback } = req.body;
@@ -131,8 +130,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
 
     setupSSE(res);
-    /** @param {unknown} payload */
-    const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
       const epicContent = fs.readFileSync(filepath, 'utf-8');

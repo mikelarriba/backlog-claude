@@ -21,8 +21,7 @@ export const WORK_CATEGORIES = [
 // ── Team → JIRA label mapping ─────────────────────────────────────────────────
 // Maps local Team names to the corresponding JIRA label.
 // Note: Platform maps to MIDAS_DevOps (not MIDAS_Platform) by convention.
-/** @type {Record<string, string>} */
-export const TEAM_TO_JIRA_LABEL = {
+export const TEAM_TO_JIRA_LABEL: Record<string, string> = {
   Backend:  'MIDAS_Backend',
   Frontend: 'MIDAS_Frontend',
   UX:       'MIDAS_UX',
@@ -34,7 +33,6 @@ export const TEAM_TO_JIRA_LABEL = {
 export const ALL_TEAM_JIRA_LABELS = new Set(Object.values(TEAM_TO_JIRA_LABEL));
 
 // Reverse mapping: JIRA label → local Team name
-/** @type {Record<string, string>} */
-export const JIRA_LABEL_TO_TEAM = Object.fromEntries(
+export const JIRA_LABEL_TO_TEAM: Record<string, string> = Object.fromEntries(
   Object.entries(TEAM_TO_JIRA_LABEL).map(([team, label]) => [label, team])
 );

@@ -6,11 +6,11 @@ import multer from 'multer';
 import { sendError, ensureDir, parseApiError, assertFilename } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { translateToEnglish, processAttachment } from '../services/bugService.js';
+import type { BugRouteContext } from '../types.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-/** @param {import('../types.js').BugRouteContext} ctx */
-export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex }) {
+export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex }: BugRouteContext) {
   const router = Router();
 
   // ── POST /api/bugs/create ─────────────────────────────────────────────────
@@ -24,8 +24,8 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       const ALLOWED_MIME = [/^image\//, /^application\/pdf$/, /^message\/rfc822$/, /^application\/vnd\.ms-outlook$/, /^text\//, /^application\/vnd\.ms-excel$/, /^application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet$/];
       // These formats are sent as application/octet-stream by browsers — allow by extension
       const ALLOWED_EXT = new Set(['.msg', '.log', '.txt', '.csv', '.xls', '.xlsx']);
-      // @ts-ignore — multer extends Request.files; type not visible to TS checker
-      const badFile = (req.files || []).find(f => {
+      const multerFiles = (req.files as Express.Multer.File[] | undefined) || [];
+      const badFile = multerFiles.find(f => {
         if (ALLOWED_MIME.some(p => p.test(f.mimetype))) return false;
         if (f.mimetype === 'application/octet-stream' && ALLOWED_EXT.has(path.extname(f.originalname).toLowerCase())) return false;
         return true;
@@ -42,10 +42,8 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
       const filename = `${isoDate()}-${slug}.md`;
 
       // Process attachments
-      // @ts-ignore — multer extends Request.files
-      const files = req.files || [];
-      const processed = [];
-      // @ts-ignore — multer File[] union type; always array when using upload.array()
+      const files = multerFiles;
+      const processed: Array<{ filename: string; buffer: Buffer }> = [];
       for (const file of files) {
         try {
           const result = await processAttachment(file, callClaude);

@@ -11,23 +11,21 @@ import { parseStorySections, serializeStoryFile } from '../services/storyService
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 import { logAudit } from '../utils/auditLog.js';
 import { TEAM_TO_JIRA_LABEL, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
+import type { JiraRouteContext } from '../types.js';
 
-/** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraPushRoutes({
   TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, BUGS_DIR, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE, JIRA_BOARD_ID,
   FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
   jiraRequest, jiraAgileRequest, jiraUploadAttachment, jiraIssueToMarkdown, extractJiraSummary,
   broadcast, logInfo, logWarn, logError, docIndex,
-}) {
+}: JiraRouteContext) {
   const router = Router();
 
   // ── Sprint cache (for Agile API sprint lookup) ──────────────────────────────
-  /** @type {{ map: Map<string, number>; fetchedAt: number } | null} */
-  let _sprintCache = null;
+  let _sprintCache: { map: Map<string, number>; fetchedAt: number } | null = null;
   const SPRINT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-  /** @param {string} sprintName */
-  async function getSprintId(sprintName) {
+  async function getSprintId(sprintName: string) {
     if (!JIRA_BOARD_ID) return null;
 
     // Return from cache if fresh
@@ -36,12 +34,11 @@ export default function jiraPushRoutes({
     }
 
     // Fetch all active + future sprints from the board (paginated)
-    /** @type {Map<string, number>} */
-    const map = new Map();
+    const map = new Map<string, number>();
     let startAt = 0;
     const maxResults = 50;
     while (true) {
-      const data = /** @type {Record<string, any>} */ (await jiraAgileRequest('GET', `/board/${JIRA_BOARD_ID}/sprint?state=active,future&maxResults=${maxResults}&startAt=${startAt}`));
+      const data = (await jiraAgileRequest('GET', `/board/${JIRA_BOARD_ID}/sprint?state=active,future&maxResults=${maxResults}&startAt=${startAt}`)) as Record<string, any>;
       const sprints = data.values || [];
       for (const s of sprints) {
         if (s.name && s.id) map.set(s.name, s.id);
@@ -55,8 +52,7 @@ export default function jiraPushRoutes({
   }
 
   // ── "Contains" link type discovery (cached) ─────────────────────────────────
-  /** @type {{ name: string; fetchedAt: number } | null} */
-  let _containsLinkType = null;
+  let _containsLinkType: { name: string; fetchedAt: number } | null = null;
   const LINK_TYPE_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
   async function getContainsLinkTypeName() {
@@ -64,9 +60,7 @@ export default function jiraPushRoutes({
       return _containsLinkType.name;
     }
     try {
-      const data = /** @type {{ issueLinkTypes?: Array<{ name: string; inward: string; outward: string }> }} */ (
-        await jiraRequest('GET', '/issueLinkType')
-      );
+      const data = (await jiraRequest('GET', '/issueLinkType')) as { issueLinkTypes?: Array<{ name: string; inward: string; outward: string }> };
       const types = data.issueLinkTypes || [];
       const match = types.find(t =>
         /contain/i.test(t.name) || /contain/i.test(t.inward) || /contain/i.test(t.outward)
@@ -84,10 +78,7 @@ export default function jiraPushRoutes({
   }
 
   // ── Multi-story push helper ─────────────────────────────────────────────────
-  /**
-   * @param {{ filename: string; filepath: string; sections: string[]; frontmatter: string; type: string }} opts
-   */
-  async function pushMultiStory({ filename, filepath, sections, frontmatter, type }) {
+  async function pushMultiStory({ filename, filepath, sections, frontmatter, type }: { filename: string; filepath: string; sections: string[]; frontmatter: string; type: string }) {
     const epicFilename = filename.replace('-stories.md', '.md');
     const epicPath     = path.join(EPICS_DIR, epicFilename);
     let epicJiraId     = null;
@@ -119,13 +110,12 @@ export default function jiraPushRoutes({
           const fmTeam = extractFrontmatterField(frontmatter, 'Team');
           const fmTeamLabel = (fmTeam && fmTeam !== 'TBD') ? (TEAM_TO_JIRA_LABEL[fmTeam] ?? null) : null;
           const multiLabels = fmTeamLabel ? [JIRA_LABEL, fmTeamLabel] : [JIRA_LABEL];
-          /** @type {Record<string, unknown>} */
-          const fields = {
+          const fields: Record<string, unknown> = {
             project: { key: JIRA_PROJECT }, summary: storyTitle,
             description: markdownToJira(section), issuetype: { name: 'Story' }, labels: multiLabels,
           };
           if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
-          const created = /** @type {{ key: string }} */ (await jiraRequest('POST', '/issue', { fields }));
+          const created = (await jiraRequest('POST', '/issue', { fields })) as { key: string };
           key = created.key;
           results.push({ action: 'created', key });
           section = section.replace(/^(## Story \d+:\s*.+?)(\s*)$/m, `$1 <!-- JIRA:${key} -->`);
@@ -144,10 +134,7 @@ export default function jiraPushRoutes({
   }
 
   // ── Single-issue push helper ──────────────────────────────────────────────
-  /**
-   * @param {{ filename: string; filepath: string; content: string; type: string }} opts
-   */
-  async function pushSingleIssue({ filename, filepath, content, type }) {
+  async function pushSingleIssue({ filename, filepath, content, type }: { filename: string; filepath: string; content: string; type: string }) {
     const jiraId      = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
     const summary     = extractJiraSummary(content);
     const _bodyOnly   = stripFrontmatter(content).replace(/^#{1,2}\s+.+\n?/, '').replace(/\n## Comments\b[\s\S]*$/, '').trim();
@@ -162,8 +149,7 @@ export default function jiraPushRoutes({
     let key, action;
 
     if (jiraId !== 'TBD') {
-      /** @type {Record<string, unknown>} */
-      const updateFields = { summary, description };
+      const updateFields: Record<string, unknown> = { summary, description };
       if (localFixVersion && localFixVersion !== 'TBD') {
         updateFields['fixVersions'] = [{ name: localFixVersion }];
       }
@@ -187,7 +173,7 @@ export default function jiraPushRoutes({
 
       // Update team label: fetch current labels, strip old team labels, add new one
       try {
-        const issue = /** @type {{ fields: { labels?: string[] } }} */ (await jiraRequest('GET', `/issue/${jiraId}?fields=labels`));
+        const issue = (await jiraRequest('GET', `/issue/${jiraId}?fields=labels`)) as { fields: { labels?: string[] } };
         const existingLabels = issue.fields?.labels ?? [];
         const nonTeamLabels  = existingLabels.filter(l => !ALL_TEAM_JIRA_LABELS.has(l));
         const newLabels = teamLabel ? [...nonTeamLabels, teamLabel] : nonTeamLabels;
@@ -222,8 +208,7 @@ export default function jiraPushRoutes({
     } else {
       const baseLabels = type === 'bug' ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues'] : [JIRA_LABEL];
       if (teamLabel) baseLabels.push(teamLabel);
-      /** @type {Record<string, unknown>} */
-      const fields = {
+      const fields: Record<string, unknown> = {
         project: { key: JIRA_PROJECT }, summary, description,
         issuetype: { name: jiraType }, labels: baseLabels,
       };
@@ -242,7 +227,7 @@ export default function jiraPushRoutes({
         }
       }
 
-      const created = /** @type {{ key: string }} */ (await jiraRequest('POST', '/issue', { fields }));
+      const created = (await jiraRequest('POST', '/issue', { fields })) as { key: string };
       key = created.key; action = 'created';
 
       if (type === 'epic') {
@@ -318,8 +303,14 @@ export default function jiraPushRoutes({
     try {
       const { items = [] } = req.body;
 
+      type PreviewItem = {
+        filename: string; docType: string; content: string; jiraId: string; localTitle: string;
+        spValue: number | null; localEpicJiraId: string | null; pendingEpicTitle: string | null;
+        epicFilenameRef: string | null; pendingFeatureTitle: string | null;
+        localTeamLabel: string | null; localSprint: string | null; autoIncluded?: boolean;
+      };
       // Build local metadata for each item (synchronous, no I/O limit needed)
-      const localItems = items.flatMap((/** @type {{ filename: string; docType: string }} */ { filename, docType }) => {
+      const localItems: PreviewItem[] = items.flatMap(({ filename, docType }: { filename: string; docType: string }) => {
         const cfg = TYPE_CONFIG[docType];
         if (!cfg) return [];
         const filepath = path.join(cfg.dir(), filename);
@@ -372,8 +363,8 @@ export default function jiraPushRoutes({
       });
 
       // Auto-include TBD epics referenced by stories but not already in the push scope
-      const includedFilenames = new Set(localItems.map((/** @type {{ filename: string }} */ i) => i.filename));
-      const extraEpics = [];
+      const includedFilenames = new Set(localItems.map(i => i.filename));
+      const extraEpics: PreviewItem[] = [];
       for (const item of localItems) {
         if (item.pendingEpicTitle && item.epicFilenameRef && !includedFilenames.has(item.epicFilenameRef)) {
           const epicPath = path.join(EPICS_DIR, item.epicFilenameRef);
@@ -390,7 +381,7 @@ export default function jiraPushRoutes({
               filename: item.epicFilenameRef, docType: 'epic', content: epicContent,
               jiraId: 'TBD', localTitle: epicTitle, spValue: epicSpValue,
               localEpicJiraId: null, pendingEpicTitle: null, epicFilenameRef: null,
-              localTeamLabel: epicTeamLabel, localSprint: epicSprint,
+              pendingFeatureTitle: null, localTeamLabel: epicTeamLabel, localSprint: epicSprint,
               autoIncluded: true,
             });
           }
@@ -400,8 +391,7 @@ export default function jiraPushRoutes({
 
       // Fetch JIRA data for existing issues in parallel (capped at JIRA_CONCURRENCY)
       const previews = await pMap(localItems, async ({ filename, docType, jiraId, localTitle, spValue, localEpicJiraId, pendingEpicTitle, pendingFeatureTitle, localTeamLabel, localSprint, autoIncluded }) => {
-        /** @type {Record<string, unknown>[]} */
-        const changes = [];
+        const changes: Record<string, unknown>[] = [];
         const preview = {
           filename, docType, title: localTitle,
           jiraId: jiraId !== 'TBD' ? jiraId : null,
@@ -413,7 +403,7 @@ export default function jiraPushRoutes({
         if (jiraId !== 'TBD') {
           try {
             const fetchFields = `summary,labels,${FIELD_STORY_POINTS}` + (FIELD_EPIC_LINK ? `,${FIELD_EPIC_LINK}` : '');
-            const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${jiraId}?fields=${fetchFields}`));
+            const issue = (await jiraRequest('GET', `/issue/${jiraId}?fields=${fetchFields}`)) as Record<string, any>;
             const jiraSummary = (issue.fields?.summary || '').trim();
             const jiraSP      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
 
@@ -425,8 +415,8 @@ export default function jiraPushRoutes({
               changes.push({ field: 'storyPoints', from: jiraSP, to: spValue });
             }
             // Detect team label changes
-            const jiraLabels = (issue.fields?.labels ?? []);
-            const currentTeamLabel = jiraLabels.find(l => ALL_TEAM_JIRA_LABELS.has(l)) ?? null;
+            const jiraLabels = (issue.fields?.labels ?? []) as string[];
+            const currentTeamLabel = jiraLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l)) ?? null;
             if (currentTeamLabel !== localTeamLabel) {
               changes.push({ field: 'teamLabel', from: currentTeamLabel, to: localTeamLabel });
             }
@@ -434,8 +424,7 @@ export default function jiraPushRoutes({
             if (docType === 'story' || docType === 'spike' || docType === 'bug') {
               const jiraEpicLink = issue.fields?.[FIELD_EPIC_LINK] || null;
               if ((localEpicJiraId || null) !== jiraEpicLink || pendingEpicTitle) {
-                /** @type {Record<string, unknown>} */
-                const change = { field: 'epicLink', from: jiraEpicLink, to: localEpicJiraId };
+                const change: Record<string, unknown> = { field: 'epicLink', from: jiraEpicLink, to: localEpicJiraId };
                 if (pendingEpicTitle) change.pendingEpicTitle = pendingEpicTitle;
                 changes.push(change);
               }
@@ -447,7 +436,7 @@ export default function jiraPushRoutes({
             // Detect sprint changes via Agile API
             if (localSprint && localSprint !== 'TBD' && JIRA_BOARD_ID) {
               try {
-                const agileIssue = /** @type {Record<string, any>} */ (await jiraAgileRequest('GET', `/issue/${jiraId}?fields=sprint`));
+                const agileIssue = (await jiraAgileRequest('GET', `/issue/${jiraId}?fields=sprint`)) as Record<string, any>;
                 const jiraSprintName = agileIssue?.fields?.sprint?.name || null;
                 if (localSprint !== jiraSprintName) {
                   changes.push({ field: 'sprint', from: jiraSprintName, to: localSprint });
@@ -522,7 +511,7 @@ export default function jiraPushRoutes({
 
     try {
       const { items = [] } = req.body;
-      const results = await pMap(items, async ({ filename, sprint }) => {
+      const results = await pMap(items as Array<{ filename: string; sprint: string }>, async ({ filename, sprint }) => {
         const entry = docIndex.get(filename);
         if (!entry || !entry.jiraId) return { filename, status: 'skipped', reason: 'no JIRA ID' };
         if (!sprint) return { filename, status: 'skipped', reason: 'no sprint' };

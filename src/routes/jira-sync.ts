@@ -7,22 +7,17 @@ import { setFrontmatterField, extractFrontmatterField, stripFrontmatter, jiraToM
 import { JIRA_TO_LOCAL_TYPE } from '../services/jiraService.js';
 import { logAudit } from '../utils/auditLog.js';
 import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
+import type { JiraRouteContext } from '../types.js';
 
-/** @param {import('../types.js').JiraRouteContext} ctx */
 export default function jiraSyncRoutes({
   TYPE_CONFIG, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS, INBOX_DIR,
   JIRA_PROJECT,
   jiraRequest, jiraIssueToMarkdown, extractJiraSummary, findLocalFileByJiraId,
   broadcast, logInfo, logError, docIndex,
-}) {
+}: JiraRouteContext) {
   const router = Router();
 
-  /**
-   * @param {string} inboxPath
-   * @param {string} oldBody
-   * @param {string} newBody
-   */
-  function _appendDescriptionHistory(inboxPath, oldBody, newBody) {
+  function _appendDescriptionHistory(inboxPath: string, oldBody: string, newBody: string) {
     const ts = new Date().toISOString().slice(0, 16).replace('T', ' ');
     const note = `\n\n---\n\n## JIRA Description Update — ${ts}\n\n**Previous description:**\n${oldBody || '_empty_'}\n\n**New description from JIRA:**\n${newBody || '_empty_'}\n`;
     if (fs.existsSync(inboxPath)) {
@@ -33,8 +28,7 @@ export default function jiraSyncRoutes({
     }
   }
 
-  /** @param {string} content */
-  function _extractBodyText(content) {
+  function _extractBodyText(content: string): string {
     const body = stripFrontmatter(content);
     return body.replace(/^## .+\n?/m, '').replace(/\n## Comments\b[\s\S]*$/, '').trim();
   }
@@ -53,15 +47,15 @@ export default function jiraSyncRoutes({
       const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
       if (!jiraId || jiraId === 'TBD') return sendError(res, 400, 'NO_JIRA_ID', 'Document has no JIRA_ID');
 
-      const issue      = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${jiraId}?fields=status,labels,${FIELD_STORY_POINTS},summary,description`));
+      const issue      = (await jiraRequest('GET', `/issue/${jiraId}?fields=status,labels,${FIELD_STORY_POINTS},summary,description`)) as Record<string, any>;
       const jiraStatus = issue.fields?.status?.name || null;
       const jiraSp     = issue.fields?.[FIELD_STORY_POINTS] ?? null;
       const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
       const jiraDesc    = jiraToMarkdown(issue.fields?.description || '').trim();
 
       // Resolve team from JIRA labels
-      const issueLabels = /** @type {string[]} */ (issue.fields?.labels ?? []);
-      const teamLabel   = issueLabels.find(l => ALL_TEAM_JIRA_LABELS.has(l));
+      const issueLabels = (issue.fields?.labels ?? []) as string[];
+      const teamLabel   = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
       const jiraTeam    = teamLabel ? JIRA_LABEL_TO_TEAM[teamLabel] : null;
 
       let updated = content;
@@ -156,8 +150,8 @@ export default function jiraSyncRoutes({
       if (existingComments) merged = merged.trimEnd() + existingComments[0];
 
       // Override Team if JIRA team label changed
-      const issLabels  = /** @type {string[]} */ ((/** @type {Record<string,any>} */ (issue)).fields?.labels ?? []);
-      const issTeamLbl = issLabels.find(l => ALL_TEAM_JIRA_LABELS.has(l));
+      const issLabels  = ((issue as Record<string, any>).fields?.labels ?? []) as string[];
+      const issTeamLbl = issLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
       if (issTeamLbl) {
         const jiraTeam = JIRA_LABEL_TO_TEAM[issTeamLbl];
         const localTeam = extractFrontmatterField(existing, 'Team') || 'TBD';
@@ -179,16 +173,14 @@ export default function jiraSyncRoutes({
   });
 
   // ── Shared helper: build preview item from a JIRA issue ──────
-  /** @param {Record<string, any>} iss */
-  function _buildPreviewItem(iss) {
+  function _buildPreviewItem(iss: Record<string, any>) {
     const existing = docIndex.findByJiraId(iss.key) || findLocalFileByJiraId(iss.key);
     const jiraTitle = (iss.fields?.summary || '').trim();
     const jiraSP    = iss.fields?.[FIELD_STORY_POINTS] ?? null;
     const jiraTypeName = iss.fields?.issuetype?.name || '';
     const localType = JIRA_TO_LOCAL_TYPE[jiraTypeName] || 'story';
 
-    /** @type {Record<string, unknown>[]} */
-    const changes = [];
+    const changes: Record<string, unknown>[] = [];
     const item = {
       jiraKey: iss.key, jiraTitle, jiraType: jiraTypeName,
       localFilename: existing?.filename || null,
@@ -231,7 +223,7 @@ export default function jiraSyncRoutes({
       if (!jiraKey) return sendError(res, 400, 'VALIDATION_ERROR', 'jiraKey is required');
 
       const fields = `summary,issuetype,status,priority,description,fixVersions,issuelinks,subtasks,${FIELD_EPIC_NAME},${FIELD_EPIC_LINK},${FIELD_STORY_POINTS}`;
-      const issue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${jiraKey}?fields=${fields}`));
+      const issue = (await jiraRequest('GET', `/issue/${jiraKey}?fields=${fields}`)) as Record<string, any>;
       const items = [];
 
       items.push(_buildPreviewItem(issue));
@@ -239,15 +231,14 @@ export default function jiraSyncRoutes({
       // ── Children ──────────────────────────────────────────────
       if (includeChildren) {
         const issueType = issue.fields?.issuetype?.name;
-        /** @type {Array<Record<string, any>>} */
-        const childIssues = [];
+        const childIssues: Array<Record<string, any>> = [];
         const seen = new Set([jiraKey]);
 
         // Epics: children via Epic Link custom field
         if (issueType === 'Epic' && FIELD_EPIC_LINK) {
           const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
           const jql = `cf[${fieldId}] = ${jiraKey} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
-          const data = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`));
+          const data = (await jiraRequest('GET', `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`)) as Record<string, any>;
           for (const c of (data.issues || [])) { if (!seen.has(c.key)) { seen.add(c.key); childIssues.push(c); } }
         }
 
@@ -257,7 +248,7 @@ export default function jiraSyncRoutes({
           if (inw && !seen.has(inw.key)) {
             seen.add(inw.key);
             try {
-              const full = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${inw.key}?fields=${fields}`));
+              const full = (await jiraRequest('GET', `/issue/${inw.key}?fields=${fields}`)) as Record<string, any>;
               childIssues.push(full);
             } catch { /* skip unreachable children */ }
           }
@@ -279,7 +270,7 @@ export default function jiraSyncRoutes({
             if (jiraChildKeys.has(local.jiraId) || seen.has(local.jiraId)) continue;
             // This local child wasn't in the open JIRA children — check if it's closed or gone
             try {
-              const remoteIssue = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${local.jiraId}?fields=status,summary,issuetype`));
+              const remoteIssue = (await jiraRequest('GET', `/issue/${local.jiraId}?fields=status,summary,issuetype`)) as Record<string, any>;
               const statusCat = remoteIssue.fields?.status?.statusCategory?.key;
               if (statusCat === 'done') {
                 items.push({
@@ -348,7 +339,7 @@ export default function jiraSyncRoutes({
 
       for (const doc of linkedDocs) {
         try {
-          const issue      = /** @type {Record<string, any>} */ (await jiraRequest('GET', `/issue/${doc.jiraId}?fields=${fields}`));
+          const issue      = (await jiraRequest('GET', `/issue/${doc.jiraId}?fields=${fields}`)) as Record<string, any>;
           const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
           const jiraSp      = issue.fields?.[FIELD_STORY_POINTS] ?? null;
           const jiraDesc    = jiraToMarkdown(issue.fields?.description || '').trim();
