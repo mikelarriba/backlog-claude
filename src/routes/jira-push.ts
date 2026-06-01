@@ -83,7 +83,7 @@ export default function jiraPushRoutes({
     const epicPath     = path.join(EPICS_DIR, epicFilename);
     let epicJiraId     = null;
     if (fs.existsSync(epicPath)) {
-      const id = extractFrontmatterField(fs.readFileSync(epicPath, 'utf-8'), 'JIRA_ID');
+      const id = extractFrontmatterField(await fs.promises.readFile(epicPath, 'utf-8'), 'JIRA_ID');
       if (id && id !== 'TBD') epicJiraId = id;
     }
 
@@ -128,7 +128,7 @@ export default function jiraPushRoutes({
       updatedSections.push(section);
     }
 
-    fs.writeFileSync(filepath, serializeStoryFile(frontmatter, updatedSections));
+    await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, updatedSections));
     broadcast({ type: 'story_created', filename, docType: type });
     return { type: 'multi-story', results, errors };
   }
@@ -162,7 +162,7 @@ export default function jiraPushRoutes({
         if (epicFilename && epicFilename !== 'TBD') {
           const epicPath = path.join(EPICS_DIR, epicFilename);
           if (fs.existsSync(epicPath)) {
-            const epicJiraId = extractFrontmatterField(fs.readFileSync(epicPath, 'utf-8'), 'JIRA_ID');
+            const epicJiraId = extractFrontmatterField(await fs.promises.readFile(epicPath, 'utf-8'), 'JIRA_ID');
             if (epicJiraId && epicJiraId !== 'TBD') updateFields[FIELD_EPIC_LINK] = epicJiraId;
           }
         } else {
@@ -193,7 +193,7 @@ export default function jiraPushRoutes({
         if (featureFilename && featureFilename !== 'TBD') {
           const featurePath = path.join(FEATURES_DIR, featureFilename);
           if (fs.existsSync(featurePath)) {
-            const featureJiraId = extractFrontmatterField(fs.readFileSync(featurePath, 'utf-8'), 'JIRA_ID');
+            const featureJiraId = extractFrontmatterField(await fs.promises.readFile(featurePath, 'utf-8'), 'JIRA_ID');
             if (featureJiraId && featureJiraId !== 'TBD') {
               const linkTypeName = await getContainsLinkTypeName();
               if (linkTypeName) {
@@ -221,7 +221,7 @@ export default function jiraPushRoutes({
         if (epicFilename && epicFilename !== 'TBD') {
           const epicPath = path.join(EPICS_DIR, epicFilename);
           if (fs.existsSync(epicPath)) {
-            const epicJiraId = extractFrontmatterField(fs.readFileSync(epicPath, 'utf-8'), 'JIRA_ID');
+            const epicJiraId = extractFrontmatterField(await fs.promises.readFile(epicPath, 'utf-8'), 'JIRA_ID');
             if (epicJiraId && epicJiraId !== 'TBD') fields[FIELD_EPIC_LINK] = epicJiraId;
           }
         }
@@ -235,7 +235,7 @@ export default function jiraPushRoutes({
         if (featureFilename && featureFilename !== 'TBD') {
           const featurePath = path.join(FEATURES_DIR, featureFilename);
           if (fs.existsSync(featurePath)) {
-            const featureJiraId = extractFrontmatterField(fs.readFileSync(featurePath, 'utf-8'), 'JIRA_ID');
+            const featureJiraId = extractFrontmatterField(await fs.promises.readFile(featurePath, 'utf-8'), 'JIRA_ID');
             if (featureJiraId && featureJiraId !== 'TBD') {
               const linkTypeName = await getContainsLinkTypeName();
               if (linkTypeName) {
@@ -251,8 +251,8 @@ export default function jiraPushRoutes({
       let updated = setFrontmatterField(content, 'JIRA_ID',   key);
       updated     = setFrontmatterField(updated,  'JIRA_URL', `${JIRA_BASE}/browse/${key}`);
       updated     = setFrontmatterField(updated,  'Status',   'Created in JIRA');
-      fs.writeFileSync(filepath, updated);
-      docIndex.invalidate(type, filename);
+      await fs.promises.writeFile(filepath, updated);
+      await docIndex.invalidate(type, filename);
       broadcast({ type: 'status_updated', filename, docType: type, status: 'Created in JIRA' });
       logAudit({ op: 'jira-push', docType: type, filename, fields: { jiraId: key }, source: 'api' });
     }
@@ -262,9 +262,9 @@ export default function jiraPushRoutes({
       const slug = filename.replace(/\.md$/, '').replace(/^\d{4}-\d{2}-\d{2}-/, '');
       const attachDir = path.join(BUGS_DIR, 'attachments', slug);
       if (fs.existsSync(attachDir)) {
-        for (const attFile of fs.readdirSync(attachDir)) {
+        for (const attFile of (await fs.promises.readdir(attachDir))) {
           try {
-            const buf = fs.readFileSync(path.join(attachDir, attFile));
+            const buf = await fs.promises.readFile(path.join(attachDir, attFile));
             await jiraUploadAttachment(key, attFile, buf);
             logInfo('jira/push', `Uploaded attachment ${attFile} to ${key}`);
           } catch (e) {
@@ -309,13 +309,13 @@ export default function jiraPushRoutes({
         epicFilenameRef: string | null; pendingFeatureTitle: string | null;
         localTeamLabel: string | null; localSprint: string | null; autoIncluded?: boolean;
       };
-      // Build local metadata for each item (synchronous, no I/O limit needed)
-      const localItems: PreviewItem[] = items.flatMap(({ filename, docType }: { filename: string; docType: string }) => {
+      // Build local metadata for each item
+      const localItemsRaw: (PreviewItem | null)[] = await Promise.all(items.map(async ({ filename, docType }: { filename: string; docType: string }) => {
         const cfg = TYPE_CONFIG[docType];
-        if (!cfg) return [];
+        if (!cfg) return null;
         const filepath = path.join(cfg.dir(), filename);
-        if (!fs.existsSync(filepath)) return [];
-        const content    = fs.readFileSync(filepath, 'utf-8');
+        if (!fs.existsSync(filepath)) return null;
+        const content    = await fs.promises.readFile(filepath, 'utf-8');
         const jiraId     = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
         const localTitle = extractJiraSummary(content);
         const localSP    = extractFrontmatterField(content, 'Story_Points');
@@ -332,7 +332,7 @@ export default function jiraPushRoutes({
             epicFilenameRef = epicFilename;
             const epicPath = path.join(EPICS_DIR, epicFilename);
             if (fs.existsSync(epicPath)) {
-              const epicContent = fs.readFileSync(epicPath, 'utf-8');
+              const epicContent = await fs.promises.readFile(epicPath, 'utf-8');
               const eid = extractFrontmatterField(epicContent, 'JIRA_ID');
               if (eid && eid !== 'TBD') {
                 localEpicJiraId = eid;
@@ -350,7 +350,7 @@ export default function jiraPushRoutes({
           if (featureFilename && featureFilename !== 'TBD') {
             const featurePath = path.join(FEATURES_DIR, featureFilename);
             if (fs.existsSync(featurePath)) {
-              const featureContent = fs.readFileSync(featurePath, 'utf-8');
+              const featureContent = await fs.promises.readFile(featurePath, 'utf-8');
               const fid = extractFrontmatterField(featureContent, 'JIRA_ID');
               if (!fid || fid === 'TBD') {
                 pendingFeatureTitle = extractJiraSummary(featureContent);
@@ -359,8 +359,9 @@ export default function jiraPushRoutes({
           }
         }
         const localSprint = extractFrontmatterField(content, 'Sprint');
-        return [{ filename, docType, content, jiraId, localTitle, spValue, localEpicJiraId, pendingEpicTitle, epicFilenameRef, pendingFeatureTitle, localTeamLabel, localSprint }];
-      });
+        return { filename, docType, content, jiraId, localTitle, spValue, localEpicJiraId, pendingEpicTitle, epicFilenameRef, pendingFeatureTitle, localTeamLabel, localSprint } as PreviewItem;
+      }));
+      const localItems: PreviewItem[] = localItemsRaw.filter((x): x is PreviewItem => x !== null);
 
       // Auto-include TBD epics referenced by stories but not already in the push scope
       const includedFilenames = new Set(localItems.map(i => i.filename));
@@ -369,7 +370,7 @@ export default function jiraPushRoutes({
         if (item.pendingEpicTitle && item.epicFilenameRef && !includedFilenames.has(item.epicFilenameRef)) {
           const epicPath = path.join(EPICS_DIR, item.epicFilenameRef);
           if (fs.existsSync(epicPath)) {
-            const epicContent = fs.readFileSync(epicPath, 'utf-8');
+            const epicContent = await fs.promises.readFile(epicPath, 'utf-8');
             const epicTitle = extractJiraSummary(epicContent);
             const epicSP = extractFrontmatterField(epicContent, 'Story_Points');
             const epicSpValue = epicSP && epicSP !== 'TBD' ? Number(epicSP) : null;
@@ -485,7 +486,7 @@ export default function jiraPushRoutes({
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
     try {
-      const content = fs.readFileSync(filepath, 'utf-8');
+      const content = await fs.promises.readFile(filepath, 'utf-8');
       const { frontmatter, sections } = parseStorySections(content);
 
       const isMultiStory = type === 'story'

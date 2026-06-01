@@ -143,7 +143,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
   });
 
   // ── POST /api/link ─────────────────────────────────────────────────────────
-  router.post('/api/link', (req, res) => {
+  router.post('/api/link', async (req, res) => {
     const LINK_RULES: Record<string, { field: string; sourceDir: () => string; targetDir: () => string }> = {
       'epic→feature': { field: 'Feature_ID', sourceDir: () => EPICS_DIR,   targetDir: () => FEATURES_DIR },
       'story→epic':   { field: 'Epic_ID',    sourceDir: () => STORIES_DIR, targetDir: () => EPICS_DIR    },
@@ -198,23 +198,23 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
         }
 
         // Append tgtFile to source's Blocks field
-        const srcContent = fs.readFileSync(srcPath, 'utf-8');
+        const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
         const existingBlocks = extractFrontmatterField(srcContent, 'Blocks');
         const blocksArr = existingBlocks ? existingBlocks.split(',').map(s => s.trim()).filter(Boolean) : [];
         if (!blocksArr.includes(tgtFile)) {
           blocksArr.push(tgtFile);
-          fs.writeFileSync(srcPath, setFrontmatterField(srcContent, 'Blocks', blocksArr.join(', ')));
-          docIndex.invalidate(srcType, srcFile);
+          await fs.promises.writeFile(srcPath, setFrontmatterField(srcContent, 'Blocks', blocksArr.join(', ')));
+          await docIndex.invalidate(srcType, srcFile);
         }
 
         // Append srcFile to target's Blocked_By field
-        const tgtContent = fs.readFileSync(tgtPath, 'utf-8');
+        const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
         const existingBlockedBy = extractFrontmatterField(tgtContent, 'Blocked_By');
         const blockedByArr = existingBlockedBy ? existingBlockedBy.split(',').map(s => s.trim()).filter(Boolean) : [];
         if (!blockedByArr.includes(srcFile)) {
           blockedByArr.push(srcFile);
-          fs.writeFileSync(tgtPath, setFrontmatterField(tgtContent, 'Blocked_By', blockedByArr.join(', ')));
-          docIndex.invalidate(tgtType, tgtFile);
+          await fs.promises.writeFile(tgtPath, setFrontmatterField(tgtContent, 'Blocked_By', blockedByArr.join(', ')));
+          await docIndex.invalidate(tgtType, tgtFile);
         }
 
         broadcast({ type: 'link_updated', linkType: 'blocks', sourceFilename: srcFile, targetFilename: tgtFile });
@@ -239,23 +239,23 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
         if (!fs.existsSync(tgtPath)) return sendError(res, 404, 'NOT_FOUND', 'Target document not found');
 
         // Append tgtFile to source's Parallel field
-        const srcContent = fs.readFileSync(srcPath, 'utf-8');
+        const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
         const existingParallelSrc = extractFrontmatterField(srcContent, 'Parallel');
         const parallelSrcArr = existingParallelSrc ? existingParallelSrc.split(',').map(s => s.trim()).filter(Boolean) : [];
         if (!parallelSrcArr.includes(tgtFile)) {
           parallelSrcArr.push(tgtFile);
-          fs.writeFileSync(srcPath, setFrontmatterField(srcContent, 'Parallel', parallelSrcArr.join(', ')));
-          docIndex.invalidate(srcType, srcFile);
+          await fs.promises.writeFile(srcPath, setFrontmatterField(srcContent, 'Parallel', parallelSrcArr.join(', ')));
+          await docIndex.invalidate(srcType, srcFile);
         }
 
         // Append srcFile to target's Parallel field (symmetric)
-        const tgtContent = fs.readFileSync(tgtPath, 'utf-8');
+        const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
         const existingParallelTgt = extractFrontmatterField(tgtContent, 'Parallel');
         const parallelTgtArr = existingParallelTgt ? existingParallelTgt.split(',').map(s => s.trim()).filter(Boolean) : [];
         if (!parallelTgtArr.includes(srcFile)) {
           parallelTgtArr.push(srcFile);
-          fs.writeFileSync(tgtPath, setFrontmatterField(tgtContent, 'Parallel', parallelTgtArr.join(', ')));
-          docIndex.invalidate(tgtType, tgtFile);
+          await fs.promises.writeFile(tgtPath, setFrontmatterField(tgtContent, 'Parallel', parallelTgtArr.join(', ')));
+          await docIndex.invalidate(tgtType, tgtFile);
         }
 
         broadcast({ type: 'link_updated', linkType: 'parallel', sourceFilename: srcFile, targetFilename: tgtFile });
@@ -278,10 +278,10 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
       if (!fs.existsSync(srcPath)) return sendError(res, 404, 'NOT_FOUND', 'Source document not found');
       if (!fs.existsSync(tgtPath)) return sendError(res, 404, 'NOT_FOUND', 'Target document not found');
 
-      const content = fs.readFileSync(srcPath, 'utf-8');
+      const content = await fs.promises.readFile(srcPath, 'utf-8');
       const updated = setFrontmatterField(content, rule.field, tgtFile);
-      fs.writeFileSync(srcPath, updated);
-      docIndex.invalidate(normalizeType(sourceType), srcFile);
+      await fs.promises.writeFile(srcPath, updated);
+      await docIndex.invalidate(normalizeType(sourceType), srcFile);
 
       broadcast({ type: 'link_updated', sourceType, sourceFilename: srcFile, targetType, targetFilename: tgtFile });
       logInfo('POST /api/link', `${srcFile} → ${tgtFile} (${rule.field})`);
@@ -293,7 +293,7 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
   });
 
   // ── DELETE /api/link ── remove a blocks dependency ─────────────────────────
-  router.delete('/api/link', (req, res) => {
+  router.delete('/api/link', async (req, res) => {
     try {
       const { sourceType, sourceFilename, targetType, targetFilename, linkType } = req.body;
       if (!['blocks', 'parallel'].includes(linkType)) {
@@ -319,50 +319,50 @@ export default function linksRoutes({ TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, STOR
       if (linkType === 'parallel') {
         // Remove tgt from source's Parallel field
         if (srcPath && fs.existsSync(srcPath)) {
-          const srcContent = fs.readFileSync(srcPath, 'utf-8');
+          const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
           const existing   = extractFrontmatterField(srcContent, 'Parallel') || '';
           const filtered   = existing.split(',').map(s => s.trim()).filter(s => s && s !== tgtFile && s !== 'TBD');
           const updated    = filtered.length
             ? setFrontmatterField(srcContent, 'Parallel', filtered.join(', '))
             : removeFrontmatterField(srcContent, 'Parallel');
-          fs.writeFileSync(srcPath, updated);
-          docIndex.invalidate(srcType, srcFile);
+          await fs.promises.writeFile(srcPath, updated);
+          await docIndex.invalidate(srcType, srcFile);
         }
         // Remove src from target's Parallel field
         if (tgtPath && fs.existsSync(tgtPath)) {
-          const tgtContent = fs.readFileSync(tgtPath, 'utf-8');
+          const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
           const existing   = extractFrontmatterField(tgtContent, 'Parallel') || '';
           const filtered   = existing.split(',').map(s => s.trim()).filter(s => s && s !== srcFile && s !== 'TBD');
           const updated    = filtered.length
             ? setFrontmatterField(tgtContent, 'Parallel', filtered.join(', '))
             : removeFrontmatterField(tgtContent, 'Parallel');
-          fs.writeFileSync(tgtPath, updated);
-          docIndex.invalidate(tgtType, tgtFile);
+          await fs.promises.writeFile(tgtPath, updated);
+          await docIndex.invalidate(tgtType, tgtFile);
         }
         broadcast({ type: 'link_updated', linkType: 'parallel', sourceFilename: srcFile, targetFilename: tgtFile });
         logInfo('DELETE /api/link', `removed parallel: ${srcFile} ↔ ${tgtFile}`);
       } else {
         // Remove from Blocks on source
         if (srcPath && fs.existsSync(srcPath)) {
-          const srcContent = fs.readFileSync(srcPath, 'utf-8');
+          const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
           const existing   = extractFrontmatterField(srcContent, 'Blocks') || '';
           const filtered   = existing.split(',').map(s => s.trim()).filter(s => s && s !== tgtFile && s !== 'TBD');
           const updated    = filtered.length
             ? setFrontmatterField(srcContent, 'Blocks', filtered.join(', '))
             : removeFrontmatterField(srcContent, 'Blocks');
-          fs.writeFileSync(srcPath, updated);
-          docIndex.invalidate(srcType, srcFile);
+          await fs.promises.writeFile(srcPath, updated);
+          await docIndex.invalidate(srcType, srcFile);
         }
         // Remove from Blocked_By on target
         if (tgtPath && fs.existsSync(tgtPath)) {
-          const tgtContent = fs.readFileSync(tgtPath, 'utf-8');
+          const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
           const existing   = extractFrontmatterField(tgtContent, 'Blocked_By') || '';
           const filtered   = existing.split(',').map(s => s.trim()).filter(s => s && s !== srcFile && s !== 'TBD');
           const updated    = filtered.length
             ? setFrontmatterField(tgtContent, 'Blocked_By', filtered.join(', '))
             : removeFrontmatterField(tgtContent, 'Blocked_By');
-          fs.writeFileSync(tgtPath, updated);
-          docIndex.invalidate(tgtType, tgtFile);
+          await fs.promises.writeFile(tgtPath, updated);
+          await docIndex.invalidate(tgtType, tgtFile);
         }
         broadcast({ type: 'link_updated', linkType: 'blocks', sourceFilename: srcFile, targetFilename: tgtFile });
         logInfo('DELETE /api/link', `removed blocks: ${srcFile} → ${tgtFile}`);

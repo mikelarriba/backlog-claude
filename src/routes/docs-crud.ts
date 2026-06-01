@@ -131,7 +131,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       }
 
       await fs.promises.writeFile(filepath, content);
-      docIndex.invalidate(docType, filename);
+      await docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
       const changedFields = Object.fromEntries(
         Object.entries({ status, title, fixVersion, storyPoints, sprint, rank, team, workCategory, priority })
@@ -156,7 +156,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
       await fs.promises.unlink(filepath);
-      docIndex.invalidate(docType, filename);
+      await docIndex.invalidate(docType, filename);
       broadcast({ type: 'doc_deleted', filename, docType });
       logAudit({ op: 'delete', docType, filename, source: 'api' });
       res.json({ success: true });
@@ -213,7 +213,7 @@ Created: ${date}${epicIdLine}${featureIdLine}
 ${notesLine}`;
 
       await fs.promises.writeFile(path.join(destDir, filename), content);
-      docIndex.invalidate(normalizedType, filename);
+      await docIndex.invalidate(normalizedType, filename);
       broadcast({ type: cfg.event, filename, docType: normalizedType });
       logAudit({ op: 'create', docType: normalizedType, filename, fields: { title: title.trim() }, source: 'api' });
       logInfo('POST /api/docs/draft', `Created draft ${filename}`);

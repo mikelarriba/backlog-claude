@@ -23,7 +23,7 @@ export interface JiraServiceInstance {
   jiraPagedRequest: (jql: string, fields: string, opts?: { maxResults?: number; maxTotal?: number }) => Promise<any[]>;
   jiraAgileRequest: (method: string, urlPath: string, body?: any, opts?: { _retryOn429?: boolean }) => Promise<any>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<any>;
-  findLocalFileByJiraId: (jiraId: string) => { docType: string; filename: string } | null;
+  findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
   jiraIssueToMarkdown: (issue: any) => { docType: string; content: string };
   extractJiraSummary: (content: string) => string;
 }
@@ -124,12 +124,12 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
     return all.slice(0, maxTotal);
   }
 
-  function findLocalFileByJiraId(jiraId: string): { docType: string; filename: string } | null {
+  async function findLocalFileByJiraId(jiraId: string): Promise<{ docType: string; filename: string } | null> {
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
       const dir = cfg.dir();
       if (!fs.existsSync(dir)) continue;
-      for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
-        const content = fs.readFileSync(path.join(dir, f), 'utf-8');
+      for (const f of (await fs.promises.readdir(dir)).filter(f => f.endsWith('.md'))) {
+        const content = await fs.promises.readFile(path.join(dir, f), 'utf-8');
         const m = content.match(/^JIRA_ID:\s*(.+)$/m);
         if (m && m[1].trim() === jiraId) return { docType, filename: f };
       }

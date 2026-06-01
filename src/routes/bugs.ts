@@ -62,7 +62,7 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
         ensureDir(attachDir);
         for (const att of processed) {
           const safeName = att.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-          fs.writeFileSync(path.join(attachDir, safeName), att.buffer);
+          await fs.promises.writeFile(path.join(attachDir, safeName), att.buffer);
           attachmentRefs += `- [${att.filename}](attachments/${slug}/${safeName})\n`;
         }
       }
@@ -89,8 +89,8 @@ ${translatedDesc || '_No description provided._'}
 ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
 
       ensureDir(BUGS_DIR);
-      fs.writeFileSync(path.join(BUGS_DIR, filename), content);
-      docIndex.invalidate('bug', filename);
+      await fs.promises.writeFile(path.join(BUGS_DIR, filename), content);
+      await docIndex.invalidate('bug', filename);
 
       broadcast({ type: 'bug_created', filename, docType: 'bug' });
       logInfo('POST /api/bugs/create', `Bug created: ${filename}`, { attachments: processed.length });

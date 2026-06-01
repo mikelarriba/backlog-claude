@@ -12,12 +12,12 @@ export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INB
   const router = Router();
 
   // ── GET /api/stories/:filename ─────────────────────────────────────────────
-  router.get('/api/stories/:filename', (req, res) => {
+  router.get('/api/stories/:filename', async (req, res) => {
     try {
       const filename = assertFilename(req.params.filename);
       const filepath = path.join(STORIES_DIR, filename);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
-      const content = fs.readFileSync(filepath, 'utf-8');
+      const content = await fs.promises.readFile(filepath, 'utf-8');
       const { sections } = parseStorySections(content);
       res.json({
         filename,
@@ -48,7 +48,7 @@ export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INB
       const { storyIndex, feedback } = req.body;
       if (!feedback?.trim()) { send({ error: { code: 'VALIDATION_ERROR', message: 'Feedback is required' } }); return res.end(); }
 
-      const content = fs.readFileSync(filepath, 'utf-8');
+      const content = await fs.promises.readFile(filepath, 'utf-8');
       const { frontmatter, sections } = parseStorySections(content);
       if (storyIndex < 0 || storyIndex >= sections.length) {
         send({ error: { code: 'VALIDATION_ERROR', message: 'Invalid story index' } }); return res.end();
@@ -57,7 +57,7 @@ export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INB
       const epicFilename = filename.replace('-stories.md', '.md');
       const inboxPath = path.join(INBOX_DIR, epicFilename);
       const inboxHistory = fs.existsSync(inboxPath)
-        ? `\n\nOriginal epic idea and upgrade history:\n---\n${fs.readFileSync(inboxPath, 'utf-8')}\n---`
+        ? `\n\nOriginal epic idea and upgrade history:\n---\n${await fs.promises.readFile(inboxPath, 'utf-8')}\n---`
         : '';
 
       const upgradePrompt = `Rewrite the following User Story applying the feedback below. The feedback is provided — apply it directly. Do NOT ask for clarification. Do NOT ask what changes are needed. Output ONLY the rewritten markdown — no commentary, no preamble, no code fences.
@@ -77,11 +77,11 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
 
       newStory = normalizeOutput(newStory);
       sections[storyIndex] = newStory;
-      fs.writeFileSync(filepath, serializeStoryFile(frontmatter, sections));
+      await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
 
       if (fs.existsSync(inboxPath)) {
         const note = `\n\n---\n\n## Story Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')} (Story ${storyIndex + 1})\n\n${feedback.trim()}\n`;
-        fs.appendFileSync(inboxPath, note);
+        await fs.promises.appendFile(inboxPath, note);
       }
 
       send({ done: true, title: extractStoryTitle(newStory), content: newStory });
@@ -95,21 +95,21 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
   });
 
   // ── DELETE /api/stories/:filename/story ────────────────────────────────────
-  router.delete('/api/stories/:filename/story', (req, res) => {
+  router.delete('/api/stories/:filename/story', async (req, res) => {
     try {
       const filename = assertFilename(req.params.filename);
       const filepath = path.join(STORIES_DIR, filename);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
 
       const { storyIndex } = req.body;
-      const content = fs.readFileSync(filepath, 'utf-8');
+      const content = await fs.promises.readFile(filepath, 'utf-8');
       const { frontmatter, sections } = parseStorySections(content);
       if (storyIndex < 0 || storyIndex >= sections.length) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'Invalid story index');
       }
 
       sections.splice(storyIndex, 1);
-      fs.writeFileSync(filepath, serializeStoryFile(frontmatter, sections));
+      await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
       res.json({ success: true, remaining: sections.length });
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -133,7 +133,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
     const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
-      const epicContent = fs.readFileSync(filepath, 'utf-8');
+      const epicContent = await fs.promises.readFile(filepath, 'utf-8');
       const refineTemplate = loadCommand('refine-epics');
       const storiesPrompt = refineTemplate
         ? refineTemplate.replace('$ARGUMENTS', epicContent)
@@ -168,8 +168,8 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
         const cleanBody = section.replace(/^## Story \d+[:\s]+.+$/m, `## ${storyTitle}`);
 
         const frontmatter = `---\nJIRA_ID: TBD\nStory_Points: TBD\nStatus: Draft\nPriority: Medium\nEpic_ID: ${filename}\nFix_Version: ${epicFixVersion}\nSquad: TBD\nPI: TBD\nSprint: TBD\nCreated: ${date}\n---\n\n`;
-        fs.writeFileSync(path.join(STORIES_DIR, storyFilename), frontmatter + cleanBody);
-        docIndex.invalidate('story', storyFilename);
+        await fs.promises.writeFile(path.join(STORIES_DIR, storyFilename), frontmatter + cleanBody);
+        await docIndex.invalidate('story', storyFilename);
         broadcast({ type: 'story_created', filename: storyFilename, docType: 'story' });
         createdFiles.push({ filename: storyFilename, title: storyTitle });
         send({ progress: { current: i + 1, total, title: storyTitle } });
@@ -186,17 +186,16 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
   });
 
   // ── Legacy endpoints ───────────────────────────────────────────────────────
-  router.get('/api/epics', (_, res) => {
+  router.get('/api/epics', async (_, res) => {
     try {
       ensureDir(EPICS_DIR);
-      const files = fs.readdirSync(EPICS_DIR)
-        .filter(f => f.endsWith('.md') && f !== '.gitkeep')
-        .map(f => {
-          const content = fs.readFileSync(path.join(EPICS_DIR, f), 'utf-8');
-          const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/);
-          return { filename: f, docType: 'epic', title: extractTitle(content) || f.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''), date: dateMatch ? dateMatch[1] : '' };
-        })
-        .sort((a, b) => b.filename.localeCompare(a.filename));
+      const filenames = (await fs.promises.readdir(EPICS_DIR))
+        .filter(f => f.endsWith('.md') && f !== '.gitkeep');
+      const files = (await Promise.all(filenames.map(async f => {
+        const content = await fs.promises.readFile(path.join(EPICS_DIR, f), 'utf-8');
+        const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/);
+        return { filename: f, docType: 'epic', title: extractTitle(content) || f.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''), date: dateMatch ? dateMatch[1] : '' };
+      }))).sort((a, b) => b.filename.localeCompare(a.filename));
       res.json(files);
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -204,12 +203,12 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
     }
   });
 
-  router.get('/api/epic/:filename', (req, res) => {
+  router.get('/api/epic/:filename', async (req, res) => {
     try {
       const filename = assertFilename(req.params.filename);
       const filepath = path.join(EPICS_DIR, filename);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
-      res.json({ filename, docType: 'epic', content: fs.readFileSync(filepath, 'utf-8') });
+      res.json({ filename, docType: 'epic', content: await fs.promises.readFile(filepath, 'utf-8') });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(res, apiErr.code === 'INVALID_FILENAME' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);

@@ -9,26 +9,26 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
 
   const CANVAS_LAYOUT_PATH = path.join(rootDir, '.canvas-layout.json');
 
-  function loadLayout(): Record<string, unknown> {
+  async function loadLayout(): Promise<Record<string, unknown>> {
     try {
-      if (fs.existsSync(CANVAS_LAYOUT_PATH)) return JSON.parse(fs.readFileSync(CANVAS_LAYOUT_PATH, 'utf-8'));
+      if (fs.existsSync(CANVAS_LAYOUT_PATH)) return JSON.parse(await fs.promises.readFile(CANVAS_LAYOUT_PATH, 'utf-8'));
     } catch {}
     return {};
   }
 
-  function saveLayout(data: Record<string, unknown>) {
-    fs.writeFileSync(CANVAS_LAYOUT_PATH, JSON.stringify(data, null, 2));
+  async function saveLayout(data: Record<string, unknown>) {
+    await fs.promises.writeFile(CANVAS_LAYOUT_PATH, JSON.stringify(data, null, 2));
   }
 
   // GET /api/canvas/layout/:epicFilename
-  router.get('/api/canvas/layout/:epicFilename', (req, res) => {
+  router.get('/api/canvas/layout/:epicFilename', async (req, res) => {
     const epicFilename = decodeURIComponent(req.params.epicFilename);
-    const layout = loadLayout();
+    const layout = await loadLayout();
     res.json(layout[epicFilename] || {});
   });
 
   // PUT /api/canvas/layout/:epicFilename
-  router.put('/api/canvas/layout/:epicFilename', (req, res) => {
+  router.put('/api/canvas/layout/:epicFilename', async (req, res) => {
     const epicFilename = decodeURIComponent(req.params.epicFilename);
     const { positions } = req.body;
     if (!positions || typeof positions !== 'object') {
@@ -45,19 +45,19 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
       }
     }
 
-    const layout = loadLayout();
+    const layout = await loadLayout();
     layout[epicFilename] = positions;
-    saveLayout(layout);
+    await saveLayout(layout);
     logInfo('PUT /api/canvas/layout', `Saved layout for ${epicFilename}`);
     res.json({ success: true });
   });
 
   // DELETE /api/canvas/layout/:epicFilename
-  router.delete('/api/canvas/layout/:epicFilename', (req, res) => {
+  router.delete('/api/canvas/layout/:epicFilename', async (req, res) => {
     const epicFilename = decodeURIComponent(req.params.epicFilename);
-    const layout = loadLayout();
+    const layout = await loadLayout();
     delete layout[epicFilename];
-    saveLayout(layout);
+    await saveLayout(layout);
     logInfo('DELETE /api/canvas/layout', `Cleared layout for ${epicFilename}`);
     res.json({ success: true });
   });

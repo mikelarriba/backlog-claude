@@ -86,7 +86,7 @@ ${idea.trim()}
           finalContent = setFrontmatterField(finalContent, 'PI', pi);
         }
         await fs.promises.writeFile(path.join(destDir, filename), finalContent);
-        docIndex.invalidate(normalizedType, filename);
+        await docIndex.invalidate(normalizedType, filename);
       } finally {
         _apiInFlight.delete(filename);
       }
@@ -136,7 +136,7 @@ ${idea.trim()}
       fullContent = normalizeOutput(fullContent);
       fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
       await fs.promises.writeFile(filepath, fullContent);
-      docIndex.invalidate(docType, filename);
+      await docIndex.invalidate(docType, filename);
 
       if (inboxExists) {
         const note = `\n\n---\n\n## Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}\n\n${feedback.trim()}\n`;
@@ -316,14 +316,14 @@ TBD
 `;
 
         ensureDir(featureCfg.dir());
-        fs.writeFileSync(path.join(featureCfg.dir(), featureFilename), featureContent);
-        docIndex.invalidate('feature', featureFilename);
+        await fs.promises.writeFile(path.join(featureCfg.dir(), featureFilename), featureContent);
+        await docIndex.invalidate('feature', featureFilename);
         broadcast({ type: 'feature_created', filename: featureFilename, docType: 'feature' });
 
         // Link original epic to the new feature
         let updated = setFrontmatterField(epicContent, 'Feature_ID', featureFilename);
-        fs.writeFileSync(epicPath, updated);
-        docIndex.invalidate('epic', epicFilename);
+        await fs.promises.writeFile(epicPath, updated);
+        await docIndex.invalidate('epic', epicFilename);
 
         featureId = featureFilename;
         featureCreated = true;
@@ -335,7 +335,7 @@ TBD
         const featureCfg = TYPE_CONFIG.feature;
         const featurePath = path.join(featureCfg.dir(), featureFilename);
         if (fs.existsSync(featurePath)) {
-          featureTitle = extractTitle(fs.readFileSync(featurePath, 'utf-8')) || featureFilename;
+          featureTitle = extractTitle(await fs.promises.readFile(featurePath, 'utf-8')) || featureFilename;
         } else {
           featureTitle = featureFilename;
         }
@@ -378,7 +378,7 @@ ${idea}
       _apiInFlight.add(newEpicFilename);
       try {
         ensureDir(INBOX_DIR);
-        fs.writeFileSync(path.join(INBOX_DIR, newEpicFilename), rawContent);
+        await fs.promises.writeFile(path.join(INBOX_DIR, newEpicFilename), rawContent);
 
         const prompt = buildGeneratePrompt('epic', loadCommand(epicCfg.command), newEpicFilename, rawContent);
         const generatedContent = await callClaude(prompt);
@@ -391,8 +391,8 @@ ${idea}
         if (epicPi && epicPi !== 'TBD') finalContent = setFrontmatterField(finalContent, 'PI', epicPi);
         if (epicTeam && epicTeam !== 'TBD') finalContent = setFrontmatterField(finalContent, 'Team', epicTeam);
         if (epicWorkCat && epicWorkCat !== 'TBD') finalContent = setFrontmatterField(finalContent, 'Work_Category', epicWorkCat);
-        fs.writeFileSync(path.join(destDir, newEpicFilename), finalContent);
-        docIndex.invalidate('epic', newEpicFilename);
+        await fs.promises.writeFile(path.join(destDir, newEpicFilename), finalContent);
+        await docIndex.invalidate('epic', newEpicFilename);
       } finally {
         _apiInFlight.delete(newEpicFilename);
       }

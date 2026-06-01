@@ -117,16 +117,17 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
   }
 
   // Rebuild a single entry after a write; remove it after a delete.
-  function invalidate(docType: string, filename: string): void {
+  async function invalidate(docType: string, filename: string): Promise<void> {
     const cfg = TYPE_CONFIG[docType];
     if (!cfg) { _map.delete(filename); return; }
     const filepath = path.join(cfg.dir(), filename);
     if (!fs.existsSync(filepath)) { _map.delete(filename); return; }
-    // Fire-and-forget async read; on failure silently remove the entry.
-    _buildEntry(docType, cfg.dir(), filename).then(
-      entry => _map.set(filename, entry),
-      () => _map.delete(filename),
-    );
+    try {
+      const entry = await _buildEntry(docType, cfg.dir(), filename);
+      _map.set(filename, entry);
+    } catch {
+      _map.delete(filename);
+    }
   }
 
   // Full async rebuild — use after batch operations that touch many files.
