@@ -38,9 +38,9 @@ export default function jiraSearchRoutes({
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
       const rawIssues = (await jiraPagedRequest(jql, fields, { maxResults: 100, maxTotal: 500 })) as Record<string, any>[];
 
-      const issues = rawIssues.map((issue) => {
+      const issues = await Promise.all(rawIssues.map(async (issue) => {
         const iss = issue;
-        const existing = docIndex.findByJiraId(iss.key) || findLocalFileByJiraId(iss.key);
+        const existing = docIndex.findByJiraId(iss.key) || await findLocalFileByJiraId(iss.key);
         return {
           key:           iss.key,
           summary:       iss.fields.summary || '',
@@ -52,7 +52,7 @@ export default function jiraSearchRoutes({
           localFilename: existing?.filename || null,
           localDocType:  existing?.docType  || null,
         };
-      });
+      }));
 
       res.json({ issues, total: rawIssues.length });
     } catch (err) {
@@ -96,10 +96,10 @@ export default function jiraSearchRoutes({
       const children: Array<Record<string, unknown>> = [];
       const seen = new Set();
 
-      function addChild(child: Record<string, any>) {
+      async function addChild(child: Record<string, any>) {
         if (seen.has(child.key)) return;
         seen.add(child.key);
-        const existing = docIndex.findByJiraId(child.key) || findLocalFileByJiraId(child.key);
+        const existing = docIndex.findByJiraId(child.key) || await findLocalFileByJiraId(child.key);
         children.push({
           key:           child.key,
           summary:       child.fields?.summary || '',
@@ -116,16 +116,16 @@ export default function jiraSearchRoutes({
         const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
         const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
         const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', { maxResults: 100, maxTotal: 500 });
-        for (const child of childIssues) addChild(child as Record<string, any>);
+        for (const child of childIssues) await addChild(child as Record<string, any>);
       }
 
       // New Features / Epics: check issue links (inward = contained children)
       for (const link of (issue.fields.issuelinks || [])) {
-        if (link.inwardIssue) addChild(link.inwardIssue);
+        if (link.inwardIssue) await addChild(link.inwardIssue);
       }
 
       // Subtasks
-      for (const st of (issue.fields.subtasks || [])) addChild(st);
+      for (const st of (issue.fields.subtasks || [])) await addChild(st);
 
       res.json({ parentKey: key, parentType: issueType, children });
     } catch (err) {
@@ -160,7 +160,7 @@ export default function jiraSearchRoutes({
       const conflicts = [];
 
       for (const key of keys) {
-        const existing = docIndex.findByJiraId(key) || findLocalFileByJiraId(key);
+        const existing = docIndex.findByJiraId(key) || await findLocalFileByJiraId(key);
         if (existing && !overwriteKeys.includes(key)) {
           conflicts.push({ key, existingFilename: existing.filename, existingDocType: existing.docType });
           continue;
@@ -202,8 +202,8 @@ export default function jiraSearchRoutes({
 
         const destDir = TYPE_CONFIG[docType].dir();
         ensureDir(destDir);
-        fs.writeFileSync(path.join(destDir, filename), content);
-        docIndex.invalidate(docType, filename);
+        await fs.promises.writeFile(path.join(destDir, filename), content);
+        await docIndex.invalidate(docType, filename);
 
         pulled.push({ key, filename, docType });
         broadcast({ type: `${docType}_created`, filename, docType });

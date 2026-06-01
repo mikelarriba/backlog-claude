@@ -50,7 +50,7 @@ export interface DocIndexInstance {
   build: () => Promise<DocIndexInstance>;
   getAll: () => DocEntry[];
   get: (filename: string) => DocEntry | null;
-  invalidate: (docType: string, filename: string) => void;
+  invalidate: (docType: string, filename: string) => Promise<void>;
   invalidateAll: () => Promise<void>;
   findByJiraId: (jiraId: string) => { docType: string; filename: string } | null;
 }
@@ -158,7 +158,7 @@ export interface JiraRouteContext extends RouteContext {
   jiraAgileRequest: (method: string, urlPath: string, body?: unknown, opts?: { _retryOn429?: boolean }) => Promise<unknown>;
   jiraPagedRequest: (jql: string, fields: string, opts?: { maxResults?: number; maxTotal?: number }) => Promise<unknown[]>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
-  findLocalFileByJiraId: (jiraId: string) => { docType: string; filename: string } | null;
+  findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
   jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };
   extractJiraSummary: (content: string) => string;
 }

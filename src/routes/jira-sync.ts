@@ -17,14 +17,14 @@ export default function jiraSyncRoutes({
 }: JiraRouteContext) {
   const router = Router();
 
-  function _appendDescriptionHistory(inboxPath: string, oldBody: string, newBody: string) {
+  async function _appendDescriptionHistory(inboxPath: string, oldBody: string, newBody: string) {
     const ts = new Date().toISOString().slice(0, 16).replace('T', ' ');
     const note = `\n\n---\n\n## JIRA Description Update — ${ts}\n\n**Previous description:**\n${oldBody || '_empty_'}\n\n**New description from JIRA:**\n${newBody || '_empty_'}\n`;
     if (fs.existsSync(inboxPath)) {
-      fs.appendFileSync(inboxPath, note);
+      await fs.promises.appendFile(inboxPath, note);
     } else {
-      fs.mkdirSync(path.dirname(inboxPath), { recursive: true });
-      fs.writeFileSync(inboxPath, note.trimStart());
+      await fs.promises.mkdir(path.dirname(inboxPath), { recursive: true });
+      await fs.promises.writeFile(inboxPath, note.trimStart());
     }
   }
 
@@ -43,7 +43,7 @@ export default function jiraSyncRoutes({
       const filepath = path.join(cfg.dir(), filename);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const content = fs.readFileSync(filepath, 'utf-8');
+      const content = await fs.promises.readFile(filepath, 'utf-8');
       const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
       if (!jiraId || jiraId === 'TBD') return sendError(res, 400, 'NO_JIRA_ID', 'Document has no JIRA_ID');
 
@@ -87,8 +87,8 @@ export default function jiraSyncRoutes({
         }
       }
 
-      fs.writeFileSync(filepath, updated);
-      docIndex.invalidate(docType, filename);
+      await fs.promises.writeFile(filepath, updated);
+      await docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
 
       logAudit({ op: 'jira-sync', docType, filename, fields: { jiraStatus, storyPoints: jiraSp }, source: 'jira-sync' });
@@ -115,7 +115,7 @@ export default function jiraSyncRoutes({
 
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const existing = fs.readFileSync(filepath, 'utf-8');
+      const existing = await fs.promises.readFile(filepath, 'utf-8');
       const existingBodyText = _extractBodyText(existing);
 
       let jiraKey = (req.body?.jiraKey || '').trim().toUpperCase() || extractFrontmatterField(existing, 'JIRA_ID');
@@ -158,8 +158,8 @@ export default function jiraSyncRoutes({
         if (jiraTeam !== localTeam) merged = setFrontmatterField(merged, 'Team', jiraTeam);
       }
 
-      fs.writeFileSync(filepath, merged);
-      docIndex.invalidate(docType, filename);
+      await fs.promises.writeFile(filepath, merged);
+      await docIndex.invalidate(docType, filename);
       broadcast({ type: `${docType}_created`, filename, docType });
 
       logAudit({ op: 'jira-sync', docType, filename, fields: { jiraKey }, source: 'jira-sync' });
@@ -173,8 +173,8 @@ export default function jiraSyncRoutes({
   });
 
   // ── Shared helper: build preview item from a JIRA issue ──────
-  function _buildPreviewItem(iss: Record<string, any>) {
-    const existing = docIndex.findByJiraId(iss.key) || findLocalFileByJiraId(iss.key);
+  async function _buildPreviewItem(iss: Record<string, any>) {
+    const existing = docIndex.findByJiraId(iss.key) || await findLocalFileByJiraId(iss.key);
     const jiraTitle = (iss.fields?.summary || '').trim();
     const jiraSP    = iss.fields?.[FIELD_STORY_POINTS] ?? null;
     const jiraTypeName = iss.fields?.issuetype?.name || '';
@@ -191,7 +191,7 @@ export default function jiraSyncRoutes({
 
     if (existing) {
       try {
-        const localContent = fs.readFileSync(path.join(TYPE_CONFIG[existing.docType].dir(), existing.filename), 'utf-8');
+        const localContent = await fs.promises.readFile(path.join(TYPE_CONFIG[existing.docType].dir(), existing.filename), 'utf-8');
         const localTitle   = extractJiraSummary(localContent);
         const localSPRaw   = extractFrontmatterField(localContent, 'Story_Points');
         const localSP      = localSPRaw && localSPRaw !== 'TBD' ? Number(localSPRaw) : null;
@@ -226,7 +226,7 @@ export default function jiraSyncRoutes({
       const issue = (await jiraRequest('GET', `/issue/${jiraKey}?fields=${fields}`)) as Record<string, any>;
       const items = [];
 
-      items.push(_buildPreviewItem(issue));
+      items.push(await _buildPreviewItem(issue));
 
       // ── Children ──────────────────────────────────────────────
       if (includeChildren) {
@@ -254,7 +254,7 @@ export default function jiraSyncRoutes({
           }
         }
 
-        for (const child of childIssues) items.push(_buildPreviewItem(child));
+        for (const child of childIssues) items.push(await _buildPreviewItem(child));
 
         // ── Detect local children that are closed/missing in JIRA ──
         // Find local children of this parent and check if their JIRA issue
@@ -321,9 +321,9 @@ export default function jiraSyncRoutes({
       for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
         const dir = cfg.dir();
         if (!fs.existsSync(dir)) continue;
-        for (const filename of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
+        for (const filename of (await fs.promises.readdir(dir)).filter(f => f.endsWith('.md'))) {
           try {
-            const content = fs.readFileSync(path.join(dir, filename), 'utf-8');
+            const content = await fs.promises.readFile(path.join(dir, filename), 'utf-8');
             const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
             if (!jiraId || jiraId === 'TBD') continue;
             linkedDocs.push({ filename, docType, jiraId });
@@ -349,7 +349,7 @@ export default function jiraSyncRoutes({
           let localDesc  = '';
           let localSp    = null;
           try {
-            const raw  = fs.readFileSync(path.join(TYPE_CONFIG[doc.docType].dir(), doc.filename), 'utf-8');
+            const raw  = await fs.promises.readFile(path.join(TYPE_CONFIG[doc.docType].dir(), doc.filename), 'utf-8');
             // Extract heading text directly — avoids extractJiraSummary's template-detection
             // logic which misfires on headings like "## Stable Title" (treats any heading
             // ending in "Title" as a placeholder and reads the next line instead).

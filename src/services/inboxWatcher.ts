@@ -43,7 +43,8 @@ export function watchInbox({
 
   // Process existing inbox files sequentially to avoid spawning many claude subprocesses at once
   (async () => {
-    for (const f of fs.readdirSync(INBOX_DIR).filter(isInboxFile)) {
+    const files = (await fs.promises.readdir(INBOX_DIR)).filter(isInboxFile);
+    for (const f of files) {
       if (!shouldSkip(f)) await processInboxFile(f);
     }
   })();
@@ -67,7 +68,7 @@ export function watchInbox({
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const inboxContent = fs.readFileSync(inboxPath, 'utf-8');
+        const inboxContent = await fs.promises.readFile(inboxPath, 'utf-8');
         const epicTemplate = loadCommand('create-epics');
         const epicPrompt = epicTemplate
           ? epicTemplate.replace('$ARGUMENTS', `File: ${filename}\n\n${inboxContent}`)
@@ -75,7 +76,7 @@ export function watchInbox({
         const epicContent = await callClaude(epicPrompt);
 
         ensureDir(EPICS_DIR);
-        fs.writeFileSync(path.join(EPICS_DIR, filename), epicContent);
+        await fs.promises.writeFile(path.join(EPICS_DIR, filename), epicContent);
         broadcast({ type: 'epic_created', filename });
         logAudit({ op: 'create', docType: 'epic', filename, source: 'inbox' });
         logInfo('watchInbox', `Epic saved: docs/epics/${filename}`);
@@ -92,13 +93,13 @@ export function watchInbox({
     // All retries exhausted — move to errors dir
     try {
       ensureDir(errorsDir);
-      fs.renameSync(inboxPath, path.join(errorsDir, filename));
+      await fs.promises.rename(inboxPath, path.join(errorsDir, filename));
       const errorMeta = {
         attempts: maxRetries,
         lastError,
         timestamp: new Date().toISOString(),
       };
-      fs.writeFileSync(
+      await fs.promises.writeFile(
         path.join(errorsDir, `${filename}.error.json`),
         JSON.stringify(errorMeta, null, 2)
       );

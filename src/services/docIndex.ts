@@ -12,8 +12,8 @@ import type { DocEntry, DocIndexInstance, TypeConfig } from '../types.js';
 export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): DocIndexInstance {
   const _map = new Map<string, DocEntry>();
 
-  function _buildEntry(docType: string, dir: string, filename: string): DocEntry {
-    const content = fs.readFileSync(path.join(dir, filename), 'utf-8');
+  async function _buildEntry(docType: string, dir: string, filename: string): Promise<DocEntry> {
+    const content = await fs.promises.readFile(path.join(dir, filename), 'utf-8');
     const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/);
 
     let parentFilename: string | null = null;
@@ -84,16 +84,24 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
       const dir = cfg.dir();
       if (!fs.existsSync(dir)) continue;
-      for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md') && f !== '.gitkeep')) {
+      const files = (await fs.promises.readdir(dir)).filter(f => f.endsWith('.md') && f !== '.gitkeep');
+      for (const f of files) {
         entries.push({ docType, dir, f });
       }
     }
-    // Process files and yield to the event loop every 50 entries so the server
-    // stays responsive during a full rebuild with large doc sets.
-    for (let i = 0; i < entries.length; i++) {
-      if (i > 0 && i % 50 === 0) await new Promise(r => setImmediate(r));
-      const { docType, dir, f } = entries[i];
-      try { _map.set(f, _buildEntry(docType, dir, f)); } catch { /* skip unreadable */ }
+    // Process all files in parallel for fast startup, then populate the map.
+    const results = await Promise.all(
+      entries.map(async ({ docType, dir, f }) => {
+        try {
+          const entry = await _buildEntry(docType, dir, f);
+          return { f, entry };
+        } catch {
+          return null; // skip unreadable
+        }
+      })
+    );
+    for (const result of results) {
+      if (result) _map.set(result.f, result.entry);
     }
     return docIndex;
   }
@@ -109,12 +117,17 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
   }
 
   // Rebuild a single entry after a write; remove it after a delete.
-  function invalidate(docType: string, filename: string): void {
+  async function invalidate(docType: string, filename: string): Promise<void> {
     const cfg = TYPE_CONFIG[docType];
     if (!cfg) { _map.delete(filename); return; }
     const filepath = path.join(cfg.dir(), filename);
     if (!fs.existsSync(filepath)) { _map.delete(filename); return; }
-    try { _map.set(filename, _buildEntry(docType, cfg.dir(), filename)); } catch { _map.delete(filename); }
+    try {
+      const entry = await _buildEntry(docType, cfg.dir(), filename);
+      _map.set(filename, entry);
+    } catch {
+      _map.delete(filename);
+    }
   }
 
   // Full async rebuild — use after batch operations that touch many files.

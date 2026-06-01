@@ -82,7 +82,7 @@ describe('docIndex — large graph', () => {
     const original = fs.readFileSync(filepath, 'utf-8');
     fs.writeFileSync(filepath, original.replace('Status: Draft', 'Status: Archived'));
 
-    docIndex.invalidate('epic', filename);
+    await docIndex.invalidate('epic', filename);
     const updated = docIndex.get(filename);
     assert.equal(updated.status, 'Archived');
   });
@@ -92,7 +92,7 @@ describe('docIndex — large graph', () => {
     const filename = '2026-01-20-epic-20.md';
     fs.unlinkSync(path.join(epicDir, filename));
 
-    docIndex.invalidate('epic', filename);
+    await docIndex.invalidate('epic', filename);
     assert.equal(docIndex.get(filename), null);
   });
 
@@ -145,11 +145,11 @@ describe('docIndex — dependency fields', () => {
     assert.deepEqual(entry.blockedBy, ['story-a.md']);
   });
 
-  test('TBD values in dependency fields are excluded', () => {
+  test('TBD values in dependency fields are excluded', async () => {
     const storyDir = path.join(tmpRoot, 'stories');
     fs.writeFileSync(path.join(storyDir, 'story-d.md'),
       `${FRONTMATTER('Blocks: TBD\nBlocked_By: TBD\n')}\n## story-d\n`);
-    docIndex.invalidate('story', 'story-d.md');
+    await docIndex.invalidate('story', 'story-d.md');
     const entry = docIndex.get('story-d.md');
     assert.deepEqual(entry.blocks, []);
     assert.deepEqual(entry.blockedBy, []);
