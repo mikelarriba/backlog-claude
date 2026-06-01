@@ -7,6 +7,8 @@ import { setFrontmatterField } from '../utils/transforms.js';
 import { pMap } from '../utils/pMap.js';
 import { logAudit } from '../utils/auditLog.js';
 import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
+import { proposeDistribution } from '../services/distributionService.js';
+import type { DistributionDoc } from '../services/distributionService.js';
 import type { RouteContext } from '../types.js';
 
 const BATCH_CONCURRENCY = 5;
@@ -119,7 +121,6 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       const { piName } = req.body;
       if (!piName) return sendError(res, 400, 'VALIDATION_ERROR', 'piName is required');
 
-      // Load sprint config
       const piSettingsPath = path.join(rootDir, '.pi-settings.json');
       let sprintCfg: Array<{ name: string; capacity: number }> = [];
       try {
@@ -129,10 +130,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       } catch {}
       if (!sprintCfg.length) return sendError(res, 400, 'NO_SPRINTS', 'No sprints configured for this PI');
 
-      // Collect leaf docs in this PI using the index (includes rank, blockedBy, parentFilename)
-      const PRIORITY_RANK: Record<string, number> = { Critical: 0, Major: 0, High: 1, Medium: 2, Low: 3 };
       const leafTypes = new Set(['story', 'spike', 'bug']);
-      const leafDocs = docIndex.getAll()
+      const leafDocs: DistributionDoc[] = docIndex.getAll()
         .filter(e => leafTypes.has(e.docType) && e.fixVersion === piName)
         .map(e => ({
           filename:       e.filename,
@@ -149,203 +148,15 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           parallel:       e.parallel  || [],
         }));
 
-      // Partition: already-assigned vs unassigned
-      const assigned   = leafDocs.filter(d => d.sprint);
-      const unassigned = leafDocs.filter(d => !d.sprint);
-
-      function sortByRankPriority(a: { rank: number; priority: string; storyPoints: number }, b: { rank: number; priority: string; storyPoints: number }) {
-        if (a.rank !== b.rank) return a.rank - b.rank;
-        const pa = PRIORITY_RANK[a.priority] ?? 2;
-        const pb = PRIORITY_RANK[b.priority] ?? 2;
-        if (pa !== pb) return pa - pb;
-        return b.storyPoints - a.storyPoints;
-      }
-
-      // ── Group unassigned by parent epic to maximise epic completion ──────────
-      // Strategy: sort epic groups by the epic's own rank (matching main list
-      // view order, top-to-bottom), then emit all stories from that epic
-      // before moving to the next group.
-      const epicGroups  = new Map(); // parentFilename → doc[]
-      const standalones = [];
-      for (const doc of unassigned) {
-        if (doc.parentFilename) {
-          if (!epicGroups.has(doc.parentFilename)) epicGroups.set(doc.parentFilename, []);
-          epicGroups.get(doc.parentFilename).push(doc);
-        } else {
-          standalones.push(doc);
-        }
-      }
-
-      // Sort each epic group internally
-      for (const [, docs] of epicGroups) docs.sort(sortByRankPriority);
-
-      // Build epic rank lookup from the index (same order as the main list view)
-      const epicRankMap = new Map();
+      const epicRankMap = new Map<string, number>();
       for (const e of docIndex.getAll()) {
         if (e.docType === 'epic' || e.docType === 'feature') {
           epicRankMap.set(e.filename, e.rank != null ? e.rank : 9999);
         }
       }
 
-      // Sort epic groups by the epic's own rank (list view order)
-      const sortedGroups = [...epicGroups.entries()].sort(([fnA], [fnB]) => {
-        const ra = epicRankMap.get(fnA) ?? 9999;
-        const rb = epicRankMap.get(fnB) ?? 9999;
-        if (ra !== rb) return ra - rb;
-        return fnB.localeCompare(fnA); // fallback: same as _rankSortFn
-      }).map(([, docs]) => docs);
-
-      standalones.sort(sortByRankPriority);
-
-      // Build ordered work queue: grouped epics first, then standalones
-      // Unestimated items are routed directly to overflow — they are not
-      // sprint-ready and must not be silently placed in Sprint 1.
-      const workQueue    = [];
-      const noEstimateOverflow = [];
-      for (const docs of sortedGroups) {
-        for (const d of docs) {
-          if (d.hasEstimate) workQueue.push(d); else noEstimateOverflow.push(d);
-        }
-      }
-      for (const d of standalones) {
-        if (d.hasEstimate) workQueue.push(d); else noEstimateOverflow.push(d);
-      }
-
-      // ── Build buckets; pre-fill with already-assigned docs ───────────────────
-      const buckets = sprintCfg.map((s, idx) => ({
-        name:       s.name,
-        capacity:   s.capacity,
-        idx,
-        assigned:   assigned.filter(d => d.sprint === s.name).map(d => ({ ...d, wasAlreadyAssigned: true })),
-        usedPoints: assigned.filter(d => d.sprint === s.name).reduce((sum, d) => sum + d.storyPoints, 0),
-      }));
-
-      const sprintIdx    = new Map(buckets.map(b => [b.name, b.idx]));
-      // Track placed sprint for dep constraint computation (seed with already-assigned)
-      const placementMap = new Map(assigned.map(d => [d.filename, d.sprint]));
-      const depAdjusted: string[] = []; // warnings for items bumped due to deps
-
-      // Track per-epic sprint range: try to finish each epic within 2 sprints
-      const epicStartSprint = new Map(); // parentFilename → first sprint index
-      // Seed from already-assigned items
-      for (const d of assigned) {
-        if (!d.parentFilename) continue;
-        const si = sprintIdx.get(d.sprint!) ?? 0;
-        if (!epicStartSprint.has(d.parentFilename) || si < epicStartSprint.get(d.parentFilename)) {
-          epicStartSprint.set(d.parentFilename, si);
-        }
-      }
-
-      // ── Greedy fill with dep-constraint floor + 2-sprint epic window ─────────
-      const overflow = [...noEstimateOverflow];
-      for (const doc of workQueue) {
-        // Compute the minimum allowed sprint index from dependency constraints
-        let minIdx = 0;
-        for (const blockerFn of doc.blockedBy) {
-          const blockerSprint = placementMap.get(blockerFn);
-          if (blockerSprint != null) {
-            const bi = sprintIdx.get(blockerSprint) ?? -1;
-            if (bi + 1 > minIdx) minIdx = bi + 1;
-          }
-        }
-
-        // Prefer the same sprint as already-placed parallel siblings (co-location)
-        let preferredIdx = minIdx;
-        for (const siblingFn of (doc.parallel || [])) {
-          const sibSprint = placementMap.get(siblingFn);
-          if (sibSprint != null) {
-            preferredIdx = Math.max(preferredIdx, sprintIdx.get(sibSprint) ?? 0);
-          }
-        }
-
-        // 2-sprint epic window (soft preference): prefer finishing an epic
-        // within 2 sprints (deploy cadence), but allow spillover to later
-        // sprints if the preferred window has no capacity.
-        const hardMaxIdx = buckets.length - 1;
-        let softMaxIdx = hardMaxIdx;
-        if (doc.parentFilename) {
-          const start = epicStartSprint.get(doc.parentFilename);
-          if (start != null) {
-            softMaxIdx = Math.min(hardMaxIdx, start + 1);
-          }
-        }
-
-        // Place in the first bucket at or after preferredIdx.
-        // Pass 1: try within preferred 2-sprint window.
-        // Pass 2: if no capacity, allow any later sprint.
-        let placed = false;
-        for (const bucket of buckets) {
-          if (bucket.idx < preferredIdx) continue;
-          if (bucket.idx > softMaxIdx) break;
-          if (bucket.usedPoints + doc.storyPoints <= bucket.capacity) {
-            if (minIdx > 0 && bucket.idx > 0) {
-              depAdjusted.push(`"${doc.title}" placed in ${bucket.name} due to dependency ordering`);
-            }
-            bucket.assigned.push({ ...doc, wasAlreadyAssigned: false });
-            bucket.usedPoints += doc.storyPoints;
-            placementMap.set(doc.filename, bucket.name);
-            if (doc.parentFilename && !epicStartSprint.has(doc.parentFilename)) {
-              epicStartSprint.set(doc.parentFilename, bucket.idx);
-            }
-            placed = true;
-            break;
-          }
-        }
-        // Pass 2: spill beyond the 2-sprint window if needed
-        if (!placed) {
-          for (const bucket of buckets) {
-            if (bucket.idx <= softMaxIdx) continue;
-            if (bucket.idx < minIdx) continue;
-            if (bucket.idx > hardMaxIdx) break;
-            if (bucket.usedPoints + doc.storyPoints <= bucket.capacity) {
-              depAdjusted.push(`"${doc.title}" spilled beyond preferred 2-sprint window into ${bucket.name}`);
-              bucket.assigned.push({ ...doc, wasAlreadyAssigned: false });
-              bucket.usedPoints += doc.storyPoints;
-              placementMap.set(doc.filename, bucket.name);
-              if (doc.parentFilename && !epicStartSprint.has(doc.parentFilename)) {
-                epicStartSprint.set(doc.parentFilename, bucket.idx);
-              }
-              placed = true;
-              break;
-            }
-          }
-        }
-        if (!placed) overflow.push(doc);
-      }
-
-      // ── Advisory warnings for parallel siblings in different sprints ────────
-      const seenParallelPairs = new Set();
-      for (const doc of workQueue) {
-        const docSprint = placementMap.get(doc.filename);
-        if (!docSprint) continue;
-        for (const siblingFn of (doc.parallel || [])) {
-          const pairKey = [doc.filename, siblingFn].sort().join('|');
-          if (seenParallelPairs.has(pairKey)) continue;
-          seenParallelPairs.add(pairKey);
-          const sibSprint = placementMap.get(siblingFn);
-          if (sibSprint && sibSprint !== docSprint) {
-            depAdjusted.push(`Parallel stories "${doc.title}" (${docSprint}) and "${siblingFn}" (${sibSprint}) could not be co-located`);
-          }
-        }
-      }
-
-      // ── Warnings and suggestions ─────────────────────────────────────────────
-      const warnings    = [];
-      const suggestions = [];
-      if (noEstimateOverflow.length) warnings.push(`${noEstimateOverflow.length} item(s) have no story point estimate — add story points before distributing`);
-      if (depAdjusted.length) warnings.push(...depAdjusted);
-      const capacityOverflow = overflow.filter(d => d.hasEstimate);
-      if (capacityOverflow.length) {
-        const overflowSP = capacityOverflow.reduce((s, d) => s + d.storyPoints, 0);
-        warnings.push(`${capacityOverflow.length} item(s) (${overflowSP} SP) exceed total sprint capacity`);
-      }
-      for (const bucket of buckets) {
-        const pct = bucket.capacity > 0 ? Math.round((bucket.usedPoints / bucket.capacity) * 100) : 0;
-        if (pct > 100) suggestions.push(`${bucket.name} is over capacity at ${pct}% — consider moving items to a later sprint`);
-        else if (pct < 50 && bucket.capacity > 0) suggestions.push(`${bucket.name} has ${bucket.capacity - bucket.usedPoints} SP of free capacity`);
-      }
-
-      res.json({ piName, sprints: buckets, overflow, warnings, suggestions });
+      const result = proposeDistribution(leafDocs, sprintCfg, epicRankMap);
+      res.json({ piName, ...result });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);

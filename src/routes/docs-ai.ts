@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { sendError, ensureDir, parseApiError, assertDocType, assertFilename, setupSSE, resolveDocPath } from '../utils/routeHelpers.js';
 import { normalizeOutput } from '../services/claudeService.js';
+import { buildGeneratePrompt, buildUpgradePrompt, buildSplitStoryPrompt } from '../services/aiPromptBuilder.js';
 import { logAudit } from '../utils/auditLog.js';
 import {
   isoDate, slugify, extractTitle, extractWorkflowStatus,
@@ -60,10 +61,7 @@ ${idea.trim()}
         ensureDir(INBOX_DIR);
         fs.writeFileSync(path.join(INBOX_DIR, filename), rawContent);
 
-        const template = loadCommand(cfg.command);
-        const prompt = template
-          ? template.replace('$ARGUMENTS', `File: ${filename}\n\n${rawContent}`)
-          : `Generate a complete ${type} using the COVE Framework. Output ONLY the markdown content.\n\nFile: ${filename}\n\n${rawContent}`;
+        const prompt = buildGeneratePrompt(type, loadCommand(cfg.command), filename, rawContent);
         const generatedContent = await callClaude(prompt);
 
         const destDir = cfg.dir();
@@ -130,17 +128,7 @@ ${idea.trim()}
         ? `\n\nOriginal idea and upgrade history (for context):\n---\n${fs.readFileSync(inboxPath, 'utf-8')}\n---`
         : '';
 
-      const upgradePrompt = `Rewrite the following ${docType} document applying the feedback below. The feedback is provided — apply it directly. Do NOT ask for clarification. Do NOT ask what changes are needed. Do NOT say you cannot see feedback. Output ONLY the rewritten markdown — no commentary, no preamble, no code fences.
-
-Current document:
----
-${currentContent}
----${inboxHistory}
-
-Feedback to apply:
-${feedback.trim()}
-
-Rewrite the complete document incorporating the feedback above. Preserve all COVE sections and YAML frontmatter structure.`;
+      const upgradePrompt = buildUpgradePrompt(docType, currentContent, feedback, inboxHistory);
 
       let fullContent = '';
       await streamClaude(upgradePrompt, (chunk: string) => { fullContent += chunk; send({ text: chunk }); });
@@ -203,30 +191,7 @@ Rewrite the complete document incorporating the feedback above. Preserve all COV
         ? sprints.map((s, i) => `Part ${i + 1} → sprint: "${s}"`).join(', ')
         : `assign all parts to the same sprint as the original`;
 
-      const splitPrompt = `You are splitting a user story that is too large for a single sprint into exactly ${count} smaller, independently deliverable user stories.
-
-Original story:
-${content}
-
-Requirements:
-- Split into exactly ${count} user stories
-- Each story should be independently valuable and testable
-- Distribute the scope evenly across all ${count} parts
-- Each part MUST start with a YAML frontmatter block in this exact format (no extra fields):
----
-JIRA_ID: TBD
-Story_Points: ${perStorySP}
-Status: Draft
-Priority: ${priority}
-Epic_ID: ${epicId}
-Fix_Version: ${fixVersion}
-Sprint: TBD
-Created: ${isoDate()}
----
-- After the frontmatter, write the story title as "## Title" then COVE sections (Context, Objective, Value, Execution) and Acceptance Criteria
-- Sprint assignments: ${sprintList}
-- Separate each story with exactly this marker on its own line: ===SPLIT===
-- Output ONLY the ${count} story files separated by ===SPLIT===, nothing else`;
+      const splitPrompt = buildSplitStoryPrompt({ content, count, epicId, fixVersion, priority, perStorySP, sprintList });
 
       let fullOutput = '';
       await streamClaude(splitPrompt, (chunk: string) => {
@@ -415,10 +380,7 @@ ${idea}
         ensureDir(INBOX_DIR);
         fs.writeFileSync(path.join(INBOX_DIR, newEpicFilename), rawContent);
 
-        const template = loadCommand(epicCfg.command);
-        const prompt = template
-          ? template.replace('$ARGUMENTS', `File: ${newEpicFilename}\n\n${rawContent}`)
-          : `Generate a complete epic using the COVE Framework. Output ONLY the markdown content.\n\nFile: ${newEpicFilename}\n\n${rawContent}`;
+        const prompt = buildGeneratePrompt('epic', loadCommand(epicCfg.command), newEpicFilename, rawContent);
         const generatedContent = await callClaude(prompt);
 
         const destDir = epicCfg.dir();
