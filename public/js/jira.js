@@ -83,9 +83,16 @@ function showSyncPreviewModal(title, items, confirmLabel) {
             const fromHtml = c.from !== undefined && c.from !== null
               ? '<span class="sync-preview-from">' + escHtml(String(c.from)) + '</span><span class="sync-preview-arrow">→</span>'
               : '';
-            const toHtml = c.to !== undefined && c.to !== null
-              ? '<span class="sync-preview-to">' + escHtml(String(c.to)) + '</span>'
-              : '<span class="sync-preview-to" style="color:var(--muted)">—</span>';
+            var toHtml;
+            if (c.pendingEpicTitle) {
+              toHtml = '<span class="sync-preview-to" style="color:var(--accent)">[new] ' + escHtml(c.pendingEpicTitle) + '</span>';
+            } else if (c.pendingFeatureTitle) {
+              toHtml = '<span class="sync-preview-to" style="color:var(--accent)">[new] ' + escHtml(c.pendingFeatureTitle) + '</span>';
+            } else if (c.to !== undefined && c.to !== null) {
+              toHtml = '<span class="sync-preview-to">' + escHtml(String(c.to)) + '</span>';
+            } else {
+              toHtml = '<span class="sync-preview-to" style="color:var(--muted)">—</span>';
+            }
             return '<div class="sync-preview-change"><span class="sync-preview-field">' + escHtml(c.field) + '</span>' + fromHtml + toHtml + '</div>';
           }).join('') +
         '</div>';
@@ -100,7 +107,7 @@ function showSyncPreviewModal(title, items, confirmLabel) {
       const typeBadge = typeLabel ? '<span class="type-badge ' + escHtml(typeLabel) + '" style="font-size:0.6rem;padding:1px 6px">' + escHtml((TYPE_LABEL && TYPE_LABEL[typeLabel]) || typeLabel) + '</span>' : '';
 
       const actionClass = isDelete ? 'delete' : isCreate ? 'create' : 'update';
-      const actionLabel = isDelete ? '✕ Delete' : isCreate ? '+ Create' : '↺ Update';
+      const actionLabel = isDelete ? '✕ Delete' : isCreate ? (item.autoIncluded ? '+ Create (auto)' : '+ Create') : '↺ Update';
       const unchecked = ' checked';
 
       return '<div class="sync-preview-item' + (isDelete ? ' sync-preview-item--delete' : '') + '">' +
@@ -412,6 +419,15 @@ async function pushToJira() {
       const localChildren = linksData.children || [];
       for (const c of localChildren) {
         itemsToPush.push({ filename: c.filename, docType: c.docType });
+        // For feature push: also include grandchildren (stories/spikes/bugs under epics)
+        if (currentDocType === 'feature' && c.docType === 'epic') {
+          try {
+            const epicLinks = await fetchJSON(`/api/links/epic/${encodeURIComponent(c.filename)}`);
+            for (const gc of (epicLinks.children || [])) {
+              itemsToPush.push({ filename: gc.filename, docType: gc.docType });
+            }
+          } catch (e) { console.warn('Failed to load grandchildren for push:', e.message); }
+        }
       }
     } catch (e) { console.warn('Failed to load children for push:', e.message); }
   }
@@ -430,6 +446,17 @@ async function pushToJira() {
     updateJiraPushBtn();
     return;
   }
+
+  // Sort: create-features first, then create-epics, then create-others,
+  // then update-features, update-epics, update-others.
+  // This ensures features are created before epics (for "Is Contained" links)
+  // and epics before stories (for Epic Link fields).
+  previewItems.sort(function(a, b) {
+    var typeOrder = { feature: 0, epic: 1 };
+    var aOrder = (a.action === 'create' ? 0 : 3) + (typeOrder[a.docType] ?? 2);
+    var bOrder = (b.action === 'create' ? 0 : 3) + (typeOrder[b.docType] ?? 2);
+    return aOrder - bOrder;
+  });
 
   // 3. Show unified confirmation popup with checkboxes
   const selected = await showSyncPreviewModal(

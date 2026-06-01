@@ -43,6 +43,7 @@ export interface DocEntry {
   team: string | null;
   workCategory: string | null;
   hasDescription: boolean;
+  descriptionSnippet: string | null;
 }
 
 export interface DocIndexInstance {
@@ -149,10 +150,12 @@ export interface JiraRouteContext extends RouteContext {
   JIRA_PROJECT: string;
   JIRA_LABEL: string;
   JIRA_BASE: string;
+  JIRA_BOARD_ID: string;
   FIELD_EPIC_NAME: string;
   FIELD_EPIC_LINK: string;
   FIELD_STORY_POINTS: string;
   jiraRequest: (method: string, urlPath: string, body?: unknown, opts?: { _retryOn429?: boolean }) => Promise<unknown>;
+  jiraAgileRequest: (method: string, urlPath: string, body?: unknown, opts?: { _retryOn429?: boolean }) => Promise<unknown>;
   jiraPagedRequest: (jql: string, fields: string, opts?: { maxResults?: number; maxTotal?: number }) => Promise<unknown[]>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
   findLocalFileByJiraId: (jiraId: string) => { docType: string; filename: string } | null;

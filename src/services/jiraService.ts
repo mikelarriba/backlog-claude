@@ -21,6 +21,7 @@ interface JiraServiceConfig {
 export interface JiraServiceInstance {
   jiraRequest: (method: string, urlPath: string, body?: any, opts?: { _retryOn429?: boolean }) => Promise<any>;
   jiraPagedRequest: (jql: string, fields: string, opts?: { maxResults?: number; maxTotal?: number }) => Promise<any[]>;
+  jiraAgileRequest: (method: string, urlPath: string, body?: any, opts?: { _retryOn429?: boolean }) => Promise<any>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<any>;
   findLocalFileByJiraId: (jiraId: string) => { docType: string; filename: string } | null;
   jiraIssueToMarkdown: (issue: any) => { docType: string; content: string };
@@ -63,6 +64,44 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
       // Scrub anything resembling a Bearer token from error output
       const safeText = text.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]').slice(0, 300);
       throw new Error(`JIRA ${method} ${urlPath} → ${res.status}: ${safeText}`);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : undefined;
+  }
+
+  async function jiraAgileRequest(method: string, urlPath: string, body?: any, { _retryOn429 = true } = {}): Promise<any> {
+    const url = `${JIRA_BASE}/rest/agile/1.0${urlPath}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
+    const opts: RequestInit = {
+      method,
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${JIRA_TOKEN}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    let res: Response;
+    try {
+      res = await fetch(url, opts);
+    } catch (err: any) {
+      if (err.name === 'AbortError') throw new Error(`JIRA Agile request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.status === 429 && _retryOn429) {
+      const retryAfter = Number(res.headers.get('Retry-After')) || 60;
+      await new Promise(r => setTimeout(r, retryAfter * 1000));
+      return jiraAgileRequest(method, urlPath, body, { _retryOn429: false });
+    }
+    if (!res.ok) {
+      if (res.status === 429) throw new Error(`JIRA Agile rate limit exceeded — try again later`);
+      const text = await res.text().catch(() => '');
+      const safeText = text.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]').slice(0, 300);
+      throw new Error(`JIRA Agile ${method} ${urlPath} → ${res.status}: ${safeText}`);
     }
     const text = await res.text();
     return text ? JSON.parse(text) : undefined;
@@ -168,6 +207,7 @@ ${description || '_No description in JIRA._'}
 
   return {
     jiraRequest,
+    jiraAgileRequest,
     jiraPagedRequest,
     jiraUploadAttachment,
     findLocalFileByJiraId,

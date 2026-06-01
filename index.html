@@ -470,10 +470,9 @@
         <button class="btn-ghost" onclick="closeRoadmapView()">← Back</button>
         <span class="roadmap-title">Roadmap</span>
         <div class="roadmap-header-right">
-          <select id="roadmap-pi-filter" class="rm-pi-filter" onchange="filterRoadmapByPi(this.value)">
-            <option value="">All Sprints</option>
-          </select>
-          <button class="btn-toolbar" onclick="openDistributionModal(_roadmapPiName)" title="Select a PI filter first to distribute">Distribute</button>
+          <div id="roadmap-pi-filter" class="rm-pi-checkboxes"></div>
+          <button class="btn-toolbar" onclick="openDistributionModal([..._roadmapVisiblePis][0])" title="Distribute stories across sprints">Distribute</button>
+          <button class="btn-toolbar" onclick="pushSprintsToJira()" title="Push sprint assignments to JIRA">Push Sprints</button>
           <button class="btn-toolbar" onclick="openRoadmapExportDialog()" title="Export roadmap as PDF">Export PDF</button>
         </div>
       </div>
@@ -481,7 +480,7 @@
         <div class="rm-panel rm-panel-epics" id="rm-panel-epics">
           <div class="rm-panel-header" onclick="toggleRoadmapPanel('epics')">
             <span class="rm-panel-chevron" id="rm-chevron-epics">▼</span>
-            <span class="rm-panel-label">Epics</span>
+            <span class="rm-panel-label">Features</span>
             <span class="rm-panel-count" id="rm-count-epics">0</span>
           </div>
           <div class="rm-panel-body" id="rm-body-epics"></div>
