@@ -59,7 +59,7 @@ ${idea.trim()}
       _apiInFlight.add(filename);
       try {
         ensureDir(INBOX_DIR);
-        fs.writeFileSync(path.join(INBOX_DIR, filename), rawContent);
+        await fs.promises.writeFile(path.join(INBOX_DIR, filename), rawContent);
 
         const prompt = buildGeneratePrompt(type, loadCommand(cfg.command), filename, rawContent);
         const generatedContent = await callClaude(prompt);
@@ -85,7 +85,7 @@ ${idea.trim()}
         if (pi && pi !== 'TBD') {
           finalContent = setFrontmatterField(finalContent, 'PI', pi);
         }
-        fs.writeFileSync(path.join(destDir, filename), finalContent);
+        await fs.promises.writeFile(path.join(destDir, filename), finalContent);
         docIndex.invalidate(normalizedType, filename);
       } finally {
         _apiInFlight.delete(filename);
@@ -119,13 +119,13 @@ ${idea.trim()}
       const { feedback } = req.body;
       if (!feedback?.trim()) { send({ error: { code: 'VALIDATION_ERROR', message: 'Feedback is required' } }); return res.end(); }
 
-      const currentContent = fs.readFileSync(filepath, 'utf-8');
+      const currentContent = await fs.promises.readFile(filepath, 'utf-8');
       const currentStatus  = extractWorkflowStatus(currentContent);
 
       const inboxPath = path.join(INBOX_DIR, filename);
       const inboxExists = fs.existsSync(inboxPath);
       const inboxHistory = inboxExists
-        ? `\n\nOriginal idea and upgrade history (for context):\n---\n${fs.readFileSync(inboxPath, 'utf-8')}\n---`
+        ? `\n\nOriginal idea and upgrade history (for context):\n---\n${await fs.promises.readFile(inboxPath, 'utf-8')}\n---`
         : '';
 
       const upgradePrompt = buildUpgradePrompt(docType, currentContent, feedback, inboxHistory);
@@ -135,12 +135,12 @@ ${idea.trim()}
 
       fullContent = normalizeOutput(fullContent);
       fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
-      fs.writeFileSync(filepath, fullContent);
+      await fs.promises.writeFile(filepath, fullContent);
       docIndex.invalidate(docType, filename);
 
       if (inboxExists) {
         const note = `\n\n---\n\n## Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}\n\n${feedback.trim()}\n`;
-        fs.appendFileSync(inboxPath, note);
+        await fs.promises.appendFile(inboxPath, note);
       }
 
       send({ done: true, content: fullContent });
@@ -178,7 +178,7 @@ ${idea.trim()}
 
     try {
       const count = Math.max(2, Math.min(rawCount || 2, 6));
-      const content = fs.readFileSync(filepath, 'utf-8');
+      const content = await fs.promises.readFile(filepath, 'utf-8');
 
       // Extract key frontmatter fields to forward to child stories
       const epicId      = extractFrontmatterField(content, 'Epic_ID')      || 'TBD';
@@ -227,13 +227,13 @@ ${idea.trim()}
         const newName  = `${date}-${slug}.md`;
         const destPath = path.join(cfg.dir(), newName);
 
-        fs.writeFileSync(destPath, part);
+        await fs.promises.writeFile(destPath, part);
         broadcast({ type: `${docType}_created`, filename: newName, docType });
         createdFiles.push({ filename: newName, title, sprint: sprints[i] || null });
       }
 
       // Delete the original story
-      fs.unlinkSync(filepath);
+      await fs.promises.unlink(filepath);
       await docIndex.invalidateAll();
       broadcast({ type: 'doc_deleted', filename, docType });
 
@@ -261,7 +261,7 @@ ${idea.trim()}
       const epicPath = path.join(epicCfg.dir(), epicFilename);
       if (!fs.existsSync(epicPath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
 
-      const epicContent   = fs.readFileSync(epicPath, 'utf-8');
+      const epicContent   = await fs.promises.readFile(epicPath, 'utf-8');
       const epicTitle     = extractTitle(epicContent) || epicFilename;
       const epicPriority  = extractFrontmatterField(epicContent, 'Priority') || 'Medium';
       const epicFixVer    = extractFrontmatterField(epicContent, 'Fix_Version');

@@ -25,11 +25,11 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
   });
 
   // ── GET /api/doc/:type/:filename ───────────────────────────────────────────
-  router.get('/api/doc/:type/:filename', (req, res) => {
+  router.get('/api/doc/:type/:filename', async (req, res) => {
     try {
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
-      const content = fs.readFileSync(filepath, 'utf-8');
+      const content = await fs.promises.readFile(filepath, 'utf-8');
       res.json({ filename, docType, content });
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -38,7 +38,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
   });
 
   // ── PATCH /api/doc/:type/:filename ─────────────────────────────────────────
-  router.patch('/api/doc/:type/:filename', (req, res) => {
+  router.patch('/api/doc/:type/:filename', async (req, res) => {
     try {
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
@@ -50,7 +50,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
         return sendError(res, 400, 'VALIDATION_ERROR', 'At least one field must be provided');
       }
 
-      let content = fs.readFileSync(filepath, 'utf-8');
+      let content = await fs.promises.readFile(filepath, 'utf-8');
 
       if (status !== undefined) {
         assertStatus(status);
@@ -130,7 +130,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
         content = commentsSection ? withoutComments.trimEnd() + '\n\n' + commentsSection : withoutComments;
       }
 
-      fs.writeFileSync(filepath, content);
+      await fs.promises.writeFile(filepath, content);
       docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
       const changedFields = Object.fromEntries(
@@ -150,12 +150,12 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
   });
 
   // ── DELETE /api/doc/:type/:filename ────────────────────────────────────────
-  router.delete('/api/doc/:type/:filename', (req, res) => {
+  router.delete('/api/doc/:type/:filename', async (req, res) => {
     try {
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      fs.unlinkSync(filepath);
+      await fs.promises.unlink(filepath);
       docIndex.invalidate(docType, filename);
       broadcast({ type: 'doc_deleted', filename, docType });
       logAudit({ op: 'delete', docType, filename, source: 'api' });
@@ -167,7 +167,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
   });
 
   // ── POST /api/docs/draft ── save a draft without AI ────────────────────────
-  router.post('/api/docs/draft', (req, res) => {
+  router.post('/api/docs/draft', async (req, res) => {
     try {
       const { title, idea, type = 'epic', priority = 'Medium', parentEpic, parentFeature, fixVersion, team, workCategory } = req.body;
       if (!title?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'Title is required');
@@ -212,7 +212,7 @@ Created: ${date}${epicIdLine}${featureIdLine}
 ## ${title.trim()}
 ${notesLine}`;
 
-      fs.writeFileSync(path.join(destDir, filename), content);
+      await fs.promises.writeFile(path.join(destDir, filename), content);
       docIndex.invalidate(normalizedType, filename);
       broadcast({ type: cfg.event, filename, docType: normalizedType });
       logAudit({ op: 'create', docType: normalizedType, filename, fields: { title: title.trim() }, source: 'api' });
