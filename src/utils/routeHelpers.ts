@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import type { Request, Response } from 'express';
 import { WORKFLOW_STATUSES } from './transforms.js';
+import { ValidationError } from './validate.js';
 
 interface ApiError {
   code: string;
@@ -27,6 +28,7 @@ export function ensureDir(dir: string): void {
 
 export function parseApiError(err: any, fallbackCode = 'INTERNAL_ERROR', fallbackMessage = 'Unexpected server error'): ApiError {
   if (!err) return { code: fallbackCode, message: fallbackMessage };
+  if (err instanceof ValidationError) return { code: 'VALIDATION_ERROR', message: err.message };
   if (typeof err === 'string') return { code: fallbackCode, message: err };
   return {
     code: err.code || fallbackCode,

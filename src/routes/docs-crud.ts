@@ -6,6 +6,7 @@ import { sendError, ensureDir, parseApiError, assertDocType, assertStatus, asser
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { logAudit } from '../utils/auditLog.js';
 import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
+import { VALID_PRIORITIES } from '../utils/validate.js';
 import type { RouteContext } from '../types.js';
 
 export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docIndex }: RouteContext) {
@@ -43,6 +44,12 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
       const { status, title, fixVersion, storyPoints, sprint, rank, team, workCategory, priority, commentsSection } = req.body;
+
+      const updatableFields = ['status', 'title', 'fixVersion', 'storyPoints', 'sprint', 'rank', 'team', 'workCategory', 'priority', 'commentsSection'];
+      if (!updatableFields.some(f => req.body[f] !== undefined)) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'At least one field must be provided');
+      }
+
       let content = fs.readFileSync(filepath, 'utf-8');
 
       if (status !== undefined) {
@@ -59,6 +66,9 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
           const numVal = Number(storyPoints);
           if (!Number.isNaN(numVal) && numVal < 0) {
             return sendError(res, 400, 'VALIDATION_ERROR', 'storyPoints must be non-negative');
+          }
+          if (!Number.isNaN(numVal) && numVal > 40) {
+            return sendError(res, 400, 'VALIDATION_ERROR', 'storyPoints cannot exceed 40');
           }
         }
         const val = storyPoints === null || storyPoints === '' ? 'TBD' : String(Number(storyPoints) || storyPoints);
@@ -92,9 +102,8 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       }
 
       if (priority !== undefined) {
-        const allowed = ['Critical', 'High', 'Medium', 'Low'];
-        if (!allowed.includes(priority)) {
-          return sendError(res, 400, 'VALIDATION_ERROR', `Priority must be one of: ${allowed.join(', ')}`);
+        if (!(VALID_PRIORITIES as readonly string[]).includes(priority)) {
+          return sendError(res, 400, 'VALIDATION_ERROR', `Priority must be one of: ${VALID_PRIORITIES.join(', ')}`);
         }
         content = setFrontmatterField(content, 'Priority', priority);
       }
