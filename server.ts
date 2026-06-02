@@ -105,6 +105,40 @@ app.use((_req, res, next) => {
 
 // ── Middleware & SSE ─────────────────────────────────────────────────────────
 app.use(express.json());
+
+// Cache-Control: no-store for all /api/* responses
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
+// JS and CSS: 5-minute browser cache with ETag revalidation
+app.use('/public/js', express.static(path.join(__dirname, 'public/js'), {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+  },
+}));
+app.use('/public/css', express.static(path.join(__dirname, 'public/css'), {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+  },
+}));
+
+// index.html: never cache (it references versioned assets)
+app.get('/', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  next();
+});
+app.get('/index.html', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  next();
+});
+
+// Remaining static assets (manifest.json, sw.js, etc.)
 app.use(express.static(__dirname));
 
 // ── API versioning ── /api/v1/* is an alias for /api/* ───────────────────────
