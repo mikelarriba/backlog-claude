@@ -331,7 +331,7 @@ function renderRoadmapCard(d, sprintName) {
         <span class="rm-badge rm-priority-${priorityClass}">${escHtml(d.priority || 'Medium')}</span>
         <span class="${spClass}">${spLabel}</span>
       </div>
-      <button class="rm-dep-btn" title="Manage dependencies"
+      <button class="rm-dep-btn" title="Manage dependencies (blocks / blocked by)"
               onclick="event.stopPropagation();openDepModal('${escHtml(d.filename)}','${d.docType}')">⛓</button>
     </div>`;
 }

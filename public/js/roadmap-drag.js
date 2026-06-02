@@ -1,11 +1,11 @@
-// ── Roadmap drag-and-drop (sprint move + in-column rerank + dep popup) ─
+// ── Roadmap drag-and-drop (sprint move + in-column rerank) ─
 function initRoadmapDragDrop() {
   const cards     = document.querySelectorAll('.roadmap-card[draggable]');
   const dropZones = document.querySelectorAll('.roadmap-card-list');
 
   function clearCardDropClasses() {
     document.querySelectorAll('.roadmap-card').forEach(c =>
-      c.classList.remove('rm-drop-center', 'rm-insert-before', 'rm-insert-after'));
+      c.classList.remove('rm-insert-before', 'rm-insert-after'));
   }
 
   cards.forEach(card => {
@@ -27,22 +27,19 @@ function initRoadmapDragDrop() {
     // ── Per-card zone detection ──
     card.addEventListener('dragover', (e) => {
       e.preventDefault();
-      e.stopPropagation(); // prevent bubbling to card-list drag-over
+      e.stopPropagation();
       const rect = card.getBoundingClientRect();
       const relY = e.clientY - rect.top;
-      const zone = relY < rect.height * 0.3 ? 'before'
-                 : relY > rect.height * 0.7 ? 'after'
-                 : 'center';
-      card.classList.remove('rm-drop-center', 'rm-insert-before', 'rm-insert-after');
-      if (zone === 'center')       card.classList.add('rm-drop-center');
-      else if (zone === 'before')  card.classList.add('rm-insert-before');
-      else                         card.classList.add('rm-insert-after');
+      const zone = relY < rect.height * 0.5 ? 'before' : 'after';
+      card.classList.remove('rm-insert-before', 'rm-insert-after');
+      if (zone === 'before') card.classList.add('rm-insert-before');
+      else                   card.classList.add('rm-insert-after');
       e.dataTransfer.dropEffect = 'move';
     });
 
     card.addEventListener('dragleave', (e) => {
       if (!card.contains(e.relatedTarget))
-        card.classList.remove('rm-drop-center', 'rm-insert-before', 'rm-insert-after');
+        card.classList.remove('rm-insert-before', 'rm-insert-after');
     });
 
     card.addEventListener('drop', async (e) => {
@@ -50,37 +47,29 @@ function initRoadmapDragDrop() {
       e.stopPropagation();
       const rect = card.getBoundingClientRect();
       const relY = e.clientY - rect.top;
-      const zone = relY < rect.height * 0.3 ? 'before'
-                 : relY > rect.height * 0.7 ? 'after'
-                 : 'center';
+      const zone = relY < rect.height * 0.5 ? 'before' : 'after';
       clearCardDropClasses();
 
       try {
         const data = JSON.parse(e.dataTransfer.getData('text/plain'));
         if (data.filename === card.dataset.filename) return;
 
-        if (zone === 'center') {
-          // Dep / link popup (reuses dragdrop.js global)
-          showDropActionPopup(data.filename, data.docType, card, e.clientX, e.clientY);
+        // Rerank: determine insertBefore filename
+        let insertBeforeFilename;
+        if (zone === 'before') {
+          insertBeforeFilename = card.dataset.filename;
         } else {
-          // Rerank: determine insertBefore filename
-          let insertBeforeFilename;
-          if (zone === 'before') {
-            insertBeforeFilename = card.dataset.filename;
-          } else {
-            // Insert after = insert before the next card in the same column
-            const list = card.closest('.roadmap-card-list');
-            const allCards = list
-              ? [...list.querySelectorAll('.roadmap-card[data-filename]')]
-              : [];
-            const idx = allCards.indexOf(card);
-            insertBeforeFilename = (idx >= 0 && idx + 1 < allCards.length)
-              ? allCards[idx + 1].dataset.filename
-              : null;
-          }
-          await executeRerankDrop(data.filename, data.docType, insertBeforeFilename);
-          renderRoadmapBoard();
+          const list = card.closest('.roadmap-card-list');
+          const allCards = list
+            ? [...list.querySelectorAll('.roadmap-card[data-filename]')]
+            : [];
+          const idx = allCards.indexOf(card);
+          insertBeforeFilename = (idx >= 0 && idx + 1 < allCards.length)
+            ? allCards[idx + 1].dataset.filename
+            : null;
         }
+        await executeRerankDrop(data.filename, data.docType, insertBeforeFilename);
+        renderRoadmapBoard();
       } catch (err) { console.warn('Roadmap card drop failed:', err.message); }
     });
   });
