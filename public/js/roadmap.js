@@ -123,19 +123,176 @@ function applyEpicFocus() {
   });
 }
 
-// ── Push Sprints to JIRA ────────────────────────────────────
+// ── Push Sprints to JIRA (modal-based) ──────────────────────
+let _sprintPushPreview = [];    // current preview changes
+let _sprintPushFilters = { add: true, change: true, remove: true };
+
 async function pushSprintsToJira() {
   const leafTypes = new Set(['story', 'spike', 'bug']);
   const items = allDocs.filter(d =>
-    leafTypes.has(d.docType) && d.sprint && d.jiraId
-  ).map(d => ({ filename: d.filename, docType: d.docType, sprint: d.sprint }));
+    leafTypes.has(d.docType) && d.jiraId
+  ).map(d => ({ filename: d.filename, docType: d.docType, sprint: d.sprint || '', jiraId: d.jiraId, title: d.title || d.filename }));
 
   if (!items.length) {
-    showJiraToast('warn', 'No stories with both a sprint and JIRA ID found.');
+    showJiraToast('warn', 'No stories with a JIRA ID found.');
     return;
   }
 
-  if (!confirm(`Push sprint assignments for ${items.length} item(s) to JIRA?`)) return;
+  openSprintPushModal();
+
+  try {
+    const res = await postJSON('/api/jira/push-sprints-preview', { items });
+    _sprintPushPreview = res.changes || [];
+    renderSprintPushPreview(res);
+  } catch (e) {
+    showSprintPushError('Failed to fetch preview: ' + e.message);
+  }
+}
+
+function openSprintPushModal() {
+  _sprintPushPreview = [];
+  _sprintPushFilters = { add: true, change: true, remove: true };
+
+  // Reset UI
+  document.getElementById('sprint-push-loading').classList.add('show');
+  document.getElementById('sprint-push-error').classList.remove('show');
+  document.getElementById('sprint-push-empty').classList.remove('show');
+  document.getElementById('sprint-push-list').innerHTML = '';
+  document.getElementById('sprint-push-stats').textContent = '';
+  document.getElementById('sprint-push-actions').style.display = 'none';
+  document.getElementById('sprint-push-filters').style.display = 'none';
+
+  // Reset filter pills
+  document.querySelectorAll('.sprint-push-pill').forEach(p => p.classList.add('active'));
+
+  document.getElementById('sprint-push-overlay').classList.add('show');
+}
+
+function closeSprintPushModal() {
+  document.getElementById('sprint-push-overlay').classList.remove('show');
+}
+
+function showSprintPushError(msg) {
+  document.getElementById('sprint-push-loading').classList.remove('show');
+  const el = document.getElementById('sprint-push-error');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function renderSprintPushPreview(preview) {
+  document.getElementById('sprint-push-loading').classList.remove('show');
+
+  const changes = preview.changes || [];
+  const stats = preview.stats || {};
+
+  if (!changes.length) {
+    document.getElementById('sprint-push-empty').classList.add('show');
+    document.getElementById('sprint-push-stats').textContent = 'All in sync';
+    return;
+  }
+
+  // Show filters and actions
+  document.getElementById('sprint-push-filters').style.display = 'flex';
+  document.getElementById('sprint-push-actions').style.display = 'flex';
+
+  // Update pill counts
+  document.getElementById('sprint-push-count-add').textContent = stats.adds || 0;
+  document.getElementById('sprint-push-count-change').textContent = stats.changes || 0;
+  document.getElementById('sprint-push-count-remove').textContent = stats.removes || 0;
+
+  // Stats summary
+  document.getElementById('sprint-push-stats').textContent =
+    `${changes.length} change${changes.length !== 1 ? 's' : ''} found`;
+
+  // Render rows
+  const list = document.getElementById('sprint-push-list');
+  list.innerHTML = '';
+
+  for (const c of changes) {
+    const row = document.createElement('label');
+    row.className = 'sprint-push-item';
+    row.dataset.type = c.changeType;
+
+    let arrow = '';
+    if (c.changeType === 'add') {
+      arrow = `— → ${c.targetSprint}`;
+    } else if (c.changeType === 'change') {
+      arrow = `${c.currentJiraSprint} → ${c.targetSprint}`;
+    } else if (c.changeType === 'remove') {
+      arrow = `${c.currentJiraSprint} → —`;
+    }
+
+    row.innerHTML = `
+      <input type="checkbox" checked data-jira-id="${c.jiraId}" data-change-type="${c.changeType}"
+             data-filename="${c.filename || ''}" data-target-sprint="${c.targetSprint || ''}"
+             onchange="_sprintPushUpdateCount()">
+      <span class="sprint-push-item-title" title="${_escHtml(c.title)}">${_escHtml(c.title)}</span>
+      <span class="sprint-push-item-key">${_escHtml(c.jiraId)}</span>
+      <span class="sprint-push-item-arrow">${_escHtml(arrow)}</span>
+      <span class="sprint-push-badge sprint-push-badge-${c.changeType}">${c.changeType}</span>
+    `;
+    list.appendChild(row);
+  }
+
+  _sprintPushUpdateCount();
+}
+
+function _escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function toggleSprintPushFilter(type) {
+  _sprintPushFilters[type] = !_sprintPushFilters[type];
+
+  // Update pill active state
+  const pill = document.querySelector(`.sprint-push-pill-${type}`);
+  if (pill) pill.classList.toggle('active', _sprintPushFilters[type]);
+
+  _applySprintPushFilters();
+}
+
+function _applySprintPushFilters() {
+  const items = document.querySelectorAll('.sprint-push-item');
+  items.forEach(item => {
+    const type = item.dataset.type;
+    item.style.display = _sprintPushFilters[type] ? '' : 'none';
+  });
+}
+
+function sprintPushSelectAll(checked) {
+  document.querySelectorAll('.sprint-push-item').forEach(item => {
+    if (item.style.display === 'none') return; // skip hidden
+    const cb = item.querySelector('input[type="checkbox"]');
+    if (cb) cb.checked = checked;
+  });
+  _sprintPushUpdateCount();
+}
+
+function _sprintPushUpdateCount() {
+  const all = document.querySelectorAll('.sprint-push-item input[type="checkbox"]');
+  const checked = [...all].filter(cb => cb.checked).length;
+  const btn = document.getElementById('sprint-push-confirm');
+  btn.textContent = `Push Changes (${checked}/${all.length})`;
+  btn.disabled = checked === 0;
+}
+
+async function confirmSprintPush() {
+  const checkboxes = document.querySelectorAll('.sprint-push-item input[type="checkbox"]:checked');
+  if (!checkboxes.length) return;
+
+  const btn = document.getElementById('sprint-push-confirm');
+  btn.disabled = true;
+  btn.textContent = 'Pushing…';
+
+  const items = [...checkboxes].map(cb => ({
+    filename: cb.dataset.filename,
+    sprint: cb.dataset.targetSprint,
+    changeType: cb.dataset.changeType,
+    jiraId: cb.dataset.jiraId,
+    docType: ''
+  }));
 
   try {
     const res = await postJSON('/api/jira/push-sprints', { items });
@@ -146,8 +303,11 @@ async function pushSprintsToJira() {
     if (skipped) msg += `, ${skipped} skipped`;
     if (errors) msg += `, ${errors} failed`;
     showJiraToast(errors ? 'warn' : 'success', msg);
+    closeSprintPushModal();
   } catch (e) {
     showJiraToast('error', 'Failed to push sprints: ' + e.message);
+    btn.disabled = false;
+    _sprintPushUpdateCount();
   }
 }
 

@@ -806,3 +806,151 @@
 .roadmap-export-option-title { font-size: 0.82rem; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: normal; }
 .roadmap-export-option-desc { font-size: 0.72rem; color: var(--muted); margin-top: 1px; text-transform: none; letter-spacing: normal; }
 .roadmap-export-separator { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ── Sprint Push preview modal ──────────────────────────────── */
+.sprint-push-dialog {
+  width: 700px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.sprint-push-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.sprint-push-header h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.sprint-push-header-right { display: flex; align-items: center; gap: 10px; }
+.sprint-push-stats { font-size: 0.75rem; color: var(--muted); }
+
+/* Filter pills */
+.sprint-push-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sprint-push-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+}
+.sprint-push-pill span { font-weight: 400; }
+.sprint-push-pill-add.active    { background: rgba(34,197,94,0.12);  color: #16a34a; border-color: rgba(34,197,94,0.3); }
+.sprint-push-pill-change.active { background: rgba(59,130,246,0.12); color: #3b82f6; border-color: rgba(59,130,246,0.3); }
+.sprint-push-pill-remove.active { background: rgba(239,68,68,0.12);  color: #ef4444; border-color: rgba(239,68,68,0.3); }
+.sprint-push-select-actions { margin-left: auto; display: flex; gap: 2px; }
+
+/* Loading state */
+.sprint-push-loading {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.sprint-push-loading.show { display: flex; }
+.sprint-push-spinner {
+  width: 24px; height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: sp-spin 0.7s linear infinite;
+}
+@keyframes sp-spin { to { transform: rotate(360deg); } }
+
+/* Error & empty */
+.sprint-push-error {
+  display: none;
+  padding: 12px 20px;
+  font-size: 0.82rem;
+  color: var(--error, #ef4444);
+}
+.sprint-push-error.show { display: block; }
+.sprint-push-empty {
+  display: none;
+  padding: 32px 20px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.sprint-push-empty.show { display: block; }
+
+/* Change list */
+.sprint-push-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 50vh;
+}
+.sprint-push-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  transition: background 0.1s;
+}
+.sprint-push-item:hover { background: var(--surface2); }
+.sprint-push-item input[type="checkbox"] {
+  width: 14px; height: 14px; flex-shrink: 0;
+  accent-color: var(--accent); cursor: pointer;
+}
+.sprint-push-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.sprint-push-item-key {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: var(--mono, monospace);
+}
+.sprint-push-item-arrow {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sprint-push-badge {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+.sprint-push-badge-add    { background: rgba(34,197,94,0.12);  color: #16a34a; }
+.sprint-push-badge-change { background: rgba(59,130,246,0.12); color: #3b82f6; }
+.sprint-push-badge-remove { background: rgba(239,68,68,0.12);  color: #ef4444; }
+
+/* Actions footer */
+.sprint-push-dialog .dialog-actions {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}

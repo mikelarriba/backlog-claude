@@ -678,6 +678,39 @@
   </div>
 </div>
 
+<!-- Push Sprints preview modal -->
+<div class="dialog-overlay" id="sprint-push-overlay" onclick="if(event.target===this)closeSprintPushModal()">
+  <div class="dialog sprint-push-dialog">
+    <div class="sprint-push-header">
+      <h3>Push Sprints to JIRA</h3>
+      <div class="sprint-push-header-right">
+        <span class="sprint-push-stats" id="sprint-push-stats"></span>
+        <button class="btn-ghost btn-xs" onclick="closeSprintPushModal()">&times;</button>
+      </div>
+    </div>
+    <div class="sprint-push-filters" id="sprint-push-filters">
+      <button class="sprint-push-pill sprint-push-pill-add active" data-type="add" onclick="toggleSprintPushFilter('add')">+ Added <span id="sprint-push-count-add">0</span></button>
+      <button class="sprint-push-pill sprint-push-pill-change active" data-type="change" onclick="toggleSprintPushFilter('change')">↺ Changed <span id="sprint-push-count-change">0</span></button>
+      <button class="sprint-push-pill sprint-push-pill-remove active" data-type="remove" onclick="toggleSprintPushFilter('remove')">✕ Removed <span id="sprint-push-count-remove">0</span></button>
+      <span class="sprint-push-select-actions">
+        <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(true)">All</button>
+        <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(false)">None</button>
+      </span>
+    </div>
+    <div class="sprint-push-loading" id="sprint-push-loading">
+      <div class="sprint-push-spinner"></div>
+      <span>Comparing sprint assignments with JIRA…</span>
+    </div>
+    <div class="sprint-push-error" id="sprint-push-error"></div>
+    <div class="sprint-push-empty" id="sprint-push-empty">All sprint assignments are already in sync with JIRA.</div>
+    <div class="sprint-push-list" id="sprint-push-list"></div>
+    <div class="dialog-actions" id="sprint-push-actions">
+      <button class="btn-secondary" onclick="closeSprintPushModal()">Cancel</button>
+      <button class="btn-primary" id="sprint-push-confirm" onclick="confirmSprintPush()">Push Changes</button>
+    </div>
+  </div>
+</div>
+
 <!-- Roadmap Export dialog -->
 <div class="dialog-overlay" id="roadmap-export-overlay" onclick="if(event.target===this)closeRoadmapExportDialog()">
   <div class="dialog roadmap-export-dialog">
