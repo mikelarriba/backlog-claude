@@ -21,7 +21,8 @@
     });
   }
 
-  window.setTheme = function (preference) {
+  // Export setTheme as a module-level function (exposed to window in main.js)
+  window._setThemeImpl = function (preference) {
     localStorage.setItem(STORAGE_KEY, preference);
     applyTheme(preference);
     updateButtons(preference);
@@ -40,3 +41,7 @@
   // Once DOM is ready, sync button states
   document.addEventListener('DOMContentLoaded', () => updateButtons(stored));
 })();
+
+export function setTheme(preference) {
+  window._setThemeImpl(preference);
+}
