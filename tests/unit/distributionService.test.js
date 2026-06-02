@@ -137,3 +137,33 @@ describe('proposeDistribution — already-assigned docs', () => {
     assert.equal(result.overflow.find(d => d.filename === 'new.md')?.filename, 'new.md');
   });
 });
+
+describe('proposeDistribution — buffer', () => {
+  test('respects bufferPct on sprint config', () => {
+    const docs = [
+      makeDoc({ filename: 'a.md', storyPoints: 8 }),
+      makeDoc({ filename: 'b.md', storyPoints: 5 }),
+    ];
+    // capacity 10, buffer 20% → effective 8. Only 'a' (8 SP) fits.
+    const result = proposeDistribution(docs, [{ name: 'S1', capacity: 10, bufferPct: 0.2 }], EMPTY_EPIC_MAP);
+    assert.equal(result.sprints[0].assigned.length, 1);
+    assert.equal(result.sprints[0].effectiveCapacity, 8);
+    assert.equal(result.overflow.length, 1);
+  });
+
+  test('defaults to no buffer when bufferPct not set', () => {
+    const docs = [
+      makeDoc({ filename: 'a.md', storyPoints: 8 }),
+      makeDoc({ filename: 'b.md', storyPoints: 2 }),
+    ];
+    const result = proposeDistribution(docs, [{ name: 'S1', capacity: 10 }], EMPTY_EPIC_MAP);
+    assert.equal(result.sprints[0].assigned.length, 2);
+    assert.equal(result.sprints[0].effectiveCapacity, 10);
+  });
+
+  test('effectiveCapacity is floor of capacity * (1 - bufferPct)', () => {
+    const docs = [];
+    const result = proposeDistribution(docs, [{ name: 'S1', capacity: 15, bufferPct: 0.3 }], EMPTY_EPIC_MAP);
+    assert.equal(result.sprints[0].effectiveCapacity, 10);  // floor(15 * 0.7) = 10
+  });
+});

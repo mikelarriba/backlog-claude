@@ -39,9 +39,16 @@ function renderDistributionPreview(data) {
 
   // Sprint sections
   let html = data.sprints.map((sprint, si) => {
-    const pct = sprint.capacity > 0 ? Math.round((sprint.usedPoints / sprint.capacity) * 100) : 0;
+    const effectiveCap = sprint.effectiveCapacity ?? sprint.capacity;
+    const bufferPct = sprint.capacity > 0 && effectiveCap < sprint.capacity
+      ? Math.round((1 - effectiveCap / sprint.capacity) * 100)
+      : 0;
+    const pct = effectiveCap > 0 ? Math.round((sprint.usedPoints / effectiveCap) * 100) : 0;
     const barClass = pct > 100 ? 'over' : pct > 90 ? 'warn' : '';
     const barWidth = Math.min(pct, 100);
+    const statsText = bufferPct
+      ? `${sprint.usedPoints} / ${effectiveCap} SP (${pct}%, ${bufferPct}% buffer)`
+      : `${sprint.usedPoints} / ${sprint.capacity} SP (${pct}%)`;
 
     const itemsHtml = sprint.assigned.length
       ? sprint.assigned.map((item, ii) => {
@@ -67,7 +74,7 @@ function renderDistributionPreview(data) {
       <div class="distribution-sprint-section">
         <div class="distribution-sprint-header">
           <span class="distribution-sprint-name">${escHtml(sprint.name)}</span>
-          <span class="distribution-sprint-stats">${sprint.usedPoints} / ${sprint.capacity} SP (${pct}%)</span>
+          <span class="distribution-sprint-stats">${statsText}</span>
         </div>
         <div class="distribution-capacity-bar ${barClass}">
           <div class="distribution-capacity-fill" style="width:${barWidth}%"></div>

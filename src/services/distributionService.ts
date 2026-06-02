@@ -20,6 +20,7 @@ export interface DistributionDoc {
 export interface SprintConfig {
   name: string;
   capacity: number;
+  bufferPct?: number;
 }
 
 export interface AssignedDoc extends DistributionDoc {
@@ -28,7 +29,8 @@ export interface AssignedDoc extends DistributionDoc {
 
 export interface SprintBucket {
   name: string;
-  capacity: number;
+  capacity: number;         // raw capacity
+  effectiveCapacity: number; // after buffer
   idx: number;
   assigned: AssignedDoc[];
   usedPoints: number;
@@ -107,8 +109,9 @@ export function proposeDistribution(
 
   // Build buckets pre-filled with already-assigned docs
   const buckets: SprintBucket[] = sprintCfg.map((s, idx) => ({
-    name:       s.name,
-    capacity:   s.capacity,
+    name:              s.name,
+    capacity:          s.capacity,
+    effectiveCapacity: Math.floor(s.capacity * (1 - (s.bufferPct ?? 0))),
     idx,
     assigned:   assigned.filter(d => d.sprint === s.name).map(d => ({ ...d, wasAlreadyAssigned: true })),
     usedPoints: assigned.filter(d => d.sprint === s.name).reduce((sum, d) => sum + d.storyPoints, 0),
@@ -159,7 +162,7 @@ export function proposeDistribution(
     for (const bucket of buckets) {
       if (bucket.idx < preferredIdx) continue;
       if (bucket.idx > softMaxIdx) break;
-      if (bucket.usedPoints + doc.storyPoints <= bucket.capacity) {
+      if (bucket.usedPoints + doc.storyPoints <= bucket.effectiveCapacity) {
         if (minIdx > 0 && bucket.idx > 0) {
           depAdjusted.push(`"${doc.title}" placed in ${bucket.name} due to dependency ordering`);
         }
@@ -179,7 +182,7 @@ export function proposeDistribution(
         if (bucket.idx <= softMaxIdx) continue;
         if (bucket.idx < minIdx) continue;
         if (bucket.idx > hardMaxIdx) break;
-        if (bucket.usedPoints + doc.storyPoints <= bucket.capacity) {
+        if (bucket.usedPoints + doc.storyPoints <= bucket.effectiveCapacity) {
           depAdjusted.push(`"${doc.title}" spilled beyond preferred 2-sprint window into ${bucket.name}`);
           bucket.assigned.push({ ...doc, wasAlreadyAssigned: false });
           bucket.usedPoints += doc.storyPoints;
@@ -221,9 +224,9 @@ export function proposeDistribution(
     warnings.push(`${capacityOverflow.length} item(s) (${overflowSP} SP) exceed total sprint capacity`);
   }
   for (const bucket of buckets) {
-    const pct = bucket.capacity > 0 ? Math.round((bucket.usedPoints / bucket.capacity) * 100) : 0;
+    const pct = bucket.effectiveCapacity > 0 ? Math.round((bucket.usedPoints / bucket.effectiveCapacity) * 100) : 0;
     if (pct > 100) suggestions.push(`${bucket.name} is over capacity at ${pct}% — consider moving items to a later sprint`);
-    else if (pct < 50 && bucket.capacity > 0) suggestions.push(`${bucket.name} has ${bucket.capacity - bucket.usedPoints} SP of free capacity`);
+    else if (pct < 50 && bucket.effectiveCapacity > 0) suggestions.push(`${bucket.name} has ${bucket.effectiveCapacity - bucket.usedPoints} SP of free capacity`);
   }
 
   return { sprints: buckets, overflow, warnings, suggestions };
