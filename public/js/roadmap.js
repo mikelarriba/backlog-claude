@@ -1,7 +1,7 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
 let _roadmapVisiblePis   = new Set();  // checked PI names (empty = show none)
 let _roadmapPanelState   = { epics: true, stories: true }; // expanded/collapsed
-let _roadmapFocusedFeature = null;  // filename of clicked feature (focus mode)
+let _roadmapFocusedEpic = null;  // filename of clicked feature (focus mode)
 
 // ── Open / Close ─────────────────────────────────────────────
 function openRoadmapView() {
@@ -20,8 +20,10 @@ function openRoadmapView() {
   // Populate PI filter checkboxes
   populateRoadmapPiFilter();
 
-  // Reset focus
-  _roadmapFocusedFeature = null;
+  // Reset focus and search
+  _roadmapFocusedEpic = null;
+  const searchInput = document.getElementById('rm-epic-search');
+  if (searchInput) searchInput.value = '';
 
   renderRoadmapBoard();
 }
@@ -35,7 +37,7 @@ function closeRoadmapView() {
   currentDocType  = null;
   document.getElementById('list-view').style.display = '';
   _roadmapVisiblePis.clear();
-  _roadmapFocusedFeature = null;
+  _roadmapFocusedEpic = null;
 }
 
 function isRoadmapOpen() {
@@ -81,31 +83,43 @@ function toggleRoadmapPanel(panel) {
   }
 }
 
-// ── Feature focus (click on feature row) ────────────────────
-function focusFeature(filename) {
-  if (_roadmapFocusedFeature === filename) {
-    _roadmapFocusedFeature = null; // toggle off
-  } else {
-    _roadmapFocusedFeature = filename;
-  }
-  applyFeatureFocus();
+// ── Epic search filter ──────────────────────────────────────
+function filterRoadmapEpics(query) {
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll('.rm-epic-card').forEach(card => {
+    const title = (card.querySelector('.rm-epic-title')?.textContent || '').toLowerCase();
+    card.style.display = (!q || title.includes(q)) ? '' : 'none';
+  });
+  // Update visible count
+  const visible = document.querySelectorAll('.rm-epic-card:not([style*="display: none"])').length;
+  document.getElementById('rm-count-epics').textContent = visible;
 }
 
-function applyFeatureFocus() {
-  // Feature panel: highlight focused feature
+// ── Epic focus (click on epic card) ──────────────────────────
+function focusEpic(filename) {
+  if (_roadmapFocusedEpic === filename) {
+    _roadmapFocusedEpic = null; // toggle off
+  } else {
+    _roadmapFocusedEpic = filename;
+  }
+  applyEpicFocus();
+}
+
+function applyEpicFocus() {
+  // Epic panel: highlight focused epic
   document.querySelectorAll('.rm-epic-card').forEach(card => {
-    card.classList.toggle('rm-focused', card.dataset.filename === _roadmapFocusedFeature);
-    card.classList.toggle('rm-dimmed', _roadmapFocusedFeature && card.dataset.filename !== _roadmapFocusedFeature);
+    card.classList.toggle('rm-focused', card.dataset.filename === _roadmapFocusedEpic);
+    card.classList.toggle('rm-dimmed', _roadmapFocusedEpic && card.dataset.filename !== _roadmapFocusedEpic);
   });
 
-  // Story panel: dim stories not under the focused feature
+  // Story panel: dim non-matching stories
   document.querySelectorAll('.roadmap-card').forEach(card => {
-    if (!_roadmapFocusedFeature) {
+    if (!_roadmapFocusedEpic) {
       card.classList.remove('rm-dimmed');
       return;
     }
-    const feature = card.dataset.feature || '';
-    card.classList.toggle('rm-dimmed', feature !== _roadmapFocusedFeature);
+    const parent = card.dataset.parent || '';
+    card.classList.toggle('rm-dimmed', parent !== _roadmapFocusedEpic);
   });
 }
 
@@ -430,5 +444,194 @@ async function executeSplit() {
     status.textContent = err.message || 'Split failed';
     btn.disabled       = false;
     btn.textContent    = 'Retry';
+  }
+}
+
+// ── Roadmap context menus ─────────────────────────────────────
+
+function _closeRoadmapCtx() {
+  const el = document.getElementById('rm-context-menu');
+  if (el) el.remove();
+  document.removeEventListener('mousedown', _rmCtxDismiss);
+  document.removeEventListener('contextmenu', _rmCtxDismiss);
+}
+
+function _rmCtxDismiss(e) {
+  const menu = document.getElementById('rm-context-menu');
+  if (menu && !menu.contains(e.target)) _closeRoadmapCtx();
+}
+
+function _showRoadmapCtx(x, y, html) {
+  _closeRoadmapCtx();
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.id = 'rm-context-menu';
+  menu.innerHTML = html;
+  document.body.appendChild(menu);
+
+  // Position — keep on-screen
+  const rect = menu.getBoundingClientRect();
+  if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
+  if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+
+  setTimeout(() => {
+    document.addEventListener('mousedown', _rmCtxDismiss);
+    document.addEventListener('contextmenu', _rmCtxDismiss);
+  }, 0);
+}
+
+// ── Epic context menu (top panel) ────────────────────────────
+function handleEpicContextMenu(e, filename, docType) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const doc = allDocs.find(d => d.filename === filename);
+  const title = doc?.title || filename;
+  const shortTitle = title.length > 40 ? title.substring(0, 37) + '…' : title;
+
+  const html = `
+    <div class="ctx-header">${escHtml(shortTitle)}</div>
+    <div class="ctx-separator"></div>
+    <button class="ctx-item" onclick="rmCtxOpenEpic('${escHtml(filename)}','${escHtml(docType)}')">Open Epic</button>
+    <div class="ctx-separator"></div>
+    <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','up')">Move up</button>
+    <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','down')">Move down</button>
+    <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','top')">Move to the top</button>
+    <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','bottom')">Move to the bottom</button>
+  `;
+  _showRoadmapCtx(e.clientX, e.clientY, html);
+}
+
+function rmCtxOpenEpic(filename, docType) {
+  _closeRoadmapCtx();
+  openDoc(filename, docType);
+}
+
+async function rmCtxMoveEpic(filename, docType, direction) {
+  _closeRoadmapCtx();
+
+  // Get the visible epic cards in current order (respects search filter)
+  const cards = [...document.querySelectorAll('.rm-epic-card:not([style*="display: none"])')];
+  const filenames = cards.map(c => c.dataset.filename).filter(Boolean);
+  const idx = filenames.indexOf(filename);
+  if (idx < 0) return;
+
+  // Build the full ordered list of this docType for rerank
+  const group = allDocs.filter(d => d.docType === docType);
+  const sorted = [...group].sort(_rankSortFn);
+  const srcIdx = sorted.findIndex(d => d.filename === filename);
+  if (srcIdx < 0) return;
+
+  const [item] = sorted.splice(srcIdx, 1);
+
+  let targetIdx;
+  if (direction === 'up') {
+    // Move before the previous visible item in the full sorted list
+    const prevFn = filenames[idx - 1];
+    if (!prevFn) return;
+    targetIdx = sorted.findIndex(d => d.filename === prevFn);
+    if (targetIdx < 0) return;
+  } else if (direction === 'down') {
+    const nextFn = filenames[idx + 1];
+    if (!nextFn) return;
+    targetIdx = sorted.findIndex(d => d.filename === nextFn) + 1;
+    if (targetIdx <= 0) return;
+  } else if (direction === 'top') {
+    // Move to the top position — before the first visible item
+    const firstFn = filenames[0];
+    targetIdx = firstFn ? sorted.findIndex(d => d.filename === firstFn) : 0;
+    if (targetIdx < 0) targetIdx = 0;
+  } else {
+    // bottom — after the last visible item
+    const lastFn = filenames[filenames.length - 1];
+    targetIdx = lastFn ? sorted.findIndex(d => d.filename === lastFn) + 1 : sorted.length;
+    if (targetIdx < 0) targetIdx = sorted.length;
+  }
+
+  sorted.splice(targetIdx, 0, item);
+
+  try {
+    await postJSON('/api/docs/rerank', { type: docType, orderedFilenames: sorted.map(d => d.filename) });
+    await loadDocs();
+    refreshRoadmapView();
+  } catch (e) {
+    showJiraToast('error', e.message);
+  }
+}
+
+// ── Story context menu (bottom panel) ────────────────────────
+function handleStoryContextMenu(e, filename, docType) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const doc = allDocs.find(d => d.filename === filename);
+  const title = doc?.title || filename;
+  const shortTitle = title.length > 40 ? title.substring(0, 37) + '…' : title;
+
+  const html = `
+    <div class="ctx-header">${escHtml(shortTitle)}</div>
+    <div class="ctx-separator"></div>
+    <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','up')">Move up</button>
+    <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','down')">Move down</button>
+    <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','top')">Move to the top</button>
+    <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','bottom')">Move to the bottom</button>
+  `;
+  _showRoadmapCtx(e.clientX, e.clientY, html);
+}
+
+async function rmCtxMoveStory(filename, docType, direction) {
+  _closeRoadmapCtx();
+
+  // Find the card and its sprint column
+  const card = document.querySelector(`.roadmap-card[data-filename="${CSS.escape(filename)}"]`);
+  if (!card) return;
+  const column = card.closest('.roadmap-card-list');
+  if (!column) return;
+
+  // Get the ordered filenames in this column
+  const cards = [...column.querySelectorAll('.roadmap-card')];
+  const filenames = cards.map(c => c.dataset.filename);
+  const idx = filenames.indexOf(filename);
+  if (idx < 0) return;
+
+  // Build the full sorted list for this docType
+  const group = allDocs.filter(d => d.docType === docType);
+  const sorted = [...group].sort(_rankSortFn);
+  const srcIdx = sorted.findIndex(d => d.filename === filename);
+  if (srcIdx < 0) return;
+
+  const [item] = sorted.splice(srcIdx, 1);
+
+  let targetIdx;
+  if (direction === 'up') {
+    const prevFn = filenames[idx - 1];
+    if (!prevFn) return;
+    targetIdx = sorted.findIndex(d => d.filename === prevFn);
+    if (targetIdx < 0) return;
+  } else if (direction === 'down') {
+    const nextFn = filenames[idx + 1];
+    if (!nextFn) return;
+    targetIdx = sorted.findIndex(d => d.filename === nextFn) + 1;
+    if (targetIdx <= 0) return;
+  } else if (direction === 'top') {
+    const firstFn = filenames[0];
+    targetIdx = firstFn ? sorted.findIndex(d => d.filename === firstFn) : 0;
+    if (targetIdx < 0) targetIdx = 0;
+  } else {
+    const lastFn = filenames[filenames.length - 1];
+    targetIdx = lastFn ? sorted.findIndex(d => d.filename === lastFn) + 1 : sorted.length;
+    if (targetIdx < 0) targetIdx = sorted.length;
+  }
+
+  sorted.splice(targetIdx, 0, item);
+
+  try {
+    await postJSON('/api/docs/rerank', { type: docType, orderedFilenames: sorted.map(d => d.filename) });
+    await loadDocs();
+    refreshRoadmapView();
+  } catch (e) {
+    showJiraToast('error', e.message);
   }
 }

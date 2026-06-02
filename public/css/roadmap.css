@@ -164,6 +164,21 @@
 }
 .rm-panel-header:hover { background: var(--surface2); }
 
+.rm-epic-search {
+  margin-left: auto;
+  padding: 3px 8px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  width: 180px;
+  outline: none;
+}
+.rm-epic-search:focus {
+  border-color: var(--accent, #6366F1);
+}
+
 .rm-panel-chevron {
   font-size: 0.7rem;
   color: var(--muted);
@@ -790,3 +805,4 @@
 .roadmap-export-option > div { flex: 1; min-width: 0; }
 .roadmap-export-option-title { font-size: 0.82rem; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: normal; }
 .roadmap-export-option-desc { font-size: 0.72rem; color: var(--muted); margin-top: 1px; text-transform: none; letter-spacing: normal; }
+.roadmap-export-separator { height: 1px; background: var(--border); margin: 4px 0; }
