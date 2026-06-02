@@ -26,7 +26,7 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     try {
       if (fs.existsSync(PI_SETTINGS_PATH)) return JSON.parse(await fs.promises.readFile(PI_SETTINGS_PATH, 'utf-8'));
     } catch {}
-    return { currentPi: null, nextPi: null };
+    return { currentPi: null, nextPi: null, defaultBufferPct: 0 };
   }
 
   async function savePiSettings(settings: Record<string, unknown>) {
@@ -114,7 +114,11 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     }
     const settings = await loadPiSettings();
     if (!settings.sprints) settings.sprints = {};
-    settings.sprints[piName] = sprints.map(s => ({ name: s.name.trim(), capacity: s.capacity }));
+    settings.sprints[piName] = sprints.map(s => {
+      const entry: { name: string; capacity: number; bufferPct?: number } = { name: s.name.trim(), capacity: s.capacity };
+      if (typeof s.bufferPct === 'number' && s.bufferPct > 0) entry.bufferPct = s.bufferPct;
+      return entry;
+    });
     await savePiSettings(settings);
     broadcast({ type: 'sprint_settings_updated', piName });
     logInfo('PUT /api/settings/pi/sprints', `Saved ${sprints.length} sprint(s) for ${piName}`);

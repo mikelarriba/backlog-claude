@@ -122,11 +122,17 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
       if (!piName) return sendError(res, 400, 'VALIDATION_ERROR', 'piName is required');
 
       const piSettingsPath = path.join(rootDir, '.pi-settings.json');
-      let sprintCfg: Array<{ name: string; capacity: number }> = [];
+      let sprintCfg: Array<{ name: string; capacity: number; bufferPct?: number }> = [];
       try {
         const raw = await fs.promises.readFile(piSettingsPath, 'utf-8');
         const settings = JSON.parse(raw);
+        const defaultBufferPct = settings.defaultBufferPct ?? 0;
         sprintCfg = (settings.sprints && settings.sprints[piName]) || [];
+        // Enrich each sprint with bufferPct
+        sprintCfg = sprintCfg.map(s => ({
+          ...s,
+          bufferPct: s.bufferPct ?? defaultBufferPct,
+        }));
       } catch {}
       if (!sprintCfg.length) return sendError(res, 400, 'NO_SPRINTS', 'No sprints configured for this PI');
 
