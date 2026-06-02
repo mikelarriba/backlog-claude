@@ -456,10 +456,11 @@ function closeRoadmapExportDialog() {
 }
 
 async function executeRoadmapExport() {
-  const includeRoadmap = document.getElementById('rexp-roadmap-graphic').checked;
-  const includeTitles  = document.getElementById('rexp-issue-titles').checked;
-  const includeDescs   = document.getElementById('rexp-issue-descriptions').checked;
-  const includeCharts  = document.getElementById('rexp-distribution-charts').checked;
+  const includeRoadmap  = document.getElementById('rexp-roadmap-graphic').checked;
+  const includeTitles   = document.getElementById('rexp-issue-titles').checked;
+  const includeDescs    = document.getElementById('rexp-issue-descriptions').checked;
+  const includeCharts   = document.getElementById('rexp-distribution-charts').checked;
+  const hideEmptyEpics  = document.getElementById('rexp-hide-empty-epics').checked;
 
   if (!includeRoadmap && !includeTitles && !includeDescs && !includeCharts) {
     showJiraToast('error', 'Select at least one section to export');
@@ -473,27 +474,20 @@ async function executeRoadmapExport() {
     const sprints   = getAllSprints();
     const piFilter  = [..._roadmapVisiblePis].join(' + ') || null;
     const leafTypes = new Set(['story', 'spike', 'bug']);
+    const epicTypes = new Set(['epic']);
 
     // Visible leaf docs (same logic as renderStoryPanel)
     const visibleLeafs = allDocs.filter(d =>
       leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
     );
 
-    // Build epic→feature lookup
-    const epicToFeature = new Map();
-    for (const d of allDocs) {
-      if (d.docType === 'epic' && d.parentFilename) epicToFeature.set(d.filename, d.parentFilename);
-    }
-
-    // Build feature map (same logic as renderEpicPanel)
+    // Build epic map (same logic as renderEpicPanel)
     const epicMap = new Map();
     for (const leaf of visibleLeafs) {
-      const epicFn = leaf.parentFilename || null;
-      const featureFn = epicFn ? (epicToFeature.get(epicFn) || null) : null;
-      const key = featureFn || '__none__';
+      const key = leaf.parentFilename || '__none__';
       if (!epicMap.has(key)) {
-        const featureDoc = featureFn ? allDocs.find(d => d.filename === featureFn) : null;
-        epicMap.set(key, { epicDoc: featureDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
+        const epicDoc = leaf.parentFilename ? allDocs.find(d => d.filename === leaf.parentFilename) : null;
+        epicMap.set(key, { epicDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
       }
       const entry = epicMap.get(key);
       entry.storyCount++;
@@ -501,12 +495,12 @@ async function executeRoadmapExport() {
       if (leaf.sprint) entry.sprints.add(leaf.sprint);
     }
     for (const d of allDocs) {
-      if (d.docType === 'feature' && !epicMap.has(d.filename)) {
+      if (epicTypes.has(d.docType) && !epicMap.has(d.filename)) {
         epicMap.set(d.filename, { epicDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
       }
     }
 
-    // Sort features same as renderEpicPanel
+    // Sort epics same as renderEpicPanel
     const epicEntries = [...epicMap.entries()].sort(([ka, a], [kb, b]) => {
       if (ka === '__none__') return 1;
       if (kb === '__none__') return -1;
@@ -530,7 +524,7 @@ async function executeRoadmapExport() {
 
     const html = _buildRoadmapPrintPage({
       sprints, epicEntries, visibleLeafs, contentMap, piFilter,
-      includeRoadmap, includeTitles, includeDescs, includeCharts,
+      includeRoadmap, includeTitles, includeDescs, includeCharts, hideEmptyEpics,
     });
 
     const win = window.open('', '_blank');
@@ -547,7 +541,7 @@ async function executeRoadmapExport() {
 
 function _buildRoadmapPrintPage(opts) {
   const { sprints, epicEntries, visibleLeafs, contentMap, piFilter,
-          includeRoadmap, includeTitles, includeDescs, includeCharts } = opts;
+          includeRoadmap, includeTitles, includeDescs, includeCharts, hideEmptyEpics } = opts;
 
   const piLabel  = piFilter || [piSettings.currentPi, piSettings.nextPi].filter(Boolean).join(' + ') || 'All';
   const dateStr  = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -556,7 +550,7 @@ function _buildRoadmapPrintPage(opts) {
   const epicCount  = epicEntries.filter(([k]) => k !== '__none__').length;
 
   let sections = '';
-  if (includeRoadmap) sections += _renderRoadmapTimeline(sprints, epicEntries);
+  if (includeRoadmap) sections += _renderRoadmapTimeline(sprints, epicEntries, hideEmptyEpics);
   if (includeCharts)  sections += _renderRoadmapCharts(visibleLeafs);
   if (includeTitles)  sections += _renderRoadmapIssueTitles(sprints, visibleLeafs);
   if (includeDescs)   sections += _renderRoadmapIssueDescs(sprints, visibleLeafs, contentMap);
@@ -612,18 +606,19 @@ function _buildRoadmapPrintPage(opts) {
     color: #64748b; padding: 6px 4px; border-bottom: 2px solid #e2e8f0;
     text-align: center; white-space: nowrap;
   }
-  .rm-tl-table th:first-child { text-align: left; width: 200px; min-width: 160px; }
+  .rm-tl-table th:first-child { text-align: left; width: 320px; min-width: 260px; }
+  .rm-tl-table th:not(:first-child) { width: 60px; min-width: 50px; }
   .rm-tl-row td { padding: 4px 2px; height: 32px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
   .rm-tl-row td:first-child {
-    padding: 4px 8px; font-size: 10px; font-weight: 600;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;
+    padding: 4px 8px; font-size: 12px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;
   }
   .rm-tl-epic-dot {
     display: inline-block; width: 8px; height: 8px; border-radius: 50%;
     margin-right: 5px; vertical-align: middle;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
-  .rm-tl-meta { font-size: 8px; color: #94a3b8; font-weight: 400; margin-left: 4px; }
+  .rm-tl-meta { font-size: 9px; color: #94a3b8; font-weight: 400; margin-left: 6px; }
   .rm-tl-bar {
     height: 20px; border-radius: 4px; opacity: 0.85;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
@@ -711,19 +706,21 @@ ${sections}
 
 // ── Roadmap timeline (epic bars across sprint columns) ──────────
 
-function _renderRoadmapTimeline(sprints, epicEntries) {
+function _renderRoadmapTimeline(sprints, epicEntries, hideEmptyEpics) {
   if (!sprints.length) return '';
 
   const N = sprints.length;
   const sprintIdx = new Map(sprints.map((s, i) => [s.name, i]));
 
   // Header row
-  let headerCells = '<th>Epic / Feature</th>';
+  let headerCells = '<th>Epic</th>';
   for (const s of sprints) headerCells += `<th>${_esc(s.name)}</th>`;
 
   // Epic rows
   let rowsHtml = '';
   for (const [key, { epicDoc, sprints: sprintSet, storyCount, totalSP }] of epicEntries) {
+    // Skip epics with no stories in any sprint if the option is enabled
+    if (hideEmptyEpics && sprintSet.size === 0) continue;
     const isNone = key === '__none__';
     const title  = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
     const color  = isNone ? '#94a3b8' : epicColor(key);

@@ -77,14 +77,15 @@ function renderRoadmapBoard() {
   renderEpicPanel(sprints);
   renderStoryPanel(sprints);
   injectGhostCards();
-  applyFeatureFocus();
+  applyEpicFocus();
   attachRoadmapDepHoverListeners();
 }
 
-// ── Feature panel rendering (groups by grandparent feature) ──
+// ── Epic panel rendering ─────────────────────────────────────
 function renderEpicPanel(sprints) {
   const body = document.getElementById('rm-body-epics');
 
+  const epicTypes = new Set(['epic']);
   const leafTypes = new Set(['story', 'spike', 'bug']);
 
   // All visible leaf docs (respect PI checkboxes)
@@ -92,46 +93,35 @@ function renderEpicPanel(sprints) {
     leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
   );
 
-  // Build epic→feature lookup
-  const epicToFeature = new Map();
-  for (const d of allDocs) {
-    if (d.docType === 'epic' && d.parentFilename) {
-      epicToFeature.set(d.filename, d.parentFilename);
-    }
-  }
-
-  // Map: featureFilename → { featureDoc, sprintSet, storyCount, totalSP }
-  const featureMap = new Map();
+  // Map: epicFilename → { epicDoc, sprintSet, storyCount, totalSP }
+  const epicMap = new Map();
   for (const leaf of visibleLeafs) {
-    // Walk up: leaf → epic → feature
-    const epicFn = leaf.parentFilename || null;
-    const featureFn = epicFn ? (epicToFeature.get(epicFn) || null) : null;
-    const key = featureFn || '__none__';
-    if (!featureMap.has(key)) {
-      const featureDoc = featureFn
-        ? allDocs.find(d => d.filename === featureFn)
+    const key = leaf.parentFilename || '__none__';
+    if (!epicMap.has(key)) {
+      const epicDoc = leaf.parentFilename
+        ? allDocs.find(d => d.filename === leaf.parentFilename)
         : null;
-      featureMap.set(key, { featureDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
+      epicMap.set(key, { epicDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
     }
-    const entry = featureMap.get(key);
+    const entry = epicMap.get(key);
     entry.storyCount++;
     entry.totalSP += Number(leaf.storyPoints) || 0;
     if (leaf.sprint) entry.sprints.add(leaf.sprint);
   }
 
-  // Also add features with no stories yet
+  // Also add epics/features with no children yet
   for (const d of allDocs) {
-    if (d.docType === 'feature' && !featureMap.has(d.filename)) {
-      featureMap.set(d.filename, { featureDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
+    if (epicTypes.has(d.docType) && !epicMap.has(d.filename)) {
+      epicMap.set(d.filename, { epicDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
     }
   }
 
   // Sort: by rank, then filename descending
-  const sorted = [...featureMap.entries()].sort(([ka, a], [kb, b]) => {
+  const sorted = [...epicMap.entries()].sort(([ka, a], [kb, b]) => {
     if (ka === '__none__') return 1;
     if (kb === '__none__') return -1;
-    const ra = a.featureDoc?.rank != null ? a.featureDoc.rank : 9999;
-    const rb = b.featureDoc?.rank != null ? b.featureDoc.rank : 9999;
+    const ra = a.epicDoc?.rank != null ? a.epicDoc.rank : 9999;
+    const rb = b.epicDoc?.rank != null ? b.epicDoc.rank : 9999;
     if (ra !== rb) return ra - rb;
     return kb.localeCompare(ka);
   });
@@ -147,14 +137,14 @@ function renderEpicPanel(sprints) {
     <div class="rm-sprint-header-cell">${escHtml(s.name)}</div>
   `).join('');
 
-  // Feature rows
+  // Epic rows
   let rowsHtml = '';
-  for (const [key, { featureDoc, sprints: sprintSet, storyCount, totalSP }] of sorted) {
+  for (const [key, { epicDoc, sprints: sprintSet, storyCount, totalSP }] of sorted) {
     const isNone = key === '__none__';
-    const title  = featureDoc?.title || (isNone ? 'Unlinked Stories' : key);
+    const title  = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
     const color  = isNone ? 'var(--muted)' : epicColor(key);
-    const fn     = featureDoc?.filename || '';
-    const snippet = featureDoc?.descriptionSnippet || '';
+    const fn     = epicDoc?.filename || '';
+    const snippet = epicDoc?.descriptionSnippet || '';
 
     // Compute sprint span
     const indices = [...sprintSet]
@@ -181,10 +171,12 @@ function renderEpicPanel(sprints) {
       ? ` data-tooltip-title="${escHtml(title)}" data-tooltip-desc="${escHtml(snippet)}"`
       : ` data-tooltip-title="${escHtml(title)}"`;
 
+    const epicDocType = epicDoc?.docType || 'epic';
     rowsHtml += `
       <div class="rm-epic-card${isNone ? ' rm-epic-unlinked' : ''}"
-           data-filename="${escHtml(fn)}"${tooltipAttrs}
-           onclick="${fn ? `focusFeature('${escHtml(fn)}')` : ''}">
+           data-filename="${escHtml(fn)}" data-doctype="${epicDocType}"${tooltipAttrs}
+           onclick="${fn ? `focusEpic('${escHtml(fn)}')` : ''}"
+           oncontextmenu="${fn ? `handleEpicContextMenu(event,'${escHtml(fn)}','${epicDocType}')` : ''}">
         <div class="rm-epic-name-col">
           <div class="rm-epic-dot" style="background:${color}"></div>
           <div class="rm-epic-info">
@@ -201,7 +193,7 @@ function renderEpicPanel(sprints) {
 
   body.innerHTML = `
     <div class="rm-board-header">
-      <div class="rm-name-col-header">Feature</div>
+      <div class="rm-name-col-header">Epic</div>
       <div class="rm-sprint-headers">${headerCells}</div>
     </div>
     ${rowsHtml}`;
@@ -298,17 +290,14 @@ function renderRoadmapCard(d, sprintName) {
   const spClass = sp ? 'rm-badge rm-sp' : 'rm-badge rm-no-sp';
   const cardHeight = spCardHeight(sp);
 
-  // Find parent epic and grandparent feature for focus
+  // Find parent epic for focus
   const parentFn = d.parentFilename || '';
-  let featureFn = '';
   let parentHtml = '';
   if (parentFn) {
     const parent = allDocs.find(p => p.filename === parentFn);
     if (parent) {
       const color = epicColor(parentFn);
       parentHtml = `<div class="roadmap-card-parent"><span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}</div>`;
-      // Walk up to feature (grandparent)
-      if (parent.parentFilename) featureFn = parent.parentFilename;
     }
   }
 
@@ -327,11 +316,11 @@ function renderRoadmapCard(d, sprintName) {
   return `
     <div class="roadmap-card${depBlockedClass}${noEstimateClass}" draggable="true"
          onclick="openDoc('${escHtml(d.filename)}','${d.docType}')"
+         oncontextmenu="handleStoryContextMenu(event,'${escHtml(d.filename)}','${d.docType}')"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
          data-sp="${sp}"
          data-parent="${escHtml(parentFn)}"
-         data-feature="${escHtml(featureFn)}"
          data-sprint="${d.sprint ? escHtml(d.sprint) : ''}"
          style="min-height:${cardHeight}px">
       ${parentHtml}

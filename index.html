@@ -478,10 +478,12 @@
       </div>
       <div class="roadmap-panels" id="roadmap-panels">
         <div class="rm-panel rm-panel-epics" id="rm-panel-epics">
-          <div class="rm-panel-header" onclick="toggleRoadmapPanel('epics')">
-            <span class="rm-panel-chevron" id="rm-chevron-epics">▼</span>
-            <span class="rm-panel-label">Features</span>
-            <span class="rm-panel-count" id="rm-count-epics">0</span>
+          <div class="rm-panel-header">
+            <span class="rm-panel-chevron" id="rm-chevron-epics" onclick="toggleRoadmapPanel('epics')">▼</span>
+            <span class="rm-panel-label" onclick="toggleRoadmapPanel('epics')">Epics</span>
+            <span class="rm-panel-count" id="rm-count-epics" onclick="toggleRoadmapPanel('epics')">0</span>
+            <input type="text" id="rm-epic-search" class="rm-epic-search" placeholder="Filter epics…"
+                   oninput="filterRoadmapEpics(this.value)" onclick="event.stopPropagation()">
           </div>
           <div class="rm-panel-body" id="rm-body-epics"></div>
         </div>
@@ -711,6 +713,14 @@
         <div>
           <div class="roadmap-export-option-title">Distribution Charts</div>
           <div class="roadmap-export-option-desc">Team and work category breakdowns with visual charts</div>
+        </div>
+      </label>
+      <div class="roadmap-export-separator"></div>
+      <label class="roadmap-export-option">
+        <input type="checkbox" id="rexp-hide-empty-epics" checked />
+        <div>
+          <div class="roadmap-export-option-title">Hide empty Epics</div>
+          <div class="roadmap-export-option-desc">Exclude epics that have no stories assigned to any sprint</div>
         </div>
       </label>
     </div>
