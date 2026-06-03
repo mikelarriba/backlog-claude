@@ -1,10 +1,14 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
-let _roadmapVisiblePis   = new Set();  // checked PI names (empty = show none)
+import { escHtml, postJSON, showJiraToast, putJSON, patchJSON } from './state.js';
+import { renderRoadmapBoard } from './roadmap-render.js';
+import { loadDocs } from './list.js';
+
+// _roadmapVisiblePis is in state.js as a _storeVar global
 let _roadmapPanelState   = { epics: true, stories: true }; // expanded/collapsed
 let _roadmapFocusedEpic = null;  // filename of clicked feature (focus mode)
 
 // ── Open / Close ─────────────────────────────────────────────
-function openRoadmapView() {
+export function openRoadmapView() {
   // Hide other views
   document.getElementById('list-view').style.display = 'none';
   document.getElementById('refine-view')?.classList.remove('show');
@@ -28,7 +32,7 @@ function openRoadmapView() {
   renderRoadmapBoard();
 }
 
-function closeRoadmapView() {
+export function closeRoadmapView() {
   document.getElementById('roadmap-view').classList.remove('show');
   document.querySelector('.right').classList.remove('roadmap-mode');
   document.querySelector('.right').classList.remove('has-selection');
@@ -40,11 +44,11 @@ function closeRoadmapView() {
   _roadmapFocusedEpic = null;
 }
 
-function isRoadmapOpen() {
+export function isRoadmapOpen() {
   return document.getElementById('roadmap-view').classList.contains('show');
 }
 
-function refreshRoadmapView() {
+export function refreshRoadmapView() {
   if (isRoadmapOpen()) renderRoadmapBoard();
 }
 
@@ -63,14 +67,14 @@ function populateRoadmapPiFilter() {
   container.innerHTML = html;
 }
 
-function toggleRoadmapPi(piName, checked) {
+export function toggleRoadmapPi(piName, checked) {
   if (checked) _roadmapVisiblePis.add(piName);
   else _roadmapVisiblePis.delete(piName);
   renderRoadmapBoard();
 }
 
 // ── Panel collapse ───────────────────────────────────────────
-function toggleRoadmapPanel(panel) {
+export function toggleRoadmapPanel(panel) {
   _roadmapPanelState[panel] = !_roadmapPanelState[panel];
   const body    = document.getElementById(`rm-body-${panel}`);
   const chevron = document.getElementById(`rm-chevron-${panel}`);
@@ -84,7 +88,7 @@ function toggleRoadmapPanel(panel) {
 }
 
 // ── Epic search filter ──────────────────────────────────────
-function filterRoadmapEpics(query) {
+export function filterRoadmapEpics(query) {
   const q = query.trim().toLowerCase();
   document.querySelectorAll('.rm-epic-card').forEach(card => {
     const title = (card.querySelector('.rm-epic-title')?.textContent || '').toLowerCase();
@@ -96,7 +100,7 @@ function filterRoadmapEpics(query) {
 }
 
 // ── Epic focus (click on epic card) ──────────────────────────
-function focusEpic(filename) {
+export function focusEpic(filename) {
   if (_roadmapFocusedEpic === filename) {
     _roadmapFocusedEpic = null; // toggle off
   } else {
@@ -105,7 +109,7 @@ function focusEpic(filename) {
   applyEpicFocus();
 }
 
-function applyEpicFocus() {
+export function applyEpicFocus() {
   // Epic panel: highlight focused epic
   document.querySelectorAll('.rm-epic-card').forEach(card => {
     card.classList.toggle('rm-focused', card.dataset.filename === _roadmapFocusedEpic);
@@ -127,7 +131,7 @@ function applyEpicFocus() {
 let _sprintPushPreview = [];    // current preview changes
 let _sprintPushFilters = { add: true, change: true, remove: true };
 
-async function pushSprintsToJira() {
+export async function pushSprintsToJira() {
   const leafTypes = new Set(['story', 'spike', 'bug']);
   const items = allDocs.filter(d =>
     leafTypes.has(d.docType) && d.jiraId
@@ -149,7 +153,7 @@ async function pushSprintsToJira() {
   }
 }
 
-function openSprintPushModal() {
+export function openSprintPushModal() {
   _sprintPushPreview = [];
   _sprintPushFilters = { add: true, change: true, remove: true };
 
@@ -168,7 +172,7 @@ function openSprintPushModal() {
   document.getElementById('sprint-push-overlay').classList.add('show');
 }
 
-function closeSprintPushModal() {
+export function closeSprintPushModal() {
   document.getElementById('sprint-push-overlay').classList.remove('show');
 }
 
@@ -243,7 +247,7 @@ function _escHtml(s) {
   return d.innerHTML;
 }
 
-function toggleSprintPushFilter(type) {
+export function toggleSprintPushFilter(type) {
   _sprintPushFilters[type] = !_sprintPushFilters[type];
 
   // Update pill active state
@@ -261,7 +265,7 @@ function _applySprintPushFilters() {
   });
 }
 
-function sprintPushSelectAll(checked) {
+export function sprintPushSelectAll(checked) {
   document.querySelectorAll('.sprint-push-item').forEach(item => {
     if (item.style.display === 'none') return; // skip hidden
     const cb = item.querySelector('input[type="checkbox"]');
@@ -270,7 +274,7 @@ function sprintPushSelectAll(checked) {
   _sprintPushUpdateCount();
 }
 
-function _sprintPushUpdateCount() {
+export function _sprintPushUpdateCount() {
   const all = document.querySelectorAll('.sprint-push-item input[type="checkbox"]');
   const checked = [...all].filter(cb => cb.checked).length;
   const btn = document.getElementById('sprint-push-confirm');
@@ -278,7 +282,7 @@ function _sprintPushUpdateCount() {
   btn.disabled = checked === 0;
 }
 
-async function confirmSprintPush() {
+export async function confirmSprintPush() {
   const checkboxes = document.querySelectorAll('.sprint-push-item input[type="checkbox"]:checked');
   if (!checkboxes.length) return;
 
@@ -312,7 +316,7 @@ async function confirmSprintPush() {
 }
 
 // ── Gather all sprints across visible PIs ────────────────────
-function getAllSprints() {
+export function getAllSprints() {
   const all = [];
   const seen = new Set();
   const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
@@ -332,7 +336,7 @@ function getAllSprints() {
 let _depModalFilename = null;
 let _depModalDocType  = null;
 
-async function openDepModal(filename, docType) {
+export async function openDepModal(filename, docType) {
   _depModalFilename = filename;
   _depModalDocType  = docType;
 
@@ -413,7 +417,7 @@ function populateDepTargetSelect(excludeFilename, currentData) {
   }
 }
 
-async function addDepLink() {
+export async function addDepLink() {
   const select = document.getElementById('dep-target-select');
   const targetFilename = select.value;
   if (!targetFilename) return;
@@ -438,7 +442,7 @@ async function addDepLink() {
   } catch (e) { showJiraToast('error', e.message); }
 }
 
-async function addParallelLink() {
+export async function addParallelLink() {
   const select = document.getElementById('dep-parallel-select');
   if (!select) return;
   const targetFilename = select.value;
@@ -458,7 +462,7 @@ async function addParallelLink() {
   } catch (e) { showJiraToast('error', e.message); }
 }
 
-async function removeDepLink(targetFilename, targetDocType, direction) {
+export async function removeDepLink(targetFilename, targetDocType, direction) {
   try {
     let srcFilename, srcDocType, tgtFilename, tgtDocType, linkType;
     if (direction === 'parallel') {
@@ -492,7 +496,7 @@ async function removeDepLink(targetFilename, targetDocType, direction) {
   } catch (e) { showJiraToast('error', e.message); }
 }
 
-function closeDepModal() {
+export function closeDepModal() {
   document.getElementById('dep-overlay').classList.remove('show');
   _depModalFilename = null;
   _depModalDocType  = null;
@@ -504,7 +508,7 @@ let _splitModalDocType  = null;
 let _splitModalSprint1  = null;
 let _splitModalSprint2  = null;
 
-function openSplitModal(filename, docType, sprint1, sprint2) {
+export function openSplitModal(filename, docType, sprint1, sprint2) {
   _splitModalFilename = filename;
   _splitModalDocType  = docType;
   _splitModalSprint1  = sprint1 || null;
@@ -535,13 +539,13 @@ function openSplitModal(filename, docType, sprint1, sprint2) {
   document.getElementById('split-overlay').classList.add('show');
 }
 
-function closeSplitModal() {
+export function closeSplitModal() {
   document.getElementById('split-overlay').classList.remove('show');
   _splitModalFilename = null;
   _splitModalDocType  = null;
 }
 
-async function executeSplit() {
+export async function executeSplit() {
   if (!_splitModalFilename) return;
 
   const sprint1 = document.getElementById('split-sprint-1').value;
@@ -643,7 +647,7 @@ function _showRoadmapCtx(x, y, html) {
 }
 
 // ── Epic context menu (top panel) ────────────────────────────
-function handleEpicContextMenu(e, filename, docType) {
+export function handleEpicContextMenu(e, filename, docType) {
   e.preventDefault();
   e.stopPropagation();
 
@@ -664,12 +668,12 @@ function handleEpicContextMenu(e, filename, docType) {
   _showRoadmapCtx(e.clientX, e.clientY, html);
 }
 
-function rmCtxOpenEpic(filename, docType) {
+export function rmCtxOpenEpic(filename, docType) {
   _closeRoadmapCtx();
   openDoc(filename, docType);
 }
 
-async function rmCtxMoveEpic(filename, docType, direction) {
+export async function rmCtxMoveEpic(filename, docType, direction) {
   _closeRoadmapCtx();
 
   // Get the visible epic cards in current order (respects search filter)
@@ -722,7 +726,7 @@ async function rmCtxMoveEpic(filename, docType, direction) {
 }
 
 // ── Story context menu (bottom panel) ────────────────────────
-function handleStoryContextMenu(e, filename, docType) {
+export function handleStoryContextMenu(e, filename, docType) {
   e.preventDefault();
   e.stopPropagation();
 
@@ -741,7 +745,7 @@ function handleStoryContextMenu(e, filename, docType) {
   _showRoadmapCtx(e.clientX, e.clientY, html);
 }
 
-async function rmCtxMoveStory(filename, docType, direction) {
+export async function rmCtxMoveStory(filename, docType, direction) {
   _closeRoadmapCtx();
 
   // Find the card and its sprint column

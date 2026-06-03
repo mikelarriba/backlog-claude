@@ -1,7 +1,11 @@
 // ── Bug Report Creation Modal ─────────────────────────────────
+import { fetchJSON, escHtml, showJiraToast } from './state.js';
+import { loadDocs } from './list.js';
+import { openDoc } from './detail.js';
+
 let _bugFiles = [];
 
-function openBugModal() {
+export function openBugModal() {
   _bugFiles = [];
   document.getElementById('bug-id').value = '';
   document.getElementById('bug-title').value = '';
@@ -17,17 +21,17 @@ function openBugModal() {
   document.getElementById('bug-id').focus();
 }
 
-function closeBugModal() {
+export function closeBugModal() {
   document.getElementById('bug-modal-overlay').classList.remove('show');
   _bugFiles = [];
 }
 
 // ── File handling ─────────────────────────────────────────────
-function onBugFilesSelected(fileList) {
+export function onBugFilesSelected(fileList) {
   addBugFiles(Array.from(fileList));
 }
 
-function addBugFiles(files) {
+export function addBugFiles(files) {
   for (const file of files) {
     if (_bugFiles.length >= 5) break;
     if (_bugFiles.some(f => f.name === file.name && f.size === file.size)) continue;
@@ -36,12 +40,12 @@ function addBugFiles(files) {
   renderBugFileList();
 }
 
-function removeBugFile(index) {
+export function removeBugFile(index) {
   _bugFiles.splice(index, 1);
   renderBugFileList();
 }
 
-function renderBugFileList() {
+export function renderBugFileList() {
   const el = document.getElementById('bug-file-list');
   if (!_bugFiles.length) {
     el.innerHTML = '';
@@ -80,7 +84,7 @@ function formatBytes(bytes) {
 })();
 
 // ── Submit ────────────────────────────────────────────────────
-async function submitBugReport() {
+export async function submitBugReport() {
   const id   = document.getElementById('bug-id').value.trim();
   const title = document.getElementById('bug-title').value.trim();
   const desc  = document.getElementById('bug-description').value.trim();

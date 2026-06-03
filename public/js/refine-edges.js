@@ -1,7 +1,10 @@
 // ── Refine edge/link popups and manage-links mode ─────────────
+import { showJiraToast, escHtml } from './state.js';
+import { loadDocs } from './list.js';
+import { rebuildCanvasEdges, renderCanvas } from './refine-canvas.js';
 
 // ── Edge click popup ───────────────────────────────────────────
-function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
+export function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
@@ -27,7 +30,7 @@ function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
 
-async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
+export async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
   _closeLinkPopup();
   try {
     const res = await fetch('/api/link', {
@@ -45,7 +48,7 @@ async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
   }
 }
 
-async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtFn, tgtDt) {
+export async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtFn, tgtDt) {
   _closeLinkPopup();
   try {
     const delRes = await fetch('/api/link', {
@@ -70,7 +73,7 @@ async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtFn, tgtD
   }
 }
 
-function _restoreManageLinksState() {
+export function _restoreManageLinksState() {
   if (!_canvasManageLinks) return;
   const btn = document.getElementById('manage-links-btn');
   if (btn) btn.classList.add('active');
@@ -80,7 +83,7 @@ function _restoreManageLinksState() {
 }
 
 // ── Manage Links mode ──────────────────────────────────────────
-function toggleManageLinks() {
+export function toggleManageLinks() {
   _canvasManageLinks = !_canvasManageLinks;
   const btn = document.getElementById('manage-links-btn');
   if (btn) btn.classList.toggle('active', _canvasManageLinks);
@@ -93,11 +96,11 @@ function toggleManageLinks() {
   });
 }
 
-function _closeLinkPopup() {
+export function _closeLinkPopup() {
   document.querySelectorAll('.canvas-link-popup').forEach(el => el.remove());
 }
 
-function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+export function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDocType) {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
@@ -112,7 +115,7 @@ function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDocType) 
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
 
-async function _createCanvasLink(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+export async function _createCanvasLink(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType) {
   _closeLinkPopup();
   // Reject epic node links
   if (!['story', 'spike', 'bug'].includes(tgtDocType)) {

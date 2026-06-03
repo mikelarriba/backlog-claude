@@ -5,23 +5,25 @@
 //   - Drop on a .swimlane-section (different)    → MOVE to that PI
 //
 // Uses mouse events (not HTML5 DnD) for reliable cross-browser behaviour.
+import { buildChildrenMap, getDescendants, postJSON, showJiraToast, escHtml, TYPE_LABEL, DRAG_TARGETS, SECTION_LABELS } from './state.js';
+import { loadHierarchy } from './detail.js';
+import { clearSelection, itemKey, getSelectedDocs, applyFilters } from './list-filters.js';
+import { _rankSortFn } from './list-render.js';
 
 const LEAF_TYPES = new Set(['story', 'spike', 'bug']);
 
-function getSwimlaneSection(doc) {
+export function getSwimlaneSection(doc) {
   if (!doc) return 'backlog';
   if (doc.fixVersion && piSettings.currentPi && doc.fixVersion === piSettings.currentPi) return 'currentPi';
   if (doc.fixVersion && piSettings.nextPi && doc.fixVersion === piSettings.nextPi) return 'nextPi';
   return 'backlog';
 }
 
-function sectionToFixVersion(section) {
+export function sectionToFixVersion(section) {
   if (section === 'currentPi') return piSettings.currentPi;
   if (section === 'nextPi')    return piSettings.nextPi;
   return null; // backlog = clear version
 }
-
-const SECTION_LABELS = { currentPi: 'Current PI', nextPi: 'Next PI', backlog: 'Backlog' };
 
 // ── Drop action popup ─────────────────────────────────────────
 let _dropPopup    = null;
@@ -29,7 +31,7 @@ let _pendingDropSrc = null; // { filename, docType }
 let _pendingDropTgt = null; // { filename, docType }
 let _escListener  = null;
 
-function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY) {
+export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY) {
   hideDropActionPopup();
 
   const tgtFilename = targetEl.dataset.filename;
@@ -94,7 +96,7 @@ function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY
   document.addEventListener('keydown', _escListener);
 }
 
-function hideDropActionPopup() {
+export function hideDropActionPopup() {
   if (_dropPopup) { _dropPopup.remove(); _dropPopup = null; }
   if (_escListener) { document.removeEventListener('keydown', _escListener); _escListener = null; }
   _pendingDropSrc = null;
@@ -244,7 +246,7 @@ function getDragDocs(srcFilename, srcDocType) {
 // ── Insertion marker (rerank visual indicator) ────────────────
 let _insertionMarker = null;
 
-function getInsertionMarker() {
+export function getInsertionMarker() {
   if (!_insertionMarker) {
     _insertionMarker = document.createElement('div');
     _insertionMarker.className = 'rank-insert-line';
@@ -253,7 +255,7 @@ function getInsertionMarker() {
   return _insertionMarker;
 }
 
-function showInsertionMarker(clientY) {
+export function showInsertionMarker(clientY) {
   const list = document.getElementById('epic-list');
   if (!list) return;
   const listRect = list.getBoundingClientRect();
@@ -264,7 +266,7 @@ function showInsertionMarker(clientY) {
   marker.style.width   = `${listRect.width - 8}px`;
 }
 
-function hideInsertionMarker() {
+export function hideInsertionMarker() {
   if (_insertionMarker) _insertionMarker.style.display = 'none';
 }
 
@@ -339,7 +341,7 @@ function resolveDropTargets(snap, e) {
   };
 }
 
-function initDragDrop() {
+export function initDragDrop() {
   const list = document.getElementById('epic-list');
   let state = null;
   const DRAG_THRESHOLD = 6;

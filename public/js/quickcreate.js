@@ -1,5 +1,9 @@
 // ── Save Draft (no AI) ────────────────────────────────────────
-async function saveDraft() {
+import { postJSON, setStatus, setBtnState, TYPE_LABEL, showJiraToast } from './state.js';
+import { loadDocs } from './list.js';
+import { openDoc, loadHierarchy } from './detail.js';
+
+export async function saveDraft() {
   const title = document.getElementById('doc-title').value.trim();
   const idea  = document.getElementById('idea').value.trim();
 
@@ -35,7 +39,7 @@ async function saveDraft() {
 }
 
 // ── Generate Doc (left panel form) ────────────────────────────
-async function generateDoc() {
+export async function generateDoc() {
   const title = document.getElementById('doc-title').value.trim();
   const idea  = document.getElementById('idea').value.trim();
   // AI generate needs at least some content to work from
@@ -67,7 +71,7 @@ async function generateDoc() {
   }
 }
 
-function clearForm() {
+export function clearForm() {
   document.getElementById('idea').value = '';
   document.getElementById('doc-title').value = '';
   document.getElementById('doc-type').value = 'epic';
@@ -78,7 +82,7 @@ function clearForm() {
 }
 
 // ── Quick Create (Story / Spike / Epic from detail view) ───────
-function toggleQuickCreate(type) {
+export function toggleQuickCreate(type) {
   const panel = document.getElementById('quick-create-panel');
   if (panel.classList.contains('open') && _quickCreateType === type) {
     closeQuickCreate();
@@ -99,7 +103,7 @@ function toggleQuickCreate(type) {
   document.getElementById('quick-create-title-input').focus();
 }
 
-function closeQuickCreate() {
+export function closeQuickCreate() {
   const panel = document.getElementById('quick-create-panel');
   if (panel) panel.classList.remove('open');
   const titleInput = document.getElementById('quick-create-title-input');
@@ -113,7 +117,7 @@ function closeQuickCreate() {
   _quickCreateType = null;
 }
 
-async function executeQuickCreate() {
+export async function executeQuickCreate() {
   if (!_quickCreateType) return;
   const idea = document.getElementById('quick-create-idea').value.trim();
   if (!idea) { document.getElementById('quick-create-idea').focus(); return; }

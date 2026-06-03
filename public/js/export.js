@@ -1,4 +1,8 @@
 // ── Epic PDF Export ─────────────────────────────────────────────
+import { escHtml, showJiraToast, stripFrontmatter, TYPE_LABEL } from './state.js';
+import { getAllSprints } from './roadmap.js';
+import { topoSortCards, epicColor } from './roadmap-render.js';
+import { computeAutoLayout } from './refine-canvas.js';
 // Opens a print-ready page in a new tab with:
 //   1. Epic header (title, total SP, status)
 //   2. Visual plan grid (swimlane layout matching the canvas)
@@ -6,7 +10,7 @@
 //   4. Story list with details
 // The user can then Cmd+P / Ctrl+P → "Save as PDF".
 
-async function exportEpicToPdf(filename, docType) {
+export async function exportEpicToPdf(filename, docType) {
   docType = docType || 'epic';
   showJiraToast('info', 'Preparing export...');
 
@@ -447,15 +451,15 @@ function _renderStoryCards(childData) {
 // Opens a dialog with options, then builds a print-ready landscape
 // report in a new tab, following the same pattern as exportEpicToPdf.
 
-function openRoadmapExportDialog() {
+export function openRoadmapExportDialog() {
   document.getElementById('roadmap-export-overlay').classList.add('show');
 }
 
-function closeRoadmapExportDialog() {
+export function closeRoadmapExportDialog() {
   document.getElementById('roadmap-export-overlay').classList.remove('show');
 }
 
-async function executeRoadmapExport() {
+export async function executeRoadmapExport() {
   const includeRoadmap  = document.getElementById('rexp-roadmap-graphic').checked;
   const includeTitles   = document.getElementById('rexp-issue-titles').checked;
   const includeDescs    = document.getElementById('rexp-issue-descriptions').checked;

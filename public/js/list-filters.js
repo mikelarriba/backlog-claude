@@ -1,6 +1,10 @@
 // ── List filters, collapse, multi-select, and context menu ───────
+import { buildChildrenMap, getDescendants, debounce, escHtml, putJSON, postJSON, showJiraToast, TYPE_LABEL, SECTION_LABELS } from './state.js';
+import { openDoc } from './detail.js';
+import { renderSwimlanes } from './list-render.js';
+import { sectionToFixVersion } from './dragdrop.js';
 
-function toggleItemCollapse(filename, e) {
+export function toggleItemCollapse(filename, e) {
   e.stopPropagation();
   if (_collapsedItems.has(filename)) {
     _collapsedItems.delete(filename);
@@ -10,7 +14,7 @@ function toggleItemCollapse(filename, e) {
   applyFilters();
 }
 
-function collapseAll() {
+export function collapseAll() {
   const childrenMap = buildChildrenMap(allDocs);
   for (const d of allDocs) {
     if ((d.docType === 'feature' || d.docType === 'epic') && (childrenMap.get(d.filename) || []).length > 0) {
@@ -20,12 +24,12 @@ function collapseAll() {
   applyFilters();
 }
 
-function expandAll() {
+export function expandAll() {
   _collapsedItems.clear();
   applyFilters();
 }
 
-function toggleSwimlane(sectionKey) {
+export function toggleSwimlane(sectionKey) {
   _swimlanesCollapsed[sectionKey] = !_swimlanesCollapsed[sectionKey];
   const section = document.querySelector(`.swimlane-section[data-section="${sectionKey}"]`);
   if (!section) return;
@@ -40,7 +44,7 @@ function toggleSwimlane(sectionKey) {
   }
 }
 
-async function updatePiVersion(sectionKey, versionName) {
+export async function updatePiVersion(sectionKey, versionName) {
   const update = { ...piSettings };
   if (sectionKey === 'currentPi') update.currentPi = versionName || null;
   if (sectionKey === 'nextPi')    update.nextPi    = versionName || null;
@@ -55,7 +59,7 @@ async function updatePiVersion(sectionKey, versionName) {
 }
 
 // ── Filters ───────────────────────────────────────────────────
-function setTypeFilter(type) {
+export function setTypeFilter(type) {
   activeTypeFilter = type;
   document.querySelectorAll('[data-type]').forEach(el => {
     el.classList.toggle('active', el.dataset.type === type);
@@ -63,7 +67,7 @@ function setTypeFilter(type) {
   applyFilters();
 }
 
-function setStatusFilter(status) {
+export function setStatusFilter(status) {
   activeStatusFilter = status;
   document.querySelectorAll('[data-status]').forEach(el => {
     el.classList.toggle('active', el.dataset.status === status);
@@ -71,7 +75,7 @@ function setStatusFilter(status) {
   applyFilters();
 }
 
-function setTeamFilter(team) {
+export function setTeamFilter(team) {
   activeTeamFilter = team;
   document.querySelectorAll('[data-team]').forEach(el => {
     el.classList.toggle('active', el.dataset.team === team);
@@ -79,7 +83,7 @@ function setTeamFilter(team) {
   applyFilters();
 }
 
-function setWorkCatFilter(cat) {
+export function setWorkCatFilter(cat) {
   activeWorkCatFilter = cat;
   document.querySelectorAll('[data-workcat]').forEach(el => {
     el.classList.toggle('active', el.dataset.workcat === cat);
@@ -87,7 +91,7 @@ function setWorkCatFilter(cat) {
   applyFilters();
 }
 
-function applyFilters() {
+export function applyFilters() {
   const q = document.getElementById('search').value.toLowerCase();
   let filtered = allDocs;
   if (activeTypeFilter !== 'all')    filtered = filtered.filter(d => d.docType === activeTypeFilter);
@@ -98,12 +102,12 @@ function applyFilters() {
   renderSwimlanes(filtered);
 }
 
-var applyFiltersDebounced = debounce(applyFilters, 200);
+export var applyFiltersDebounced = debounce(applyFilters, 200);
 
 // ── Multi-select ─────────────────────────────────────────────
-function itemKey(filename, docType) { return `${docType}:${filename}`; }
+export function itemKey(filename, docType) { return `${docType}:${filename}`; }
 
-function getVisibleItems() {
+export function getVisibleItems() {
   return Array.from(document.querySelectorAll('.epic-item')).map(el => ({
     filename: el.dataset.filename,
     docType:  el.dataset.doctype,
@@ -111,20 +115,20 @@ function getVisibleItems() {
   }));
 }
 
-function clearSelection() {
+export function clearSelection() {
   selectedItems.clear();
   _lastClickedItem = null;
   document.querySelectorAll('.epic-item.multi-selected').forEach(el => el.classList.remove('multi-selected'));
 }
 
-function syncSelectionUI() {
+export function syncSelectionUI() {
   document.querySelectorAll('.epic-item').forEach(el => {
     const key = itemKey(el.dataset.filename, el.dataset.doctype);
     el.classList.toggle('multi-selected', selectedItems.has(key));
   });
 }
 
-function handleItemClick(e, filename, docType) {
+export function handleItemClick(e, filename, docType) {
   if (_justDragged) return;
 
   // Clicks on collapse button are handled separately
@@ -172,7 +176,7 @@ function handleItemClick(e, filename, docType) {
 }
 
 // ── Context menu ─────────────────────────────────────────────
-function handleItemContextMenu(e, filename, docType) {
+export function handleItemContextMenu(e, filename, docType) {
   e.preventDefault();
 
   const key = itemKey(filename, docType);
@@ -187,7 +191,7 @@ function handleItemContextMenu(e, filename, docType) {
   showContextMenu(e.clientX, e.clientY);
 }
 
-function showContextMenu(x, y) {
+export function showContextMenu(x, y) {
   closeContextMenu();
   const count = selectedItems.size;
   if (!count) return;
@@ -284,14 +288,14 @@ function _closeContextMenuOnRightClick(e) {
   if (!e.target.closest('#list-context-menu')) closeContextMenu();
 }
 
-function closeContextMenu() {
+export function closeContextMenu() {
   const menu = document.getElementById('list-context-menu');
   if (menu) menu.remove();
   document.removeEventListener('mousedown', _closeContextMenuHandler);
   document.removeEventListener('contextmenu', _closeContextMenuOnRightClick);
 }
 
-async function contextMoveToPI(section) {
+export async function contextMoveToPI(section) {
   closeContextMenu();
   const newFixVersion = sectionToFixVersion(section);
   if (section !== 'backlog' && !newFixVersion) {
@@ -330,7 +334,7 @@ async function contextMoveToPI(section) {
   }
 }
 
-async function contextDeleteSelected() {
+export async function contextDeleteSelected() {
   closeContextMenu();
   const docs = getSelectedDocs();
   if (!docs.length) return;
@@ -376,7 +380,7 @@ async function contextDeleteSelected() {
   };
 }
 
-async function contextAssignField(field, value) {
+export async function contextAssignField(field, value) {
   closeContextMenu();
   const docs = getSelectedDocs();
   if (!docs.length) return;
@@ -428,11 +432,11 @@ async function _executeBatchFieldUpdate(field, value, docs, label, displayValue)
   }
 }
 
-function closeBulkAssignDialog() {
+export function closeBulkAssignDialog() {
   document.getElementById('bulk-assign-overlay').classList.remove('show');
 }
 
-function getSelectedDocs() {
+export function getSelectedDocs() {
   const docs = [];
   for (const key of selectedItems) {
     const [docType, ...rest] = key.split(':');

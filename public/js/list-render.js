@@ -1,17 +1,18 @@
 // ── List rendering: rank helpers, swimlane rendering, readiness, dep connectors ─
+import { escHtml, buildChildrenMap, TYPE_LABEL, STATUS_LABEL } from './state.js';
 
 // ── Rank helpers ──────────────────────────────────────────────
 // Map<filename, {index, total}> — position of each doc in its per-type rank order.
 var _rankPositions = new Map();
 
-function _rankSortFn(a, b) {
+export function _rankSortFn(a, b) {
   if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
   if (a.rank !== null) return -1;
   if (b.rank !== null) return 1;
   return b.filename.localeCompare(a.filename); // default: date-desc
 }
 
-function computeRankPositions(docs) {
+export function computeRankPositions(docs) {
   _rankPositions.clear();
   const byType = {};
   for (const d of docs) {
@@ -24,7 +25,7 @@ function computeRankPositions(docs) {
   }
 }
 
-function buildTreeOrder(docs) {
+export function buildTreeOrder(docs) {
   const key        = d => `${d.docType}:${d.filename}`;
   const byFilename = new Map(docs.map(d => [d.filename, d]));
   const childrenMap = buildChildrenMap(docs);
@@ -53,7 +54,7 @@ function buildTreeOrder(docs) {
 }
 
 // ── Swimlane rendering ────────────────────────────────────────
-function categorizeDocs(docs) {
+export function categorizeDocs(docs) {
   const currentPi = [];
   const nextPi    = [];
   const backlog   = [];
@@ -70,7 +71,7 @@ function categorizeDocs(docs) {
   return { currentPi, nextPi, backlog };
 }
 
-function renderSwimlanes(docs) {
+export function renderSwimlanes(docs) {
   // Rebuild global readiness lookup tables from all docs (cross-section)
   _readinessAllDocsMap  = new Map(allDocs.map(d => [d.filename, d]));
   _readinessChildrenMap = buildChildrenMap(allDocs);
@@ -105,7 +106,7 @@ function renderSwimlanes(docs) {
   attachDepHoverListeners();
 }
 
-function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
+export function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
   const collapsed = _swimlanesCollapsed[sectionKey];
   const chevron   = collapsed ? '▶' : '▼';
   const bodyClass = collapsed ? 'swimlane-body collapsed' : 'swimlane-body';
@@ -171,7 +172,7 @@ function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
 var _readinessAllDocsMap    = new Map();
 var _readinessChildrenMap   = new Map();
 
-function getAllLeaves(filename, childrenMap, docsMap) {
+export function getAllLeaves(filename, childrenMap, docsMap) {
   const children = childrenMap.get(filename) || [];
   if (!children.length) {
     const doc = docsMap.get(filename);
@@ -180,7 +181,7 @@ function getAllLeaves(filename, childrenMap, docsMap) {
   return children.flatMap(c => getAllLeaves(c.filename, childrenMap, docsMap));
 }
 
-function computeReadiness(doc, childrenMap, docsMap) {
+export function computeReadiness(doc, childrenMap, docsMap) {
   const children = childrenMap.get(doc.filename) || [];
   const isLeaf   = doc.docType === 'story' || doc.docType === 'spike' || doc.docType === 'bug';
   const scores   = [];
@@ -208,7 +209,7 @@ function computeReadiness(doc, childrenMap, docsMap) {
   return (scores.reduce((a, b) => a + b, 0) / scores.length) * 100;
 }
 
-function renderDocItem(d, indent, childrenMap) {
+export function renderDocItem(d, indent, childrenMap) {
   const statusClass = (d.status || 'Draft').replace(/\s+/g, '-');
   // Connector shows when item has a parent in the current tree view
   const connector   = indent > 0 ? `<span class="tree-connector">└</span>` : '';
@@ -278,12 +279,7 @@ function renderDocItem(d, indent, childrenMap) {
 }
 
 // ── Cascade indent (post-render) ─────────────────────────────
-/**
- * After the list is rendered, compute the dependency depth of each item
- * within its sibling group and apply incremental indentation (up to 5 levels).
- * Depth 0 = no blockedBy in the group, depth N = longest blocker chain.
- */
-function applyDepCascade() {
+export function applyDepCascade() {
   const MAX_DEPTH = 5;
   const INDENT_PX = 28;
 
@@ -346,7 +342,7 @@ function _findVisibleDepEl(filename) {
   return null;
 }
 
-function hideDepConnectors() {
+export function hideDepConnectors() {
   const svg = document.getElementById('dep-connector-svg');
   if (svg) {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
@@ -355,7 +351,7 @@ function hideDepConnectors() {
   _depHighlightedEls = [];
 }
 
-function showDepConnectors(filename) {
+export function showDepConnectors(filename) {
   hideDepConnectors();
   const doc = allDocs.find(d => d.filename === filename);
   if (!doc) return;
@@ -406,7 +402,7 @@ function showDepConnectors(filename) {
   }
 }
 
-function attachDepHoverListeners() {
+export function attachDepHoverListeners() {
   document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach(el => {
     const doc = allDocs.find(d => d.filename === el.dataset.filename);
     if (!doc) return;

@@ -1,4 +1,7 @@
 // ── Roadmap rendering helpers and render functions ─────────────
+import { escHtml, TYPE_LABEL } from './state.js';
+import { applyEpicFocus, getAllSprints } from './roadmap.js';
+import { initRoadmapDragDrop, attachRoadmapDepHoverListeners } from './roadmap-drag.js';
 
 // ── Story-point card heights (Fibonacci scale) ────────────────
 const SP_HEIGHTS = { 0:56, 1:64, 2:72, 3:80, 5:96, 8:112, 13:132, 21:160 };
@@ -15,7 +18,7 @@ const PRIO_ORDER = { critical:0, major:0, high:1, medium:2, low:3 };
 // ── Topological sort: priority/rank first, then dep-order ─────
 // Ensures blockers always appear before the items they block within
 // the same sprint column. Uses a stable bubble-pass approach.
-function topoSortCards(docs) {
+export function topoSortCards(docs) {
   if (!docs.length) return docs;
 
   // First sort by rank, then priority
@@ -56,14 +59,14 @@ const _EPIC_COLORS = [
   '#3B82F6','#8B5CF6','#10B981','#14B8A6',
   '#F59E0B','#EC4899','#06B6D4','#6366F1',
 ];
-function epicColor(key) {
+export function epicColor(key) {
   let h = 0;
   for (const c of (key || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return _EPIC_COLORS[h % _EPIC_COLORS.length];
 }
 
 // ── Main render ──────────────────────────────────────────────
-function renderRoadmapBoard() {
+export function renderRoadmapBoard() {
   const sprints = getAllSprints();
 
   if (!sprints.length) {
@@ -82,7 +85,7 @@ function renderRoadmapBoard() {
 }
 
 // ── Epic panel rendering ─────────────────────────────────────
-function renderEpicPanel(sprints) {
+export function renderEpicPanel(sprints) {
   const body = document.getElementById('rm-body-epics');
 
   const epicTypes = new Set(['epic']);
@@ -206,7 +209,7 @@ function renderEpicPanel(sprints) {
 }
 
 // ── Story panel rendering ────────────────────────────────────
-function renderStoryPanel(sprints) {
+export function renderStoryPanel(sprints) {
   const body = document.getElementById('rm-body-stories');
 
   const leafTypes = new Set(['story', 'spike', 'bug']);
@@ -244,7 +247,7 @@ function renderStoryPanel(sprints) {
   initRoadmapDragDrop();
 }
 
-function renderStoryColumn(sprintName, docs, capacity) {
+export function renderStoryColumn(sprintName, docs, capacity) {
   const isUnassigned = !sprintName;
   const label        = isUnassigned ? 'Unassigned' : escHtml(sprintName);
   const columnClass  = isUnassigned ? 'roadmap-column roadmap-unassigned' : 'roadmap-column';
@@ -283,7 +286,7 @@ function renderStoryColumn(sprintName, docs, capacity) {
     </div>`;
 }
 
-function renderRoadmapCard(d, sprintName) {
+export function renderRoadmapCard(d, sprintName) {
   const priorityClass = (d.priority || 'Medium').replace(/\s+/g, '-').toLowerCase();
   const sp      = Number(d.storyPoints) || 0;
   const spLabel = sp ? `${sp} SP` : 'No SP';
@@ -339,7 +342,7 @@ function renderRoadmapCard(d, sprintName) {
 // ── Feature tooltip popup ────────────────────────────────────
 let _tooltipEl = null;
 
-function showFeatureTooltip(e) {
+export function showFeatureTooltip(e) {
   const card = e.currentTarget;
   const title = card.dataset.tooltipTitle || '';
   const desc  = card.dataset.tooltipDesc  || '';
@@ -372,12 +375,12 @@ function showFeatureTooltip(e) {
   });
 }
 
-function hideFeatureTooltip() {
+export function hideFeatureTooltip() {
   if (_tooltipEl) _tooltipEl.classList.remove('show');
 }
 
 // ── Ghost cards for stories split across PIs ─────────────────
-function injectGhostCards() {
+export function injectGhostCards() {
   const leafTypes = new Set(['story', 'spike', 'bug']);
 
   // Find stories whose PI (fixVersion) differs from their parent epic's PI

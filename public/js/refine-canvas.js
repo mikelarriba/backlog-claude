@@ -1,4 +1,7 @@
 // ── Refine canvas: layout computation, rendering, and persistence ─
+import { escHtml, TYPE_LABEL } from './state.js';
+import { openRefinePanel, openManualRefine } from './refine.js';
+import { _showEpicContextMenu, _showEmptyCellMenu, _showCardContextMenu, _showMultiCardContextMenu } from './refine-nodes.js';
 
 // Grid constants
 const CELL_W    = 240;
@@ -8,7 +11,7 @@ const GUTTER_Y  = 36;
 const TOP_OFFSET = 80;
 
 // ── Mini-canvas rendering for feature multi-panel view ────────
-function _renderFpCanvas(epicFilename, ps, featureFilename) {
+export function _renderFpCanvas(epicFilename, ps, featureFilename) {
   const container = document.getElementById(`fp-canvas-${epicFilename}`);
   if (!container) return;
   container.innerHTML = '';
@@ -122,7 +125,7 @@ function _renderFpCanvas(epicFilename, ps, featureFilename) {
 }
 
 // ── Graph construction ─────────────────────────────────────────
-async function buildCanvasGraph(filename, docType) {
+export async function buildCanvasGraph(filename, docType) {
   _canvasSelectedCards.clear();
   let children = [];
   let blocks    = [];
@@ -183,7 +186,7 @@ async function buildCanvasGraph(filename, docType) {
 }
 
 // ── Lightweight edge rebuild (preserves card positions) ────────
-function rebuildCanvasEdges(ps = _activePanelState) {
+export function rebuildCanvasEdges(ps = _activePanelState) {
   const childFilenames = new Set(ps.stories.map(c => c.filename));
   ps.blocks   = [];
   ps.parallel = [];
@@ -207,7 +210,7 @@ function rebuildCanvasEdges(ps = _activePanelState) {
 }
 
 // ── Auto layout: topological BFS ──────────────────────────────
-function computeAutoLayout(children, blocks, parallel) {
+export function computeAutoLayout(children, blocks, parallel) {
   const layout = {};
   if (!children.length) return layout;
 
@@ -295,7 +298,7 @@ function computeAutoLayout(children, blocks, parallel) {
 }
 
 // ── Render canvas ──────────────────────────────────────────────
-function renderCanvas(epicFilename, docType) {
+export function renderCanvas(epicFilename, docType) {
   const container = document.getElementById('refine-canvas');
   container.innerHTML = '';
   container.style.position = 'relative';
@@ -721,7 +724,7 @@ function drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW) 
   }
 }
 
-async function saveCanvasLayout(ps = _activePanelState, parentFilename) {
+export async function saveCanvasLayout(ps = _activePanelState, parentFilename) {
   const fn = parentFilename || _canvasEpicFilename;
   if (!fn) return;
   try {
@@ -760,7 +763,7 @@ async function syncCanvasRanks(ps = _activePanelState) {
   } catch { /* silent — rank sync is best-effort */ }
 }
 
-async function resetCanvasLayout(epicFilename) {
+export async function resetCanvasLayout(epicFilename) {
   try {
     await fetch(`/api/canvas/layout/${encodeURIComponent(epicFilename)}`, { method: 'DELETE' });
   } catch {}

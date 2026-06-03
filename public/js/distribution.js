@@ -1,7 +1,9 @@
 // ── Sprint Distribution Engine ─────────────────────────────────
+import { postJSON, escHtml, showJiraToast, TYPE_LABEL } from './state.js';
+
 let _distributionData = null;
 
-async function openDistributionModal(piName) {
+export async function openDistributionModal(piName) {
   if (!piName) return;
   const overlay = document.getElementById('distribution-overlay');
   const body    = document.getElementById('distribution-body');
@@ -26,7 +28,7 @@ async function openDistributionModal(piName) {
   }
 }
 
-function renderDistributionPreview(data) {
+export function renderDistributionPreview(data) {
   const body = document.getElementById('distribution-body');
   const msgs = document.getElementById('distribution-messages');
 
@@ -122,7 +124,7 @@ function renderDistributionPreview(data) {
   msgs.innerHTML = msgsHtml;
 }
 
-async function applyDistribution() {
+export async function applyDistribution() {
   if (!_distributionData) return;
 
   // Collect checked (newly assigned) items from the modal
@@ -167,7 +169,7 @@ async function applyDistribution() {
   }
 }
 
-function closeDistributionModal() {
+export function closeDistributionModal() {
   document.getElementById('distribution-overlay').classList.remove('show');
   _distributionData = null;
 }
