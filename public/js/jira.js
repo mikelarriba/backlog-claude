@@ -1,8 +1,12 @@
 // ── JIRA selection modal ─────────────────────────────────────
+import { fetchJSON, postJSON, escHtml, showJiraToast, setJiraStatus, TYPE_LABEL, STATUS_LABEL } from './state.js';
+import { openDoc, updateJiraLink, renderDetailDeps, updateJiraStatus, updateStoryPointsUI } from './detail.js';
+import { loadDocs } from './list.js';
+
 let _jiraSelectResolve = null;
 let _jiraSelectItems   = [];
 
-function showJiraSelectModal(title, items, confirmLabel) {
+export function showJiraSelectModal(title, items, confirmLabel) {
   return new Promise(function(resolve) {
     _jiraSelectResolve = resolve;
     _jiraSelectItems   = items;
@@ -29,16 +33,16 @@ function showJiraSelectModal(title, items, confirmLabel) {
   });
 }
 
-function jiraSelectAll(checked) {
+export function jiraSelectAll(checked) {
   document.querySelectorAll('#jira-select-list input[type=checkbox]').forEach(function(cb) { cb.checked = checked; });
 }
 
-function jiraSelectCancel() {
+export function jiraSelectCancel() {
   document.getElementById('jira-select-overlay').classList.remove('show');
   if (_jiraSelectResolve) { _jiraSelectResolve([]); _jiraSelectResolve = null; }
 }
 
-function jiraSelectConfirm() {
+export function jiraSelectConfirm() {
   const selected = Array.from(
     document.querySelectorAll('#jira-select-list input[type=checkbox]:checked')
   ).map(function(cb) { return _jiraSelectItems[parseInt(cb.dataset.idx)]; });
@@ -50,7 +54,7 @@ function jiraSelectConfirm() {
 let _syncPreviewResolve = null;
 let _syncPreviewItems   = [];
 
-function showSyncPreviewModal(title, items, confirmLabel) {
+export function showSyncPreviewModal(title, items, confirmLabel) {
   return new Promise(function(resolve) {
     _syncPreviewResolve = resolve;
     _syncPreviewItems   = items;
@@ -138,17 +142,17 @@ function _syncPreviewUpdateCount() {
   btn.disabled = checked === 0;
 }
 
-function syncPreviewSelectAll(checked) {
+export function syncPreviewSelectAll(checked) {
   document.querySelectorAll('#sync-preview-list .sync-preview-cb').forEach(function(cb) { cb.checked = checked; });
   _syncPreviewUpdateCount();
 }
 
-function syncPreviewCancel() {
+export function syncPreviewCancel() {
   document.getElementById('sync-preview-overlay').classList.remove('show');
   if (_syncPreviewResolve) { _syncPreviewResolve(null); _syncPreviewResolve = null; }
 }
 
-function syncPreviewConfirm() {
+export function syncPreviewConfirm() {
   const selected = Array.from(
     document.querySelectorAll('#sync-preview-list .sync-preview-cb:checked')
   ).map(function(cb) { return _syncPreviewItems[parseInt(cb.dataset.idx)]; });
@@ -172,7 +176,7 @@ function _enterSyncProgressMode() {
   if (summary) { summary.textContent = ''; summary.className = 'sync-progress-summary'; }
 }
 
-function updateJiraProgress(current, total, label) {
+export function updateJiraProgress(current, total, label) {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
   const bar = document.getElementById('sync-progress-bar');
   if (bar) bar.style.width = pct + '%';
@@ -180,7 +184,7 @@ function updateJiraProgress(current, total, label) {
   if (labelEl) labelEl.textContent = label;
 }
 
-function finishJiraProgress(summaryText, hasError) {
+export function finishJiraProgress(summaryText, hasError) {
   const bar = document.getElementById('sync-progress-bar');
   if (bar) bar.style.width = '100%';
   const labelEl = document.getElementById('sync-progress-label');
@@ -211,7 +215,7 @@ function _resetSyncProgressModal() {
 // ── Push to JIRA ──────────────────────────────────────────────
 const JIRA_CARET = ' <span class="toolbar-caret">▾</span>';
 
-function updateJiraPushBtn() {
+export function updateJiraPushBtn() {
   const btn = document.getElementById('jira-push-btn');
   if (!btn) return;
   const isMultiStory = currentDocType === 'story' && currentFilename?.endsWith('-stories.md');
@@ -220,20 +224,20 @@ function updateJiraPushBtn() {
 }
 
 // ── Pull from JIRA (consolidated: status + fields + children) ─
-async function pullFromJira() {
+export async function pullFromJira() {
   // Delegates to updateFromJira which already handles the full pull flow:
   // preview modal → update title/desc/SP/status → retrieve children.
   // When no JIRA_ID is set, it prompts the user to enter a key inline.
   await updateFromJira();
 }
 
-async function retrieveChildrenFromJira() {
+export async function retrieveChildrenFromJira() {
   if (!currentFilename || !currentDocType) return;
   if (!currentJiraId || currentJiraId === 'TBD') return;
   await offerChildrenDownload([{ key: currentJiraId, filename: currentFilename, docType: currentDocType }]);
 }
 
-async function syncJiraStatus() {
+export async function syncJiraStatus() {
   if (!currentFilename || !currentDocType) return;
   if (!currentJiraId || currentJiraId === 'TBD') return;
 
@@ -266,7 +270,7 @@ async function syncJiraStatus() {
 }
 
 // ── Update from JIRA ─────────────────────────────────────────
-async function updateFromJira(jiraKeyOverride) {
+export async function updateFromJira(jiraKeyOverride) {
   if (!currentFilename || !currentDocType) return;
 
   const hasKey = currentJiraId && currentJiraId !== 'TBD';
@@ -378,7 +382,7 @@ async function updateFromJira(jiraKeyOverride) {
   }
 }
 
-function showUpdateFromJiraKeyPrompt() {
+export function showUpdateFromJiraKeyPrompt() {
   // Swap the dropdown content to show an inline key input
   const menu = document.getElementById('jira-dropdown-menu');
   if (!menu) return;
@@ -396,7 +400,7 @@ function showUpdateFromJiraKeyPrompt() {
   setTimeout(() => document.getElementById('jira-update-key-input')?.focus(), 30);
 }
 
-function submitUpdateFromJiraKey() {
+export function submitUpdateFromJiraKey() {
   const input = document.getElementById('jira-update-key-input');
   if (!input) return;
   const key = input.value.trim().toUpperCase();
@@ -405,7 +409,7 @@ function submitUpdateFromJiraKey() {
   updateFromJira(key);
 }
 
-async function pushToJira() {
+export async function pushToJira() {
   if (!currentFilename || !currentDocType) return;
 
   const btn = document.getElementById('jira-push-btn');
@@ -507,7 +511,7 @@ async function pushToJira() {
 }
 
 // ── Check All JIRA ───────────────────────────────────────────
-async function checkAllJira() {
+export async function checkAllJira() {
   const btn = document.getElementById('jira-check-all-btn');
   if (!btn) return;
 
@@ -586,11 +590,11 @@ async function checkAllJira() {
 }
 
 // ── JIRA Import ───────────────────────────────────────────────
-function toggleJiraSection() {
+export function toggleJiraSection() {
   toggleSection('jira-section-body', 'jira-chevron');
 }
 
-async function searchJira() {
+export async function searchJira() {
   const type      = document.getElementById('jira-type').value;
   const text      = document.getElementById('jira-text').value.trim();
   const btn       = document.getElementById('jira-search-btn');
@@ -619,7 +623,7 @@ async function searchJira() {
   }
 }
 
-function renderJiraResults(issues) {
+export function renderJiraResults(issues) {
   const el = document.getElementById('jira-results');
   if (!issues.length) {
     el.innerHTML = '<div class="jira-empty">No results</div>';
@@ -644,7 +648,7 @@ function renderJiraResults(issues) {
   updateDownloadBtn();
 }
 
-function toggleJiraItem(index) {
+export function toggleJiraItem(index) {
   const cb   = document.getElementById(`jira-cb-${index}`);
   const item = cb.closest('.jira-result-item');
   cb.checked = !cb.checked;
@@ -652,14 +656,14 @@ function toggleJiraItem(index) {
   updateDownloadBtn();
 }
 
-function updateDownloadBtn() {
+export function updateDownloadBtn() {
   const count = document.querySelectorAll('#jira-results input[type=checkbox]:checked').length;
   const btn   = document.getElementById('jira-download-btn');
   btn.classList.toggle('hidden', count === 0);
   btn.textContent   = `⬇ Download ${count} issue${count !== 1 ? 's' : ''}`;
 }
 
-async function downloadSelected() {
+export async function downloadSelected() {
   const checked = [...document.querySelectorAll('#jira-results input[type=checkbox]:checked')];
   const indices = checked.map(cb => parseInt(cb.id.replace('jira-cb-', '')));
   const keys    = indices.map(i => jiraSearchResults[i].key);
@@ -667,7 +671,7 @@ async function downloadSelected() {
   await performJiraPull(keys, []);
 }
 
-async function performJiraPull(keys, overwriteKeys, _allPulled = [], parentLink = null) {
+export async function performJiraPull(keys, overwriteKeys, _allPulled = [], parentLink = null) {
   const btn = document.getElementById('jira-download-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Downloading…';
@@ -723,7 +727,7 @@ async function performJiraPull(keys, overwriteKeys, _allPulled = [], parentLink 
 }
 
 // ── Import by key (bypasses label filter) ────────────────────
-async function pullByKey() {
+export async function pullByKey() {
   const input = document.getElementById('jira-key-input');
   const raw   = (input.value || '').trim();
   if (!raw) { input.focus(); return; }
@@ -747,7 +751,7 @@ async function pullByKey() {
   }
 }
 
-async function offerChildrenDownload(parentIssues) {
+export async function offerChildrenDownload(parentIssues) {
   const allChildren  = [];
   const childToParent = new Map(); // child.key → parent issue
   const seen = new Set();

@@ -1,6 +1,11 @@
 // ── Refine node interactions: context menus, create, split, move ─
+import { escHtml, showJiraToast, TYPE_LABEL } from './state.js';
+import { loadDocs } from './list.js';
+import { openRefinePanel, openManualRefine, closeRefinePanel, renderFeatureMultiPanel } from './refine.js';
+import { buildCanvasGraph, renderCanvas, saveCanvasLayout } from './refine-canvas.js';
+import { _closeLinkPopup } from './refine-edges.js';
 
-async function _fpCreateChild(type, epicFilename, featureFilename) {
+export async function _fpCreateChild(type, epicFilename, featureFilename) {
   const title = prompt(`Title for new ${type}:`);
   if (!title) return;
   try {
@@ -26,7 +31,7 @@ async function _fpCreateChild(type, epicFilename, featureFilename) {
 }
 
 // ── Card context menu (right-click → move to edge / split) ──
-function _showCardContextMenu(x, y, filename, epicFilename, docType) {
+export function _showCardContextMenu(x, y, filename, epicFilename, docType) {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
@@ -59,7 +64,7 @@ function _showCardContextMenu(x, y, filename, epicFilename, docType) {
 }
 
 // ── Feature multi-panel card context menu ─────────────────────
-function _showFpCardContextMenu(x, y, filename, docType, currentEpicFilename, featureFilename) {
+export function _showFpCardContextMenu(x, y, filename, docType, currentEpicFilename, featureFilename) {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
@@ -104,7 +109,7 @@ function _showFpCardContextMenu(x, y, filename, docType, currentEpicFilename, fe
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
 
-async function _fpMoveToEpic(filename, docType, fromEpic, toEpic, featureFilename) {
+export async function _fpMoveToEpic(filename, docType, fromEpic, toEpic, featureFilename) {
   try {
     const res = await fetch('/api/link', {
       method:  'POST',
@@ -121,7 +126,7 @@ async function _fpMoveToEpic(filename, docType, fromEpic, toEpic, featureFilenam
 }
 
 // ── Epic context menu (right-click on epic header) ──────────
-function _showEpicContextMenu(x, y, epicFilename, featureFilename) {
+export function _showEpicContextMenu(x, y, epicFilename, featureFilename) {
   _closeLinkPopup();
   const epicDoc = allDocs.find(d => d.filename === epicFilename && d.docType === 'epic');
   const popup = document.createElement('div');
@@ -147,7 +152,7 @@ function _showEpicContextMenu(x, y, epicFilename, featureFilename) {
 }
 
 // ── Empty cell context menu (create new story/spike/bug) ─────
-function _showEmptyCellMenu(x, y, col, row, epicFilename, epicDocType) {
+export function _showEmptyCellMenu(x, y, col, row, epicFilename, epicDocType) {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
@@ -171,7 +176,7 @@ function _showEmptyCellMenu(x, y, col, row, epicFilename, epicDocType) {
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
 
-function _openCellCreateForm(type, col, row, epicFilename, epicDocType) {
+export function _openCellCreateForm(type, col, row, epicFilename, epicDocType) {
   const typeName = TYPE_LABEL[type] || type;
   const panel = document.getElementById('refine-panel');
   panel.classList.add('open');
@@ -203,7 +208,7 @@ function _openCellCreateForm(type, col, row, epicFilename, epicDocType) {
   document.getElementById('rp-cell-idea').focus();
 }
 
-async function _executeEmptyCellCreate(type, col, row, epicFilename, epicDocType) {
+export async function _executeEmptyCellCreate(type, col, row, epicFilename, epicDocType) {
   const idea = document.getElementById('rp-cell-idea')?.value.trim();
   if (!idea) { document.getElementById('rp-cell-idea')?.focus(); return; }
 
@@ -269,7 +274,7 @@ async function _executeEmptyCellCreate(type, col, row, epicFilename, epicDocType
 }
 
 // ── Multi-card context menu (batch operations) ───────────────
-function _showMultiCardContextMenu(x, y, epicFilename, docType) {
+export function _showMultiCardContextMenu(x, y, epicFilename, docType) {
   _closeLinkPopup();
   const count = _canvasSelectedCards.size;
   const popup = document.createElement('div');
@@ -310,7 +315,7 @@ function _showMultiCardContextMenu(x, y, epicFilename, docType) {
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
 
-async function _moveCardsToEdge(filenames, direction, epicFilename, docType) {
+export async function _moveCardsToEdge(filenames, direction, epicFilename, docType) {
   _closeLinkPopup();
   const positions = Object.values(_activePanelState.layout);
   for (const fn of filenames) {
@@ -331,7 +336,7 @@ async function _moveCardsToEdge(filenames, direction, epicFilename, docType) {
   renderCanvas(epicFilename, docType);
 }
 
-function _openCanvasSplit(filename, childDocType, epicFilename, epicDocType) {
+export function _openCanvasSplit(filename, childDocType, epicFilename, epicDocType) {
   const doc = allDocs.find(d => d.filename === filename);
   const typeName = TYPE_LABEL[childDocType] || childDocType;
   const panel = document.getElementById('refine-panel');
@@ -363,7 +368,7 @@ function _openCanvasSplit(filename, childDocType, epicFilename, epicDocType) {
   document.getElementById('rp-split-idea').focus();
 }
 
-async function _executeCanvasSplit(originalFilename, childDocType, epicFilename, epicDocType) {
+export async function _executeCanvasSplit(originalFilename, childDocType, epicFilename, epicDocType) {
   const idea = document.getElementById('rp-split-idea')?.value.trim();
   if (!idea) { document.getElementById('rp-split-idea')?.focus(); return; }
 
@@ -462,7 +467,7 @@ async function _executeCanvasSplit(originalFilename, childDocType, epicFilename,
   }
 }
 
-async function _moveCardToEdge(filename, direction, epicFilename, docType) {
+export async function _moveCardToEdge(filename, direction, epicFilename, docType) {
   _closeLinkPopup();
   const cur = _activePanelState.layout[filename];
   if (!cur) return;

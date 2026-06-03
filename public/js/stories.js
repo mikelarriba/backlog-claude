@@ -1,5 +1,10 @@
 // ── Stories: stream reset ──────────────────────────────────────
-function resetStoriesSection() {
+import { streamSSE } from './state.js';
+import { loadDocs } from './list.js';
+import { loadHierarchy } from './detail.js';
+import { buildCanvasGraph } from './refine-canvas.js';
+
+export function resetStoriesSection() {
   const wrap = document.getElementById('stories-stream-wrap');
   if (wrap) wrap.classList.add('hidden');
   const stream = document.getElementById('stories-stream');
@@ -11,7 +16,7 @@ function resetStoriesSection() {
 }
 
 // ── Generate / Regenerate Stories ─────────────────────────────
-async function generateStories() {
+export async function generateStories() {
   if (!currentFilename) return;
 
   const btn     = document.getElementById('stories-btn');

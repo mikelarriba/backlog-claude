@@ -1,26 +1,20 @@
-// ── Shared State ───────────────────────────────────────────────
-// All global state lives here. Other modules read/write these directly
-// since all scripts share the same global scope (no ES modules).
+// ── Shared State ─────────────────────────────────────────────────────────────
+// ES module: all shared state and utilities. Imported by every other module.
 
-// ── Reactive store ─────────────────────────────────────────────
-// Minimal pub/sub store. Modules can subscribe to state changes via
-// store.subscribe(key, fn). All global state vars below are backed
-// by this store via Object.defineProperty so existing code that reads
-// or writes them directly transparently goes through the store.
-var store = (function () {
-  var _state = {};
-  var _listeners = {};
+// ── Reactive store ────────────────────────────────────────────────────────────
+export const store = (function () {
+  const _state = {};
+  const _listeners = {};
   return {
-    set: function (key, value) {
+    set(key, value) {
       _state[key] = value;
-      var fns = _listeners[key] || [];
-      for (var i = 0; i < fns.length; i++) fns[i](value);
+      const fns = _listeners[key] || [];
+      for (let i = 0; i < fns.length; i++) fns[i](value);
     },
-    get: function (key) { return _state[key]; },
-    subscribe: function (key, fn) {
+    get(key) { return _state[key]; },
+    subscribe(key, fn) {
       if (!_listeners[key]) _listeners[key] = [];
       _listeners[key].push(fn);
-      // returns an unsubscribe function
       return function () {
         _listeners[key] = _listeners[key].filter(function (f) { return f !== fn; });
       };
@@ -28,9 +22,9 @@ var store = (function () {
   };
 })();
 
-// Declare a store-backed global variable.  Existing code that reads or writes
-// the named global transparently routes through the store, enabling
-// store.subscribe(key, fn) callbacks to fire on every write.
+// Declare a store-backed global variable. Code in other modules can read/write
+// the named global (via the window object) and it routes through the store,
+// enabling store.subscribe(key, fn) callbacks to fire on every write.
 function _storeVar(name, initial) {
   store.set(name, initial);
   Object.defineProperty(window, name, {
@@ -41,7 +35,7 @@ function _storeVar(name, initial) {
   });
 }
 
-// ── Store-backed global state ──────────────────────────────────
+// ── Store-backed global state ─────────────────────────────────────────────────
 _storeVar('allDocs',             []);
 _storeVar('jiraBase',            '');
 _storeVar('currentFilename',     null);
@@ -61,28 +55,46 @@ _storeVar('sprintConfig',        {});
 _storeVar('splitThreshold',      8);
 _storeVar('_metaTeams',          []);
 _storeVar('_metaWorkCategories', []);
+// List-level state (moved here from list.js so all state is centralised)
+_storeVar('piSettings',          { currentPi: null, nextPi: null });
+_storeVar('jiraVersions',        []);
+_storeVar('_swimlanesCollapsed', { currentPi: false, nextPi: false, backlog: false });
+_storeVar('_collapsedItems',     new Set());
+// Piconfig-level state referenced from HTML onclick
+_storeVar('_piConfigActivePi',   null);
+// Refine cluster state (shared across refine.js and refine-*.js)
+_storeVar('_canvasEpicFilename',  null);
+_storeVar('_canvasDocType',       null);
+_storeVar('_canvasManageLinks',   false);
+_storeVar('_canvasSelectedCards', new Set());
+_storeVar('_activePanelState',    { stories: [], layout: {}, blocks: [], parallel: [] });
+_storeVar('_panelStates',         new Map());
+// Roadmap state (shared with export.js)
+_storeVar('_roadmapVisiblePis',   new Set());
 
-const TYPE_LABEL  = { epic: 'Epic', story: 'Story', spike: 'Spike', feature: 'Feature', bug: 'Bug' };
-const STATUS_LABEL = { Draft: 'Draft', 'Created in JIRA': 'In JIRA', Archived: 'Archived' };
-const DRAG_TARGETS = { epic: ['feature'], story: ['epic'], spike: ['epic'], bug: ['epic'] };
+// ── Shared constants ──────────────────────────────────────────────────────────
+export const TYPE_LABEL   = { epic: 'Epic', story: 'Story', spike: 'Spike', feature: 'Feature', bug: 'Bug' };
+export const STATUS_LABEL = { Draft: 'Draft', 'Created in JIRA': 'In JIRA', Archived: 'Archived' };
+export const DRAG_TARGETS = { epic: ['feature'], story: ['epic'], spike: ['epic'], bug: ['epic'] };
+export const SECTION_LABELS = { currentPi: 'Current PI', nextPi: 'Next PI', backlog: 'Backlog' };
 
-// ── Shared Helpers ─────────────────────────────────────────────
-function escHtml(str) {
+// ── Shared helpers ────────────────────────────────────────────────────────────
+export function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function getErrorMessage(errorValue, fallback = 'Request failed') {
+export function getErrorMessage(errorValue, fallback = 'Request failed') {
   if (!errorValue) return fallback;
   if (typeof errorValue === 'string') return errorValue;
   if (typeof errorValue === 'object' && errorValue.message) return errorValue.message;
   return fallback;
 }
 
-function stripFrontmatter(content) {
+export function stripFrontmatter(content) {
   return content.replace(/^---[\s\S]*?---\n?/, '').trim();
 }
 
-function setStatus(type, message) {
+export function setStatus(type, message) {
   const el = document.getElementById('status');
   el.className = `status ${type === 'hidden' ? '' : type + ' show'}`;
   if (type === 'loading') {
@@ -92,14 +104,14 @@ function setStatus(type, message) {
   }
 }
 
-function setBtnState(loading) {
+export function setBtnState(loading) {
   const btn   = document.getElementById('generate-btn');
   const label = document.getElementById('btn-label');
   btn.disabled = loading;
   label.textContent = loading ? 'Generating…' : 'Generate';
 }
 
-function showJiraToast(type, message) {
+export function showJiraToast(type, message) {
   const el = document.getElementById('jira-push-toast');
   el.className = `show ${type}`;
   el.textContent = message;
@@ -107,16 +119,14 @@ function showJiraToast(type, message) {
   _toastTimer = setTimeout(() => { el.className = ''; }, 4000);
 }
 
-function setJiraStatus(type, message) {
+export function setJiraStatus(type, message) {
   const el = document.getElementById('jira-status');
   el.className = `jira-status${type !== 'hidden' ? ' show ' + type : ''}`;
   el.textContent = message || '';
 }
 
-// ── Shared JSON fetch helper ─────────────────────────────────
-// Replaces the 50+ copy-paste try/fetch/res.json/!res.ok blocks.
-// Returns parsed JSON on success; throws a descriptive Error on failure.
-async function fetchJSON(url, opts = {}) {
+// ── Shared JSON fetch helpers ─────────────────────────────────────────────────
+export async function fetchJSON(url, opts = {}) {
   const res = await fetch(url, opts);
   let data;
   try { data = await res.json(); } catch { data = null; }
@@ -124,8 +134,7 @@ async function fetchJSON(url, opts = {}) {
   return data;
 }
 
-// POST/PUT/PATCH/DELETE convenience wrappers
-async function postJSON(url, body) {
+export async function postJSON(url, body) {
   return fetchJSON(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -133,7 +142,7 @@ async function postJSON(url, body) {
   });
 }
 
-async function patchJSON(url, body) {
+export async function patchJSON(url, body) {
   return fetchJSON(url, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -141,7 +150,7 @@ async function patchJSON(url, body) {
   });
 }
 
-async function putJSON(url, body) {
+export async function putJSON(url, body) {
   return fetchJSON(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -149,14 +158,12 @@ async function putJSON(url, body) {
   });
 }
 
-async function deleteJSON(url) {
+export async function deleteJSON(url) {
   return fetchJSON(url, { method: 'DELETE' });
 }
 
-// ── Shared streaming SSE fetch helper ─────────────────────────
-// Replaces duplicated streaming logic in upgrade.js, stories.js,
-// refine.js, and quickcreate.js.
-async function streamSSE(url, body, { onText, onDone, onError, onProgress }) {
+// ── Shared streaming SSE fetch helper ─────────────────────────────────────────
+export async function streamSSE(url, body, { onText, onDone, onError, onProgress }) {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -189,18 +196,16 @@ async function streamSSE(url, body, { onText, onDone, onError, onProgress }) {
   }
 }
 
-// ── Shared section toggle ─────────────────────────────────────
-// Toggles a collapsible section: adds/removes 'open' on the body and
-// rotates the chevron. rotateDeg: degrees when open (90 or 180).
-function toggleSection(bodyId, chevronId, rotateDeg = 90) {
+// ── Shared section toggle ─────────────────────────────────────────────────────
+export function toggleSection(bodyId, chevronId, rotateDeg = 90) {
   const body    = document.getElementById(bodyId);
   const chevron = document.getElementById(chevronId);
   const isOpen  = body.classList.toggle('open');
   chevron.style.transform = isOpen ? `rotate(${rotateDeg}deg)` : '';
 }
 
-// ── Debounce utility ──────────────────────────────────────────
-function debounce(fn, ms) {
+// ── Debounce utility ──────────────────────────────────────────────────────────
+export function debounce(fn, ms) {
   let timer;
   return function(...args) {
     clearTimeout(timer);
@@ -208,8 +213,8 @@ function debounce(fn, ms) {
   };
 }
 
-// ── Cascade helpers for swimlane drag-drop ────────────────────
-function buildChildrenMap(docs) {
+// ── Cascade helpers for swimlane drag-drop ────────────────────────────────────
+export function buildChildrenMap(docs) {
   const map = new Map();
   for (const d of docs) {
     if (d.parentFilename) {
@@ -220,7 +225,7 @@ function buildChildrenMap(docs) {
   return map;
 }
 
-function getDescendants(filename, childrenMap) {
+export function getDescendants(filename, childrenMap) {
   const result = [];
   const children = childrenMap.get(filename) || [];
   for (const child of children) {

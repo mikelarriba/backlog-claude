@@ -1,13 +1,13 @@
 // ── Doc list coordinator ───────────────────────────────────────
-// State vars registered here so they are available before sub-modules call them.
+import { fetchJSON, postJSON, showJiraToast, TYPE_LABEL } from './state.js';
+import { openDoc } from './detail.js';
+import { getSelectedDocs, closeContextMenu } from './list-filters.js';
+import { _rankSortFn } from './list-render.js';
 
-// PI settings state — store-backed so store.subscribe('piSettings', fn) works
-_storeVar('piSettings',          { currentPi: null, nextPi: null });
-_storeVar('jiraVersions',        []);
-_storeVar('_swimlanesCollapsed', { currentPi: false, nextPi: false, backlog: false });
-_storeVar('_collapsedItems',     new Set());
+// Note: piSettings, jiraVersions, _swimlanesCollapsed, _collapsedItems are
+// now declared as store-backed globals in state.js (moved from here).
 
-async function moveDocRank(filename, docType, delta) {
+export async function moveDocRank(filename, docType, delta) {
   const group  = allDocs.filter(d => d.docType === docType);
   const sorted = [...group].sort(_rankSortFn);
   const idx    = sorted.findIndex(d => d.filename === filename);
@@ -25,7 +25,7 @@ async function moveDocRank(filename, docType, delta) {
   }
 }
 
-async function loadDocs() {
+export async function loadDocs() {
   try {
     allDocs = await fetchJSON('/api/docs');
     // store.subscribe('allDocs', applyFilters) in main.js drives the re-render
@@ -34,13 +34,13 @@ async function loadDocs() {
   }
 }
 
-async function loadPiSettings() {
+export async function loadPiSettings() {
   try {
     piSettings = await fetchJSON('/api/settings/pi');
   } catch (e) { console.warn('Failed to load PI settings:', e.message); }
 }
 
-async function loadJiraVersions() {
+export async function loadJiraVersions() {
   try {
     const data = await fetchJSON('/api/jira/versions');
     jiraVersions = data.versions || [];
@@ -50,7 +50,7 @@ async function loadJiraVersions() {
 }
 
 // ── Split Issue (list view) ───────────────────────────────────
-function contextSplitItem() {
+export function contextSplitItem() {
   closeContextMenu();
   const docs = getSelectedDocs();
   if (docs.length !== 1) return;
@@ -72,11 +72,11 @@ function contextSplitItem() {
   modal.querySelector('#issue-split-idea').focus();
 }
 
-function closeIssueSplitModal() {
+export function closeIssueSplitModal() {
   document.getElementById('issue-split-modal')?.classList.remove('show');
 }
 
-async function executeSplitIssue() {
+export async function executeSplitIssue() {
   const modal = document.getElementById('issue-split-modal');
   if (!modal) return;
 

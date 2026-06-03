@@ -1,14 +1,17 @@
 // ── PI Sprint Configuration ────────────────────────────────────
-let _piConfigActivePi = null;
+import { fetchJSON, putJSON, escHtml, toggleSection } from './state.js';
+import { refreshRoadmapView } from './roadmap.js';
 
-function togglePiConfigSection() {
+// _piConfigActivePi is a store-backed global in state.js (referenced from HTML onclick)
+
+export function togglePiConfigSection() {
   toggleSection('pi-config-body', 'pi-config-chevron');
   if (document.getElementById('pi-config-body').classList.contains('open') && !_piConfigActivePi) {
     renderPiConfigTabs();
   }
 }
 
-function renderPiConfigTabs() {
+export function renderPiConfigTabs() {
   const tabs = document.getElementById('pi-config-tabs');
   const pis = [];
   if (piSettings.currentPi) pis.push({ key: 'currentPi', label: 'Current PI', name: piSettings.currentPi });
@@ -28,7 +31,7 @@ function renderPiConfigTabs() {
   if (!_piConfigActivePi) selectPiConfigTab(pis[0].name);
 }
 
-async function selectPiConfigTab(piName) {
+export async function selectPiConfigTab(piName) {
   _piConfigActivePi = piName;
   // Update active tab style
   document.querySelectorAll('.pi-config-tab').forEach(t => {
@@ -37,7 +40,7 @@ async function selectPiConfigTab(piName) {
   await loadSprintConfigForPi(piName);
 }
 
-async function loadSprintConfigForPi(piName) {
+export async function loadSprintConfigForPi(piName) {
   try {
     const data = await fetchJSON(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
     const sprints = data.sprints && data.sprints.length ? data.sprints : [
@@ -53,7 +56,7 @@ async function loadSprintConfigForPi(piName) {
   }
 }
 
-function renderSprintRows(sprints) {
+export function renderSprintRows(sprints) {
   const container = document.getElementById('pi-config-sprints');
   if (!sprints.length) {
     container.innerHTML = '<div class="pi-config-empty">No sprints defined. Click "+ Add Sprint".</div>';
@@ -71,7 +74,7 @@ function renderSprintRows(sprints) {
   `).join('');
 }
 
-function addSprintRow() {
+export function addSprintRow() {
   if (!_piConfigActivePi) return;
   const sprints = sprintConfig[_piConfigActivePi] || [];
   const nextNum = sprints.length + 1;
@@ -80,7 +83,7 @@ function addSprintRow() {
   renderSprintRows(sprints);
 }
 
-function removeSprintRow(index) {
+export function removeSprintRow(index) {
   if (!_piConfigActivePi) return;
   const sprints = sprintConfig[_piConfigActivePi] || [];
   if (sprints.length <= 1) return; // keep at least one
@@ -89,7 +92,7 @@ function removeSprintRow(index) {
   renderSprintRows(sprints);
 }
 
-function collectSprintRows() {
+export function collectSprintRows() {
   const rows = document.querySelectorAll('.pi-config-sprint-row');
   return Array.from(rows).map(row => ({
     name: row.querySelector('.pi-config-sprint-name').value.trim(),
@@ -97,7 +100,7 @@ function collectSprintRows() {
   })).filter(s => s.name);
 }
 
-async function saveSprintConfig() {
+export async function saveSprintConfig() {
   if (!_piConfigActivePi) return;
   const sprints = collectSprintRows();
   if (!sprints.length) {
@@ -122,7 +125,7 @@ async function saveSprintConfig() {
   }
 }
 
-function setPiConfigStatus(type, message) {
+export function setPiConfigStatus(type, message) {
   const el = document.getElementById('pi-config-status');
   el.className = `pi-config-status${type !== 'hidden' ? ' show ' + type : ''}`;
   el.textContent = message || '';
@@ -130,7 +133,7 @@ function setPiConfigStatus(type, message) {
 }
 
 // Load sprint config for both PIs (called during init) — parallel fetches
-async function loadAllSprintConfigs() {
+export async function loadAllSprintConfigs() {
   const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
 
   const [, thresholdRes] = await Promise.all([
@@ -154,7 +157,7 @@ async function loadAllSprintConfigs() {
   }
 }
 
-async function saveSplitThreshold(value) {
+export async function saveSplitThreshold(value) {
   const val = parseInt(value, 10);
   if (!val || val < 1) return;
   try {
@@ -166,6 +169,6 @@ async function saveSplitThreshold(value) {
 }
 
 // Get sprint names for a given PI version name
-function getSprintsForPi(piVersionName) {
+export function getSprintsForPi(piVersionName) {
   return sprintConfig[piVersionName] || [];
 }

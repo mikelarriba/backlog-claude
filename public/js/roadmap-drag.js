@@ -1,5 +1,10 @@
 // ── Roadmap drag-and-drop (sprint move + in-column rerank) ─
-function initRoadmapDragDrop() {
+import { patchJSON, buildChildrenMap, getDescendants } from './state.js';
+import { renderRoadmapBoard } from './roadmap-render.js';
+import { executeRerankDrop } from './dragdrop.js';
+import { showDepConnectors, hideDepConnectors } from './list-render.js';
+
+export function initRoadmapDragDrop() {
   const cards     = document.querySelectorAll('.roadmap-card[draggable]');
   const dropZones = document.querySelectorAll('.roadmap-card-list');
 
@@ -114,7 +119,7 @@ function initRoadmapDragDrop() {
 }
 
 // ── Roadmap dep hover listeners ──────────────────────────────
-function attachRoadmapDepHoverListeners() {
+export function attachRoadmapDepHoverListeners() {
   document.querySelectorAll('.roadmap-card[data-filename]').forEach(el => {
     const doc = allDocs.find(d => d.filename === el.dataset.filename);
     if (!doc) return;

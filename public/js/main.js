@@ -1,12 +1,30 @@
-// ── Initialisation ─────────────────────────────────────────────
-// Runs after all other scripts have loaded.
+// ── ES Module entry point ────────────────────────────────────────
+import { store, fetchJSON, putJSON, debounce, toggleSection } from './state.js';
+import { loadDocs, loadPiSettings, loadJiraVersions, contextSplitItem, closeIssueSplitModal, executeSplitIssue } from './list.js';
+import { toggleItemCollapse, collapseAll, expandAll, toggleSwimlane, updatePiVersion, setTypeFilter, setStatusFilter, setTeamFilter, setWorkCatFilter, applyFilters, applyFiltersDebounced, handleItemClick, handleItemContextMenu, showContextMenu, closeContextMenu, contextMoveToPI, contextDeleteSelected, contextAssignField, closeBulkAssignDialog, getSelectedDocs } from './list-filters.js';
+import { renderSwimlanes } from './list-render.js';
+import { saveStoryPoints, saveTitle, cancelTitleEdit, updateDocSprint, updateDocStatus, updateDocTeam, updateDocWorkCategory, showList, confirmDelete, closeDeleteDialog, executeDelete, toggleDropdown, closeDropdown, closeAllDropdowns, toggleHierarchy, toggleOriginal, openDoc, loadHierarchy, addDocComment, startCommentEdit, cancelCommentEdit, saveCommentEdit, deleteDocComment, linkExistingChildren, toggleHierarchyChild, updateDocButtons } from './detail.js';
+import { toggleUpgradePanel, executeUpgrade } from './upgrade.js';
+import { saveDraft, generateDoc, clearForm, toggleQuickCreate, closeQuickCreate, executeQuickCreate } from './quickcreate.js';
+import { generateStories } from './stories.js';
+import { showJiraSelectModal, jiraSelectAll, jiraSelectCancel, jiraSelectConfirm, showSyncPreviewModal, syncPreviewSelectAll, syncPreviewCancel, syncPreviewConfirm, pullFromJira, pushToJira, checkAllJira, toggleJiraSection, searchJira, downloadSelected, pullByKey, submitUpdateFromJiraKey, toggleJiraItem } from './jira.js';
+import { openBugModal, closeBugModal, onBugFilesSelected, submitBugReport, removeBugFile } from './bugcreate.js';
+import { _renderFpCanvas, buildCanvasGraph, rebuildCanvasEdges, computeAutoLayout, renderCanvas, saveCanvasLayout, resetCanvasLayout } from './refine-canvas.js';
+import { _showEdgePopup, _deleteCanvasLink, _changeCanvasLinkType, _restoreManageLinksState, toggleManageLinks, _closeLinkPopup, _showLinkPopup, _createCanvasLink } from './refine-edges.js';
+import { _fpCreateChild, _showCardContextMenu, _showFpCardContextMenu, _fpMoveToEpic, _showEpicContextMenu, _showEmptyCellMenu, _openCellCreateForm, _executeEmptyCellCreate, _showMultiCardContextMenu, _moveCardsToEdge, _openCanvasSplit, _executeCanvasSplit, _moveCardToEdge } from './refine-nodes.js';
+import { onCanvasSearch, openManualRefine, closeRefineView, renderFeatureMultiPanel, _toggleEpicPanel, closeRefinePanel, openRefinePanel, _removeCanvasLink, saveRpTitle, cancelRpTitleEdit, saveRpStoryPoints, saveRpPriority, toggleRpUpgrade, executeRpUpgrade, confirmRpDelete, openCreatePanel, executeRpCreate } from './refine.js';
+import { exportEpicToPdf, openRoadmapExportDialog, closeRoadmapExportDialog, executeRoadmapExport } from './export.js';
+import { togglePiConfigSection, addSprintRow, removeSprintRow, selectPiConfigTab, saveSprintConfig, saveSplitThreshold, loadAllSprintConfigs } from './piconfig.js';
+import { openDistributionModal, closeDistributionModal, applyDistribution } from './distribution.js';
+import { openRoadmapView, closeRoadmapView, isRoadmapOpen, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, applyEpicFocus, pushSprintsToJira, openSprintPushModal, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, confirmSprintPush, _sprintPushUpdateCount, getAllSprints, openDepModal, addDepLink, addParallelLink, removeDepLink, closeDepModal, openSplitModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory } from './roadmap.js';
+import { initDragDrop } from './dragdrop.js';
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
 // ── Split-panel mode ───────────────────────────────────────────
-const SPLIT_MIN_WIDTH = 1280; // px — below this, use classic single-view nav
+const SPLIT_MIN_WIDTH = 1280;
 
 function isSplitMode() {
   return document.querySelector('.right').classList.contains('split-mode');
@@ -17,18 +35,14 @@ function updateSplitMode() {
   const right = document.querySelector('.right');
   const wasOn = right.classList.contains('split-mode');
 
-  if (wide === wasOn) return; // no change
+  if (wide === wasOn) return;
 
   right.classList.toggle('split-mode', wide);
 
   if (!wide && currentFilename) {
-    // Switching to narrow with a doc open — hide the list so detail view
-    // keeps behaving like the classic full-screen detail.
     document.getElementById('list-view').style.display = 'none';
   } else if (wide && currentFilename) {
-    // Switching to wide with a doc open — show the list alongside.
     document.getElementById('list-view').style.display = '';
-    // Re-highlight the active list item.
     highlightSelectedItem(currentFilename, currentDocType);
   }
 }
@@ -45,8 +59,6 @@ function highlightSelectedItem(filename, docType) {
 
 let _lastInnerWidth = window.innerWidth;
 window.addEventListener('resize', debounce(() => {
-  // Skip if physical width hasn't changed (macOS virtual desktop switch fires
-  // resize events without changing innerWidth; zoom changes do alter it).
   if (window.innerWidth === _lastInnerWidth) return;
   _lastInnerWidth = window.innerWidth;
   updateSplitMode();
@@ -141,7 +153,6 @@ const WORKCAT_SHORT_LABELS = {
 function _renderTeamFilterPills(teams) {
   const container = document.querySelector('.filter-group [data-team="all"]')?.parentElement;
   if (!container) return;
-  // Remove old team pills (keep the "All" pill)
   container.querySelectorAll('[data-team]:not([data-team="all"])').forEach(el => el.remove());
   for (const t of teams) {
     const btn = document.createElement('button');
@@ -254,10 +265,9 @@ async function _saveModelSetting(provider, model) {
 }
 
 // ── Store subscriptions ───────────────────────────────────────
-// Wire re-render callbacks so views automatically update when key state changes.
 store.subscribe('allDocs', applyFilters);
 
-// Bootstrap — load PI settings, JIRA versions, sprint config, model & app config before docs so swimlanes render correctly
+// Bootstrap
 (async () => {
   await Promise.all([loadPiSettings(), loadJiraVersions(), loadModelSetting(), loadAppConfig(), loadMetadata()]);
   await loadAllSprintConfigs();
@@ -266,7 +276,6 @@ store.subscribe('allDocs', applyFilters);
 initDragDrop();
 updateSplitMode();
 
-// SSE: auto-refresh on doc changes — debounced to collapse burst events
 const _loadDocsDebounced = debounce(loadDocs, 100);
 
 const evtSource = new EventSource('/api/events');
@@ -296,12 +305,204 @@ evtSource.onmessage = (e) => {
   } catch (e) { console.warn('SSE handler error:', e.message); }
 };
 
-// Close delete dialog on overlay click
 document.getElementById('delete-overlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeDeleteDialog();
 });
 
-// Close split modal on overlay click
 document.getElementById('split-overlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeSplitModal();
 });
+
+// ── Expose functions for HTML onclick attributes ──────────────
+// list-filters.js
+window.toggleItemCollapse   = toggleItemCollapse;
+window.collapseAll          = collapseAll;
+window.expandAll            = expandAll;
+window.toggleSwimlane       = toggleSwimlane;
+window.updatePiVersion      = updatePiVersion;
+window.setTypeFilter        = setTypeFilter;
+window.setStatusFilter      = setStatusFilter;
+window.setTeamFilter        = setTeamFilter;
+window.setWorkCatFilter     = setWorkCatFilter;
+window.handleItemClick      = handleItemClick;
+window.handleItemContextMenu = handleItemContextMenu;
+window.showContextMenu      = showContextMenu;
+window.closeContextMenu     = closeContextMenu;
+window.contextMoveToPI      = contextMoveToPI;
+window.contextDeleteSelected = contextDeleteSelected;
+window.contextAssignField   = contextAssignField;
+window.closeBulkAssignDialog = closeBulkAssignDialog;
+
+// list.js
+window.contextSplitItem     = contextSplitItem;
+window.closeIssueSplitModal = closeIssueSplitModal;
+window.executeSplitIssue    = executeSplitIssue;
+
+// detail.js
+window.saveStoryPoints      = saveStoryPoints;
+window.saveTitle            = saveTitle;
+window.cancelTitleEdit      = cancelTitleEdit;
+window.updateDocSprint      = updateDocSprint;
+window.updateDocStatus      = updateDocStatus;
+window.updateDocTeam        = updateDocTeam;
+window.updateDocWorkCategory = updateDocWorkCategory;
+window.showList             = showList;
+window.confirmDelete        = confirmDelete;
+window.closeDeleteDialog    = closeDeleteDialog;
+window.executeDelete        = executeDelete;
+window.toggleDropdown       = toggleDropdown;
+window.closeDropdown        = closeDropdown;
+window.closeAllDropdowns    = closeAllDropdowns;
+window.toggleHierarchy      = toggleHierarchy;
+window.toggleOriginal       = toggleOriginal;
+window.openDoc              = openDoc;
+window.loadHierarchy        = loadHierarchy;
+window.addDocComment        = addDocComment;
+window.startCommentEdit     = startCommentEdit;
+window.cancelCommentEdit    = cancelCommentEdit;
+window.saveCommentEdit      = saveCommentEdit;
+window.deleteDocComment     = deleteDocComment;
+window.linkExistingChildren = linkExistingChildren;
+window.toggleHierarchyChild = toggleHierarchyChild;
+
+// upgrade.js
+window.toggleUpgradePanel   = toggleUpgradePanel;
+window.executeUpgrade       = executeUpgrade;
+
+// quickcreate.js
+window.saveDraft            = saveDraft;
+window.generateDoc          = generateDoc;
+window.clearForm            = clearForm;
+window.toggleQuickCreate    = toggleQuickCreate;
+window.closeQuickCreate     = closeQuickCreate;
+window.executeQuickCreate   = executeQuickCreate;
+
+// stories.js
+window.generateStories      = generateStories;
+
+// jira.js
+window.jiraSelectAll        = jiraSelectAll;
+window.jiraSelectCancel     = jiraSelectCancel;
+window.jiraSelectConfirm    = jiraSelectConfirm;
+window.syncPreviewSelectAll = syncPreviewSelectAll;
+window.syncPreviewCancel    = syncPreviewCancel;
+window.syncPreviewConfirm   = syncPreviewConfirm;
+window.checkAllJira         = checkAllJira;
+window.toggleJiraSection    = toggleJiraSection;
+window.searchJira           = searchJira;
+window.downloadSelected     = downloadSelected;
+window.pullByKey            = pullByKey;
+window.pullFromJira         = pullFromJira;
+window.pushToJira           = pushToJira;
+window.submitUpdateFromJiraKey = submitUpdateFromJiraKey;
+window.toggleJiraItem       = toggleJiraItem;
+
+// bugcreate.js
+window.openBugModal         = openBugModal;
+window.closeBugModal        = closeBugModal;
+window.submitBugReport      = submitBugReport;
+window.onBugFilesSelected   = onBugFilesSelected;
+window.removeBugFile        = removeBugFile;
+
+// refine-canvas.js
+window.resetCanvasLayout    = resetCanvasLayout;
+
+// refine-edges.js
+window.toggleManageLinks    = toggleManageLinks;
+window._closeLinkPopup      = _closeLinkPopup;
+window._createCanvasLink    = _createCanvasLink;
+window._showEdgePopup       = _showEdgePopup;
+window._deleteCanvasLink    = _deleteCanvasLink;
+window._changeCanvasLinkType = _changeCanvasLinkType;
+
+// refine-nodes.js
+window._fpCreateChild       = _fpCreateChild;
+window._executeCanvasSplit  = _executeCanvasSplit;
+window._openCellCreateForm  = _openCellCreateForm;
+window._executeEmptyCellCreate = _executeEmptyCellCreate;
+window._moveCardsToEdge     = _moveCardsToEdge;
+window._openCanvasSplit     = _openCanvasSplit;
+window._moveCardToEdge      = _moveCardToEdge;
+window._showCardContextMenu = _showCardContextMenu;
+window._showFpCardContextMenu = _showFpCardContextMenu;
+window._showEpicContextMenu = _showEpicContextMenu;
+window._showEmptyCellMenu   = _showEmptyCellMenu;
+window._showMultiCardContextMenu = _showMultiCardContextMenu;
+window._fpMoveToEpic        = _fpMoveToEpic;
+
+// refine.js
+window.onCanvasSearch       = onCanvasSearch;
+window.openManualRefine     = openManualRefine;
+window.closeRefineView      = closeRefineView;
+window.renderFeatureMultiPanel = renderFeatureMultiPanel;
+window._toggleEpicPanel     = _toggleEpicPanel;
+window.closeRefinePanel     = closeRefinePanel;
+window.openRefinePanel      = openRefinePanel;
+window._removeCanvasLink    = _removeCanvasLink;
+window.saveRpTitle          = saveRpTitle;
+window.cancelRpTitleEdit    = cancelRpTitleEdit;
+window.saveRpStoryPoints    = saveRpStoryPoints;
+window.saveRpPriority       = saveRpPriority;
+window.toggleRpUpgrade      = toggleRpUpgrade;
+window.executeRpUpgrade     = executeRpUpgrade;
+window.confirmRpDelete      = confirmRpDelete;
+window.openCreatePanel      = openCreatePanel;
+window.executeRpCreate      = executeRpCreate;
+
+// export.js
+window.exportEpicToPdf         = exportEpicToPdf;
+window.openRoadmapExportDialog  = openRoadmapExportDialog;
+window.closeRoadmapExportDialog = closeRoadmapExportDialog;
+window.executeRoadmapExport     = executeRoadmapExport;
+
+// piconfig.js
+window.togglePiConfigSection = togglePiConfigSection;
+window.addSprintRow          = addSprintRow;
+window.removeSprintRow       = removeSprintRow;
+window.selectPiConfigTab     = selectPiConfigTab;
+window.saveSprintConfig      = saveSprintConfig;
+window.saveSplitThreshold    = saveSplitThreshold;
+
+// distribution.js
+window.openDistributionModal  = openDistributionModal;
+window.closeDistributionModal = closeDistributionModal;
+window.applyDistribution      = applyDistribution;
+
+// roadmap.js
+window.openRoadmapView        = openRoadmapView;
+window.closeRoadmapView       = closeRoadmapView;
+window.refreshRoadmapView     = refreshRoadmapView;
+window.toggleRoadmapPi        = toggleRoadmapPi;
+window.toggleRoadmapPanel     = toggleRoadmapPanel;
+window.filterRoadmapEpics     = filterRoadmapEpics;
+window.focusEpic              = focusEpic;
+window.pushSprintsToJira      = pushSprintsToJira;
+window.closeSprintPushModal   = closeSprintPushModal;
+window.toggleSprintPushFilter = toggleSprintPushFilter;
+window.sprintPushSelectAll    = sprintPushSelectAll;
+window.confirmSprintPush      = confirmSprintPush;
+window._sprintPushUpdateCount = _sprintPushUpdateCount;
+window.closeDepModal          = closeDepModal;
+window.addDepLink             = addDepLink;
+window.addParallelLink        = addParallelLink;
+window.removeDepLink          = removeDepLink;
+window.closeSplitModal        = closeSplitModal;
+window.executeSplit           = executeSplit;
+window.handleEpicContextMenu  = handleEpicContextMenu;
+window.handleStoryContextMenu = handleStoryContextMenu;
+window.rmCtxOpenEpic          = rmCtxOpenEpic;
+window.rmCtxMoveEpic          = rmCtxMoveEpic;
+window.rmCtxMoveStory         = rmCtxMoveStory;
+
+// main.js local functions
+window.toggleLeftPanel        = toggleLeftPanel;
+window.toggleModelSection     = toggleModelSection;
+window.refreshProviders       = refreshProviders;
+window.updateModelSetting     = updateModelSetting;
+window.onProviderChange       = onProviderChange;
+window.isSplitMode            = isSplitMode;
+window.updateSplitMode        = updateSplitMode;
+window.highlightSelectedItem  = highlightSelectedItem;
+window.loadAppConfig          = loadAppConfig;
+window.loadMetadata           = loadMetadata;
+window.loadModelSetting       = loadModelSetting;

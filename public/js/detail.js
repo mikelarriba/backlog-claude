@@ -1,5 +1,16 @@
 // ── Detail view ────────────────────────────────────────────────
-function updateJiraLink(jiraId, jiraUrl) {
+import { fetchJSON, patchJSON, deleteJSON, postJSON, stripFrontmatter, escHtml, showJiraToast, toggleSection, TYPE_LABEL, STATUS_LABEL, buildChildrenMap } from './state.js';
+import { loadDocs } from './list.js';
+import { applyFilters } from './list-filters.js';
+import { showJiraSelectModal, updateJiraPushBtn } from './jira.js';
+import { getSprintsForPi } from './piconfig.js';
+import { resetStoriesSection } from './stories.js';
+import { closeQuickCreate } from './quickcreate.js';
+import { resetUpgradePanel } from './upgrade.js';
+import { isSplitMode, highlightSelectedItem } from './main.js';
+import { isRoadmapOpen } from './roadmap.js';
+
+export function updateJiraLink(jiraId, jiraUrl) {
   const el = document.getElementById('detail-jira-link');
   if (!el) return;
   if (jiraId && jiraId !== 'TBD') {
@@ -13,7 +24,7 @@ function updateJiraLink(jiraId, jiraUrl) {
   }
 }
 
-function updateJiraStatus(jiraStatus) {
+export function updateJiraStatus(jiraStatus) {
   const el = document.getElementById('detail-jira-status');
   if (!el) return;
   if (jiraStatus) {
@@ -24,7 +35,7 @@ function updateJiraStatus(jiraStatus) {
   }
 }
 
-function renderDetailDeps(doc) {
+export function renderDetailDeps(doc) {
   const row = document.getElementById('detail-deps-row');
   if (!row) return;
 
@@ -58,7 +69,7 @@ function renderDetailDeps(doc) {
   row.classList.remove('hidden');
 }
 
-async function deleteDepFromDetail(targetFn, targetDocType, linkType) {
+export async function deleteDepFromDetail(targetFn, targetDocType, linkType) {
   let srcFn = currentFilename, srcType = currentDocType;
   let tgtFn = targetFn, tgtType = targetDocType;
   let apiLinkType = linkType;
@@ -84,7 +95,7 @@ async function deleteDepFromDetail(targetFn, targetDocType, linkType) {
   }
 }
 
-function renderDocContent(doc, content) {
+export function renderDocContent(doc, content) {
   document.getElementById('status-select').value = doc?.status || 'Draft';
   document.getElementById('detail-filename').textContent = doc?.filename || currentFilename;
 
@@ -158,7 +169,7 @@ function _renderComments(comments, filename, docType, containerEl) {
   section.classList.remove('hidden');
 }
 
-async function addDocComment(filename, docType) {
+export async function addDocComment(filename, docType) {
   const ta = document.getElementById('new-comment-ta');
   const text = (ta?.value || '').trim();
   if (!text) { ta?.focus(); return; }
@@ -183,18 +194,18 @@ async function addDocComment(filename, docType) {
   }
 }
 
-function startCommentEdit(id) {
+export function startCommentEdit(id) {
   document.getElementById(`comment-body-${id}`)?.classList.add('hidden');
   document.getElementById(`comment-edit-${id}`)?.classList.remove('hidden');
   document.getElementById(`comment-edit-ta-${id}`)?.focus();
 }
 
-function cancelCommentEdit(id) {
+export function cancelCommentEdit(id) {
   document.getElementById(`comment-edit-${id}`)?.classList.add('hidden');
   document.getElementById(`comment-body-${id}`)?.classList.remove('hidden');
 }
 
-async function saveCommentEdit(id, filename, docType) {
+export async function saveCommentEdit(id, filename, docType) {
   const ta = document.getElementById(`comment-edit-ta-${id}`);
   const text = (ta?.value || '').trim();
   if (!text) return;
@@ -212,7 +223,7 @@ async function saveCommentEdit(id, filename, docType) {
   }
 }
 
-async function deleteDocComment(id, filename, docType) {
+export async function deleteDocComment(id, filename, docType) {
   if (!confirm('Delete this comment?')) return;
   try {
     const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
@@ -229,7 +240,7 @@ async function deleteDocComment(id, filename, docType) {
 }
 
 // ── Story points helpers ───────────────────────────────────────
-function computeChildPoints(filename, docType) {
+export function computeChildPoints(filename, docType) {
   // For epics: sum story/spike/bug children. For features: sum epic children.
   const childType = docType === 'feature' ? 'epic' : null;
   const children  = allDocs.filter(d => {
@@ -253,7 +264,7 @@ function computeChildPoints(filename, docType) {
   return sum;
 }
 
-function updateStoryPointsUI(docType, sp) {
+export function updateStoryPointsUI(docType, sp) {
   const isLeaf = docType === 'story' || docType === 'spike' || docType === 'bug';
   const isAggr = docType === 'epic' || docType === 'feature';
 
@@ -278,7 +289,7 @@ function updateStoryPointsUI(docType, sp) {
   }
 }
 
-async function saveStoryPoints() {
+export async function saveStoryPoints() {
   const input = document.getElementById('sp-input');
   const newVal = input.value.trim();
   const orig   = input.dataset.original || '';
@@ -295,7 +306,7 @@ async function saveStoryPoints() {
 }
 
 // ── Sprint select helpers ─────────────────────────────────────
-function updateSprintSelect(docType, fixVersion, currentSprint) {
+export function updateSprintSelect(docType, fixVersion, currentSprint) {
   const sel = document.getElementById('sprint-select');
   const group = sel.closest('.detail-field-group');
   const isLeaf = docType === 'story' || docType === 'spike' || docType === 'bug';
@@ -321,7 +332,7 @@ function updateSprintSelect(docType, fixVersion, currentSprint) {
   if (group) group.classList.remove('hidden');
 }
 
-async function updateDocSprint(sprint) {
+export async function updateDocSprint(sprint) {
   if (!currentFilename || !currentDocType) return;
   try {
     await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`,
@@ -333,12 +344,12 @@ async function updateDocSprint(sprint) {
 }
 
 // ── Team & Work Category helpers ──────────────────────────────
-function updateTeamWorkCatSelects(doc) {
+export function updateTeamWorkCatSelects(doc) {
   document.getElementById('detail-team-select').value    = doc?.team || '';
   document.getElementById('detail-workcat-select').value = doc?.workCategory || '';
 }
 
-async function updateDocTeam(team) {
+export async function updateDocTeam(team) {
   if (!currentFilename || !currentDocType) return;
   try {
     await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`,
@@ -349,7 +360,7 @@ async function updateDocTeam(team) {
   } catch (e) { console.warn('Failed to save team:', e.message); }
 }
 
-async function updateDocWorkCategory(workCategory) {
+export async function updateDocWorkCategory(workCategory) {
   if (!currentFilename || !currentDocType) return;
   try {
     await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`,
@@ -360,7 +371,7 @@ async function updateDocWorkCategory(workCategory) {
   } catch (e) { console.warn('Failed to save work category:', e.message); }
 }
 
-function updateDocButtons(docType) {
+export function updateDocButtons(docType) {
   const isEpic    = docType === 'epic';
   const isFeature = docType === 'feature';
   document.getElementById('create-dropdown-wrap').classList.toggle('hidden', !(isEpic || isFeature));
@@ -374,7 +385,7 @@ function updateDocButtons(docType) {
   if (storiesBtn) { storiesBtn.disabled = false; storiesBtn.textContent = 'AI Story Generation'; }
 }
 
-async function openDoc(filename, docType) {
+export async function openDoc(filename, docType) {
   if (_justDragged) return;
   try {
     const { content } = await fetchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
@@ -414,7 +425,7 @@ async function openDoc(filename, docType) {
   }
 }
 
-async function loadOriginal(filename) {
+export async function loadOriginal(filename) {
   const section   = document.getElementById('original-section');
   const container = document.getElementById('original-content');
 
@@ -432,16 +443,16 @@ async function loadOriginal(filename) {
 }
 
 // ── Toolbar dropdowns ──────────────────────────────────────────
-function toggleDropdown(id) {
+export function toggleDropdown(id) {
   const menu = document.getElementById(id);
   const isOpen = menu.classList.contains('open');
   closeAllDropdowns();
   if (!isOpen) menu.classList.add('open');
 }
-function closeDropdown(id) {
+export function closeDropdown(id) {
   document.getElementById(id)?.classList.remove('open');
 }
-function closeAllDropdowns() {
+export function closeAllDropdowns() {
   document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
 }
 document.addEventListener('click', e => {
@@ -449,7 +460,7 @@ document.addEventListener('click', e => {
 });
 
 // ── Inline title editing ───────────────────────────────────────
-async function saveTitle() {
+export async function saveTitle() {
   const input = document.getElementById('detail-title-input');
   const newTitle = input.value.trim();
   if (!newTitle || newTitle === input.dataset.original || !currentFilename || !currentDocType) return;
@@ -466,14 +477,14 @@ async function saveTitle() {
   }
 }
 
-function cancelTitleEdit() {
+export function cancelTitleEdit() {
   const input = document.getElementById('detail-title-input');
   input.value = input.dataset.original || '';
   input.blur();
 }
 
 // ── Hierarchy panel ────────────────────────────────────────────
-async function loadHierarchy(filename, docType) {
+export async function loadHierarchy(filename, docType) {
   const section = document.getElementById('hierarchy-section');
   const body    = document.getElementById('hierarchy-body');
   const label   = document.getElementById('hierarchy-label');
@@ -534,7 +545,7 @@ async function loadHierarchy(filename, docType) {
 }
 
 // ── Link existing child to current doc ────────────────────────
-async function linkExistingChildren() {
+export async function linkExistingChildren() {
   if (!currentFilename || (currentDocType !== 'epic' && currentDocType !== 'feature')) return;
 
   const childTypes = currentDocType === 'epic' ? ['story', 'spike', 'bug'] : ['epic'];
@@ -592,11 +603,11 @@ async function linkExistingChildren() {
   }
 }
 
-function childLabel(docType) {
+export function childLabel(docType) {
   return docType === 'epic' ? 'story / spike / bug' : 'epic';
 }
 
-async function toggleHierarchyChild(rowEl) {
+export async function toggleHierarchyChild(rowEl) {
   const body    = rowEl.querySelector('.hierarchy-child-body');
   const chevron = rowEl.querySelector('.hierarchy-child-chevron');
   const isOpen  = rowEl.classList.contains('open');
@@ -625,16 +636,16 @@ async function toggleHierarchyChild(rowEl) {
   }
 }
 
-function toggleHierarchy() {
+export function toggleHierarchy() {
   toggleSection('hierarchy-body', 'hierarchy-chevron', 180);
 }
 
-function toggleOriginal() {
+export function toggleOriginal() {
   toggleSection('original-body', 'original-chevron', 180);
 }
 
 // ── Update status ──────────────────────────────────────────────
-async function updateDocStatus(status) {
+export async function updateDocStatus(status) {
   if (!currentFilename || !currentDocType) return;
   try {
     await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, { status });
@@ -645,7 +656,7 @@ async function updateDocStatus(status) {
   }
 }
 
-function showList() {
+export function showList() {
   document.getElementById('detail-view').classList.remove('show');
   document.querySelector('.right').classList.remove('has-selection');
   document.getElementById('upgrade-panel').classList.remove('open');
@@ -673,7 +684,7 @@ function showList() {
 }
 
 // ── Delete ────────────────────────────────────────────────────
-async function confirmDelete() {
+export async function confirmDelete() {
   if (!currentFilename || !currentDocType) return;
 
   // For epics/features: check for children and show selection modal
@@ -714,14 +725,14 @@ async function confirmDelete() {
   document.getElementById('delete-overlay').classList.add('show');
 }
 
-function closeDeleteDialog() {
+export function closeDeleteDialog() {
   document.getElementById('delete-overlay').classList.remove('show');
   const btn = document.getElementById('confirm-delete-btn');
   btn.disabled = false;
   btn.textContent = 'Delete';
 }
 
-async function executeDeleteWithChildren(childDocs) {
+export async function executeDeleteWithChildren(childDocs) {
   try {
     // Delete children first via batch endpoint
     if (childDocs.length) {
@@ -738,7 +749,7 @@ async function executeDeleteWithChildren(childDocs) {
   }
 }
 
-async function executeDelete() {
+export async function executeDelete() {
   if (!currentFilename || !currentDocType) return;
   const btn = document.getElementById('confirm-delete-btn');
   btn.disabled = true;

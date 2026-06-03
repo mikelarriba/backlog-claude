@@ -1,5 +1,7 @@
 // ── Upgrade panel ─────────────────────────────────────────────
-function toggleUpgradePanel() {
+import { streamSSE, stripFrontmatter, TYPE_LABEL } from './state.js';
+
+export function toggleUpgradePanel() {
   const panel  = document.getElementById('upgrade-panel');
   const isOpen = panel.classList.toggle('open');
   if (isOpen) {
@@ -21,7 +23,7 @@ function _prefillUpgradeIfDraft() {
   }
 }
 
-function resetUpgradePanel() {
+export function resetUpgradePanel() {
   document.getElementById('upgrade-feedback').value = '';
   document.getElementById('upgrade-stream').style.display = 'none';
   document.getElementById('upgrade-stream').textContent = '';
@@ -30,7 +32,7 @@ function resetUpgradePanel() {
   btn.textContent = 'Regenerate';
 }
 
-async function executeUpgrade() {
+export async function executeUpgrade() {
   if (!currentFilename || !currentDocType) return;
   const feedback = document.getElementById('upgrade-feedback').value.trim();
   if (!feedback) { document.getElementById('upgrade-feedback').focus(); return; }

@@ -7,20 +7,17 @@
 // an upgrade (AI rewrite) panel, and a delete action.
 // "+ Story / + Spike / + Bug" buttons in the header open a creation
 // form that generates the doc and links it in one flow.
+import { escHtml, showJiraToast, TYPE_LABEL, streamSSE, stripFrontmatter, patchJSON } from './state.js';
+import { loadDocs } from './list.js';
+import { buildCanvasGraph, renderCanvas, saveCanvasLayout, rebuildCanvasEdges, _renderFpCanvas, computeAutoLayout } from './refine-canvas.js';
+import { _closeLinkPopup } from './refine-edges.js';
 
-// ── Canvas state ───────────────────────────────────────────────
-let _canvasEpicFilename  = null;
-let _canvasDocType       = null;
-let _canvasManageLinks   = false; // "Manage Links" mode
-let _canvasSelectedCards = new Set(); // multi-select (filenames)
-
-// PanelState shape: { stories, layout, blocks, parallel }
-// Single-epic mode uses _activePanelState; multi-panel mode adds to _panelStates.
-let _activePanelState = { stories: [], layout: {}, blocks: [], parallel: [] };
-const _panelStates = new Map(); // epicFilename → PanelState (multi-panel)
+// ── Canvas state ─ all in state.js as _storeVar globals ──────
+// _canvasEpicFilename, _canvasDocType, _canvasManageLinks,
+// _canvasSelectedCards, _activePanelState, _panelStates
 
 // ── Card search / filter ──────────────────────────────────────
-function onCanvasSearch(query) {
+export function onCanvasSearch(query) {
   const cards = document.querySelectorAll('#refine-canvas .canvas-card');
   const q = (query || '').trim().toLowerCase();
 
@@ -43,7 +40,7 @@ function onCanvasSearch(query) {
 }
 
 // ── Entry / Exit ───────────────────────────────────────────────
-async function openManualRefine(filename, docType) {
+export async function openManualRefine(filename, docType) {
   if (!filename) return;
   docType = docType || 'epic';
   _canvasEpicFilename = filename;
@@ -92,7 +89,7 @@ function _onCanvasKeydown(e) {
   }
 }
 
-function closeRefineView() {
+export function closeRefineView() {
   document.getElementById('refine-view').classList.remove('show');
   document.removeEventListener('keydown', _onCanvasKeydown);
   updateSplitMode();
@@ -119,7 +116,7 @@ function closeRefineView() {
 // ── Feature multi-panel view ───────────────────────────────────
 const _FP_COLLAPSED_KEY = fn => `fp:collapsed:${fn}`;
 
-async function renderFeatureMultiPanel(featureFilename) {
+export async function renderFeatureMultiPanel(featureFilename) {
   const container = document.getElementById('refine-canvas');
   container.innerHTML = '<div class="canvas-empty">Loading feature…</div>';
   _panelStates.clear();
@@ -184,7 +181,7 @@ function _fpSaveCollapsed(featureFilename) {
   try { localStorage.setItem(_FP_COLLAPSED_KEY(featureFilename), JSON.stringify(collapsed)); } catch {}
 }
 
-function _toggleEpicPanel(epicFilename, featureFilename) {
+export function _toggleEpicPanel(epicFilename, featureFilename) {
   const panel = document.querySelector(`.feature-panel[data-epic-filename="${CSS.escape(epicFilename)}"]`);
   if (!panel) return;
   panel.classList.toggle('fp-collapsed');
@@ -234,14 +231,14 @@ function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
 }
 
 // ── Refine Panel ───────────────────────────────────────────────
-function closeRefinePanel() {
+export function closeRefinePanel() {
   const panel = document.getElementById('refine-panel');
   panel.classList.remove('open');
   setTimeout(() => { if (!panel.classList.contains('open')) panel.innerHTML = ''; }, 230);
   document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
 }
 
-async function openRefinePanel(filename, docType) {
+export async function openRefinePanel(filename, docType) {
   const panel = document.getElementById('refine-panel');
   panel.innerHTML = '<div class="rp-loading">Loading…</div>';
   panel.classList.add('open');
@@ -364,7 +361,7 @@ async function _loadRpDeps(filename, docType) {
   }
 }
 
-async function _removeCanvasLink(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+export async function _removeCanvasLink(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType) {
   // For blockedBy direction: the blocker is tgt, the blocked is src
   let finalSrc = srcFilename, finalSrcType = srcDocType;
   let finalTgt = tgtFilename, finalTgtType = tgtDocType;
@@ -389,7 +386,7 @@ async function _removeCanvasLink(linkType, srcFilename, srcDocType, tgtFilename,
 }
 
 // ── Inline field editing (refine panel) ───────────────────────
-async function saveRpTitle() {
+export async function saveRpTitle() {
   const input = document.getElementById('rp-title-input');
   if (!input) return;
   const newTitle = input.value.trim();
@@ -414,12 +411,12 @@ async function saveRpTitle() {
   }
 }
 
-function cancelRpTitleEdit() {
+export function cancelRpTitleEdit() {
   const input = document.getElementById('rp-title-input');
   if (input) { input.value = input.dataset.original || ''; input.blur(); }
 }
 
-async function saveRpStoryPoints(filename, docType) {
+export async function saveRpStoryPoints(filename, docType) {
   const input = document.getElementById('rp-sp-input');
   if (!input) return;
   const newVal = input.value.trim();
@@ -440,7 +437,7 @@ async function saveRpStoryPoints(filename, docType) {
   }
 }
 
-async function saveRpPriority(filename, docType) {
+export async function saveRpPriority(filename, docType) {
   const sel = document.getElementById('rp-priority-select');
   if (!sel) return;
   const newPri = sel.value;
@@ -454,7 +451,7 @@ async function saveRpPriority(filename, docType) {
   }
 }
 
-function toggleRpUpgrade() {
+export function toggleRpUpgrade() {
   const wrap = document.getElementById('rp-upgrade-wrap');
   if (!wrap) return;
   const isOpen = wrap.style.display !== 'none';
@@ -462,7 +459,7 @@ function toggleRpUpgrade() {
   if (!isOpen) document.getElementById('rp-upgrade-text')?.focus();
 }
 
-async function executeRpUpgrade(filename, docType) {
+export async function executeRpUpgrade(filename, docType) {
   const feedback = document.getElementById('rp-upgrade-text')?.value.trim();
   if (!feedback) { document.getElementById('rp-upgrade-text')?.focus(); return; }
 
@@ -507,7 +504,7 @@ async function executeRpUpgrade(filename, docType) {
   }
 }
 
-async function confirmRpDelete(filename, docType) {
+export async function confirmRpDelete(filename, docType) {
   if (!confirm(`Delete "${filename}"? This cannot be undone.`)) return;
   try {
     const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
@@ -520,7 +517,7 @@ async function confirmRpDelete(filename, docType) {
 }
 
 // ── Create new child node ──────────────────────────────────────
-function openCreatePanel(type) {
+export function openCreatePanel(type) {
   if (!_canvasEpicFilename) return;
   const panel = document.getElementById('refine-panel');
   panel.classList.add('open');
@@ -556,7 +553,7 @@ function openCreatePanel(type) {
   document.getElementById('rp-create-idea').focus();
 }
 
-async function executeRpCreate(type) {
+export async function executeRpCreate(type) {
   const title = document.getElementById('rp-create-title').value.trim();
   const idea  = document.getElementById('rp-create-idea').value.trim();
   if (!idea) { document.getElementById('rp-create-idea').focus(); return; }
