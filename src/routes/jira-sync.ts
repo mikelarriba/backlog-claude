@@ -13,7 +13,7 @@ export default function jiraSyncRoutes({
   TYPE_CONFIG, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS, INBOX_DIR,
   JIRA_PROJECT,
   jiraRequest, jiraIssueToMarkdown, extractJiraSummary, findLocalFileByJiraId,
-  broadcast, logInfo, logError, docIndex,
+  broadcast, logInfo, logWarn, logError, docIndex,
 }: JiraRouteContext) {
   const router = Router();
 
@@ -201,7 +201,8 @@ export default function jiraSyncRoutes({
         if (jiraTitle !== localTitle)  changes.push({ field: 'title', from: localTitle, to: jiraTitle });
         if (jiraDesc  !== localBody)   changes.push({ field: 'description', changed: true });
         if (jiraSP    !== localSP)     changes.push({ field: 'storyPoints', from: localSP, to: jiraSP });
-      } catch {
+      } catch (err) {
+        logWarn('jira/sync', `could not compare local content for preview`, { error: err instanceof Error ? err.message : String(err) });
         changes.push({ field: 'description', changed: true });
       }
     } else {
@@ -250,7 +251,7 @@ export default function jiraSyncRoutes({
             try {
               const full = (await jiraRequest('GET', `/issue/${inw.key}?fields=${fields}`)) as Record<string, any>;
               childIssues.push(full);
-            } catch { /* skip unreachable children */ }
+            } catch (err) { logWarn('jira/sync', `could not fetch child issue ${inw.key}`, { error: err instanceof Error ? err.message : String(err) }); }
           }
         }
 
@@ -284,8 +285,9 @@ export default function jiraSyncRoutes({
                   changes: [{ field: 'status', from: local.status || 'Draft', to: remoteIssue.fields?.status?.name || 'Done' }],
                 });
               }
-            } catch {
+            } catch (err) {
               // Issue not found in JIRA — also offer deletion
+              logWarn('jira/sync', `could not fetch ${local.jiraId} from JIRA; offering deletion`, { error: err instanceof Error ? err.message : String(err) });
               items.push({
                 jiraKey: local.jiraId,
                 jiraTitle: local.title || local.filename,
@@ -327,7 +329,7 @@ export default function jiraSyncRoutes({
             const jiraId  = extractFrontmatterField(content, 'JIRA_ID');
             if (!jiraId || jiraId === 'TBD') continue;
             linkedDocs.push({ filename, docType, jiraId });
-          } catch { /* skip unreadable */ }
+          } catch (err) { logWarn('jira/sync', `skipping unreadable file ${filename}`, { error: err instanceof Error ? err.message : String(err) }); }
         }
       }
       if (linkedDocs.length === 0) return res.json({ changed: [], skipped: [], errors: [], total: 0 });
@@ -358,7 +360,7 @@ export default function jiraSyncRoutes({
             localDesc  = _extractBodyText(raw);
             const spRaw = extractFrontmatterField(raw, 'Story_Points');
             localSp = spRaw && spRaw !== 'TBD' ? Number(spRaw) : null;
-          } catch { /* unreadable file — use index values */ }
+          } catch (err) { logWarn('jira/sync', `unreadable file for ${doc.filename}, using index values`, { error: err instanceof Error ? err.message : String(err) }); }
 
           const summaryChanged = jiraSummary && jiraSummary !== localTitle;
           const spChanged      = jiraSp !== null && jiraSp !== localSp;

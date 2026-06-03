@@ -12,7 +12,9 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
   async function loadLayout(): Promise<Record<string, unknown>> {
     try {
       if (fs.existsSync(CANVAS_LAYOUT_PATH)) return JSON.parse(await fs.promises.readFile(CANVAS_LAYOUT_PATH, 'utf-8'));
-    } catch {}
+    } catch (err) {
+      logInfo('canvas', `canvas layout file unreadable, using empty layout: ${err instanceof Error ? err.message : String(err)}`);
+    }
     return {};
   }
 

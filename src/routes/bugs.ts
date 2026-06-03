@@ -109,7 +109,8 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
     try {
       slug = assertFilename(req.params.slug);
       file = assertFilename(req.params.file);
-    } catch {
+    } catch (err) {
+      logInfo('GET /api/bugs/attachment', `invalid attachment path: ${req.params.slug}/${req.params.file}`);
       return sendError(res, 400, 'INVALID_FILENAME', 'Invalid attachment path');
     }
     const filePath = path.join(BUGS_DIR, 'attachments', slug, file);

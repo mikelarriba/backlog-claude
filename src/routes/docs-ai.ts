@@ -57,6 +57,7 @@ ${idea.trim()}
 `;
 
       _apiInFlight.add(filename);
+      const _genStart = Date.now();
       try {
         ensureDir(INBOX_DIR);
         await fs.promises.writeFile(path.join(INBOX_DIR, filename), rawContent);
@@ -93,6 +94,7 @@ ${idea.trim()}
 
       broadcast({ type: cfg.event, filename, docType: normalizedType });
       logAudit({ op: 'create', docType: normalizedType, filename, fields: { title: title || idea.slice(0, 60) }, source: 'api' });
+      logInfo('POST /api/generate', `Generated ${normalizedType}/${filename} in ${Date.now() - _genStart}ms`);
       res.json({ success: true, filename, docType: normalizedType });
     } catch (err) {
       const apiErr = parseApiError(err);

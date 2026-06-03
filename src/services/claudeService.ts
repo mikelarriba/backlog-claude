@@ -3,7 +3,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { createLogger } from '../utils/logger.js';
 
-const { logDebug } = createLogger('[claudeService]');
+const { logDebug, logInfo } = createLogger('[claudeService]');
 
 // ── Concurrency semaphore ─────────────────────────────────────────────────────
 class Semaphore {
@@ -391,18 +391,24 @@ async function _streamOllama(prompt: string, onChunk: (chunk: string) => void): 
 export async function callClaude(rootDir: string, prompt: string, { maxAttempts = 3 } = {}): Promise<string> {
   if (process.env.MOCK_CLAUDE) return Promise.resolve(MOCK_RESPONSE);
 
+  const t = Date.now();
   await _semaphore.acquire();
   try {
     const provider = _providerOverride || 'claude-cli';
+    const model    = _modelOverride    || '(default)';
     let lastErr: any;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
+        let result: string;
         if (provider === 'github-models') {
-          return await _callGitHubModels(prompt);
+          result = await _callGitHubModels(prompt);
         } else if (provider === 'ollama') {
-          return await _callOllama(prompt);
+          result = await _callOllama(prompt);
+        } else {
+          result = await _spawnClaude(rootDir, prompt, CALL_TIMEOUT_MS);
         }
-        return await _spawnClaude(rootDir, prompt, CALL_TIMEOUT_MS);
+        logInfo('callClaude', `provider=${provider} model=${model} duration=${Date.now() - t}ms`);
+        return result;
       } catch (err: any) {
         lastErr = err;
         const isUserError = !err.isTimeout && NO_RETRY_PATTERNS.some((p: RegExp) => p.test(err.message));
@@ -426,29 +432,32 @@ export async function streamClaude(rootDir: string, prompt: string, onChunk: (ch
     return;
   }
 
+  const t = Date.now();
   await _semaphore.acquire();
   try {
     const provider = _providerOverride || 'claude-cli';
+    const model    = _modelOverride    || '(default)';
     if (provider === 'github-models') {
-      return await _streamGitHubModels(prompt, onChunk);
+      await _streamGitHubModels(prompt, onChunk);
     } else if (provider === 'ollama') {
-      return await _streamOllama(prompt, onChunk);
-    }
-
-    return await new Promise<void>((resolve, reject) => {
-      let err = '';
-      const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });
-      const timer = setTimeout(() => {
-        proc.kill();
-        reject(new Error('Claude subprocess timed out after 5 min'));
-      }, STREAM_TIMEOUT_MS);
-      proc.stdout!.on('data', (d: Buffer) => onChunk(d.toString()));
-      proc.stderr!.on('data', (d: Buffer) => (err += d.toString()));
-      proc.on('close', (code: number | null) => {
-        clearTimeout(timer);
-        code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`));
+      await _streamOllama(prompt, onChunk);
+    } else {
+      await new Promise<void>((resolve, reject) => {
+        let err = '';
+        const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });
+        const timer = setTimeout(() => {
+          proc.kill();
+          reject(new Error('Claude subprocess timed out after 5 min'));
+        }, STREAM_TIMEOUT_MS);
+        proc.stdout!.on('data', (d: Buffer) => onChunk(d.toString()));
+        proc.stderr!.on('data', (d: Buffer) => (err += d.toString()));
+        proc.on('close', (code: number | null) => {
+          clearTimeout(timer);
+          code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`));
+        });
       });
-    });
+    }
+    logInfo('streamClaude', `provider=${provider} model=${model} duration=${Date.now() - t}ms`);
   } finally {
     _semaphore.release();
   }

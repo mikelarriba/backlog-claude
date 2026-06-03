@@ -138,6 +138,7 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
           .filter(([, v]) => v !== undefined)
       );
       logAudit({ op: 'update', docType, filename, fields: changedFields, source: 'api' });
+      logInfo('PATCH /api/doc', `Patched ${docType}/${filename}: ${Object.keys(changedFields).join(', ')}`);
       res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }), ...(rank !== undefined && { rank }), ...(team !== undefined && { team }), ...(workCategory !== undefined && { workCategory }), ...(priority !== undefined && { priority }) });
     } catch (err) {
       const apiErr = parseApiError(err);

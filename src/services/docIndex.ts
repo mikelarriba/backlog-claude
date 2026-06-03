@@ -7,7 +7,10 @@ import {
   extractTitle, extractWorkflowStatus,
   extractFrontmatterField,
 } from '../utils/transforms.js';
+import { createLogger } from '../utils/logger.js';
 import type { DocEntry, DocIndexInstance, TypeConfig } from '../types.js';
+
+const { logInfo, logWarn } = createLogger('[docIndex]');
 
 export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): DocIndexInstance {
   const _map = new Map<string, DocEntry>();
@@ -78,6 +81,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
   }
 
   async function build(): Promise<DocIndexInstance> {
+    const t = Date.now();
     _map.clear();
     // Collect all (docType, dir, filename) tuples first so we can yield evenly
     const entries: Array<{ docType: string; dir: string; f: string }> = [];
@@ -95,14 +99,16 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
         try {
           const entry = await _buildEntry(docType, dir, f);
           return { f, entry };
-        } catch {
-          return null; // skip unreadable
+        } catch (err) {
+          logWarn('build', `skipping unreadable file ${f}`, { error: err instanceof Error ? err.message : String(err) });
+          return null;
         }
       })
     );
     for (const result of results) {
       if (result) _map.set(result.f, result.entry);
     }
+    logInfo('build', `Index built: ${_map.size} docs in ${Date.now() - t}ms`);
     return docIndex;
   }
 
@@ -125,14 +131,17 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     try {
       const entry = await _buildEntry(docType, cfg.dir(), filename);
       _map.set(filename, entry);
-    } catch {
+    } catch (err) {
+      logWarn('invalidate', `could not rebuild entry for ${filename}`, { error: err instanceof Error ? err.message : String(err) });
       _map.delete(filename);
     }
   }
 
   // Full async rebuild — use after batch operations that touch many files.
   async function invalidateAll(): Promise<void> {
+    const t = Date.now();
     await build();
+    logInfo('invalidateAll', `Full index rebuild in ${Date.now() - t}ms`);
   }
 
   // O(1) replacement for the O(n) findLocalFileByJiraId disk scan.

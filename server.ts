@@ -10,6 +10,7 @@ import { isoDate, slugify } from './src/utils/transforms.js';
 import { ensureDir } from './src/utils/routeHelpers.js';
 import { ValidationError } from './src/utils/validate.js';
 import { createLogger } from './src/utils/logger.js';
+import { requestLogger } from './src/utils/requestLogger.js';
 import { createTypeConfig } from './src/config/docTypes.js';
 import { TEAMS, WORK_CATEGORIES } from './src/config/metadata.js';
 import { createDocIndex } from './src/services/docIndex.js';
@@ -104,6 +105,7 @@ app.use((_req, res, next) => {
 });
 
 // ── Middleware & SSE ─────────────────────────────────────────────────────────
+app.use(requestLogger());
 app.use(express.json());
 
 // Cache-Control: no-store for all /api/* responses
