@@ -21,6 +21,7 @@ export async function startTestApp() {
 
   process.env.TEST_DOCS_ROOT  = docsRoot;
   process.env.TEST_INBOX_DIR  = inboxDir;
+  process.env.LOG_LEVEL       = process.env.LOG_LEVEL ?? 'error';
   process.env.MOCK_CLAUDE     = '1';
   // Ensure .env does not inject a real JIRA token into tests.
   // The empty string is intentional; the server guards check for a truthy value.

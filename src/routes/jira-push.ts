@@ -442,7 +442,7 @@ export default function jiraPushRoutes({
                 if (localSprint !== jiraSprintName) {
                   changes.push({ field: 'sprint', from: jiraSprintName, to: localSprint });
                 }
-              } catch { /* sprint preview is best-effort */ }
+              } catch (err) { logWarn('jira/push', `sprint preview lookup failed for ${jiraId}`, { error: err instanceof Error ? err.message : String(err) }); }
             }
           } catch (e) {
             changes.push({ field: 'error', message: e instanceof Error ? e.message : String(e) });
@@ -486,6 +486,7 @@ export default function jiraPushRoutes({
     if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
     try {
+      const t = Date.now();
       const content = await fs.promises.readFile(filepath, 'utf-8');
       const { frontmatter, sections } = parseStorySections(content);
 
@@ -494,10 +495,14 @@ export default function jiraPushRoutes({
         && /^## Story \d+/m.test(sections[0]);
 
       if (isMultiStory) {
-        return res.json(await pushMultiStory({ filename, filepath, sections, frontmatter, type }));
+        const result = await pushMultiStory({ filename, filepath, sections, frontmatter, type });
+        logInfo('jira/push', `Pushed multi-story ${filename}: ${result.results?.length ?? 0} stories in ${Date.now() - t}ms`);
+        return res.json(result);
       }
 
-      res.json(await pushSingleIssue({ filename, filepath, content, type }));
+      const result = await pushSingleIssue({ filename, filepath, content, type });
+      logInfo('jira/push', `${result.action === 'created' ? 'Created' : 'Updated'} ${result.key} (${type}/${filename}) in ${Date.now() - t}ms`);
+      res.json(result);
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/jira/push/:type/:filename', apiErr.message, apiErr.details || {});
@@ -594,7 +599,7 @@ export default function jiraPushRoutes({
             if (issues.length < 100) break;
             startAt += issues.length;
           }
-        } catch { /* best-effort board scan */ }
+        } catch (err) { logWarn('jira/push', `board scan failed`, { error: err instanceof Error ? err.message : String(err) }); }
       }
 
       const stats = {

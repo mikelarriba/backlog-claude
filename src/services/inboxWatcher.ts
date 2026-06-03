@@ -61,6 +61,7 @@ export function watchInbox({
 
   async function processInboxFile(filename: string): Promise<void> {
     logInfo('watchInbox', `New inbox file: ${filename}`);
+    const t          = Date.now();
     const inboxPath  = path.join(INBOX_DIR, filename);
     const errorsDir  = path.join(INBOX_DIR, 'errors');
     let lastError    = '';
@@ -79,7 +80,7 @@ export function watchInbox({
         await fs.promises.writeFile(path.join(EPICS_DIR, filename), epicContent);
         broadcast({ type: 'epic_created', filename });
         logAudit({ op: 'create', docType: 'epic', filename, source: 'inbox' });
-        logInfo('watchInbox', `Epic saved: docs/epics/${filename}`);
+        logInfo('watchInbox', `Inbox processed ${filename} → epics/${filename} in ${Date.now() - t}ms`);
         return;
       } catch (err: unknown) {
         lastError = err instanceof Error ? err.message : String(err);

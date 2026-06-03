@@ -13,7 +13,7 @@ import type { RouteContext } from '../types.js';
 
 const BATCH_CONCURRENCY = 5;
 
-export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logInfo, docIndex }: RouteContext) {
+export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logInfo, logWarn, docIndex }: RouteContext) {
   const router = Router();
 
   // ── POST /api/docs/batch-delete ──────────────────────────────────────────
@@ -36,7 +36,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
           try {
             await fs.promises.access(filepath);
-          } catch {
+          } catch (err) {
+            logWarn('batch', `skipping ${filename}: file not found`, { error: err instanceof Error ? err.message : String(err) });
             skipped.push({ filename, reason: 'not found' });
             return;
           }
@@ -88,7 +89,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
           try {
             await fs.promises.access(filepath);
-          } catch {
+          } catch (err) {
+            logWarn('batch', `skipping ${filename}: file not found`, { error: err instanceof Error ? err.message : String(err) });
             skipped.push({ filename, reason: 'not found' });
             return;
           }
@@ -133,7 +135,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           ...s,
           bufferPct: s.bufferPct ?? defaultBufferPct,
         }));
-      } catch {}
+      } catch (err) { logWarn('batch/distribute', `could not read PI settings`, { error: err instanceof Error ? err.message : String(err) }); }
       if (!sprintCfg.length) return sendError(res, 400, 'NO_SPRINTS', 'No sprints configured for this PI');
 
       const leafTypes = new Set(['story', 'spike', 'bug']);
@@ -189,7 +191,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           const filepath = path.join(cfg.dir(), filename);
           try {
             await fs.promises.access(filepath);
-          } catch {
+          } catch (err) {
+            logWarn('batch', `skipping ${filename}: file not found`, { error: err instanceof Error ? err.message : String(err) });
             skipped.push({ filename, reason: 'not found' });
             return;
           }
@@ -238,7 +241,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           const filepath = path.join(cfg.dir(), filename);
           try {
             await fs.promises.access(filepath);
-          } catch {
+          } catch (err) {
+            logWarn('batch', `skipping ${filename}: file not found`, { error: err instanceof Error ? err.message : String(err) });
             skipped.push({ filename, reason: 'not found' });
             return;
           }
@@ -290,7 +294,7 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
             if (!sprintOrder.includes(s.name)) sprintOrder.push(s.name);
           }
         }
-      } catch { /* no pi-settings, skip dependency enforcement */ }
+      } catch (err) { logWarn('batch/apply-distribution', `could not load PI settings for dependency enforcement`, { error: err instanceof Error ? err.message : String(err) }); }
 
       // Mutable sprint map: filename → sprint
       const sprintMap = new Map(assignments.map(a => [a.filename, a.sprint]));
@@ -336,7 +340,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
           const filepath = path.join(cfg.dir(), filename);
           try {
             await fs.promises.access(filepath);
-          } catch {
+          } catch (err) {
+            logWarn('batch', `skipping ${filename}: file not found`, { error: err instanceof Error ? err.message : String(err) });
             skipped.push({ filename, reason: 'not found' });
             return;
           }
@@ -403,7 +408,8 @@ export default function docsBatchRoutes({ rootDir, TYPE_CONFIG, broadcast, logIn
 
           try {
             await fs.promises.access(filepath);
-          } catch {
+          } catch (err) {
+            logWarn('batch', `skipping ${filename}: file not found`, { error: err instanceof Error ? err.message : String(err) });
             skipped.push({ filename, reason: 'not found' });
             return;
           }

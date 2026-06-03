@@ -23,7 +23,7 @@ export function parseFrontmatter(content: string): { meta: Record<string, string
   let parsed: unknown;
   try {
     parsed = jsYaml.load(yamlBlock);
-  } catch {
+  } catch (_err) {
     return { meta: {}, body: content };
   }
 
