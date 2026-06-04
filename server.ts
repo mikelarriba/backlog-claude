@@ -46,7 +46,7 @@ if (fs.existsSync(envPath)) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const { logInfo, logWarn, logError } = createLogger('[backlog-claude]');
+const { logInfo, logWarn, logError } = createLogger('[midas-backlog]');
 
 // ── Folder paths ─────────────────────────────────────────────────────────────
 const DOCS_ROOT = process.env.TEST_DOCS_ROOT || path.join(__dirname, 'docs');

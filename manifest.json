@@ -1,7 +1,7 @@
 {
-  "name": "Backlog Claude — Epic Generator",
-  "short_name": "BacklogClaude",
-  "description": "Transform quick ideas into polished Epic descriptions for your backlog.",
+  "name": "MIDAS Backlog",
+  "short_name": "MIDASBacklog",
+  "description": "MIDAS product backlog management — transform ideas into sprint-ready Epics and Stories.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",

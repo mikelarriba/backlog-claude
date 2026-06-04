@@ -250,7 +250,7 @@ ${gridHtml}
 ${descHtml}
 ${listHtml}
 
-<div class="footer">Exported on ${dateStr} &middot; Backlog Claude</div>
+<div class="footer">Exported on ${dateStr} &middot; MIDAS Backlog</div>
 
 <script>
   // Auto-trigger print after a short delay for rendering
@@ -721,7 +721,7 @@ function _buildRoadmapPrintPage(opts) {
 
 ${sections}
 
-<div class="rpt-footer">Exported on ${dateStr} &middot; Backlog Claude</div>
+<div class="rpt-footer">Exported on ${dateStr} &middot; MIDAS Backlog</div>
 
 <script>
   setTimeout(() => window.print(), 400);

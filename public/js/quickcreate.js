@@ -46,7 +46,7 @@ export async function generateDoc() {
   const prompt = idea || title;
   if (!prompt) {
     document.getElementById('doc-title').focus();
-    setStatus('error', '❌ Add a title or notes so Claude has something to work with');
+    setStatus('error', '❌ Add a title or notes so the AI has something to work with');
     return;
   }
   const priority     = document.getElementById('priority').value;
@@ -54,7 +54,7 @@ export async function generateDoc() {
   const team         = document.getElementById('team').value || undefined;
   const workCategory = document.getElementById('work-category').value || undefined;
 
-  setStatus('loading', `Claude is writing your ${TYPE_LABEL[type]}…`);
+  setStatus('loading', `AI is writing your ${TYPE_LABEL[type]}…`);
   setBtnState(true);
 
   try {
