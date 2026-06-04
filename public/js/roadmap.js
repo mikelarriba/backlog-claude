@@ -771,6 +771,7 @@ export function handleEpicContextMenu(e, filename, docType) {
     <div class="ctx-header">${escHtml(shortTitle)}</div>
     <div class="ctx-separator"></div>
     <button class="ctx-item" onclick="rmCtxOpenEpic('${escHtml(filename)}','${escHtml(docType)}')">Open Epic</button>
+    ${_buildSprintSubmenu(filename, docType)}
     <div class="ctx-separator"></div>
     <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','up')">Move up</button>
     <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','down')">Move down</button>
@@ -837,6 +838,32 @@ export async function rmCtxMoveEpic(filename, docType, direction) {
   }
 }
 
+// ── Sprint submenu builder ───────────────────────────────────
+function _buildSprintSubmenu(filename, docType) {
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  const seen = new Set();
+  let items = '';
+
+  for (const pi of pis) {
+    for (const s of (sprintConfig[pi] || [])) {
+      if (seen.has(s.name)) continue;
+      seen.add(s.name);
+      items += `<button class="ctx-item" onclick="rmCtxSetSprint('${escHtml(filename)}','${escHtml(docType)}','${escHtml(s.name)}')">${escHtml(s.name)}</button>`;
+    }
+  }
+
+  if (!items) return '';
+
+  items += `<div class="ctx-separator"></div>`;
+  items += `<button class="ctx-item ctx-danger" onclick="rmCtxSetSprint('${escHtml(filename)}','${escHtml(docType)}','')">Remove from sprint</button>`;
+
+  return `
+    <div class="ctx-submenu-wrap">
+      <button class="ctx-item ctx-has-sub">Add to Sprint ▸</button>
+      <div class="ctx-submenu">${items}</div>
+    </div>`;
+}
+
 // ── Story context menu (bottom panel) ────────────────────────
 export function handleStoryContextMenu(e, filename, docType) {
   e.preventDefault();
@@ -848,6 +875,8 @@ export function handleStoryContextMenu(e, filename, docType) {
 
   const html = `
     <div class="ctx-header">${escHtml(shortTitle)}</div>
+    <div class="ctx-separator"></div>
+    ${_buildSprintSubmenu(filename, docType)}
     <div class="ctx-separator"></div>
     <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','up')">Move up</button>
     <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','down')">Move down</button>
@@ -907,6 +936,21 @@ export async function rmCtxMoveStory(filename, docType, direction) {
     await postJSON('/api/docs/rerank', { type: docType, orderedFilenames: sorted.map(d => d.filename) });
     await loadDocs();
     refreshRoadmapView();
+  } catch (e) {
+    showJiraToast('error', e.message);
+  }
+}
+
+// ── Set sprint from context menu ────────────────────────────
+export async function rmCtxSetSprint(filename, docType, sprintName) {
+  _closeRoadmapCtx();
+
+  try {
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, { sprint: sprintName || null });
+    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    if (doc) doc.sprint = sprintName || null;
+    renderRoadmapBoard();
+    showJiraToast('success', sprintName ? `Moved to ${sprintName}` : 'Removed from sprint');
   } catch (e) {
     showJiraToast('error', e.message);
   }
