@@ -16,7 +16,7 @@ import { onCanvasSearch, openManualRefine, closeRefineView, renderFeatureMultiPa
 import { exportEpicToPdf, openRoadmapExportDialog, closeRoadmapExportDialog, executeRoadmapExport } from './export.js';
 import { togglePiConfigSection, addSprintRow, removeSprintRow, selectPiConfigTab, saveSprintConfig, saveSplitThreshold, loadAllSprintConfigs } from './piconfig.js';
 import { openDistributionModal, closeDistributionModal, applyDistribution } from './distribution.js';
-import { openRoadmapView, closeRoadmapView, isRoadmapOpen, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, applyEpicFocus, pushSprintsToJira, openSprintPushModal, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, confirmSprintPush, _sprintPushUpdateCount, getAllSprints, openDepModal, addDepLink, addParallelLink, removeDepLink, closeDepModal, openSplitModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory } from './roadmap.js';
+import { openRoadmapView, closeRoadmapView, isRoadmapOpen, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, applyEpicFocus, pushSprintsToJira, openSprintPushModal, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, sprintPushToggleAllSprints, startSprintPushPreview, confirmSprintPush, _sprintPushUpdateCount, getAllSprints, openDepModal, addDepLink, addParallelLink, removeDepLink, closeDepModal, openSplitModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory } from './roadmap.js';
 import { initDragDrop } from './dragdrop.js';
 
 if ('serviceWorker' in navigator) {
@@ -26,7 +26,7 @@ if ('serviceWorker' in navigator) {
 // ── Split-panel mode ───────────────────────────────────────────
 const SPLIT_MIN_WIDTH = 1280;
 
-function isSplitMode() {
+export function isSplitMode() {
   return document.querySelector('.right').classList.contains('split-mode');
 }
 
@@ -47,7 +47,7 @@ function updateSplitMode() {
   }
 }
 
-function highlightSelectedItem(filename, docType) {
+export function highlightSelectedItem(filename, docType) {
   document.querySelectorAll('.epic-item, .roadmap-card').forEach(el => el.classList.remove('selected'));
   if (filename) {
     document.querySelector(`.epic-item[data-filename="${CSS.escape(filename)}"][data-doctype="${docType}"]`)
@@ -476,12 +476,14 @@ window.toggleRoadmapPi        = toggleRoadmapPi;
 window.toggleRoadmapPanel     = toggleRoadmapPanel;
 window.filterRoadmapEpics     = filterRoadmapEpics;
 window.focusEpic              = focusEpic;
-window.pushSprintsToJira      = pushSprintsToJira;
-window.closeSprintPushModal   = closeSprintPushModal;
-window.toggleSprintPushFilter = toggleSprintPushFilter;
-window.sprintPushSelectAll    = sprintPushSelectAll;
-window.confirmSprintPush      = confirmSprintPush;
-window._sprintPushUpdateCount = _sprintPushUpdateCount;
+window.pushSprintsToJira         = pushSprintsToJira;
+window.closeSprintPushModal      = closeSprintPushModal;
+window.toggleSprintPushFilter    = toggleSprintPushFilter;
+window.sprintPushSelectAll       = sprintPushSelectAll;
+window.sprintPushToggleAllSprints = sprintPushToggleAllSprints;
+window.startSprintPushPreview    = startSprintPushPreview;
+window.confirmSprintPush         = confirmSprintPush;
+window._sprintPushUpdateCount    = _sprintPushUpdateCount;
 window.closeDepModal          = closeDepModal;
 window.addDepLink             = addDepLink;
 window.addParallelLink        = addParallelLink;

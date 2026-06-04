@@ -1,7 +1,8 @@
 // ── Refine canvas: layout computation, rendering, and persistence ─
-import { escHtml, TYPE_LABEL } from './state.js';
+import { escHtml, TYPE_LABEL, postJSON } from './state.js';
 import { openRefinePanel, openManualRefine } from './refine.js';
 import { _showEpicContextMenu, _showEmptyCellMenu, _showCardContextMenu, _showMultiCardContextMenu } from './refine-nodes.js';
+import { _showEdgePopup, _showLinkPopup } from './refine-edges.js';
 
 // Grid constants
 const CELL_W    = 240;

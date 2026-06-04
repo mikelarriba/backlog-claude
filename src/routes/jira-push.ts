@@ -3,7 +3,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { pMap } from '../utils/pMap.js';
-import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
+import { sendError, parseApiError, assertDocType, assertFilename, setupSSE } from '../utils/routeHelpers.js';
 import {
   setFrontmatterField, extractFrontmatterField, stripFrontmatter, markdownToJira,
 } from '../utils/transforms.js';
@@ -510,66 +510,104 @@ export default function jiraPushRoutes({
     }
   });
 
-  // ── POST /api/jira/push-sprints-preview ── compare local vs JIRA sprint state ─
+  // ── Sprint name resolver ────────────────────────────────────────────────────
+  // Local sprint names (e.g. "Sprint 100") may differ from JIRA names
+  // (e.g. "MIDAS Sprint 100"). Build a bidirectional mapping.
+  function buildSprintNameMap(localNames: string[], jiraMap: Map<string, number>) {
+    const localToJira = new Map<string, string>(); // "Sprint 100" → "MIDAS Sprint 100"
+    const jiraToLocal = new Map<string, string>(); // "MIDAS Sprint 100" → "Sprint 100"
+
+    for (const local of localNames) {
+      // Exact match
+      if (jiraMap.has(local)) {
+        localToJira.set(local, local);
+        jiraToLocal.set(local, local);
+        continue;
+      }
+      // Suffix match: JIRA name ends with local name (e.g. "MIDAS Sprint 100" ends with "Sprint 100")
+      for (const jiraName of jiraMap.keys()) {
+        if (jiraToLocal.has(jiraName)) continue; // already mapped
+        if (jiraName.endsWith(local) || local.endsWith(jiraName)) {
+          localToJira.set(local, jiraName);
+          jiraToLocal.set(jiraName, local);
+          break;
+        }
+      }
+    }
+    return { localToJira, jiraToLocal };
+  }
+
+  // ── POST /api/jira/push-sprints-preview ── compare local vs JIRA sprint state (SSE) ─
   router.post('/api/jira/push-sprints-preview', async (req, res) => {
     if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
 
+    setupSSE(res);
+    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+
     try {
-      const { items = [] } = req.body as {
+      const { items = [], selectedSprints = [] } = req.body as {
         items: Array<{ filename: string; sprint: string | null; jiraId: string; title: string; docType: string }>;
+        selectedSprints: string[];
       };
 
+      send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
       const sprintMap = await ensureSprintCache();
+
+      // Build name mapping between local sprint names and JIRA sprint names
+      const { localToJira, jiraToLocal } = buildSprintNameMap(selectedSprints, sprintMap);
+
+      // Resolve selected sprints to JIRA sprint names/IDs
+      const activeSprintMap = new Map<string, number>(); // jiraName → id
+      for (const localName of selectedSprints) {
+        const jiraName = localToJira.get(localName);
+        if (jiraName) {
+          activeSprintMap.set(jiraName, sprintMap.get(jiraName)!);
+        }
+      }
+
+      if (!activeSprintMap.size) {
+        const jiraNames = [...sprintMap.keys()].slice(0, 5).join(', ');
+        send({ type: 'error', message: `No matching JIRA sprints found. Local names: ${selectedSprints.join(', ')}. JIRA names on board: ${jiraNames}…` });
+        res.end();
+        return;
+      }
+
+      // Helper: resolve a local sprint name to its JIRA ID
+      const resolveSprintId = (localName: string): number | null => {
+        const jiraName = localToJira.get(localName);
+        if (jiraName) return sprintMap.get(jiraName) ?? null;
+        return sprintMap.get(localName) ?? null;
+      };
+
+      // Helper: check if two sprint names match (accounting for local/JIRA naming)
+      const sprintNamesMatch = (localName: string, jiraName: string): boolean => {
+        if (localName === jiraName) return true;
+        return localToJira.get(localName) === jiraName;
+      };
+
+      // Filter items to those whose local sprint maps to a selected JIRA sprint (or have no sprint)
+      const filteredItems = items.filter(i => {
+        if (!i.sprint || i.sprint === 'TBD') return true;
+        return localToJira.has(i.sprint);
+      });
+
       const changes: Array<Record<string, unknown>> = [];
       const errors: Array<{ jiraId: string; error: string }> = [];
-      const processedJiraIds = new Set<string>();
       let unchanged = 0;
 
-      // Phase 1: compare each local item against JIRA
-      await pMap(items, async (item) => {
-        const { filename, sprint: localSprint, jiraId, title, docType } = item;
-        if (!jiraId) return;
-        processedJiraIds.add(jiraId);
-        try {
-          const agileIssue = (await jiraAgileRequest('GET', `/issue/${jiraId}?fields=sprint`)) as Record<string, any>;
-          const jiraSprint = agileIssue?.fields?.sprint;
-          const jiraSprintName: string | null = jiraSprint?.name || null;
-          const jiraSprintId: number | null = jiraSprint?.id || null;
+      // ── Step 1: Scan selected sprints from the board (bulk fetch) ──────────
+      const sprintEntries = [...activeSprintMap.entries()];
+      const totalSteps = sprintEntries.length;
+      send({ type: 'progress', message: `Scanning ${totalSteps} sprint(s) on JIRA board…`, phase: 1, total: totalSteps });
 
-          if (localSprint && localSprint !== 'TBD') {
-            const targetId = sprintMap.get(localSprint) ?? null;
-            if (!targetId) {
-              errors.push({ jiraId, error: `sprint "${localSprint}" not found on board` });
-              return;
-            }
-            if (jiraSprintName === localSprint) { unchanged++; return; }
-            changes.push({
-              filename, jiraId, title, docType,
-              changeType: jiraSprintName ? 'change' : 'add',
-              currentJiraSprint: jiraSprintName, currentJiraSprintId: jiraSprintId,
-              targetSprint: localSprint, targetSprintId: targetId,
-            });
-          } else {
-            // Local has no sprint — if JIRA has one, flag as removal
-            if (jiraSprintName) {
-              changes.push({
-                filename, jiraId, title, docType,
-                changeType: 'remove',
-                currentJiraSprint: jiraSprintName, currentJiraSprintId: jiraSprintId,
-                targetSprint: null, targetSprintId: null,
-              });
-            } else {
-              unchanged++;
-            }
-          }
-        } catch (e) {
-          errors.push({ jiraId, error: e instanceof Error ? e.message : String(e) });
-        }
-      }, { concurrency: JIRA_CONCURRENCY });
+      // Map: jiraId → { sprintName (JIRA), sprintId, summary }
+      const jiraSprintMap = new Map<string, { sprintName: string; sprintId: number; summary: string }>();
 
-      // Phase 2: board-level scan — find JIRA issues in sprints not covered above
-      for (const [sprintName, sprintId] of sprintMap) {
+      for (let si = 0; si < sprintEntries.length; si++) {
+        const [sprintName, sprintId] = sprintEntries[si];
+        const localName = jiraToLocal.get(sprintName) || sprintName;
+        send({ type: 'progress', message: `Scanning "${localName}" (${si + 1}/${totalSteps})…`, phase: 1, current: si + 1, total: totalSteps });
         try {
           let startAt = 0;
           while (true) {
@@ -578,67 +616,169 @@ export default function jiraPushRoutes({
             )) as Record<string, any>;
             const issues = data.issues || [];
             for (const iss of issues) {
-              if (processedJiraIds.has(iss.key)) continue;
-              processedJiraIds.add(iss.key);
-              const local = docIndex.findByJiraId(iss.key);
-              if (!local) continue; // not managed by this app
-              const localEntry = docIndex.get(local.filename);
-              if (!localEntry) continue;
-              const localSprint = localEntry.sprint;
-              if (localSprint === sprintName) { unchanged++; continue; }
-              // Issue is in JIRA sprint but locally has a different or no sprint
-              changes.push({
-                filename: local.filename, jiraId: iss.key,
-                title: iss.fields?.summary || local.filename,
-                docType: local.docType,
-                changeType: 'remove',
-                currentJiraSprint: sprintName, currentJiraSprintId: sprintId,
-                targetSprint: null, targetSprintId: null,
-              });
+              if (!jiraSprintMap.has(iss.key)) {
+                jiraSprintMap.set(iss.key, { sprintName, sprintId, summary: iss.fields?.summary || '' });
+              }
             }
             if (issues.length < 100) break;
             startAt += issues.length;
           }
-        } catch (err) { logWarn('jira/push', `board scan failed`, { error: err instanceof Error ? err.message : String(err) }); }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          logWarn('jira/push', `board scan for "${sprintName}" failed`, { error: msg });
+          send({ type: 'progress', message: `Warning: could not scan "${localName}" — ${msg}` });
+        }
+      }
+
+      // ── Step 2: Compare local items against the JIRA sprint map ────────────
+      send({ type: 'progress', message: `Comparing ${filteredItems.length} local items…`, phase: 2, current: totalSteps, total: totalSteps });
+
+      const localJiraIds = new Set<string>();
+      for (const item of filteredItems) {
+        const { filename, sprint: localSprint, jiraId, title, docType } = item;
+        if (!jiraId) continue;
+        localJiraIds.add(jiraId);
+
+        const jiraEntry = jiraSprintMap.get(jiraId);
+        const jiraSprintName = jiraEntry?.sprintName || null;
+        const jiraSprintId = jiraEntry?.sprintId || null;
+
+        if (localSprint && localSprint !== 'TBD') {
+          const targetId = resolveSprintId(localSprint);
+          if (!targetId) {
+            errors.push({ jiraId, error: `sprint "${localSprint}" not found on board` });
+          } else if (jiraSprintName && sprintNamesMatch(localSprint, jiraSprintName)) {
+            unchanged++;
+          } else {
+            const jiraLocalName = jiraSprintName ? (jiraToLocal.get(jiraSprintName) || jiraSprintName) : null;
+            changes.push({
+              filename, jiraId, title, docType,
+              changeType: jiraSprintName ? 'change' : 'add',
+              currentJiraSprint: jiraLocalName, currentJiraSprintId: jiraSprintId,
+              targetSprint: localSprint, targetSprintId: targetId,
+            });
+          }
+        } else {
+          // Local has no sprint — if JIRA has one, offer to pull (sync JIRA → local)
+          if (jiraSprintName) {
+            const jiraLocalName = jiraToLocal.get(jiraSprintName) || jiraSprintName;
+            changes.push({
+              filename, jiraId, title, docType,
+              changeType: 'pull',
+              currentJiraSprint: jiraLocalName, currentJiraSprintId: jiraSprintId,
+              targetSprint: jiraLocalName, targetSprintId: jiraSprintId,
+            });
+          } else {
+            unchanged++;
+          }
+        }
+      }
+
+      // ── Step 3: Detect JIRA-only issues not in local set ───────────────────
+      for (const [jiraId, entry] of jiraSprintMap) {
+        if (localJiraIds.has(jiraId)) continue;
+        const local = docIndex.findByJiraId(jiraId);
+        if (!local) continue;
+        const localEntry = docIndex.get(local.filename);
+        if (!localEntry) continue;
+        const localSprint = localEntry.sprint;
+        if (localSprint && sprintNamesMatch(localSprint, entry.sprintName)) { unchanged++; continue; }
+        if (localSprint && localSprint !== 'TBD') {
+          const targetId = resolveSprintId(localSprint);
+          changes.push({
+            filename: local.filename, jiraId,
+            title: entry.summary || local.filename,
+            docType: local.docType,
+            changeType: 'change',
+            currentJiraSprint: jiraToLocal.get(entry.sprintName) || entry.sprintName,
+            currentJiraSprintId: entry.sprintId,
+            targetSprint: localSprint, targetSprintId: targetId,
+          });
+        } else {
+          // In JIRA sprint but not locally — offer to pull
+          const jiraLocalName = jiraToLocal.get(entry.sprintName) || entry.sprintName;
+          changes.push({
+            filename: local.filename, jiraId,
+            title: entry.summary || local.filename,
+            docType: local.docType,
+            changeType: 'pull',
+            currentJiraSprint: jiraLocalName, currentJiraSprintId: entry.sprintId,
+            targetSprint: jiraLocalName, targetSprintId: entry.sprintId,
+          });
+        }
       }
 
       const stats = {
         total: changes.length,
         adds: changes.filter(c => c.changeType === 'add').length,
         changes: changes.filter(c => c.changeType === 'change').length,
-        removes: changes.filter(c => c.changeType === 'remove').length,
+        pulls: changes.filter(c => c.changeType === 'pull').length,
         unchanged,
         errors: errors.length,
       };
 
-      logInfo('POST /api/jira/push-sprints-preview', `${stats.adds} add, ${stats.changes} change, ${stats.removes} remove, ${unchanged} unchanged, ${errors.length} errors`);
-      res.json({ changes, errors, stats });
+      logInfo('POST /api/jira/push-sprints-preview', `${stats.adds} add, ${stats.changes} change, ${stats.pulls} pull, ${unchanged} unchanged, ${errors.length} errors`);
+      send({ type: 'result', changes, errors, stats });
+      res.end();
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/jira/push-sprints-preview', apiErr.message, apiErr.details || {});
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      send({ type: 'error', message: apiErr.message });
+      res.end();
     }
   });
 
-  // ── POST /api/jira/push-sprints ── push sprint assignments to JIRA ────────────
+  // ── POST /api/jira/push-sprints ── push/pull sprint assignments ─────────────
   router.post('/api/jira/push-sprints', async (req, res) => {
     if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
 
     try {
       const { items = [] } = req.body;
-      const results = await pMap(items as Array<{ filename: string; sprint: string | null; changeType: string; jiraId?: string }>, async (item) => {
+      const sprintMap = await ensureSprintCache();
+
+      // Resolve local sprint name to JIRA sprint ID (with fuzzy matching)
+      const resolveId = (name: string): number | null => {
+        const exact = sprintMap.get(name);
+        if (exact != null) return exact;
+        for (const [jiraName, id] of sprintMap) {
+          if (jiraName.endsWith(name) || name.endsWith(jiraName)) return id;
+        }
+        return null;
+      };
+
+      const results = await pMap(items as Array<{
+        filename: string; sprint: string | null; changeType: string;
+        jiraId?: string; docType?: string;
+      }>, async (item) => {
         const { filename, sprint, changeType } = item;
         const jiraId = item.jiraId || docIndex.get(filename)?.jiraId;
         if (!jiraId) return { filename, status: 'skipped', reason: 'no JIRA ID' };
         try {
+          if (changeType === 'pull') {
+            // Pull: update local doc's sprint field to match JIRA
+            if (!sprint) return { filename, status: 'skipped', reason: 'no sprint to pull' };
+            const docType = item.docType || docIndex.get(filename)?.docType;
+            if (!docType) return { filename, status: 'skipped', reason: 'unknown doc type' };
+            const cfg = TYPE_CONFIG[docType as keyof typeof TYPE_CONFIG];
+            if (!cfg) return { filename, status: 'skipped', reason: `unknown type "${docType}"` };
+            const filepath = path.join(cfg.dir(), filename);
+            const content = await fs.promises.readFile(filepath, 'utf-8');
+            const patched = setFrontmatterField(content, 'Sprint', sprint);
+            await fs.promises.writeFile(filepath, patched);
+            await docIndex.invalidateAll();
+            broadcast({ type: 'batch_sprint_updated' });
+            logInfo('jira/push-sprints', `Pulled sprint "${sprint}" from JIRA for ${jiraId} → ${filename}`);
+            return { filename, status: 'ok', jiraId, sprint };
+          }
           if (changeType === 'remove') {
             await jiraAgileRequest('POST', `/backlog/issue`, { issues: [jiraId] });
             logInfo('jira/push-sprints', `Moved ${jiraId} to backlog (removed from sprint)`);
             return { filename, status: 'ok', jiraId, sprint: '(backlog)' };
           }
+          // Push: add/change — assign to JIRA sprint
           if (!sprint) return { filename, status: 'skipped', reason: 'no sprint' };
-          const sprintId = await getSprintId(sprint);
+          const sprintId = resolveId(sprint);
           if (!sprintId) return { filename, status: 'skipped', reason: `sprint "${sprint}" not found on board` };
           await jiraAgileRequest('POST', `/sprint/${sprintId}/issue`, { issues: [jiraId] });
           logInfo('jira/push-sprints', `Assigned ${jiraId} to sprint "${sprint}"`);

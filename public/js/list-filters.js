@@ -1,6 +1,7 @@
 // ── List filters, collapse, multi-select, and context menu ───────
 import { buildChildrenMap, getDescendants, debounce, escHtml, putJSON, postJSON, showJiraToast, TYPE_LABEL, SECTION_LABELS } from './state.js';
 import { openDoc } from './detail.js';
+import { loadDocs } from './list.js';
 import { renderSwimlanes } from './list-render.js';
 import { sectionToFixVersion } from './dragdrop.js';
 

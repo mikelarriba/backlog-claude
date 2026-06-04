@@ -283,7 +283,7 @@ function computeInsertBefore(srcDocType, clientY) {
   return null; // insert at end
 }
 
-async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFilename) {
+export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFilename) {
   const group  = allDocs.filter(d => d.docType === srcDocType);
   const sorted = [...group].sort(_rankSortFn);
 

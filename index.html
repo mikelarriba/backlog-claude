@@ -688,25 +688,43 @@
         <button class="btn-ghost btn-xs" onclick="closeSprintPushModal()">&times;</button>
       </div>
     </div>
+    <!-- Step 1: Sprint selector -->
+    <div class="sprint-push-select-step" id="sprint-push-select-step">
+      <p class="sprint-push-select-label">Select sprints to compare with JIRA:</p>
+      <div class="sprint-push-sprint-list" id="sprint-push-sprint-list"></div>
+      <div class="sprint-push-select-btns">
+        <button class="btn-ghost btn-xs" onclick="sprintPushToggleAllSprints(true)">Select all</button>
+        <button class="btn-ghost btn-xs" onclick="sprintPushToggleAllSprints(false)">Select none</button>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn-secondary" onclick="closeSprintPushModal()">Cancel</button>
+        <button class="btn-primary" id="sprint-push-preview-btn" onclick="startSprintPushPreview()">Preview Changes</button>
+      </div>
+    </div>
+    <!-- Step 2: Loading + progress -->
+    <div class="sprint-push-loading" id="sprint-push-loading">
+      <div class="sprint-push-spinner"></div>
+      <span id="sprint-push-progress-msg">Comparing sprint assignments with JIRA…</span>
+      <div class="sprint-push-progress-bar" id="sprint-push-progress-bar">
+        <div class="sprint-push-progress-fill" id="sprint-push-progress-fill"></div>
+      </div>
+    </div>
+    <!-- Step 3: Results -->
     <div class="sprint-push-filters" id="sprint-push-filters">
-      <button class="sprint-push-pill sprint-push-pill-add active" data-type="add" onclick="toggleSprintPushFilter('add')">+ Added <span id="sprint-push-count-add">0</span></button>
+      <button class="sprint-push-pill sprint-push-pill-add active" data-type="add" onclick="toggleSprintPushFilter('add')">↑ Push <span id="sprint-push-count-add">0</span></button>
       <button class="sprint-push-pill sprint-push-pill-change active" data-type="change" onclick="toggleSprintPushFilter('change')">↺ Changed <span id="sprint-push-count-change">0</span></button>
-      <button class="sprint-push-pill sprint-push-pill-remove active" data-type="remove" onclick="toggleSprintPushFilter('remove')">✕ Removed <span id="sprint-push-count-remove">0</span></button>
+      <button class="sprint-push-pill sprint-push-pill-pull active" data-type="pull" onclick="toggleSprintPushFilter('pull')">↓ Pull <span id="sprint-push-count-pull">0</span></button>
       <span class="sprint-push-select-actions">
         <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(true)">All</button>
         <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(false)">None</button>
       </span>
-    </div>
-    <div class="sprint-push-loading" id="sprint-push-loading">
-      <div class="sprint-push-spinner"></div>
-      <span>Comparing sprint assignments with JIRA…</span>
     </div>
     <div class="sprint-push-error" id="sprint-push-error"></div>
     <div class="sprint-push-empty" id="sprint-push-empty">All sprint assignments are already in sync with JIRA.</div>
     <div class="sprint-push-list" id="sprint-push-list"></div>
     <div class="dialog-actions" id="sprint-push-actions">
       <button class="btn-secondary" onclick="closeSprintPushModal()">Cancel</button>
-      <button class="btn-primary" id="sprint-push-confirm" onclick="confirmSprintPush()">Push Changes</button>
+      <button class="btn-primary" id="sprint-push-confirm" onclick="confirmSprintPush()">Sync Changes</button>
     </div>
   </div>
 </div>

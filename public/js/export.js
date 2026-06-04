@@ -623,10 +623,22 @@ function _buildRoadmapPrintPage(opts) {
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .rm-tl-meta { font-size: 9px; color: #94a3b8; font-weight: 400; margin-left: 6px; }
+  .rm-tl-epic-link {
+    font-size: 9px; font-weight: 700; color: #0066cc; text-decoration: none;
+    font-family: SFMono-Regular, Menlo, monospace;
+  }
+  .rm-tl-epic-link:hover { text-decoration: underline; }
   .rm-tl-bar {
     height: 20px; border-radius: 4px; opacity: 0.85;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    display: flex; align-items: center; padding: 0 6px; overflow: hidden;
   }
+  .rm-tl-bar-key {
+    font-size: 8px; font-weight: 700; color: #fff; text-decoration: none;
+    white-space: nowrap; text-shadow: 0 0 3px rgba(0,0,0,0.3);
+    font-family: SFMono-Regular, Menlo, monospace;
+  }
+  .rm-tl-bar-key:hover { text-decoration: underline; }
 
   /* ── Issue titles table ──────────────────────────────── */
   .rm-it-table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
@@ -646,6 +658,11 @@ function _buildRoadmapPrintPage(opts) {
     font-size: 8px; font-weight: 700; text-transform: uppercase; color: #fff;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
+  .rm-it-key {
+    font-size: 9px; font-weight: 700; color: #0066cc; text-decoration: none;
+    font-family: SFMono-Regular, Menlo, monospace; white-space: nowrap;
+  }
+  .rm-it-key:hover { text-decoration: underline; }
 
   /* ── Issue description cards ─────────────────────────── */
   .rm-print-card {
@@ -653,7 +670,12 @@ function _buildRoadmapPrintPage(opts) {
     padding: 12px 14px; margin-bottom: 12px;
   }
   .rm-print-card-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-  .rm-print-card-title { font-size: 13px; font-weight: 600; }
+  .rm-print-card-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+  .rm-print-card-key {
+    font-size: 10px; font-weight: 700; color: #0066cc; text-decoration: none;
+    font-family: SFMono-Regular, Menlo, monospace; white-space: nowrap;
+  }
+  .rm-print-card-key:hover { text-decoration: underline; }
   .rm-print-card-sp {
     font-size: 10px; font-weight: 700; color: #64748b;
     background: #f1f5f9; padding: 2px 7px; border-radius: 4px; white-space: nowrap;
@@ -735,12 +757,21 @@ function _renderRoadmapTimeline(sprints, epicEntries, hideEmptyEpics) {
     const minIdx = indices.length ? Math.min(...indices) : -1;
     const maxIdx = indices.length ? Math.max(...indices) : -1;
 
-    let cells = `<td><span class="rm-tl-epic-dot" style="background:${color}"></span>${_esc(title)}<span class="rm-tl-meta">${_esc(meta)}</span></td>`;
+    const jiraId  = epicDoc?.jiraId || null;
+    const jiraUrl = jiraId ? (epicDoc?.jiraUrl || `${jiraBase}/browse/${jiraId}`) : null;
+    const epicLabel = isNone ? _esc(title) : (jiraId
+      ? `<a href="${_esc(jiraUrl)}" class="rm-tl-epic-link">${_esc(jiraId)}</a> ${_esc(title)}`
+      : _esc(title));
+
+    let cells = `<td><span class="rm-tl-epic-dot" style="background:${color}"></span>${epicLabel}<span class="rm-tl-meta">${_esc(meta)}</span></td>`;
 
     for (let i = 0; i < N; i++) {
       if (minIdx >= 0 && i === minIdx) {
         const span = maxIdx - minIdx + 1;
-        cells += `<td colspan="${span}"><div class="rm-tl-bar" style="background:${color}"></div></td>`;
+        const barLabel = jiraId
+          ? `<a href="${_esc(jiraUrl)}" class="rm-tl-bar-key">${_esc(jiraId)}</a>`
+          : '';
+        cells += `<td colspan="${span}"><div class="rm-tl-bar" style="background:${color}">${barLabel}</div></td>`;
         i = maxIdx; // skip spanned columns
       } else if (minIdx >= 0 && i > minIdx && i <= maxIdx) {
         continue; // covered by colspan
@@ -775,18 +806,22 @@ function _renderRoadmapIssueTitles(sprints, visibleLeafs) {
     else unassigned.push(d);
   }
 
-  let html = '<th>Type</th><th>Title</th><th>Priority</th><th>SP</th><th>Parent</th><th>Team</th><th>Category</th>';
+  let html = '<th>Type</th><th>Key</th><th>Title</th><th>Priority</th><th>SP</th><th>Parent</th><th>Team</th><th>Category</th>';
   let rows = '';
 
   const renderGroup = (label, docs) => {
     if (!docs.length) return '';
     const sorted = topoSortCards(docs);
-    let out = `<tr class="rm-it-sprint-hdr"><td colspan="7">${_esc(label)}</td></tr>`;
+    let out = `<tr class="rm-it-sprint-hdr"><td colspan="8">${_esc(label)}</td></tr>`;
     for (const d of sorted) {
       const bc = badgeColor[d.docType] || '#666';
       const parent = d.parentFilename ? allDocs.find(p => p.filename === d.parentFilename) : null;
+      const keyCell = d.jiraId
+        ? `<a href="${_esc(d.jiraUrl || `${jiraBase}/browse/${d.jiraId}`)}" class="rm-it-key">${_esc(d.jiraId)}</a>`
+        : '—';
       out += `<tr class="rm-issue-row">
         <td><span class="rm-it-type" style="background:${bc}">${TYPE_LABEL[d.docType] || d.docType}</span></td>
+        <td>${keyCell}</td>
         <td>${_esc(d.title)}</td>
         <td>${_esc(d.priority || 'Medium')}</td>
         <td>${d.storyPoints || '—'}</td>
@@ -837,11 +872,15 @@ function _renderRoadmapIssueDescs(sprints, visibleLeafs, contentMap) {
       const raw = contentMap[d.filename] || '';
       const stripped = stripFrontmatter(raw).replace(/\n## Comments\b[\s\S]*$/, '');
       const body = stripped.trim() ? marked.parse(stripped) : '<em style="color:#94a3b8">No description</em>';
+      const descKeyLink = d.jiraId
+        ? `<a href="${_esc(d.jiraUrl || `${jiraBase}/browse/${d.jiraId}`)}" class="rm-print-card-key">${_esc(d.jiraId)}</a>`
+        : '';
 
       out += `<div class="rm-print-card">
         <div class="rm-print-card-hdr">
           <div class="rm-print-card-title">
             <span class="rm-it-type" style="background:${bc}">${TYPE_LABEL[d.docType] || d.docType}</span>
+            ${descKeyLink}
             ${_esc(d.title)}
           </div>
           ${sp ? `<span class="rm-print-card-sp">${sp}</span>` : ''}

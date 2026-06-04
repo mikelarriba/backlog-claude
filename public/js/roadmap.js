@@ -1,6 +1,7 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
 import { escHtml, postJSON, showJiraToast, putJSON, patchJSON } from './state.js';
 import { renderRoadmapBoard } from './roadmap-render.js';
+import { _rankSortFn } from './list-render.js';
 import { loadDocs } from './list.js';
 
 // _roadmapVisiblePis is in state.js as a _storeVar global
@@ -129,47 +130,150 @@ export function applyEpicFocus() {
 
 // ── Push Sprints to JIRA (modal-based) ──────────────────────
 let _sprintPushPreview = [];    // current preview changes
-let _sprintPushFilters = { add: true, change: true, remove: true };
+let _sprintPushFilters = { add: true, change: true, pull: true };
+let _sprintPushItems = [];      // items prepared for preview
 
 export async function pushSprintsToJira() {
   const leafTypes = new Set(['story', 'spike', 'bug']);
-  const items = allDocs.filter(d =>
+  _sprintPushItems = allDocs.filter(d =>
     leafTypes.has(d.docType) && d.jiraId
   ).map(d => ({ filename: d.filename, docType: d.docType, sprint: d.sprint || '', jiraId: d.jiraId, title: d.title || d.filename }));
 
-  if (!items.length) {
+  if (!_sprintPushItems.length) {
     showJiraToast('warn', 'No stories with a JIRA ID found.');
     return;
   }
 
   openSprintPushModal();
-
-  try {
-    const res = await postJSON('/api/jira/push-sprints-preview', { items });
-    _sprintPushPreview = res.changes || [];
-    renderSprintPushPreview(res);
-  } catch (e) {
-    showSprintPushError('Failed to fetch preview: ' + e.message);
-  }
 }
 
 export function openSprintPushModal() {
   _sprintPushPreview = [];
-  _sprintPushFilters = { add: true, change: true, remove: true };
+  _sprintPushFilters = { add: true, change: true, pull: true };
 
-  // Reset UI
-  document.getElementById('sprint-push-loading').classList.add('show');
+  // Reset all steps
+  document.getElementById('sprint-push-select-step').style.display = '';
+  document.getElementById('sprint-push-loading').classList.remove('show');
   document.getElementById('sprint-push-error').classList.remove('show');
   document.getElementById('sprint-push-empty').classList.remove('show');
   document.getElementById('sprint-push-list').innerHTML = '';
   document.getElementById('sprint-push-stats').textContent = '';
   document.getElementById('sprint-push-actions').style.display = 'none';
   document.getElementById('sprint-push-filters').style.display = 'none';
+  document.getElementById('sprint-push-progress-msg').textContent = 'Comparing sprint assignments with JIRA…';
+  document.getElementById('sprint-push-progress-fill').style.width = '0%';
 
   // Reset filter pills
   document.querySelectorAll('.sprint-push-pill').forEach(p => p.classList.add('active'));
 
+  // Populate sprint checkboxes from all PIs
+  _populateSprintSelector();
+
   document.getElementById('sprint-push-overlay').classList.add('show');
+}
+
+function _populateSprintSelector() {
+  const container = document.getElementById('sprint-push-sprint-list');
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  const seen = new Set();
+  let html = '';
+
+  for (const pi of pis) {
+    const sprints = sprintConfig[pi] || [];
+    if (!sprints.length) continue;
+    html += `<div class="sprint-push-pi-group"><span class="sprint-push-pi-label">${escHtml(pi)}</span>`;
+    for (const s of sprints) {
+      if (seen.has(s.name)) continue;
+      seen.add(s.name);
+      html += `<label class="sprint-push-sprint-cb"><input type="checkbox" checked value="${escHtml(s.name)}"><span>${escHtml(s.name)}</span></label>`;
+    }
+    html += '</div>';
+  }
+
+  container.innerHTML = html || '<p class="sprint-push-no-sprints">No sprints configured.</p>';
+
+  // Enable/disable preview button
+  _updatePreviewBtnState();
+  container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', _updatePreviewBtnState);
+  });
+}
+
+function _updatePreviewBtnState() {
+  const checked = document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]:checked');
+  const btn = document.getElementById('sprint-push-preview-btn');
+  if (btn) {
+    btn.disabled = checked.length === 0;
+    btn.textContent = checked.length ? `Preview Changes (${checked.length} sprint${checked.length !== 1 ? 's' : ''})` : 'Select sprints';
+  }
+}
+
+export function sprintPushToggleAllSprints(checked) {
+  document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]').forEach(cb => { cb.checked = checked; });
+  _updatePreviewBtnState();
+}
+
+export async function startSprintPushPreview() {
+  // Gather selected sprints
+  const selectedSprints = [...document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]:checked')]
+    .map(cb => cb.value);
+
+  if (!selectedSprints.length) return;
+
+  // Switch to loading step
+  document.getElementById('sprint-push-select-step').style.display = 'none';
+  document.getElementById('sprint-push-loading').classList.add('show');
+
+  try {
+    const body = JSON.stringify({ items: _sprintPushItems, selectedSprints });
+    const response = await fetch('/api/jira/push-sprints-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let result = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const payload = JSON.parse(line.slice(6));
+          if (payload.type === 'progress') {
+            document.getElementById('sprint-push-progress-msg').textContent = payload.message;
+            if (payload.current && payload.total) {
+              const pct = Math.round((payload.current / payload.total) * 100);
+              document.getElementById('sprint-push-progress-fill').style.width = pct + '%';
+            }
+          } else if (payload.type === 'result') {
+            result = payload;
+          } else if (payload.type === 'error') {
+            throw new Error(payload.message);
+          }
+        } catch (parseErr) {
+          if (parseErr.message && !parseErr.message.includes('JSON')) throw parseErr;
+        }
+      }
+    }
+
+    if (result) {
+      _sprintPushPreview = result.changes || [];
+      renderSprintPushPreview(result);
+    } else {
+      showSprintPushError('No response received from server.');
+    }
+  } catch (e) {
+    showSprintPushError('Failed to fetch preview: ' + e.message);
+  }
 }
 
 export function closeSprintPushModal() {
@@ -178,6 +282,7 @@ export function closeSprintPushModal() {
 
 function showSprintPushError(msg) {
   document.getElementById('sprint-push-loading').classList.remove('show');
+  document.getElementById('sprint-push-select-step').style.display = 'none';
   const el = document.getElementById('sprint-push-error');
   el.textContent = msg;
   el.classList.add('show');
@@ -202,7 +307,7 @@ function renderSprintPushPreview(preview) {
   // Update pill counts
   document.getElementById('sprint-push-count-add').textContent = stats.adds || 0;
   document.getElementById('sprint-push-count-change').textContent = stats.changes || 0;
-  document.getElementById('sprint-push-count-remove').textContent = stats.removes || 0;
+  document.getElementById('sprint-push-count-pull').textContent = stats.pulls || 0;
 
   // Stats summary
   document.getElementById('sprint-push-stats').textContent =
@@ -218,22 +323,24 @@ function renderSprintPushPreview(preview) {
     row.dataset.type = c.changeType;
 
     let arrow = '';
+    const badgeLabel = c.changeType === 'add' ? 'push' : c.changeType === 'pull' ? 'pull' : c.changeType;
     if (c.changeType === 'add') {
       arrow = `— → ${c.targetSprint}`;
     } else if (c.changeType === 'change') {
       arrow = `${c.currentJiraSprint} → ${c.targetSprint}`;
-    } else if (c.changeType === 'remove') {
-      arrow = `${c.currentJiraSprint} → —`;
+    } else if (c.changeType === 'pull') {
+      arrow = `JIRA: ${c.currentJiraSprint} → local`;
     }
 
     row.innerHTML = `
       <input type="checkbox" checked data-jira-id="${c.jiraId}" data-change-type="${c.changeType}"
              data-filename="${c.filename || ''}" data-target-sprint="${c.targetSprint || ''}"
+             data-doc-type="${c.docType || ''}"
              onchange="_sprintPushUpdateCount()">
       <span class="sprint-push-item-title" title="${_escHtml(c.title)}">${_escHtml(c.title)}</span>
       <span class="sprint-push-item-key">${_escHtml(c.jiraId)}</span>
       <span class="sprint-push-item-arrow">${_escHtml(arrow)}</span>
-      <span class="sprint-push-badge sprint-push-badge-${c.changeType}">${c.changeType}</span>
+      <span class="sprint-push-badge sprint-push-badge-${c.changeType}">${_escHtml(badgeLabel)}</span>
     `;
     list.appendChild(row);
   }
@@ -278,7 +385,7 @@ export function _sprintPushUpdateCount() {
   const all = document.querySelectorAll('.sprint-push-item input[type="checkbox"]');
   const checked = [...all].filter(cb => cb.checked).length;
   const btn = document.getElementById('sprint-push-confirm');
-  btn.textContent = `Push Changes (${checked}/${all.length})`;
+  btn.textContent = `Sync Changes (${checked}/${all.length})`;
   btn.disabled = checked === 0;
 }
 
@@ -288,14 +395,14 @@ export async function confirmSprintPush() {
 
   const btn = document.getElementById('sprint-push-confirm');
   btn.disabled = true;
-  btn.textContent = 'Pushing…';
+  btn.textContent = 'Syncing…';
 
   const items = [...checkboxes].map(cb => ({
     filename: cb.dataset.filename,
     sprint: cb.dataset.targetSprint,
     changeType: cb.dataset.changeType,
     jiraId: cb.dataset.jiraId,
-    docType: ''
+    docType: cb.dataset.docType || '',
   }));
 
   try {
@@ -303,10 +410,15 @@ export async function confirmSprintPush() {
     const ok = (res.results || []).filter(r => r.status === 'ok').length;
     const skipped = (res.results || []).filter(r => r.status === 'skipped').length;
     const errors = (res.results || []).filter(r => r.status === 'error').length;
-    let msg = `Sprints pushed: ${ok} updated`;
+    const pushed = items.filter(i => i.changeType === 'add' || i.changeType === 'change').length;
+    const pulled = items.filter(i => i.changeType === 'pull').length;
+    let msg = `Sprint sync: ${ok} updated`;
+    if (pushed) msg += ` (${pushed} pushed)`;
+    if (pulled) msg += ` (${pulled} pulled)`;
     if (skipped) msg += `, ${skipped} skipped`;
     if (errors) msg += `, ${errors} failed`;
     showJiraToast(errors ? 'warn' : 'success', msg);
+    if (pulled > 0) loadDocs(); // refresh local data after pull
     closeSprintPushModal();
   } catch (e) {
     showJiraToast('error', 'Failed to push sprints: ' + e.message);

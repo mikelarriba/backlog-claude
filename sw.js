@@ -1,4 +1,4 @@
-const CACHE_NAME = 'backlog-claude-v3';
+const CACHE_NAME = 'backlog-claude-v7';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', event => {
