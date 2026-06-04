@@ -17,6 +17,7 @@ import { exportEpicToPdf, openRoadmapExportDialog, closeRoadmapExportDialog, exe
 import { togglePiConfigSection, addSprintRow, removeSprintRow, selectPiConfigTab, saveSprintConfig, saveSplitThreshold, loadAllSprintConfigs } from './piconfig.js';
 import { openDistributionModal, closeDistributionModal, applyDistribution } from './distribution.js';
 import { openRoadmapView, closeRoadmapView, isRoadmapOpen, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, applyEpicFocus, pushSprintsToJira, openSprintPushModal, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, sprintPushToggleAllSprints, startSprintPushPreview, confirmSprintPush, _sprintPushUpdateCount, getAllSprints, openDepModal, addDepLink, addParallelLink, removeDepLink, closeDepModal, openSplitModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory, rmCtxSetSprint } from './roadmap.js';
+import { handleRoadmapCardClick, handleRoadmapEpicClick, clearRoadmapSelection } from './roadmap-select.js';
 import { initDragDrop } from './dragdrop.js';
 
 if ('serviceWorker' in navigator) {
@@ -496,6 +497,11 @@ window.rmCtxOpenEpic          = rmCtxOpenEpic;
 window.rmCtxMoveEpic          = rmCtxMoveEpic;
 window.rmCtxMoveStory         = rmCtxMoveStory;
 window.rmCtxSetSprint         = rmCtxSetSprint;
+
+// roadmap-select.js
+window.handleRoadmapCardClick  = handleRoadmapCardClick;
+window.handleRoadmapEpicClick  = handleRoadmapEpicClick;
+window.clearRoadmapSelection   = clearRoadmapSelection;
 
 // main.js local functions
 window.toggleLeftPanel        = toggleLeftPanel;
