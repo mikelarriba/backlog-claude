@@ -16,7 +16,7 @@ import { onCanvasSearch, openManualRefine, closeRefineView, renderFeatureMultiPa
 import { exportEpicToPdf, openRoadmapExportDialog, closeRoadmapExportDialog, executeRoadmapExport } from './export.js';
 import { togglePiConfigSection, addSprintRow, removeSprintRow, selectPiConfigTab, saveSprintConfig, saveSplitThreshold, loadAllSprintConfigs } from './piconfig.js';
 import { openDistributionModal, closeDistributionModal, applyDistribution } from './distribution.js';
-import { openRoadmapView, closeRoadmapView, isRoadmapOpen, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, applyEpicFocus, pushSprintsToJira, openSprintPushModal, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, sprintPushToggleAllSprints, startSprintPushPreview, confirmSprintPush, _sprintPushUpdateCount, getAllSprints, openDepModal, addDepLink, addParallelLink, removeDepLink, closeDepModal, openSplitModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory } from './roadmap.js';
+import { openRoadmapView, closeRoadmapView, isRoadmapOpen, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, applyEpicFocus, pushSprintsToJira, openSprintPushModal, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, sprintPushToggleAllSprints, startSprintPushPreview, confirmSprintPush, _sprintPushUpdateCount, getAllSprints, openDepModal, addDepLink, addParallelLink, removeDepLink, closeDepModal, openSplitModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory, rmCtxSetSprint } from './roadmap.js';
 import { initDragDrop } from './dragdrop.js';
 
 if ('serviceWorker' in navigator) {
@@ -495,6 +495,7 @@ window.handleStoryContextMenu = handleStoryContextMenu;
 window.rmCtxOpenEpic          = rmCtxOpenEpic;
 window.rmCtxMoveEpic          = rmCtxMoveEpic;
 window.rmCtxMoveStory         = rmCtxMoveStory;
+window.rmCtxSetSprint         = rmCtxSetSprint;
 
 // main.js local functions
 window.toggleLeftPanel        = toggleLeftPanel;
