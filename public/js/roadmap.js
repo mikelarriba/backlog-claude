@@ -291,8 +291,14 @@ function showSprintPushError(msg) {
 function renderSprintPushPreview(preview) {
   document.getElementById('sprint-push-loading').classList.remove('show');
 
-  const changes = preview.changes || [];
-  const stats = preview.stats || {};
+  // Filter out items where the sprint hasn't actually changed (client-side safety net)
+  const allChanges = preview.changes || [];
+  const changes = allChanges.filter(c => {
+    if (c.changeType === 'change' && c.targetSprint && c.currentJiraSprint) {
+      return c.targetSprint.toLowerCase().trim() !== c.currentJiraSprint.toLowerCase().trim();
+    }
+    return ['add', 'change', 'pull'].includes(c.changeType);
+  });
 
   if (!changes.length) {
     document.getElementById('sprint-push-empty').classList.add('show');
@@ -304,10 +310,15 @@ function renderSprintPushPreview(preview) {
   document.getElementById('sprint-push-filters').style.display = 'flex';
   document.getElementById('sprint-push-actions').style.display = 'flex';
 
+  // Recompute counts from filtered set
+  const adds = changes.filter(c => c.changeType === 'add').length;
+  const changesCount = changes.filter(c => c.changeType === 'change').length;
+  const pulls = changes.filter(c => c.changeType === 'pull').length;
+
   // Update pill counts
-  document.getElementById('sprint-push-count-add').textContent = stats.adds || 0;
-  document.getElementById('sprint-push-count-change').textContent = stats.changes || 0;
-  document.getElementById('sprint-push-count-pull').textContent = stats.pulls || 0;
+  document.getElementById('sprint-push-count-add').textContent = adds;
+  document.getElementById('sprint-push-count-change').textContent = changesCount;
+  document.getElementById('sprint-push-count-pull').textContent = pulls;
 
   // Stats summary
   document.getElementById('sprint-push-stats').textContent =

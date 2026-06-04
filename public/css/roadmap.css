@@ -802,7 +802,8 @@
 
 /* ── Sprint Push preview modal ──────────────────────────────── */
 .sprint-push-dialog {
-  width: 700px;
+  width: 900px;
+  max-width: calc(100vw - 40px);
   max-height: 80vh;
   display: flex;
   flex-direction: column;
