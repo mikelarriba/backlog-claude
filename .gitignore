@@ -3,7 +3,8 @@ node_modules/
 audit.log
 CLAUDE.md
 inbox/
-docs/
+docs/*
+!docs/backlog-analysis/
 .DS_Store
 .pi-settings.json
 .model-settings.json
