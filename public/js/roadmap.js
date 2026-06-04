@@ -3,6 +3,7 @@ import { escHtml, postJSON, showJiraToast, putJSON, patchJSON } from './state.js
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
 import { loadDocs } from './list.js';
+import { clearRoadmapSelection } from './roadmap-select.js';
 
 // _roadmapVisiblePis is in state.js as a _storeVar global
 let _roadmapPanelState   = { epics: true, stories: true }; // expanded/collapsed
@@ -25,8 +26,9 @@ export function openRoadmapView() {
   // Populate PI filter checkboxes
   populateRoadmapPiFilter();
 
-  // Reset focus and search
+  // Reset focus, search and multi-selection
   _roadmapFocusedEpic = null;
+  clearRoadmapSelection();
   const searchInput = document.getElementById('rm-epic-search');
   if (searchInput) searchInput.value = '';
 
@@ -43,6 +45,7 @@ export function closeRoadmapView() {
   document.getElementById('list-view').style.display = '';
   _roadmapVisiblePis.clear();
   _roadmapFocusedEpic = null;
+  clearRoadmapSelection();
 }
 
 export function isRoadmapOpen() {

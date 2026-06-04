@@ -47,11 +47,41 @@
   gap: 4px;
 }
 
-/* Highlight selected roadmap card */
+/* Highlight selected roadmap card (opened in detail panel) */
 .roadmap-card.selected {
   border-color: var(--accent);
   background: var(--accent-subtle, rgba(0,150,214,0.06));
   box-shadow: 0 0 0 2px rgba(0,150,214,0.15);
+}
+
+/* Multi-select highlight — story cards */
+.roadmap-card.rm-multi-selected {
+  border-color: var(--accent);
+  background: var(--accent-subtle, rgba(0,150,214,0.08));
+  outline: 2px solid rgba(0,150,214,0.4);
+  outline-offset: -1px;
+}
+
+/* Multi-select highlight — epic cards */
+.rm-epic-card.rm-multi-selected {
+  background: var(--accent-subtle, rgba(0,150,214,0.08));
+  outline: 2px solid rgba(0,150,214,0.4);
+  outline-offset: -1px;
+}
+
+/* Selection count badge in roadmap header */
+.rm-selection-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent, #0096d6);
+  background: var(--accent-subtle, rgba(0,150,214,0.1));
+  border: 1px solid rgba(0,150,214,0.3);
+  border-radius: 12px;
+  padding: 2px 10px;
+  white-space: nowrap;
 }
 
 /* ── Header ────────────────────────────────────────────────── */

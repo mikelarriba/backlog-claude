@@ -2,6 +2,7 @@
 import { escHtml, TYPE_LABEL } from './state.js';
 import { applyEpicFocus, getAllSprints } from './roadmap.js';
 import { initRoadmapDragDrop, attachRoadmapDepHoverListeners } from './roadmap-drag.js';
+import { syncRoadmapSelectionUI } from './roadmap-select.js';
 
 // ── Story-point card heights (Fibonacci scale) ────────────────
 const SP_HEIGHTS = { 0:56, 1:64, 2:72, 3:80, 5:96, 8:112, 13:132, 21:160 };
@@ -81,6 +82,7 @@ export function renderRoadmapBoard() {
   renderStoryPanel(sprints);
   injectGhostCards();
   applyEpicFocus();
+  syncRoadmapSelectionUI();
   attachRoadmapDepHoverListeners();
 }
 
@@ -178,7 +180,7 @@ export function renderEpicPanel(sprints) {
     rowsHtml += `
       <div class="rm-epic-card${isNone ? ' rm-epic-unlinked' : ''}"
            data-filename="${escHtml(fn)}" data-doctype="${epicDocType}"${tooltipAttrs}
-           onclick="${fn ? `focusEpic('${escHtml(fn)}')` : ''}"
+           onclick="${fn ? `handleRoadmapEpicClick(event,'${escHtml(fn)}','${epicDocType}')` : ''}"
            oncontextmenu="${fn ? `handleEpicContextMenu(event,'${escHtml(fn)}','${epicDocType}')` : ''}">
         <div class="rm-epic-name-col">
           <div class="rm-epic-dot" style="background:${color}"></div>
@@ -318,7 +320,7 @@ export function renderRoadmapCard(d, sprintName) {
 
   return `
     <div class="roadmap-card${depBlockedClass}${noEstimateClass}" draggable="true"
-         onclick="openDoc('${escHtml(d.filename)}','${d.docType}')"
+         onclick="handleRoadmapCardClick(event,'${escHtml(d.filename)}','${d.docType}')"
          oncontextmenu="handleStoryContextMenu(event,'${escHtml(d.filename)}','${d.docType}')"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
