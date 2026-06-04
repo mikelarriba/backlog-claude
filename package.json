@@ -1,7 +1,7 @@
 {
-  "name": "backlog-claude",
+  "name": "midas-backlog",
   "version": "1.0.0",
-  "description": "Epic Generator PWA + Claude PO Agent",
+  "description": "MIDAS product backlog management — transform ideas into sprint-ready Epics and Stories.",
   "type": "module",
   "scripts": {
     "start": "tsx --watch server.ts",

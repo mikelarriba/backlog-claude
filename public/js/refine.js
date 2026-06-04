@@ -535,7 +535,7 @@ export function openCreatePanel(type) {
       <div class="rp-field">
         <label class="rp-label">Title</label>
         <input class="rp-input" id="rp-create-title" type="text"
-          placeholder="Optional — Claude will infer one…" />
+          placeholder="Optional — AI will infer one…" />
       </div>
       <div class="rp-field">
         <label class="rp-label">Description *</label>
