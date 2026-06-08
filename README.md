@@ -1,5 +1,7 @@
 # Backlog Claude
 
+[![CI](https://github.com/mikelarriba/backlog-claude/actions/workflows/ci.yml/badge.svg)](https://github.com/mikelarriba/backlog-claude/actions/workflows/ci.yml)
+
 A full-stack PWA + AI Product Owner agent that transforms rough ideas into sprint-ready Epics, Stories, Spikes, and Features using the **COVE Framework** and **Claude AI**.
 
 ---
