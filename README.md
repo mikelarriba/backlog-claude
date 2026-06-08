@@ -45,14 +45,14 @@ open http://localhost:3000
 
 ## Environment variables
 
-| Variable | Required | Description |
-|:---|:---|:---|
-| `JIRA_BASE_URL` | For JIRA | e.g. `https://your-org.atlassian.net/jira` |
-| `JIRA_API_TOKEN` | For JIRA | Personal Access Token — all JIRA routes return 503 if unset |
-| `JIRA_PROJECT` | For JIRA | Project key (e.g. `MID`) |
-| `JIRA_LABEL` | For JIRA | Label applied to every created issue |
-| `PORT` | No | HTTP port (default: `3000`) |
-| `MOCK_CLAUDE` | Tests only | Set to `1` to skip the Claude subprocess in integration tests |
+| Variable         | Required   | Description                                                   |
+| :--------------- | :--------- | :------------------------------------------------------------ |
+| `JIRA_BASE_URL`  | For JIRA   | e.g. `https://your-org.atlassian.net/jira`                    |
+| `JIRA_API_TOKEN` | For JIRA   | Personal Access Token — all JIRA routes return 503 if unset   |
+| `JIRA_PROJECT`   | For JIRA   | Project key (e.g. `MID`)                                      |
+| `JIRA_LABEL`     | For JIRA   | Label applied to every created issue                          |
+| `PORT`           | No         | HTTP port (default: `3000`)                                   |
+| `MOCK_CLAUDE`    | Tests only | Set to `1` to skip the Claude subprocess in integration tests |
 
 ---
 
@@ -115,6 +115,7 @@ open http://localhost:3000
 ### Inbox auto-processing
 
 Any `.md` file dropped into `/inbox/` is picked up by `fs.watch`:
+
 1. Claude CLI generates the polished document from the raw idea
 2. The document is saved to the appropriate `docs/` subfolder
 3. All open browser tabs refresh via SSE
@@ -125,24 +126,24 @@ Any `.md` file dropped into `/inbox/` is picked up by `fs.watch`:
 
 Every generated document follows this structure:
 
-| Component | Description |
-|:---|:---|
-| **C — Context** | Why are we building this now? |
-| **O — Objective** | The specific, measurable goal of this ticket |
-| **V — Value** | The "So What?" — benefit to users or the business |
+| Component         | Description                                         |
+| :---------------- | :-------------------------------------------------- |
+| **C — Context**   | Why are we building this now?                       |
+| **O — Objective** | The specific, measurable goal of this ticket        |
+| **V — Value**     | The "So What?" — benefit to users or the business   |
 | **E — Execution** | High-level technical steps (always states V1 or V2) |
 
 ---
 
 ## Document types
 
-| Type | Description | Directory |
-|:---|:---|:---|
-| **Feature** | High-level strategic capability grouping | `docs/features/` |
-| **Epic** | Scoped body of work within a Feature (one PI) | `docs/epics/` |
-| **Story** | Sprint-sized user-facing requirement | `docs/stories/` |
-| **Spike** | Time-boxed technical research task | `docs/spikes/` |
-| **Bug** | Defect report with structured reproduction steps | `docs/bugs/` |
+| Type        | Description                                      | Directory        |
+| :---------- | :----------------------------------------------- | :--------------- |
+| **Feature** | High-level strategic capability grouping         | `docs/features/` |
+| **Epic**    | Scoped body of work within a Feature (one PI)    | `docs/epics/`    |
+| **Story**   | Sprint-sized user-facing requirement             | `docs/stories/`  |
+| **Spike**   | Time-boxed technical research task               | `docs/spikes/`   |
+| **Bug**     | Defect report with structured reproduction steps | `docs/bugs/`     |
 
 Hierarchy: `Feature → Epic → Story / Spike / Bug`
 
@@ -156,21 +157,21 @@ Every document starts with a YAML frontmatter block:
 
 ```yaml
 ---
-JIRA_ID: MID-1234          # TBD until pushed to JIRA
-JIRA_URL: https://...      # written automatically on push
-Story_Points: 5            # TBD until estimated
-Status: Draft              # Draft | Created in JIRA | Archived
-Priority: High             # Critical | Major | High | Medium | Low
-Fix_Version: PI-2026-Q2    # matches a configured PI name
+JIRA_ID: MID-1234 # TBD until pushed to JIRA
+JIRA_URL: https://... # written automatically on push
+Story_Points: 5 # TBD until estimated
+Status: Draft # Draft | Created in JIRA | Archived
+Priority: High # Critical | Major | High | Medium | Low
+Fix_Version: PI-2026-Q2 # matches a configured PI name
 Squad: TBD
 PI: TBD
-Sprint: Sprint-3           # assigned manually or via distribution
-Rank: 4                    # integer; controls list order within type
+Sprint: Sprint-3 # assigned manually or via distribution
+Rank: 4 # integer; controls list order within type
 Created: 2026-05-08
-Epic_ID: 2026-04-01-my-epic.md        # for stories/spikes/bugs
-Feature_ID: 2026-03-01-my-feature.md  # for epics
-Blocks: 2026-05-02-story-b.md         # comma-separated; this story must come first
-Blocked_By: 2026-04-30-story-a.md     # comma-separated; this story must come after
+Epic_ID: 2026-04-01-my-epic.md # for stories/spikes/bugs
+Feature_ID: 2026-03-01-my-feature.md # for epics
+Blocks: 2026-05-02-story-b.md # comma-separated; this story must come first
+Blocked_By: 2026-04-30-story-a.md # comma-separated; this story must come after
 ---
 ```
 
@@ -303,52 +304,52 @@ backlog-claude/
 
 ### Documents
 
-| Method | Path | Description |
-|:---|:---|:---|
-| `GET` | `/api/docs` | All documents (from in-memory index) |
-| `GET` | `/api/doc/:type/:filename` | Single document content |
-| `PATCH` | `/api/doc/:type/:filename` | Update status, title, fixVersion, storyPoints, sprint, rank |
-| `DELETE` | `/api/doc/:type/:filename` | Delete a document |
-| `POST` | `/api/docs/draft` | Create a draft without AI |
-| `POST` | `/api/generate` | Generate a document with Claude (SSE stream) |
-| `POST` | `/api/doc/:type/:filename/upgrade` | Regenerate with feedback (SSE stream) |
-| `POST` | `/api/docs/split-story` | AI-split a story into N parts (SSE stream) |
-| `POST` | `/api/docs/batch-delete` | Delete multiple documents |
-| `POST` | `/api/docs/batch-fix-version` | Set fix-version on multiple documents |
-| `POST` | `/api/docs/rerank` | Batch-assign `Rank` fields in a given order |
-| `POST` | `/api/docs/distribute` | Propose sprint assignments (greedy fill) |
-| `POST` | `/api/docs/apply-distribution` | Write sprint assignments; returns `depWarnings` |
+| Method   | Path                               | Description                                                 |
+| :------- | :--------------------------------- | :---------------------------------------------------------- |
+| `GET`    | `/api/docs`                        | All documents (from in-memory index)                        |
+| `GET`    | `/api/doc/:type/:filename`         | Single document content                                     |
+| `PATCH`  | `/api/doc/:type/:filename`         | Update status, title, fixVersion, storyPoints, sprint, rank |
+| `DELETE` | `/api/doc/:type/:filename`         | Delete a document                                           |
+| `POST`   | `/api/docs/draft`                  | Create a draft without AI                                   |
+| `POST`   | `/api/generate`                    | Generate a document with Claude (SSE stream)                |
+| `POST`   | `/api/doc/:type/:filename/upgrade` | Regenerate with feedback (SSE stream)                       |
+| `POST`   | `/api/docs/split-story`            | AI-split a story into N parts (SSE stream)                  |
+| `POST`   | `/api/docs/batch-delete`           | Delete multiple documents                                   |
+| `POST`   | `/api/docs/batch-fix-version`      | Set fix-version on multiple documents                       |
+| `POST`   | `/api/docs/rerank`                 | Batch-assign `Rank` fields in a given order                 |
+| `POST`   | `/api/docs/distribute`             | Propose sprint assignments (greedy fill)                    |
+| `POST`   | `/api/docs/apply-distribution`     | Write sprint assignments; returns `depWarnings`             |
 
 ### Links
 
-| Method | Path | Description |
-|:---|:---|:---|
-| `GET` | `/api/links/:type/:filename` | Hierarchy parent + children + `blocks[]` + `blockedBy[]` |
-| `POST` | `/api/link` | Create hierarchy link or `linkType: 'blocks'` dependency |
-| `DELETE` | `/api/link` | Remove a `linkType: 'blocks'` dependency |
+| Method   | Path                         | Description                                              |
+| :------- | :--------------------------- | :------------------------------------------------------- |
+| `GET`    | `/api/links/:type/:filename` | Hierarchy parent + children + `blocks[]` + `blockedBy[]` |
+| `POST`   | `/api/link`                  | Create hierarchy link or `linkType: 'blocks'` dependency |
+| `DELETE` | `/api/link`                  | Remove a `linkType: 'blocks'` dependency                 |
 
 ### JIRA
 
-| Method | Path | Description |
-|:---|:---|:---|
-| `POST` | `/api/jira/push/:type/:filename` | Push local doc to JIRA (create or update) |
-| `POST` | `/api/jira/push-rank` | Reorder issue in JIRA backlog |
-| `POST` | `/api/jira/pull` | Import a JIRA issue as a local `.md` |
-| `POST` | `/api/jira/sync-status/:type/:filename` | Pull JIRA status + SP into local file |
-| `POST` | `/api/jira/update-from-jira/:type/:filename` | Full field sync from JIRA |
-| `GET` | `/api/jira/search` | Keyword search in JIRA project |
-| `GET` | `/api/jira/versions` | Active fix-versions from JIRA |
-| `GET` | `/api/jira/children/:key` | Epic children from JIRA |
+| Method | Path                                         | Description                               |
+| :----- | :------------------------------------------- | :---------------------------------------- |
+| `POST` | `/api/jira/push/:type/:filename`             | Push local doc to JIRA (create or update) |
+| `POST` | `/api/jira/push-rank`                        | Reorder issue in JIRA backlog             |
+| `POST` | `/api/jira/pull`                             | Import a JIRA issue as a local `.md`      |
+| `POST` | `/api/jira/sync-status/:type/:filename`      | Pull JIRA status + SP into local file     |
+| `POST` | `/api/jira/update-from-jira/:type/:filename` | Full field sync from JIRA                 |
+| `GET`  | `/api/jira/search`                           | Keyword search in JIRA project            |
+| `GET`  | `/api/jira/versions`                         | Active fix-versions from JIRA             |
+| `GET`  | `/api/jira/children/:key`                    | Epic children from JIRA                   |
 
 ### Settings
 
-| Method | Path | Description |
-|:---|:---|:---|
-| `GET` | `/api/config` | Public server config (jiraBase) |
-| `GET/PUT` | `/api/settings/pi` | Current and next PI names |
-| `GET/PUT` | `/api/settings/pi/split-threshold` | Story-split SP threshold |
+| Method    | Path                               | Description                        |
+| :-------- | :--------------------------------- | :--------------------------------- |
+| `GET`     | `/api/config`                      | Public server config (jiraBase)    |
+| `GET/PUT` | `/api/settings/pi`                 | Current and next PI names          |
+| `GET/PUT` | `/api/settings/pi/split-threshold` | Story-split SP threshold           |
 | `GET/PUT` | `/api/settings/pi/sprints/:piName` | Sprint names + capacities for a PI |
-| `GET/PUT` | `/api/settings/model` | Claude model settings |
+| `GET/PUT` | `/api/settings/model`              | Claude model settings              |
 
 ---
 
@@ -366,18 +367,18 @@ Integration tests start a real Express instance in an isolated temp directory pe
 
 ### Test coverage (58 suites · 167 tests)
 
-| Suite | What it covers |
-|:---|:---|
-| `transforms.test.js` | `setFrontmatterField`, `removeFrontmatterField`, `markdownToJira`, `extractTitle`, `extractWorkflowStatus`, `extractFrontmatterField` |
-| `storyService.test.js` | `parseStorySections`, `serializeStoryFile` |
-| `jiraService.test.js` | `jiraIssueToMarkdown`, `extractJiraSummary`, `LOCAL_TO_JIRA_TYPE` |
-| `claudeService.test.js` | `MOCK_CLAUDE` stub, stream behaviour |
-| `eventService.test.js` | `broadcast` SSE formatting |
-| `bugService.test.js` | `translateToEnglish`, `textToPdfBuffer`, `processAttachment`, `parseMsgFile` |
-| `api.test.js` | Full CRUD, draft, PATCH fields, batch ops, rerank, links, distribute, generate SSE |
-| `docs-extended.test.js` | batch-delete, distribute, split-story SSE, upgrade SSE, apply-distribution |
-| `jira.test.js` | push, pull, sync-status, update-from-jira, search, versions, children |
-| `settings.test.js` | PI names, split-threshold, sprint config, model settings |
+| Suite                   | What it covers                                                                                                                        |
+| :---------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `transforms.test.js`    | `setFrontmatterField`, `removeFrontmatterField`, `markdownToJira`, `extractTitle`, `extractWorkflowStatus`, `extractFrontmatterField` |
+| `storyService.test.js`  | `parseStorySections`, `serializeStoryFile`                                                                                            |
+| `jiraService.test.js`   | `jiraIssueToMarkdown`, `extractJiraSummary`, `LOCAL_TO_JIRA_TYPE`                                                                     |
+| `claudeService.test.js` | `MOCK_CLAUDE` stub, stream behaviour                                                                                                  |
+| `eventService.test.js`  | `broadcast` SSE formatting                                                                                                            |
+| `bugService.test.js`    | `translateToEnglish`, `textToPdfBuffer`, `processAttachment`, `parseMsgFile`                                                          |
+| `api.test.js`           | Full CRUD, draft, PATCH fields, batch ops, rerank, links, distribute, generate SSE                                                    |
+| `docs-extended.test.js` | batch-delete, distribute, split-story SSE, upgrade SSE, apply-distribution                                                            |
+| `jira.test.js`          | push, pull, sync-status, update-from-jira, search, versions, children                                                                 |
+| `settings.test.js`      | PI names, split-threshold, sprint config, model settings                                                                              |
 
 ---
 
@@ -408,6 +409,7 @@ Blocked_By: 2026-05-01-story-a.md
 `src/services/docIndex.js` builds a `Map<filename, metadata>` on startup by reading every markdown file once. All `GET /api/docs` requests and JIRA lookup operations (`findByJiraId`) hit the map — no per-request file I/O.
 
 Invalidation strategy:
+
 - **Single write** (PATCH, push, pull, link): `docIndex.invalidate(docType, filename)` — rebuilds one entry
 - **Batch write** (batch-delete, batch-fix-version, rerank, apply-distribution): `docIndex.invalidateAll()` — full rebuild
 
@@ -418,6 +420,7 @@ Each index entry contains: `filename`, `docType`, `title`, `date`, `status`, `fi
 ## Auto-inbox processing
 
 Drop any `.md` file into `/inbox/`:
+
 1. `inboxWatcher.js` detects the file via `fs.watch`
 2. Claude CLI reads the raw idea against the matching skill prompt (e.g. `create-epics.md`)
 3. The polished document is saved to the correct `docs/` subfolder

@@ -94,7 +94,9 @@
 
 /* ── Swimlane Body ──────────────────────────────────────────── */
 .swimlane-body {
-  transition: max-height 0.2s ease, opacity 0.15s ease;
+  transition:
+    max-height 0.2s ease,
+    opacity 0.15s ease;
   overflow: hidden;
 }
 
@@ -113,15 +115,15 @@
 }
 
 /* ── Section-specific accent colors ─────────────────────────── */
-.swimlane-section[data-section="currentPi"] .swimlane-header {
+.swimlane-section[data-section='currentPi'] .swimlane-header {
   border-left: 3px solid var(--accent);
 }
 
-.swimlane-section[data-section="nextPi"] .swimlane-header {
+.swimlane-section[data-section='nextPi'] .swimlane-header {
   border-left: 3px solid var(--type-story-color);
 }
 
-.swimlane-section[data-section="backlog"] .swimlane-header {
+.swimlane-section[data-section='backlog'] .swimlane-header {
   border-left: 3px solid var(--muted);
 }
 

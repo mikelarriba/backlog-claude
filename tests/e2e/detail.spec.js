@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { clearDocsDir, createFixtureDoc } from './fixtures.js';
 
-let epicFilename;
+let _epicFilename;
 let epicTitle;
 
 test.beforeAll(() => {
@@ -12,8 +12,8 @@ test.beforeAll(() => {
     status: 'Draft',
     description: 'This is a detail view test epic.',
   });
-  epicFilename = epic.filename;
-  epicTitle    = epic.title;
+  _epicFilename = epic.filename;
+  epicTitle = epic.title;
 });
 
 test.describe('Detail view — opening a document', () => {
@@ -30,7 +30,9 @@ test.describe('Detail view — opening a document', () => {
     await page.goto('/');
     await expect(page.locator('#epic-list')).toContainText(epicTitle, { timeout: 8000 });
     await page.locator('#epic-list').getByText(epicTitle).first().click();
-    await expect(page.locator('#detail-content, .markdown')).toContainText(epicTitle, { timeout: 5000 });
+    await expect(page.locator('#detail-content, .markdown')).toContainText(epicTitle, {
+      timeout: 5000,
+    });
   });
 
   test('back button closes the detail view', async ({ page }) => {
@@ -60,7 +62,9 @@ test.describe('Detail view — PATCH title', () => {
       await titleEl.fill('Updated Title Via E2E');
       await titleEl.press('Enter');
       // Verify the updated title is reflected
-      await expect(page.locator('#detail-view')).toContainText('Updated Title Via E2E', { timeout: 5000 });
+      await expect(page.locator('#detail-view')).toContainText('Updated Title Via E2E', {
+        timeout: 5000,
+      });
     }
   });
 });

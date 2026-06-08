@@ -41,7 +41,7 @@ describe('JIRA push — no token configured', () => {
   test('returns 503 when JIRA_API_TOKEN is not set', async () => {
     const { status, data } = await api(
       'POST',
-      `/api/jira/push/epic/${encodeURIComponent(epicFilename)}`,
+      `/api/jira/push/epic/${encodeURIComponent(epicFilename)}`
     );
     assert.equal(status, 503);
     assert.equal(data.error.code, 'JIRA_NOT_CONFIGURED');
@@ -89,8 +89,14 @@ describe('GET /api/jira/children/:key — no token configured', () => {
 // ── POST /api/jira/sync-status — no token ─────────────────────────────────────
 describe('POST /api/jira/sync-status — no token configured', () => {
   test('returns 503 when JIRA_API_TOKEN is not set', async () => {
-    const { data: doc } = await api('POST', '/api/generate', { idea: 'Sync status no token test', type: 'epic' });
-    const { status } = await api('POST', `/api/jira/sync-status/epic/${encodeURIComponent(doc.filename)}`);
+    const { data: doc } = await api('POST', '/api/generate', {
+      idea: 'Sync status no token test',
+      type: 'epic',
+    });
+    const { status } = await api(
+      'POST',
+      `/api/jira/sync-status/epic/${encodeURIComponent(doc.filename)}`
+    );
     assert.equal(status, 503);
   });
 });
@@ -98,8 +104,14 @@ describe('POST /api/jira/sync-status — no token configured', () => {
 // ── POST /api/jira/update-from-jira — no token ───────────────────────────────
 describe('POST /api/jira/update-from-jira — no token configured', () => {
   test('returns 503 when JIRA_API_TOKEN is not set', async () => {
-    const { data: doc } = await api('POST', '/api/generate', { idea: 'Update from jira no token test', type: 'epic' });
-    const { status } = await api('POST', `/api/jira/update-from-jira/epic/${encodeURIComponent(doc.filename)}`);
+    const { data: doc } = await api('POST', '/api/generate', {
+      idea: 'Update from jira no token test',
+      type: 'epic',
+    });
+    const { status } = await api(
+      'POST',
+      `/api/jira/update-from-jira/epic/${encodeURIComponent(doc.filename)}`
+    );
     assert.equal(status, 503);
   });
 });
@@ -169,7 +181,7 @@ N/A
   test('returns 200 and the JIRA key after creating the issue', async () => {
     const { status, data } = await api(
       'POST',
-      `/api/jira/push/epic/${encodeURIComponent(epicFilename)}`,
+      `/api/jira/push/epic/${encodeURIComponent(epicFilename)}`
     );
     assert.equal(status, 200);
     assert.equal(data.key, 'EAMDM-999');
@@ -192,12 +204,16 @@ describe('GET /api/jira/children/:key — happy path (JIRA fetch mocked)', () =>
       if (typeof url === 'string' && url.includes('/rest/api/')) {
         const body = {
           fields: {
-            issuetype:  { name: 'Epic' },
+            issuetype: { name: 'Epic' },
             issuelinks: [
               {
                 inwardIssue: {
                   key: 'EAMDM-42',
-                  fields: { summary: 'Child story', issuetype: { name: 'Story' }, status: { name: 'In Progress' } },
+                  fields: {
+                    summary: 'Child story',
+                    issuetype: { name: 'Story' },
+                    status: { name: 'In Progress' },
+                  },
                 },
               },
             ],
@@ -225,8 +241,8 @@ describe('GET /api/jira/children/:key — happy path (JIRA fetch mocked)', () =>
     assert.equal(status, 200);
     assert.equal(data.parentKey, 'EAMDM-100');
     assert.ok(Array.isArray(data.children));
-    assert.ok(data.children.some(c => c.key === 'EAMDM-42'));
-    assert.equal(data.children.find(c => c.key === 'EAMDM-42').summary, 'Child story');
+    assert.ok(data.children.some((c) => c.key === 'EAMDM-42'));
+    assert.equal(data.children.find((c) => c.key === 'EAMDM-42').summary, 'Child story');
   });
 });
 
@@ -260,8 +276,8 @@ Test.
       if (typeof url === 'string' && url.includes('/rest/api/')) {
         const body = {
           fields: {
-            status:              { name: 'In Progress' },
-            customfield_10006:   5,
+            status: { name: 'In Progress' },
+            customfield_10006: 5,
           },
         };
         return {
@@ -281,15 +297,22 @@ Test.
   });
 
   test('returns 400 when JIRA_ID is TBD', async () => {
-    const { data: doc } = await api('POST', '/api/generate', { idea: 'No JIRA ID epic', type: 'epic' });
-    const { status, data } = await api('POST', `/api/jira/sync-status/epic/${encodeURIComponent(doc.filename)}`);
+    const { data: doc } = await api('POST', '/api/generate', {
+      idea: 'No JIRA ID epic',
+      type: 'epic',
+    });
+    const { status, data } = await api(
+      'POST',
+      `/api/jira/sync-status/epic/${encodeURIComponent(doc.filename)}`
+    );
     assert.equal(status, 400);
     assert.equal(data.error.code, 'NO_JIRA_ID');
   });
 
   test('writes JIRA_Status and Story_Points to frontmatter', async () => {
     const { status, data } = await api(
-      'POST', `/api/jira/sync-status/epic/${encodeURIComponent(epicFilename)}`,
+      'POST',
+      `/api/jira/sync-status/epic/${encodeURIComponent(epicFilename)}`
     );
     assert.equal(status, 200);
     assert.equal(data.success, true);
@@ -335,16 +358,16 @@ Local context.
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/')) {
         const body = {
-          key:    'EAMDM-777',
+          key: 'EAMDM-777',
           fields: {
-            summary:            'Updated From JIRA Title',
-            issuetype:          { name: 'Epic' },
-            status:             { name: 'In Review' },
-            priority:           { name: 'High' },
-            description:        null,
-            fixVersions:        [{ name: 'PI-2026.2' }],
-            customfield_10002:  null,
-            customfield_10006:  8,
+            summary: 'Updated From JIRA Title',
+            issuetype: { name: 'Epic' },
+            status: { name: 'In Review' },
+            priority: { name: 'High' },
+            description: null,
+            fixVersions: [{ name: 'PI-2026.2' }],
+            customfield_10002: null,
+            customfield_10006: 8,
           },
         };
         return {
@@ -365,7 +388,8 @@ Local context.
 
   test('overwrites JIRA-sourced fields and preserves local Sprint/Squad/PI', async () => {
     const { status, data } = await api(
-      'POST', `/api/jira/update-from-jira/epic/${encodeURIComponent(epicFilename)}`,
+      'POST',
+      `/api/jira/update-from-jira/epic/${encodeURIComponent(epicFilename)}`
     );
     assert.equal(status, 200);
     assert.equal(data.key, 'EAMDM-777');

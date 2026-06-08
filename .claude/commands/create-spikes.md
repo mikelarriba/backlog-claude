@@ -21,12 +21,12 @@ A Spike is a time-boxed investigation. Unlike an Epic or Story, it produces **kn
 
 ## COVE Framework for Spikes
 
-| Component | Description |
-| :--- | :--- |
-| **C - Context** | What uncertainty or risk is blocking the team? Why investigate now? |
-| **O - Objective** | The single question this spike must answer. One clear question. |
-| **V - Value** | What decision will this spike enable? What risk does it retire? |
-| **E - Example** | What the investigation should show up as a result |
+| Component         | Description                                                         |
+| :---------------- | :------------------------------------------------------------------ |
+| **C - Context**   | What uncertainty or risk is blocking the team? Why investigate now? |
+| **O - Objective** | The single question this spike must answer. One clear question.     |
+| **V - Value**     | What decision will this spike enable? What risk does it retire?     |
+| **E - Example**   | What the investigation should show up as a result                   |
 
 ## Metadata Detection
 
@@ -56,21 +56,26 @@ Then include these sections:
 
 ```markdown
 ## Spike Title
+
 A question-based title (e.g. "Can RabbitMQ replace NiFi for async file ingestion within current infra constraints?")
 
 ## Context
+
 Why is this spike needed now? What decision is blocked without this research?
 Reference V2 migration context if relevant.
 
 ## Objective
+
 The single question this spike must answer. Be specific and measurable.
 
 ## Value
+
 - **Decision enabled:** [what the team can decide after the spike]
 - **Risk retired:** [what uncertainty is removed]
 - **Unblocks:** [which Epic or Story this enables]
 
 ## Example
+
 Time-boxed investigation steps:
 
 1. **Research** — [what to read, review, or benchmark]
@@ -78,17 +83,20 @@ Time-boxed investigation steps:
 3. **Document** — Write findings and recommendation into Confluence, suggest to create a page
 
 ## Time Box
+
 Recommended: [1–3 days]. If the answer isn't clear within this time, escalate rather than expand scope.
 
-
 ## Expected Output
+
 A findings document covering:
+
 - **Answer:** [Yes / No / Conditional]
 - **Evidence:** [What was built or tested]
 - **Recommendation:** [What to do next]
 - **Follow-on work:** [Epics or Stories to create]
 
 ## Out of Scope
+
 - Production-ready code
 - Full implementation
 - Infrastructure changes

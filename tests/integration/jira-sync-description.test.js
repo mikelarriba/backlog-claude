@@ -27,7 +27,10 @@ describe('POST /api/jira/sync-status — title and description sync', () => {
   const originalFetch = globalThis.fetch;
 
   before(async () => {
-    writeDoc('epics', EPIC_FILE, `---
+    writeDoc(
+      'epics',
+      EPIC_FILE,
+      `---
 JIRA_ID: EAMDM-501
 Story_Points: TBD
 Status: Draft
@@ -38,16 +41,17 @@ Created: 2026-01-01
 ## Old Title
 
 Old description body text.
-`);
+`
+    );
     process.env.JIRA_API_TOKEN = 'fake-token';
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/')) {
         const body = {
           fields: {
-            status:            { name: 'In Progress' },
+            status: { name: 'In Progress' },
             customfield_10006: 5,
-            summary:           'New Title From JIRA',
-            description:       'New description body text.',
+            summary: 'New Title From JIRA',
+            description: 'New description body text.',
           },
         };
         return {
@@ -67,7 +71,10 @@ Old description body text.
   });
 
   test('updates JIRA_Status and Story_Points', async () => {
-    const { status, data } = await api('POST', `/api/jira/sync-status/epic/${encodeURIComponent(EPIC_FILE)}`);
+    const { status, data } = await api(
+      'POST',
+      `/api/jira/sync-status/epic/${encodeURIComponent(EPIC_FILE)}`
+    );
     assert.equal(status, 200);
     assert.equal(data.jiraStatus, 'In Progress');
     assert.equal(data.storyPoints, 5);
@@ -94,7 +101,10 @@ describe('POST /api/jira/sync-status — no history when description unchanged',
   const originalFetch = globalThis.fetch;
 
   before(async () => {
-    writeDoc('epics', EPIC_FILE, `---
+    writeDoc(
+      'epics',
+      EPIC_FILE,
+      `---
 JIRA_ID: EAMDM-502
 Story_Points: TBD
 Status: Draft
@@ -105,16 +115,17 @@ Created: 2026-01-01
 ## Stable Title
 
 Stable description body.
-`);
+`
+    );
     process.env.JIRA_API_TOKEN = 'fake-token';
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/')) {
         const body = {
           fields: {
-            status:            { name: 'Done' },
+            status: { name: 'Done' },
             customfield_10006: 3,
-            summary:           'Stable Title',
-            description:       'Stable description body.',
+            summary: 'Stable Title',
+            description: 'Stable description body.',
           },
         };
         return {
@@ -134,10 +145,16 @@ Stable description body.
   });
 
   test('does not write inbox history when description is unchanged', async () => {
-    const { status } = await api('POST', `/api/jira/sync-status/epic/${encodeURIComponent(EPIC_FILE)}`);
+    const { status } = await api(
+      'POST',
+      `/api/jira/sync-status/epic/${encodeURIComponent(EPIC_FILE)}`
+    );
     assert.equal(status, 200);
     const inboxPath = path.join(inboxDir, EPIC_FILE);
-    assert.ok(!fs.existsSync(inboxPath), 'inbox history file should NOT exist when description unchanged');
+    assert.ok(
+      !fs.existsSync(inboxPath),
+      'inbox history file should NOT exist when description unchanged'
+    );
   });
 });
 
@@ -147,7 +164,10 @@ describe('POST /api/jira/update-from-jira — writes description history', () =>
   const originalFetch = globalThis.fetch;
 
   before(async () => {
-    writeDoc('epics', EPIC_FILE, `---
+    writeDoc(
+      'epics',
+      EPIC_FILE,
+      `---
 JIRA_ID: EAMDM-503
 Story_Points: 2
 Status: Draft
@@ -161,19 +181,20 @@ Created: 2026-01-01
 ## Previous Title
 
 Previous description from local file.
-`);
+`
+    );
     process.env.JIRA_API_TOKEN = 'fake-token';
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/')) {
         const body = {
-          key:    'EAMDM-503',
+          key: 'EAMDM-503',
           fields: {
-            summary:           'Fresh Title From JIRA',
-            issuetype:         { name: 'Epic' },
-            status:            { name: 'In Review' },
-            priority:          { name: 'High' },
-            description:       'Fresh description from JIRA.',
-            fixVersions:       [{ name: 'PI-2026.2' }],
+            summary: 'Fresh Title From JIRA',
+            issuetype: { name: 'Epic' },
+            status: { name: 'In Review' },
+            priority: { name: 'High' },
+            description: 'Fresh description from JIRA.',
+            fixVersions: [{ name: 'PI-2026.2' }],
             customfield_10002: null,
             customfield_10006: 5,
           },
@@ -195,7 +216,10 @@ Previous description from local file.
   });
 
   test('returns 200 and the JIRA key', async () => {
-    const { status, data } = await api('POST', `/api/jira/update-from-jira/epic/${encodeURIComponent(EPIC_FILE)}`);
+    const { status, data } = await api(
+      'POST',
+      `/api/jira/update-from-jira/epic/${encodeURIComponent(EPIC_FILE)}`
+    );
     assert.equal(status, 200);
     assert.equal(data.key, 'EAMDM-503');
   });

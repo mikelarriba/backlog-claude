@@ -22,9 +22,13 @@ label {
   margin-bottom: 6px;
 }
 
-.field { margin-bottom: 16px; }
+.field {
+  margin-bottom: 16px;
+}
 
-textarea, input, select {
+textarea,
+input,
+select {
   width: 100%;
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -33,17 +37,42 @@ textarea, input, select {
   font-size: 0.9rem;
   padding: 10px 12px;
   font-family: inherit;
-  transition: border-color 0.15s, background 0.2s;
+  transition:
+    border-color 0.15s,
+    background 0.2s;
 }
 
-textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
-textarea::placeholder, input::placeholder { color: var(--muted); }
-textarea:focus, input:focus, select:focus { outline: none; border-color: var(--accent); }
-select option { background: var(--surface); color: var(--text); }
+textarea {
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.6;
+}
+textarea::placeholder,
+input::placeholder {
+  color: var(--muted);
+}
+textarea:focus,
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+select option {
+  background: var(--surface);
+  color: var(--text);
+}
 
-.meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.meta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
 
-.actions { display: flex; gap: 10px; margin-top: 20px; }
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
 
 /* ── Buttons ─────────────────────────────────────────────────── */
 button {
@@ -53,11 +82,16 @@ button {
   font-size: 0.875rem;
   font-weight: 600;
   padding: 10px 16px;
-  transition: background 0.15s, opacity 0.15s, transform 0.1s;
+  transition:
+    background 0.15s,
+    opacity 0.15s,
+    transform 0.1s;
   font-family: inherit;
 }
 
-button:active:not(:disabled) { transform: scale(0.97); }
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
 
 .btn-primary {
   background: var(--accent);
@@ -69,8 +103,13 @@ button:active:not(:disabled) { transform: scale(0.97); }
   gap: 6px;
 }
 
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .btn-secondary {
   background: transparent;
@@ -78,7 +117,11 @@ button:active:not(:disabled) { transform: scale(0.97); }
   border: 1px solid var(--border);
 }
 
-.btn-secondary:hover { border-color: var(--muted); color: var(--text); background: var(--surface2); }
+.btn-secondary:hover {
+  border-color: var(--muted);
+  color: var(--text);
+  background: var(--surface2);
+}
 
 /* Draft button — sits between secondary and primary */
 .btn-draft {
@@ -92,7 +135,10 @@ button:active:not(:disabled) { transform: scale(0.97); }
   border-color: var(--accent);
   color: var(--accent);
 }
-.btn-draft:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-draft:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .btn-ghost {
   background: transparent;
@@ -101,7 +147,9 @@ button:active:not(:disabled) { transform: scale(0.97); }
   font-size: 0.8rem;
 }
 
-.btn-ghost:hover { color: var(--text); }
+.btn-ghost:hover {
+  color: var(--text);
+}
 
 /* ── Status indicator ────────────────────────────────────────── */
 .status {
@@ -112,11 +160,15 @@ button:active:not(:disabled) { transform: scale(0.97); }
   display: none;
 }
 
-.status.show { display: flex; align-items: center; gap: 8px; }
+.status.show {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .status.loading {
   background: var(--accent-subtle);
-  border: 1px solid rgba(0,150,214,0.3);
+  border: 1px solid rgba(0, 150, 214, 0.3);
   color: var(--accent-hover);
 }
 
@@ -149,13 +201,15 @@ button:active:not(:disabled) { transform: scale(0.97); }
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0, 0, 0, 0.55);
   z-index: 100;
   align-items: center;
   justify-content: center;
 }
 
-.dialog-overlay.show { display: flex; }
+.dialog-overlay.show {
+  display: flex;
+}
 
 .dialog {
   background: var(--surface);
@@ -166,10 +220,22 @@ button:active:not(:disabled) { transform: scale(0.97); }
   box-shadow: 0 20px 60px var(--shadow);
 }
 
-.dialog h3 { font-size: 1rem; margin-bottom: 8px; }
-.dialog p  { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin-bottom: 20px; }
+.dialog h3 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+.dialog p {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
 
-.dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
 
 /* ── Push toast ──────────────────────────────────────────────── */
 #jira-push-toast {
@@ -183,13 +249,26 @@ button:active:not(:disabled) { transform: scale(0.97); }
   z-index: 200;
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
   pointer-events: none;
 }
 
-#jira-push-toast.show { opacity: 1; transform: translateY(0); }
-#jira-push-toast.success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
-#jira-push-toast.error   { background: var(--error-bg);   border: 1px solid var(--error-border);   color: var(--error-text); }
+#jira-push-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+#jira-push-toast.success {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success-text);
+}
+#jira-push-toast.error {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  color: var(--error-text);
+}
 
 /* ── Delete button (dialog) ──────────────────────────────────── */
 .btn-delete {
@@ -205,8 +284,13 @@ button:active:not(:disabled) { transform: scale(0.97); }
   transition: background 0.15s;
 }
 
-.btn-delete:hover:not(:disabled) { filter: brightness(1.1); }
-.btn-delete:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-delete:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 /* ── Collapsible section (shared) ────────────────────────────── */
 .collapsible {
@@ -226,7 +310,9 @@ button:active:not(:disabled) { transform: scale(0.97); }
   transition: background 0.12s;
 }
 
-.collapsible-header:hover { background: var(--border); }
+.collapsible-header:hover {
+  background: var(--border);
+}
 
 .collapsible-title {
   font-size: 0.72rem;
@@ -248,11 +334,23 @@ button:active:not(:disabled) { transform: scale(0.97); }
   transition: max-height 0.3s ease;
 }
 
-.collapsible-body.open { max-height: min(900px, 55vh); overflow-y: auto; }
+.collapsible-body.open {
+  max-height: min(900px, 55vh);
+  overflow-y: auto;
+}
 
-.collapsible-inner { padding: 14px; }
+.collapsible-inner {
+  padding: 14px;
+}
 
 /* ── Scrollbar ───────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}

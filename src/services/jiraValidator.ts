@@ -31,8 +31,8 @@ export async function validateJiraConfig({
   const missingVars: string[] = [];
   if (!jiraBase) missingVars.push('JIRA_BASE_URL');
   if (!fieldStoryPoints) missingVars.push('JIRA_FIELD_STORY_POINTS');
-  if (!fieldEpicLink)    missingVars.push('JIRA_FIELD_EPIC_LINK');
-  if (!fieldEpicName)    missingVars.push('JIRA_FIELD_EPIC_NAME');
+  if (!fieldEpicLink) missingVars.push('JIRA_FIELD_EPIC_LINK');
+  if (!fieldEpicName) missingVars.push('JIRA_FIELD_EPIC_NAME');
 
   if (missingVars.length) {
     logWarn('jira-validator', `Missing JIRA env vars: ${missingVars.join(', ')}`);
@@ -52,7 +52,10 @@ export async function validateJiraConfig({
       return;
     }
     if (!res.ok) {
-      logWarn('jira-validator', `JIRA /myself check returned HTTP ${res.status} — validation skipped`);
+      logWarn(
+        'jira-validator',
+        `JIRA /myself check returned HTTP ${res.status} — validation skipped`
+      );
       return;
     }
   } catch (err: any) {
@@ -65,20 +68,26 @@ export async function validateJiraConfig({
   try {
     const res = await fetch(`${jiraBase}/rest/api/2/field`, { headers });
     if (!res.ok) {
-      logWarn('jira-validator', `JIRA /field check returned HTTP ${res.status} — field validation skipped`);
+      logWarn(
+        'jira-validator',
+        `JIRA /field check returned HTTP ${res.status} — field validation skipped`
+      );
       return;
     }
-    fields = await res.json() as Array<{ id: string; name: string }>;
+    fields = (await res.json()) as Array<{ id: string; name: string }>;
   } catch (err: any) {
-    logWarn('jira-validator', `JIRA /field check failed: ${err.message} — field validation skipped`);
+    logWarn(
+      'jira-validator',
+      `JIRA /field check failed: ${err.message} — field validation skipped`
+    );
     return;
   }
 
-  const fieldIds = new Set(fields.map(f => f.id));
+  const fieldIds = new Set(fields.map((f) => f.id));
   const customFields = [
     { id: fieldStoryPoints, envVar: 'JIRA_FIELD_STORY_POINTS' },
-    { id: fieldEpicLink,    envVar: 'JIRA_FIELD_EPIC_LINK'    },
-    { id: fieldEpicName,    envVar: 'JIRA_FIELD_EPIC_NAME'    },
+    { id: fieldEpicLink, envVar: 'JIRA_FIELD_EPIC_LINK' },
+    { id: fieldEpicName, envVar: 'JIRA_FIELD_EPIC_NAME' },
   ];
 
   let allFieldsOk = true;

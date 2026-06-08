@@ -12,17 +12,20 @@ const FRONTMATTER = (extra = '') => `---\nStatus: Draft\nPriority: Medium\n${ext
 
 function makeTypeConfig(docsRoot) {
   return {
-    epic:    { dir: () => path.join(docsRoot, 'epics') },
-    story:   { dir: () => path.join(docsRoot, 'stories') },
+    epic: { dir: () => path.join(docsRoot, 'epics') },
+    story: { dir: () => path.join(docsRoot, 'stories') },
     feature: { dir: () => path.join(docsRoot, 'features') },
-    spike:   { dir: () => path.join(docsRoot, 'spikes') },
-    bug:     { dir: () => path.join(docsRoot, 'bugs') },
+    spike: { dir: () => path.join(docsRoot, 'spikes') },
+    bug: { dir: () => path.join(docsRoot, 'bugs') },
   };
 }
 
 function writeDoc(dir, filename, extra = '') {
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, filename), `${FRONTMATTER(extra)}\n## ${filename.replace('.md', '')}\n`);
+  fs.writeFileSync(
+    path.join(dir, filename),
+    `${FRONTMATTER(extra)}\n## ${filename.replace('.md', '')}\n`
+  );
 }
 
 // ── Large graph test ──────────────────────────────────────────────────────────
@@ -60,7 +63,7 @@ describe('docIndex — large graph', () => {
     for (let i = 0; i < all.length - 1; i++) {
       assert.ok(
         all[i].filename >= all[i + 1].filename,
-        `Expected ${all[i].filename} >= ${all[i + 1].filename}`,
+        `Expected ${all[i].filename} >= ${all[i + 1].filename}`
       );
     }
   });
@@ -147,8 +150,10 @@ describe('docIndex — dependency fields', () => {
 
   test('TBD values in dependency fields are excluded', async () => {
     const storyDir = path.join(tmpRoot, 'stories');
-    fs.writeFileSync(path.join(storyDir, 'story-d.md'),
-      `${FRONTMATTER('Blocks: TBD\nBlocked_By: TBD\n')}\n## story-d\n`);
+    fs.writeFileSync(
+      path.join(storyDir, 'story-d.md'),
+      `${FRONTMATTER('Blocks: TBD\nBlocked_By: TBD\n')}\n## story-d\n`
+    );
     await docIndex.invalidate('story', 'story-d.md');
     const entry = docIndex.get('story-d.md');
     assert.deepEqual(entry.blocks, []);

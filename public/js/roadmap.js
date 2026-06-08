@@ -1,13 +1,13 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
-import { escHtml, postJSON, showJiraToast, putJSON, patchJSON } from './state.js';
+import { escHtml, postJSON, showJiraToast, patchJSON } from './state.js';
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
 import { loadDocs } from './list.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 
 // _roadmapVisiblePis is in state.js as a _storeVar global
-let _roadmapPanelState   = { epics: true, stories: true }; // expanded/collapsed
-let _roadmapFocusedEpic = null;  // filename of clicked feature (focus mode)
+let _roadmapPanelState = { epics: true, stories: true }; // expanded/collapsed
+let _roadmapFocusedEpic = null; // filename of clicked feature (focus mode)
 
 // ── Open / Close ─────────────────────────────────────────────
 export function openRoadmapView() {
@@ -17,7 +17,7 @@ export function openRoadmapView() {
   document.getElementById('detail-view').classList.remove('show');
   document.querySelector('.right').classList.remove('has-selection');
   currentFilename = null;
-  currentDocType  = null;
+  currentDocType = null;
 
   // Show roadmap
   document.getElementById('roadmap-view').classList.add('show');
@@ -41,7 +41,7 @@ export function closeRoadmapView() {
   document.querySelector('.right').classList.remove('has-selection');
   document.getElementById('detail-view').classList.remove('show');
   currentFilename = null;
-  currentDocType  = null;
+  currentDocType = null;
   document.getElementById('list-view').style.display = '';
   _roadmapVisiblePis.clear();
   _roadmapFocusedEpic = null;
@@ -62,7 +62,7 @@ function populateRoadmapPiFilter() {
   if (!container) return;
   const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
   // On first open, check all PIs
-  if (!_roadmapVisiblePis.size) pis.forEach(p => _roadmapVisiblePis.add(p));
+  if (!_roadmapVisiblePis.size) pis.forEach((p) => _roadmapVisiblePis.add(p));
   let html = '';
   for (const pi of pis) {
     const checked = _roadmapVisiblePis.has(pi) ? ' checked' : '';
@@ -80,7 +80,7 @@ export function toggleRoadmapPi(piName, checked) {
 // ── Panel collapse ───────────────────────────────────────────
 export function toggleRoadmapPanel(panel) {
   _roadmapPanelState[panel] = !_roadmapPanelState[panel];
-  const body    = document.getElementById(`rm-body-${panel}`);
+  const body = document.getElementById(`rm-body-${panel}`);
   const chevron = document.getElementById(`rm-chevron-${panel}`);
   if (_roadmapPanelState[panel]) {
     body.classList.remove('collapsed');
@@ -94,9 +94,9 @@ export function toggleRoadmapPanel(panel) {
 // ── Epic search filter ──────────────────────────────────────
 export function filterRoadmapEpics(query) {
   const q = query.trim().toLowerCase();
-  document.querySelectorAll('.rm-epic-card').forEach(card => {
+  document.querySelectorAll('.rm-epic-card').forEach((card) => {
     const title = (card.querySelector('.rm-epic-title')?.textContent || '').toLowerCase();
-    card.style.display = (!q || title.includes(q)) ? '' : 'none';
+    card.style.display = !q || title.includes(q) ? '' : 'none';
   });
   // Update visible count
   const visible = document.querySelectorAll('.rm-epic-card:not([style*="display: none"])').length;
@@ -115,13 +115,16 @@ export function focusEpic(filename) {
 
 export function applyEpicFocus() {
   // Epic panel: highlight focused epic
-  document.querySelectorAll('.rm-epic-card').forEach(card => {
+  document.querySelectorAll('.rm-epic-card').forEach((card) => {
     card.classList.toggle('rm-focused', card.dataset.filename === _roadmapFocusedEpic);
-    card.classList.toggle('rm-dimmed', _roadmapFocusedEpic && card.dataset.filename !== _roadmapFocusedEpic);
+    card.classList.toggle(
+      'rm-dimmed',
+      _roadmapFocusedEpic && card.dataset.filename !== _roadmapFocusedEpic
+    );
   });
 
   // Story panel: dim non-matching stories
-  document.querySelectorAll('.roadmap-card').forEach(card => {
+  document.querySelectorAll('.roadmap-card').forEach((card) => {
     if (!_roadmapFocusedEpic) {
       card.classList.remove('rm-dimmed');
       return;
@@ -132,15 +135,21 @@ export function applyEpicFocus() {
 }
 
 // ── Push Sprints to JIRA (modal-based) ──────────────────────
-let _sprintPushPreview = [];    // current preview changes
+let _sprintPushPreview = []; // current preview changes
 let _sprintPushFilters = { add: true, change: true, pull: true };
-let _sprintPushItems = [];      // items prepared for preview
+let _sprintPushItems = []; // items prepared for preview
 
 export async function pushSprintsToJira() {
   const leafTypes = new Set(['story', 'spike', 'bug']);
-  _sprintPushItems = allDocs.filter(d =>
-    leafTypes.has(d.docType) && d.jiraId
-  ).map(d => ({ filename: d.filename, docType: d.docType, sprint: d.sprint || '', jiraId: d.jiraId, title: d.title || d.filename }));
+  _sprintPushItems = allDocs
+    .filter((d) => leafTypes.has(d.docType) && d.jiraId)
+    .map((d) => ({
+      filename: d.filename,
+      docType: d.docType,
+      sprint: d.sprint || '',
+      jiraId: d.jiraId,
+      title: d.title || d.filename,
+    }));
 
   if (!_sprintPushItems.length) {
     showJiraToast('warn', 'No stories with a JIRA ID found.');
@@ -163,11 +172,12 @@ export function openSprintPushModal() {
   document.getElementById('sprint-push-stats').textContent = '';
   document.getElementById('sprint-push-actions').style.display = 'none';
   document.getElementById('sprint-push-filters').style.display = 'none';
-  document.getElementById('sprint-push-progress-msg').textContent = 'Comparing sprint assignments with JIRA…';
+  document.getElementById('sprint-push-progress-msg').textContent =
+    'Comparing sprint assignments with JIRA…';
   document.getElementById('sprint-push-progress-fill').style.width = '0%';
 
   // Reset filter pills
-  document.querySelectorAll('.sprint-push-pill').forEach(p => p.classList.add('active'));
+  document.querySelectorAll('.sprint-push-pill').forEach((p) => p.classList.add('active'));
 
   // Populate sprint checkboxes from all PIs
   _populateSprintSelector();
@@ -197,29 +207,36 @@ function _populateSprintSelector() {
 
   // Enable/disable preview button
   _updatePreviewBtnState();
-  container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+  container.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
     cb.addEventListener('change', _updatePreviewBtnState);
   });
 }
 
 function _updatePreviewBtnState() {
-  const checked = document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]:checked');
+  const checked = document.querySelectorAll(
+    '#sprint-push-sprint-list input[type="checkbox"]:checked'
+  );
   const btn = document.getElementById('sprint-push-preview-btn');
   if (btn) {
     btn.disabled = checked.length === 0;
-    btn.textContent = checked.length ? `Preview Changes (${checked.length} sprint${checked.length !== 1 ? 's' : ''})` : 'Select sprints';
+    btn.textContent = checked.length
+      ? `Preview Changes (${checked.length} sprint${checked.length !== 1 ? 's' : ''})`
+      : 'Select sprints';
   }
 }
 
 export function sprintPushToggleAllSprints(checked) {
-  document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]').forEach(cb => { cb.checked = checked; });
+  document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]').forEach((cb) => {
+    cb.checked = checked;
+  });
   _updatePreviewBtnState();
 }
 
 export async function startSprintPushPreview() {
   // Gather selected sprints
-  const selectedSprints = [...document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]:checked')]
-    .map(cb => cb.value);
+  const selectedSprints = [
+    ...document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]:checked'),
+  ].map((cb) => cb.value);
 
   if (!selectedSprints.length) return;
 
@@ -296,7 +313,7 @@ function renderSprintPushPreview(preview) {
 
   // Filter out items where the sprint hasn't actually changed (client-side safety net)
   const allChanges = preview.changes || [];
-  const changes = allChanges.filter(c => {
+  const changes = allChanges.filter((c) => {
     if (c.changeType === 'change' && c.targetSprint && c.currentJiraSprint) {
       return c.targetSprint.toLowerCase().trim() !== c.currentJiraSprint.toLowerCase().trim();
     }
@@ -314,9 +331,9 @@ function renderSprintPushPreview(preview) {
   document.getElementById('sprint-push-actions').style.display = 'flex';
 
   // Recompute counts from filtered set
-  const adds = changes.filter(c => c.changeType === 'add').length;
-  const changesCount = changes.filter(c => c.changeType === 'change').length;
-  const pulls = changes.filter(c => c.changeType === 'pull').length;
+  const adds = changes.filter((c) => c.changeType === 'add').length;
+  const changesCount = changes.filter((c) => c.changeType === 'change').length;
+  const pulls = changes.filter((c) => c.changeType === 'pull').length;
 
   // Update pill counts
   document.getElementById('sprint-push-count-add').textContent = adds;
@@ -337,7 +354,8 @@ function renderSprintPushPreview(preview) {
     row.dataset.type = c.changeType;
 
     let arrow = '';
-    const badgeLabel = c.changeType === 'add' ? 'push' : c.changeType === 'pull' ? 'pull' : c.changeType;
+    const badgeLabel =
+      c.changeType === 'add' ? 'push' : c.changeType === 'pull' ? 'pull' : c.changeType;
     if (c.changeType === 'add') {
       arrow = `— → ${c.targetSprint}`;
     } else if (c.changeType === 'change') {
@@ -380,14 +398,14 @@ export function toggleSprintPushFilter(type) {
 
 function _applySprintPushFilters() {
   const items = document.querySelectorAll('.sprint-push-item');
-  items.forEach(item => {
+  items.forEach((item) => {
     const type = item.dataset.type;
     item.style.display = _sprintPushFilters[type] ? '' : 'none';
   });
 }
 
 export function sprintPushSelectAll(checked) {
-  document.querySelectorAll('.sprint-push-item').forEach(item => {
+  document.querySelectorAll('.sprint-push-item').forEach((item) => {
     if (item.style.display === 'none') return; // skip hidden
     const cb = item.querySelector('input[type="checkbox"]');
     if (cb) cb.checked = checked;
@@ -397,7 +415,7 @@ export function sprintPushSelectAll(checked) {
 
 export function _sprintPushUpdateCount() {
   const all = document.querySelectorAll('.sprint-push-item input[type="checkbox"]');
-  const checked = [...all].filter(cb => cb.checked).length;
+  const checked = [...all].filter((cb) => cb.checked).length;
   const btn = document.getElementById('sprint-push-confirm');
   btn.textContent = `Sync Changes (${checked}/${all.length})`;
   btn.disabled = checked === 0;
@@ -411,7 +429,7 @@ export async function confirmSprintPush() {
   btn.disabled = true;
   btn.textContent = 'Syncing…';
 
-  const items = [...checkboxes].map(cb => ({
+  const items = [...checkboxes].map((cb) => ({
     filename: cb.dataset.filename,
     sprint: cb.dataset.targetSprint,
     changeType: cb.dataset.changeType,
@@ -421,11 +439,11 @@ export async function confirmSprintPush() {
 
   try {
     const res = await postJSON('/api/jira/push-sprints', { items });
-    const ok = (res.results || []).filter(r => r.status === 'ok').length;
-    const skipped = (res.results || []).filter(r => r.status === 'skipped').length;
-    const errors = (res.results || []).filter(r => r.status === 'error').length;
-    const pushed = items.filter(i => i.changeType === 'add' || i.changeType === 'change').length;
-    const pulled = items.filter(i => i.changeType === 'pull').length;
+    const ok = (res.results || []).filter((r) => r.status === 'ok').length;
+    const skipped = (res.results || []).filter((r) => r.status === 'skipped').length;
+    const errors = (res.results || []).filter((r) => r.status === 'error').length;
+    const pushed = items.filter((i) => i.changeType === 'add' || i.changeType === 'change').length;
+    const pulled = items.filter((i) => i.changeType === 'pull').length;
     let msg = `Sprint sync: ${ok} updated`;
     if (pushed) msg += ` (${pushed} pushed)`;
     if (pulled) msg += ` (${pulled} pulled)`;
@@ -448,7 +466,7 @@ export function getAllSprints() {
   const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
   for (const pi of pis) {
     if (!_roadmapVisiblePis.has(pi)) continue; // skip unchecked PIs
-    for (const s of (sprintConfig[pi] || [])) {
+    for (const s of sprintConfig[pi] || []) {
       if (!seen.has(s.name)) {
         seen.add(s.name);
         all.push(s);
@@ -460,27 +478,30 @@ export function getAllSprints() {
 
 // ── Dependency modal ─────────────────────────────────────────
 let _depModalFilename = null;
-let _depModalDocType  = null;
+let _depModalDocType = null;
 
 export async function openDepModal(filename, docType) {
   _depModalFilename = filename;
-  _depModalDocType  = docType;
+  _depModalDocType = docType;
 
-  const doc = allDocs.find(d => d.filename === filename);
+  const doc = allDocs.find((d) => d.filename === filename);
   document.getElementById('dep-modal-subtitle').textContent = doc?.title || filename;
 
   // Reset state
-  document.getElementById('dep-blocks-list').innerHTML   = '<div class="dep-loading">Loading…</div>';
+  document.getElementById('dep-blocks-list').innerHTML = '<div class="dep-loading">Loading…</div>';
   document.getElementById('dep-blockedby-list').innerHTML = '';
 
   document.getElementById('dep-overlay').classList.add('show');
 
   try {
-    const data = await fetch(`/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`).then(r => r.json());
+    const data = await fetch(
+      `/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`
+    ).then((r) => r.json());
     renderDepLists(data);
     populateDepTargetSelect(filename, data);
   } catch (e) {
-    document.getElementById('dep-blocks-list').innerHTML = `<div class="dep-error">${escHtml(e.message)}</div>`;
+    document.getElementById('dep-blocks-list').innerHTML =
+      `<div class="dep-error">${escHtml(e.message)}</div>`;
   }
 }
 
@@ -495,50 +516,60 @@ function renderDepLists(data) {
       </div>`;
   }
 
-  const blocksList    = document.getElementById('dep-blocks-list');
+  const blocksList = document.getElementById('dep-blocks-list');
   const blockedByList = document.getElementById('dep-blockedby-list');
 
   blocksList.innerHTML = (data.blocks || []).length
-    ? (data.blocks || []).map(item => depItemHtml(item, 'blocks')).join('')
+    ? (data.blocks || []).map((item) => depItemHtml(item, 'blocks')).join('')
     : '<div class="dep-empty">None</div>';
 
   blockedByList.innerHTML = (data.blockedBy || []).length
-    ? (data.blockedBy || []).map(item => depItemHtml(item, 'blockedBy')).join('')
+    ? (data.blockedBy || []).map((item) => depItemHtml(item, 'blockedBy')).join('')
     : '<div class="dep-empty">None</div>';
 
   const parallelList = document.getElementById('dep-parallel-list');
   if (parallelList) {
     parallelList.innerHTML = (data.parallel || []).length
-      ? (data.parallel || []).map(item => depItemHtml(item, 'parallel')).join('')
+      ? (data.parallel || []).map((item) => depItemHtml(item, 'parallel')).join('')
       : '<div class="dep-empty">None</div>';
   }
 }
 
 function populateDepTargetSelect(excludeFilename, currentData) {
   const leafTypes = new Set(['story', 'spike', 'bug']);
-  const alreadyBlocks   = new Set((currentData.blocks   || []).map(b => b.filename));
-  const alreadyParallel = new Set((currentData.parallel || []).map(p => p.filename));
+  const alreadyBlocks = new Set((currentData.blocks || []).map((b) => b.filename));
+  const alreadyParallel = new Set((currentData.parallel || []).map((p) => p.filename));
   alreadyBlocks.add(excludeFilename);
   alreadyParallel.add(excludeFilename);
 
   const allCandidates = allDocs
-    .filter(d => leafTypes.has(d.docType))
+    .filter((d) => leafTypes.has(d.docType))
     .sort((a, b) => (a.title || a.filename).localeCompare(b.title || b.filename));
 
-  const blockCandidates    = allCandidates.filter(d => !alreadyBlocks.has(d.filename));
-  const parallelCandidates = allCandidates.filter(d => !alreadyParallel.has(d.filename));
+  const blockCandidates = allCandidates.filter((d) => !alreadyBlocks.has(d.filename));
+  const parallelCandidates = allCandidates.filter((d) => !alreadyParallel.has(d.filename));
 
   const select = document.getElementById('dep-target-select');
   if (select) {
     select.innerHTML = blockCandidates.length
-      ? blockCandidates.map(d => `<option value="${escHtml(d.filename)}" data-doctype="${d.docType}">${escHtml(d.title || d.filename)}</option>`).join('')
+      ? blockCandidates
+          .map(
+            (d) =>
+              `<option value="${escHtml(d.filename)}" data-doctype="${d.docType}">${escHtml(d.title || d.filename)}</option>`
+          )
+          .join('')
       : '<option value="" disabled>No candidates</option>';
   }
 
   const parallelSelect = document.getElementById('dep-parallel-select');
   if (parallelSelect) {
     parallelSelect.innerHTML = parallelCandidates.length
-      ? parallelCandidates.map(d => `<option value="${escHtml(d.filename)}" data-doctype="${d.docType}">${escHtml(d.title || d.filename)}</option>`).join('')
+      ? parallelCandidates
+          .map(
+            (d) =>
+              `<option value="${escHtml(d.filename)}" data-doctype="${d.docType}">${escHtml(d.title || d.filename)}</option>`
+          )
+          .join('')
       : '<option value="" disabled>No candidates</option>';
   }
 }
@@ -547,25 +578,37 @@ export async function addDepLink() {
   const select = document.getElementById('dep-target-select');
   const targetFilename = select.value;
   if (!targetFilename) return;
-  const targetDocType  = select.selectedOptions[0]?.dataset.doctype || 'story';
+  const targetDocType = select.selectedOptions[0]?.dataset.doctype || 'story';
 
   try {
     await postJSON('/api/link', {
       linkType: 'blocks',
-      sourceType: _depModalDocType, sourceFilename: _depModalFilename,
-      targetType: targetDocType,    targetFilename,
+      sourceType: _depModalDocType,
+      sourceFilename: _depModalFilename,
+      targetType: targetDocType,
+      targetFilename,
     });
     // Refresh modal
-    const data = await fetch(`/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`).then(r => r.json());
+    const data = await fetch(
+      `/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`
+    ).then((r) => r.json());
     renderDepLists(data);
     populateDepTargetSelect(_depModalFilename, data);
     // Update allDocs entry
-    const srcDoc = allDocs.find(d => d.filename === _depModalFilename);
-    if (srcDoc) { srcDoc.blocks = srcDoc.blocks || []; if (!srcDoc.blocks.includes(targetFilename)) srcDoc.blocks.push(targetFilename); }
-    const tgtDoc = allDocs.find(d => d.filename === targetFilename);
-    if (tgtDoc) { tgtDoc.blockedBy = tgtDoc.blockedBy || []; if (!tgtDoc.blockedBy.includes(_depModalFilename)) tgtDoc.blockedBy.push(_depModalFilename); }
+    const srcDoc = allDocs.find((d) => d.filename === _depModalFilename);
+    if (srcDoc) {
+      srcDoc.blocks = srcDoc.blocks || [];
+      if (!srcDoc.blocks.includes(targetFilename)) srcDoc.blocks.push(targetFilename);
+    }
+    const tgtDoc = allDocs.find((d) => d.filename === targetFilename);
+    if (tgtDoc) {
+      tgtDoc.blockedBy = tgtDoc.blockedBy || [];
+      if (!tgtDoc.blockedBy.includes(_depModalFilename)) tgtDoc.blockedBy.push(_depModalFilename);
+    }
     renderRoadmapBoard();
-  } catch (e) { showJiraToast('error', e.message); }
+  } catch (e) {
+    showJiraToast('error', e.message);
+  }
 }
 
 export async function addParallelLink() {
@@ -578,81 +621,109 @@ export async function addParallelLink() {
   try {
     await postJSON('/api/link', {
       linkType: 'parallel',
-      sourceType: _depModalDocType, sourceFilename: _depModalFilename,
-      targetType: targetDocType,    targetFilename,
+      sourceType: _depModalDocType,
+      sourceFilename: _depModalFilename,
+      targetType: targetDocType,
+      targetFilename,
     });
-    const data = await fetch(`/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`).then(r => r.json());
+    const data = await fetch(
+      `/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`
+    ).then((r) => r.json());
     renderDepLists(data);
     populateDepTargetSelect(_depModalFilename, data);
     renderRoadmapBoard();
-  } catch (e) { showJiraToast('error', e.message); }
+  } catch (e) {
+    showJiraToast('error', e.message);
+  }
 }
 
 export async function removeDepLink(targetFilename, targetDocType, direction) {
   try {
     let srcFilename, srcDocType, tgtFilename, tgtDocType, linkType;
     if (direction === 'parallel') {
-      linkType    = 'parallel';
-      srcFilename = _depModalFilename; srcDocType = _depModalDocType;
-      tgtFilename = targetFilename;    tgtDocType = targetDocType;
+      linkType = 'parallel';
+      srcFilename = _depModalFilename;
+      srcDocType = _depModalDocType;
+      tgtFilename = targetFilename;
+      tgtDocType = targetDocType;
     } else if (direction === 'blocks') {
-      linkType    = 'blocks';
-      srcFilename = _depModalFilename; srcDocType = _depModalDocType;
-      tgtFilename = targetFilename;    tgtDocType = targetDocType;
+      linkType = 'blocks';
+      srcFilename = _depModalFilename;
+      srcDocType = _depModalDocType;
+      tgtFilename = targetFilename;
+      tgtDocType = targetDocType;
     } else {
-      linkType    = 'blocks';
-      srcFilename = targetFilename;    srcDocType = targetDocType;
-      tgtFilename = _depModalFilename; tgtDocType = _depModalDocType;
+      linkType = 'blocks';
+      srcFilename = targetFilename;
+      srcDocType = targetDocType;
+      tgtFilename = _depModalFilename;
+      tgtDocType = _depModalDocType;
     }
     await fetch('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linkType, sourceType: srcDocType, sourceFilename: srcFilename, targetType: tgtDocType, targetFilename: tgtFilename }),
+      body: JSON.stringify({
+        linkType,
+        sourceType: srcDocType,
+        sourceFilename: srcFilename,
+        targetType: tgtDocType,
+        targetFilename: tgtFilename,
+      }),
     });
     // Refresh modal
-    const data = await fetch(`/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`).then(r => r.json());
+    const data = await fetch(
+      `/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`
+    ).then((r) => r.json());
     renderDepLists(data);
     populateDepTargetSelect(_depModalFilename, data);
     // Update allDocs entries
-    const srcDoc = allDocs.find(d => d.filename === srcFilename);
-    if (srcDoc) srcDoc.blocks = (srcDoc.blocks || []).filter(f => f !== tgtFilename);
-    const tgtDoc = allDocs.find(d => d.filename === tgtFilename);
-    if (tgtDoc) tgtDoc.blockedBy = (tgtDoc.blockedBy || []).filter(f => f !== srcFilename);
+    const srcDoc = allDocs.find((d) => d.filename === srcFilename);
+    if (srcDoc) srcDoc.blocks = (srcDoc.blocks || []).filter((f) => f !== tgtFilename);
+    const tgtDoc = allDocs.find((d) => d.filename === tgtFilename);
+    if (tgtDoc) tgtDoc.blockedBy = (tgtDoc.blockedBy || []).filter((f) => f !== srcFilename);
     renderRoadmapBoard();
-  } catch (e) { showJiraToast('error', e.message); }
+  } catch (e) {
+    showJiraToast('error', e.message);
+  }
 }
 
 export function closeDepModal() {
   document.getElementById('dep-overlay').classList.remove('show');
   _depModalFilename = null;
-  _depModalDocType  = null;
+  _depModalDocType = null;
 }
 
 // ── Split modal (kept from old roadmap) ──────────────────────
 let _splitModalFilename = null;
-let _splitModalDocType  = null;
-let _splitModalSprint1  = null;
-let _splitModalSprint2  = null;
+let _splitModalDocType = null;
+let _splitModalSprint1 = null;
+let _splitModalSprint2 = null;
 
 export function openSplitModal(filename, docType, sprint1, sprint2) {
   _splitModalFilename = filename;
-  _splitModalDocType  = docType;
-  _splitModalSprint1  = sprint1 || null;
-  _splitModalSprint2  = sprint2 || null;
+  _splitModalDocType = docType;
+  _splitModalSprint1 = sprint1 || null;
+  _splitModalSprint2 = sprint2 || null;
 
-  const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
-  const sp  = Number(doc?.storyPoints) || 0;
+  const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
+  const sp = Number(doc?.storyPoints) || 0;
   const sprints = getAllSprints();
 
-  const sprintOptions = sprints.map(s =>
-    `<option value="${escHtml(s.name)}">${escHtml(s.name)}</option>`
-  ).join('');
+  const sprintOptions = sprints
+    .map((s) => `<option value="${escHtml(s.name)}">${escHtml(s.name)}</option>`)
+    .join('');
 
-  const sel1 = sprint1 ? `<option value="${escHtml(sprint1)}" selected>${escHtml(sprint1)}</option>${sprintOptions}` : sprintOptions;
-  const sel2 = sprint2 ? `<option value="${escHtml(sprint2)}" selected>${escHtml(sprint2)}</option>${sprintOptions}` : sprintOptions;
+  const sel1 = sprint1
+    ? `<option value="${escHtml(sprint1)}" selected>${escHtml(sprint1)}</option>${sprintOptions}`
+    : sprintOptions;
+  const sel2 = sprint2
+    ? `<option value="${escHtml(sprint2)}" selected>${escHtml(sprint2)}</option>${sprintOptions}`
+    : sprintOptions;
 
   document.getElementById('split-modal-title').textContent = doc?.title || filename;
-  document.getElementById('split-modal-sp').textContent = sp ? `${sp} SP → ~${Math.round(sp / 2)} SP each` : 'No SP estimate';
+  document.getElementById('split-modal-sp').textContent = sp
+    ? `${sp} SP → ~${Math.round(sp / 2)} SP each`
+    : 'No SP estimate';
   document.getElementById('split-sprint-1').innerHTML = sel1;
   document.getElementById('split-sprint-2').innerHTML = sel2;
   document.getElementById('split-modal-output').innerHTML = '';
@@ -668,7 +739,7 @@ export function openSplitModal(filename, docType, sprint1, sprint2) {
 export function closeSplitModal() {
   document.getElementById('split-overlay').classList.remove('show');
   _splitModalFilename = null;
-  _splitModalDocType  = null;
+  _splitModalDocType = null;
 }
 
 export async function executeSplit() {
@@ -676,31 +747,31 @@ export async function executeSplit() {
 
   const sprint1 = document.getElementById('split-sprint-1').value;
   const sprint2 = document.getElementById('split-sprint-2').value;
-  const btn     = document.getElementById('split-apply-btn');
-  const output  = document.getElementById('split-modal-output');
-  const status  = document.getElementById('split-modal-status');
+  const btn = document.getElementById('split-apply-btn');
+  const output = document.getElementById('split-modal-output');
+  const status = document.getElementById('split-modal-status');
 
-  btn.disabled    = true;
+  btn.disabled = true;
   btn.textContent = 'Splitting…';
   output.textContent = '';
-  status.className   = 'split-modal-status';
+  status.className = 'split-modal-status';
 
   try {
     const res = await fetch('/api/docs/split-story', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        filename:    _splitModalFilename,
-        docType:     _splitModalDocType,
+      body: JSON.stringify({
+        filename: _splitModalFilename,
+        docType: _splitModalDocType,
         targetCount: 2,
-        sprints:     [sprint1, sprint2].filter(Boolean),
+        sprints: [sprint1, sprint2].filter(Boolean),
       }),
     });
 
-    const reader  = res.body.getReader();
+    const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let done   = false;
+    let done = false;
     let result = null;
 
     while (!done) {
@@ -714,8 +785,11 @@ export async function executeSplit() {
         try {
           const payload = JSON.parse(line.slice(6));
           if (payload.error) throw new Error(payload.error.message || 'Split failed');
-          if (payload.text)  output.textContent += payload.text;
-          if (payload.done) { result = payload; done = true; }
+          if (payload.text) output.textContent += payload.text;
+          if (payload.done) {
+            result = payload;
+            done = true;
+          }
         } catch (parseErr) {
           if (parseErr.message !== 'Split failed') continue;
           throw parseErr;
@@ -724,16 +798,16 @@ export async function executeSplit() {
     }
 
     if (result) {
-      status.className   = 'split-modal-status show success';
+      status.className = 'split-modal-status show success';
       status.textContent = `Created ${result.files.length} stories. Original deleted.`;
-      btn.textContent    = 'Done';
+      btn.textContent = 'Done';
       setTimeout(() => closeSplitModal(), 2000);
     }
   } catch (err) {
-    status.className   = 'split-modal-status show error';
+    status.className = 'split-modal-status show error';
     status.textContent = err.message || 'Split failed';
-    btn.disabled       = false;
-    btn.textContent    = 'Retry';
+    btn.disabled = false;
+    btn.textContent = 'Retry';
   }
 }
 
@@ -764,7 +838,7 @@ function _showRoadmapCtx(x, y, html) {
   if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
   if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
   menu.style.left = x + 'px';
-  menu.style.top  = y + 'px';
+  menu.style.top = y + 'px';
 
   setTimeout(() => {
     document.addEventListener('mousedown', _rmCtxDismiss);
@@ -777,7 +851,7 @@ export function handleEpicContextMenu(e, filename, docType) {
   e.preventDefault();
   e.stopPropagation();
 
-  const doc = allDocs.find(d => d.filename === filename);
+  const doc = allDocs.find((d) => d.filename === filename);
   const title = doc?.title || filename;
   const shortTitle = title.length > 40 ? title.substring(0, 37) + '…' : title;
 
@@ -805,14 +879,14 @@ export async function rmCtxMoveEpic(filename, docType, direction) {
 
   // Get the visible epic cards in current order (respects search filter)
   const cards = [...document.querySelectorAll('.rm-epic-card:not([style*="display: none"])')];
-  const filenames = cards.map(c => c.dataset.filename).filter(Boolean);
+  const filenames = cards.map((c) => c.dataset.filename).filter(Boolean);
   const idx = filenames.indexOf(filename);
   if (idx < 0) return;
 
   // Build the full ordered list of this docType for rerank
-  const group = allDocs.filter(d => d.docType === docType);
+  const group = allDocs.filter((d) => d.docType === docType);
   const sorted = [...group].sort(_rankSortFn);
-  const srcIdx = sorted.findIndex(d => d.filename === filename);
+  const srcIdx = sorted.findIndex((d) => d.filename === filename);
   if (srcIdx < 0) return;
 
   const [item] = sorted.splice(srcIdx, 1);
@@ -822,29 +896,32 @@ export async function rmCtxMoveEpic(filename, docType, direction) {
     // Move before the previous visible item in the full sorted list
     const prevFn = filenames[idx - 1];
     if (!prevFn) return;
-    targetIdx = sorted.findIndex(d => d.filename === prevFn);
+    targetIdx = sorted.findIndex((d) => d.filename === prevFn);
     if (targetIdx < 0) return;
   } else if (direction === 'down') {
     const nextFn = filenames[idx + 1];
     if (!nextFn) return;
-    targetIdx = sorted.findIndex(d => d.filename === nextFn) + 1;
+    targetIdx = sorted.findIndex((d) => d.filename === nextFn) + 1;
     if (targetIdx <= 0) return;
   } else if (direction === 'top') {
     // Move to the top position — before the first visible item
     const firstFn = filenames[0];
-    targetIdx = firstFn ? sorted.findIndex(d => d.filename === firstFn) : 0;
+    targetIdx = firstFn ? sorted.findIndex((d) => d.filename === firstFn) : 0;
     if (targetIdx < 0) targetIdx = 0;
   } else {
     // bottom — after the last visible item
     const lastFn = filenames[filenames.length - 1];
-    targetIdx = lastFn ? sorted.findIndex(d => d.filename === lastFn) + 1 : sorted.length;
+    targetIdx = lastFn ? sorted.findIndex((d) => d.filename === lastFn) + 1 : sorted.length;
     if (targetIdx < 0) targetIdx = sorted.length;
   }
 
   sorted.splice(targetIdx, 0, item);
 
   try {
-    await postJSON('/api/docs/rerank', { type: docType, orderedFilenames: sorted.map(d => d.filename) });
+    await postJSON('/api/docs/rerank', {
+      type: docType,
+      orderedFilenames: sorted.map((d) => d.filename),
+    });
     await loadDocs();
     refreshRoadmapView();
   } catch (e) {
@@ -859,7 +936,7 @@ function _buildSprintSubmenu(filename, docType) {
   let items = '';
 
   for (const pi of pis) {
-    for (const s of (sprintConfig[pi] || [])) {
+    for (const s of sprintConfig[pi] || []) {
       if (seen.has(s.name)) continue;
       seen.add(s.name);
       items += `<button class="ctx-item" onclick="rmCtxSetSprint('${escHtml(filename)}','${escHtml(docType)}','${escHtml(s.name)}')">${escHtml(s.name)}</button>`;
@@ -883,7 +960,7 @@ export function handleStoryContextMenu(e, filename, docType) {
   e.preventDefault();
   e.stopPropagation();
 
-  const doc = allDocs.find(d => d.filename === filename);
+  const doc = allDocs.find((d) => d.filename === filename);
   const title = doc?.title || filename;
   const shortTitle = title.length > 40 ? title.substring(0, 37) + '…' : title;
 
@@ -911,14 +988,14 @@ export async function rmCtxMoveStory(filename, docType, direction) {
 
   // Get the ordered filenames in this column
   const cards = [...column.querySelectorAll('.roadmap-card')];
-  const filenames = cards.map(c => c.dataset.filename);
+  const filenames = cards.map((c) => c.dataset.filename);
   const idx = filenames.indexOf(filename);
   if (idx < 0) return;
 
   // Build the full sorted list for this docType
-  const group = allDocs.filter(d => d.docType === docType);
+  const group = allDocs.filter((d) => d.docType === docType);
   const sorted = [...group].sort(_rankSortFn);
-  const srcIdx = sorted.findIndex(d => d.filename === filename);
+  const srcIdx = sorted.findIndex((d) => d.filename === filename);
   if (srcIdx < 0) return;
 
   const [item] = sorted.splice(srcIdx, 1);
@@ -927,27 +1004,30 @@ export async function rmCtxMoveStory(filename, docType, direction) {
   if (direction === 'up') {
     const prevFn = filenames[idx - 1];
     if (!prevFn) return;
-    targetIdx = sorted.findIndex(d => d.filename === prevFn);
+    targetIdx = sorted.findIndex((d) => d.filename === prevFn);
     if (targetIdx < 0) return;
   } else if (direction === 'down') {
     const nextFn = filenames[idx + 1];
     if (!nextFn) return;
-    targetIdx = sorted.findIndex(d => d.filename === nextFn) + 1;
+    targetIdx = sorted.findIndex((d) => d.filename === nextFn) + 1;
     if (targetIdx <= 0) return;
   } else if (direction === 'top') {
     const firstFn = filenames[0];
-    targetIdx = firstFn ? sorted.findIndex(d => d.filename === firstFn) : 0;
+    targetIdx = firstFn ? sorted.findIndex((d) => d.filename === firstFn) : 0;
     if (targetIdx < 0) targetIdx = 0;
   } else {
     const lastFn = filenames[filenames.length - 1];
-    targetIdx = lastFn ? sorted.findIndex(d => d.filename === lastFn) + 1 : sorted.length;
+    targetIdx = lastFn ? sorted.findIndex((d) => d.filename === lastFn) + 1 : sorted.length;
     if (targetIdx < 0) targetIdx = sorted.length;
   }
 
   sorted.splice(targetIdx, 0, item);
 
   try {
-    await postJSON('/api/docs/rerank', { type: docType, orderedFilenames: sorted.map(d => d.filename) });
+    await postJSON('/api/docs/rerank', {
+      type: docType,
+      orderedFilenames: sorted.map((d) => d.filename),
+    });
     await loadDocs();
     refreshRoadmapView();
   } catch (e) {
@@ -960,8 +1040,10 @@ export async function rmCtxSetSprint(filename, docType, sprintName) {
   _closeRoadmapCtx();
 
   try {
-    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, { sprint: sprintName || null });
-    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, {
+      sprint: sprintName || null,
+    });
+    const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     if (doc) doc.sprint = sprintName || null;
     renderRoadmapBoard();
     showJiraToast('success', sprintName ? `Moved to ${sprintName}` : 'Removed from sprint');

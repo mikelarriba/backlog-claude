@@ -18,7 +18,7 @@ class Semaphore {
       return Promise.resolve();
     }
     logDebug('semaphore', `AI call queued (queue depth: ${this.pending.length + 1})`);
-    return new Promise(resolve => this.pending.push(resolve));
+    return new Promise((resolve) => this.pending.push(resolve));
   }
 
   release(): void {
@@ -30,16 +30,23 @@ class Semaphore {
     }
   }
 
-  get queueDepth(): number { return this.pending.length; }
+  get queueDepth(): number {
+    return this.pending.length;
+  }
 }
 
 const _concurrency = parseInt(process.env.CLAUDE_CONCURRENCY || '3', 10);
-const _semaphore = new Semaphore(Number.isFinite(_concurrency) && _concurrency > 0 ? _concurrency : 3);
+const _semaphore = new Semaphore(
+  Number.isFinite(_concurrency) && _concurrency > 0 ? _concurrency : 3
+);
 
 export function loadCommand(rootDir: string, name: string): string | null {
   const commandPath = path.join(rootDir, '.claude', 'commands', `${name}.md`);
   if (!fs.existsSync(commandPath)) return null;
-  return fs.readFileSync(commandPath, 'utf-8').replace(/^---[\s\S]*?---\n?/, '').trim();
+  return fs
+    .readFileSync(commandPath, 'utf-8')
+    .replace(/^---[\s\S]*?---\n?/, '')
+    .trim();
 }
 
 const MOCK_RESPONSE = `---
@@ -99,7 +106,8 @@ function _getOllamaBaseUrl(): string {
 
 const OLLAMA_CACHE_TTL_MS = 30_000;
 let _ollamaHealthCache: { result: boolean; expiresAt: number } | null = null;
-let _ollamaModelsCache: { result: Array<{ id: string; name: string }>; expiresAt: number } | null = null;
+let _ollamaModelsCache: { result: Array<{ id: string; name: string }>; expiresAt: number } | null =
+  null;
 
 async function _checkOllamaHealth(): Promise<boolean> {
   const now = Date.now();
@@ -136,7 +144,7 @@ async function _fetchOllamaModels(): Promise<Array<{ id: string; name: string }>
       _ollamaModelsCache = { result: [], expiresAt: now + OLLAMA_CACHE_TTL_MS };
       return [];
     }
-    const json = await res.json() as any;
+    const json = (await res.json()) as any;
     const models = (json?.models || []).map((m: any) => ({ id: m.name, name: m.name }));
     _ollamaModelsCache = { result: models, expiresAt: now + OLLAMA_CACHE_TTL_MS };
     return models;
@@ -156,8 +164,14 @@ export function _resetOllamaCache(): void {
  * Always includes 'claude-cli'. Adds 'github-models' when GITHUB_MODELS_TOKEN is set.
  * Adds 'ollama' when a local Ollama instance is reachable (health-checked with 2s timeout).
  */
-export async function getAvailableProviders(): Promise<Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }>> {
-  const providers: Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }> = [
+export async function getAvailableProviders(): Promise<
+  Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }>
+> {
+  const providers: Array<{
+    id: string;
+    name: string;
+    models: Array<{ id: string; name: string }>;
+  }> = [
     {
       id: 'claude-cli',
       name: 'Claude (Anthropic)',
@@ -219,13 +233,21 @@ export function normalizeOutput(content: string): string {
 }
 
 // Error patterns that indicate a user-content problem — do not retry these.
-const NO_RETRY_PATTERNS = [/invalid api key/i, /permission denied/i, /content policy/i, /context length/i];
+const NO_RETRY_PATTERNS = [
+  /invalid api key/i,
+  /permission denied/i,
+  /content policy/i,
+  /context length/i,
+];
 
 function _spawnClaude(rootDir: string, prompt: string, timeoutMs: number): Promise<string> {
   return new Promise((resolve, reject) => {
     let out = '';
     let err = '';
-    const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn('claude', buildClaudeArgs(prompt), {
+      cwd: rootDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     const timer = setTimeout(() => {
       proc.kill();
       reject(Object.assign(new Error('Claude subprocess timed out'), { isTimeout: true }));
@@ -247,7 +269,7 @@ async function _callOpenAICompatible(
   model: string,
   prompt: string,
   extraHeaders: Record<string, string>,
-  timeoutMs: number,
+  timeoutMs: number
 ): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -269,7 +291,7 @@ async function _callOpenAICompatible(
     throw new Error(`OpenAI-compatible API error ${res.status}: ${errText}`);
   }
 
-  const json = await res.json() as any;
+  const json = (await res.json()) as any;
   const content = json?.choices?.[0]?.message?.content ?? '';
   return normalizeOutput(content);
 }
@@ -280,7 +302,7 @@ async function _streamOpenAICompatible(
   prompt: string,
   extraHeaders: Record<string, string>,
   onChunk: (chunk: string) => void,
-  timeoutMs: number,
+  timeoutMs: number
 ): Promise<void> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -324,7 +346,9 @@ async function _streamOpenAICompatible(
           const parsed = JSON.parse(data);
           const delta = parsed?.choices?.[0]?.delta?.content;
           if (delta) onChunk(delta);
-        } catch {}
+        } catch {
+          /* malformed SSE chunk — skip */
+        }
       }
     }
   } finally {
@@ -341,11 +365,14 @@ async function _callGitHubModels(prompt: string): Promise<string> {
     _modelOverride || 'openai/gpt-4o',
     prompt,
     { Authorization: `Bearer ${token}` },
-    CALL_TIMEOUT_MS,
+    CALL_TIMEOUT_MS
   );
 }
 
-async function _streamGitHubModels(prompt: string, onChunk: (chunk: string) => void): Promise<void> {
+async function _streamGitHubModels(
+  prompt: string,
+  onChunk: (chunk: string) => void
+): Promise<void> {
   const token = process.env.GITHUB_MODELS_TOKEN;
   if (!token) throw new Error('GITHUB_MODELS_TOKEN is not set');
   return _streamOpenAICompatible(
@@ -354,7 +381,7 @@ async function _streamGitHubModels(prompt: string, onChunk: (chunk: string) => v
     prompt,
     { Authorization: `Bearer ${token}` },
     onChunk,
-    STREAM_TIMEOUT_MS,
+    STREAM_TIMEOUT_MS
   );
 }
 
@@ -368,7 +395,7 @@ async function _callOllama(prompt: string): Promise<string> {
     _modelOverride || _ollamaDefaultModel(),
     prompt,
     {},
-    CALL_TIMEOUT_MS,
+    CALL_TIMEOUT_MS
   );
 }
 
@@ -379,7 +406,7 @@ async function _streamOllama(prompt: string, onChunk: (chunk: string) => void): 
     prompt,
     {},
     onChunk,
-    STREAM_TIMEOUT_MS,
+    STREAM_TIMEOUT_MS
   );
 }
 
@@ -388,14 +415,18 @@ async function _streamOllama(prompt: string, onChunk: (chunk: string) => void): 
  * based on the current provider override. Retries up to `maxAttempts` times with
  * exponential back-off (2s, 4s, 8s). User-content errors are not retried.
  */
-export async function callClaude(rootDir: string, prompt: string, { maxAttempts = 3 } = {}): Promise<string> {
+export async function callClaude(
+  rootDir: string,
+  prompt: string,
+  { maxAttempts = 3 } = {}
+): Promise<string> {
   if (process.env.MOCK_CLAUDE) return Promise.resolve(MOCK_RESPONSE);
 
   const t = Date.now();
   await _semaphore.acquire();
   try {
     const provider = _providerOverride || 'claude-cli';
-    const model    = _modelOverride    || '(default)';
+    const model = _modelOverride || '(default)';
     let lastErr: any;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -411,9 +442,10 @@ export async function callClaude(rootDir: string, prompt: string, { maxAttempts 
         return result;
       } catch (err: any) {
         lastErr = err;
-        const isUserError = !err.isTimeout && NO_RETRY_PATTERNS.some((p: RegExp) => p.test(err.message));
+        const isUserError =
+          !err.isTimeout && NO_RETRY_PATTERNS.some((p: RegExp) => p.test(err.message));
         if (isUserError || attempt === maxAttempts) break;
-        await new Promise(r => setTimeout(r, 2 ** attempt * 1000));
+        await new Promise((r) => setTimeout(r, 2 ** attempt * 1000));
       }
     }
     throw lastErr;
@@ -426,7 +458,11 @@ export async function callClaude(rootDir: string, prompt: string, { maxAttempts 
  * Invoke the AI provider in streaming mode. Dispatches to GitHub Models (SSE) or
  * Claude CLI based on the current provider override. Each chunk is forwarded to `onChunk`.
  */
-export async function streamClaude(rootDir: string, prompt: string, onChunk: (chunk: string) => void): Promise<void> {
+export async function streamClaude(
+  rootDir: string,
+  prompt: string,
+  onChunk: (chunk: string) => void
+): Promise<void> {
   if (process.env.MOCK_CLAUDE) {
     onChunk(MOCK_RESPONSE);
     return;
@@ -436,7 +472,7 @@ export async function streamClaude(rootDir: string, prompt: string, onChunk: (ch
   await _semaphore.acquire();
   try {
     const provider = _providerOverride || 'claude-cli';
-    const model    = _modelOverride    || '(default)';
+    const model = _modelOverride || '(default)';
     if (provider === 'github-models') {
       await _streamGitHubModels(prompt, onChunk);
     } else if (provider === 'ollama') {
@@ -444,7 +480,10 @@ export async function streamClaude(rootDir: string, prompt: string, onChunk: (ch
     } else {
       await new Promise<void>((resolve, reject) => {
         let err = '';
-        const proc = spawn('claude', buildClaudeArgs(prompt), { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] });
+        const proc = spawn('claude', buildClaudeArgs(prompt), {
+          cwd: rootDir,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
         const timer = setTimeout(() => {
           proc.kill();
           reject(new Error('Claude subprocess timed out after 5 min'));
@@ -453,7 +492,8 @@ export async function streamClaude(rootDir: string, prompt: string, onChunk: (ch
         proc.stderr!.on('data', (d: Buffer) => (err += d.toString()));
         proc.on('close', (code: number | null) => {
           clearTimeout(timer);
-          code === 0 ? resolve() : reject(new Error(err.trim() || `claude exited ${code}`));
+          if (code === 0) resolve();
+          else reject(new Error(err.trim() || `claude exited ${code}`));
         });
       });
     }

@@ -54,30 +54,27 @@ describe('assertBody', () => {
   });
 
   test('throws MISSING_FIELDS when a required field is absent', () => {
-    assert.throws(
-      () => assertBody({ title: 'Hello' }, ['title', 'type']),
-      { code: 'MISSING_FIELDS' },
-    );
+    assert.throws(() => assertBody({ title: 'Hello' }, ['title', 'type']), {
+      code: 'MISSING_FIELDS',
+    });
   });
 
   test('reports all missing fields at once', () => {
     let thrown;
-    try { assertBody({}, ['title', 'type', 'idea']); } catch (e) { thrown = e; }
+    try {
+      assertBody({}, ['title', 'type', 'idea']);
+    } catch (e) {
+      thrown = e;
+    }
     assert.deepEqual(thrown.details.missing, ['title', 'type', 'idea']);
   });
 
   test('treats null as missing', () => {
-    assert.throws(
-      () => assertBody({ title: null }, ['title']),
-      { code: 'MISSING_FIELDS' },
-    );
+    assert.throws(() => assertBody({ title: null }, ['title']), { code: 'MISSING_FIELDS' });
   });
 
   test('treats empty string as missing', () => {
-    assert.throws(
-      () => assertBody({ title: '' }, ['title']),
-      { code: 'MISSING_FIELDS' },
-    );
+    assert.throws(() => assertBody({ title: '' }, ['title']), { code: 'MISSING_FIELDS' });
   });
 
   test('accepts zero and false as valid values', () => {

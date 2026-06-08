@@ -2,57 +2,83 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { sendError, ensureDir, parseApiError, assertFilename, normalizeType } from '../utils/routeHelpers.js';
+import {
+  sendError,
+  ensureDir,
+  parseApiError,
+  assertFilename,
+  normalizeType,
+} from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraSearchRoutes({
-  TYPE_CONFIG, JIRA_PROJECT, JIRA_LABEL, FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
-  jiraRequest, jiraPagedRequest, findLocalFileByJiraId, jiraIssueToMarkdown,
-  broadcast, logError, docIndex,
+  TYPE_CONFIG,
+  JIRA_PROJECT,
+  JIRA_LABEL,
+  FIELD_EPIC_NAME,
+  FIELD_EPIC_LINK,
+  FIELD_STORY_POINTS,
+  jiraRequest,
+  jiraPagedRequest,
+  findLocalFileByJiraId,
+  jiraIssueToMarkdown,
+  broadcast,
+  logError,
+  docIndex,
 }: JiraRouteContext) {
   const router = Router();
 
   // ── GET /api/jira/search ───────────────────────────────────────────────────
   router.get('/api/jira/search', async (req, res) => {
     try {
-      if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+      if (!process.env.JIRA_API_TOKEN)
+        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
       const { type = 'all', text = '' } = req.query;
       if (type !== 'all' && !TYPE_CONFIG[normalizeType(type)]) {
-        return sendError(res, 400, 'INVALID_TYPE', 'Invalid JIRA filter type', { allowed: ['all', ...Object.keys(TYPE_CONFIG)], received: type });
+        return sendError(res, 400, 'INVALID_TYPE', 'Invalid JIRA filter type', {
+          allowed: ['all', ...Object.keys(TYPE_CONFIG)],
+          received: type,
+        });
       }
 
-      const typeClause = type === 'all'
-        ? `issuetype in ("New Feature", Epic, Story, Improvement, Task, Bug)`
-        : type === 'story'
-          ? `issuetype in ("Story", "Improvement")`
-          // @ts-ignore — Express query type is string at runtime, TS sees union with ParsedQs
-          : `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
+      const typeClause =
+        type === 'all'
+          ? `issuetype in ("New Feature", Epic, Story, Improvement, Task, Bug)`
+          : type === 'story'
+            ? `issuetype in ("Story", "Improvement")`
+            : // @ts-expect-error — Express query type is string at runtime, TS sees union with ParsedQs
+              `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
 
-      // @ts-ignore — Express query values are string | string[] | ParsedQs; text is always string here
+      // @ts-expect-error — Express query values are string | string[] | ParsedQs; text is always string here
       const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
       const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause} ORDER BY updated DESC`;
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
-      const rawIssues = (await jiraPagedRequest(jql, fields, { maxResults: 100, maxTotal: 500 })) as Record<string, any>[];
+      const rawIssues = (await jiraPagedRequest(jql, fields, {
+        maxResults: 100,
+        maxTotal: 500,
+      })) as Record<string, any>[];
 
-      const issues = await Promise.all(rawIssues.map(async (issue) => {
-        const iss = issue;
-        const existing = docIndex.findByJiraId(iss.key) || await findLocalFileByJiraId(iss.key);
-        return {
-          key:           iss.key,
-          summary:       iss.fields.summary || '',
-          epicName:      iss.fields[FIELD_EPIC_NAME] || '',
-          issuetype:     iss.fields.issuetype?.name || '',
-          status:        iss.fields.status?.name || '',
-          priority:      iss.fields.priority?.name || '',
-          localExists:   !!existing,
-          localFilename: existing?.filename || null,
-          localDocType:  existing?.docType  || null,
-        };
-      }));
+      const issues = await Promise.all(
+        rawIssues.map(async (issue) => {
+          const iss = issue;
+          const existing = docIndex.findByJiraId(iss.key) || (await findLocalFileByJiraId(iss.key));
+          return {
+            key: iss.key,
+            summary: iss.fields.summary || '',
+            epicName: iss.fields[FIELD_EPIC_NAME] || '',
+            issuetype: iss.fields.issuetype?.name || '',
+            status: iss.fields.status?.name || '',
+            priority: iss.fields.priority?.name || '',
+            localExists: !!existing,
+            localFilename: existing?.filename || null,
+            localDocType: existing?.docType || null,
+          };
+        })
+      );
 
       res.json({ issues, total: rawIssues.length });
     } catch (err) {
@@ -64,12 +90,15 @@ export default function jiraSearchRoutes({
 
   // ── GET /api/jira/versions ─────────────────────────────────────────────────
   router.get('/api/jira/versions', async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+    if (!process.env.JIRA_API_TOKEN)
+      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     try {
-      const data = (await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`) || []) as Array<Record<string, any>>;
+      const data = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) || []) as Array<
+        Record<string, any>
+      >;
       const versions = data.map((v: Record<string, any>) => ({
-        id:       v.id,
-        name:     v.name,
+        id: v.id,
+        name: v.name,
         released: !!v.released,
         archived: !!v.archived,
       }));
@@ -87,11 +116,15 @@ export default function jiraSearchRoutes({
 
   // ── GET /api/jira/children/:key ─────────────────────────────────────────────
   router.get('/api/jira/children/:key', async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+    if (!process.env.JIRA_API_TOKEN)
+      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
     try {
       const key = req.params.key;
-      const issue = (await jiraRequest('GET', `/issue/${key}?fields=issuetype,issuelinks,subtasks`)) as Record<string, any>;
+      const issue = (await jiraRequest(
+        'GET',
+        `/issue/${key}?fields=issuetype,issuelinks,subtasks`
+      )) as Record<string, any>;
       const issueType = issue.fields.issuetype?.name;
       const children: Array<Record<string, unknown>> = [];
       const seen = new Set();
@@ -99,15 +132,16 @@ export default function jiraSearchRoutes({
       async function addChild(child: Record<string, any>) {
         if (seen.has(child.key)) return;
         seen.add(child.key);
-        const existing = docIndex.findByJiraId(child.key) || await findLocalFileByJiraId(child.key);
+        const existing =
+          docIndex.findByJiraId(child.key) || (await findLocalFileByJiraId(child.key));
         children.push({
-          key:           child.key,
-          summary:       child.fields?.summary || '',
-          issuetype:     child.fields?.issuetype?.name || '',
-          status:        child.fields?.status?.name || '',
-          localExists:   !!existing,
+          key: child.key,
+          summary: child.fields?.summary || '',
+          issuetype: child.fields?.issuetype?.name || '',
+          status: child.fields?.status?.name || '',
+          localExists: !!existing,
           localFilename: existing?.filename || null,
-          localDocType:  existing?.docType  || null,
+          localDocType: existing?.docType || null,
         });
       }
 
@@ -115,17 +149,20 @@ export default function jiraSearchRoutes({
       if (issueType === 'Epic') {
         const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
         const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
-        const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', { maxResults: 100, maxTotal: 500 });
+        const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', {
+          maxResults: 100,
+          maxTotal: 500,
+        });
         for (const child of childIssues) await addChild(child as Record<string, any>);
       }
 
       // New Features / Epics: check issue links (inward = contained children)
-      for (const link of (issue.fields.issuelinks || [])) {
+      for (const link of issue.fields.issuelinks || []) {
         if (link.inwardIssue) await addChild(link.inwardIssue);
       }
 
       // Subtasks
-      for (const st of (issue.fields.subtasks || [])) await addChild(st);
+      for (const st of issue.fields.subtasks || []) await addChild(st);
 
       res.json({ parentKey: key, parentType: issueType, children });
     } catch (err) {
@@ -139,40 +176,61 @@ export default function jiraSearchRoutes({
   router.post('/api/jira/pull', async (req, res) => {
     try {
       const { keys = [], overwriteKeys = [], parentLink = null } = req.body;
-      if (!Array.isArray(keys)) return sendError(res, 400, 'VALIDATION_ERROR', 'keys must be an array');
+      if (!Array.isArray(keys))
+        return sendError(res, 400, 'VALIDATION_ERROR', 'keys must be an array');
       if (!keys.length) return sendError(res, 400, 'VALIDATION_ERROR', 'No keys provided');
 
       if (parentLink !== null && parentLink !== undefined) {
         if (parentLink.docType !== 'epic' && parentLink.docType !== 'feature') {
-          return sendError(res, 400, 'VALIDATION_ERROR', "parentLink.docType must be 'epic' or 'feature'");
+          return sendError(
+            res,
+            400,
+            'VALIDATION_ERROR',
+            "parentLink.docType must be 'epic' or 'feature'"
+          );
         }
         assertFilename(parentLink.filename);
       }
 
-      if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+      if (!process.env.JIRA_API_TOKEN)
+        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
       // Determine which frontmatter field links a child to its parent
-      const parentFieldName = parentLink?.docType === 'epic'    ? 'Epic_ID'
-                            : parentLink?.docType === 'feature' ? 'Feature_ID'
-                            : null;
+      const parentFieldName =
+        parentLink?.docType === 'epic'
+          ? 'Epic_ID'
+          : parentLink?.docType === 'feature'
+            ? 'Feature_ID'
+            : null;
 
-      const pulled    = [];
+      const pulled = [];
       const conflicts = [];
 
       for (const key of keys) {
-        const existing = docIndex.findByJiraId(key) || await findLocalFileByJiraId(key);
+        const existing = docIndex.findByJiraId(key) || (await findLocalFileByJiraId(key));
         if (existing && !overwriteKeys.includes(key)) {
-          conflicts.push({ key, existingFilename: existing.filename, existingDocType: existing.docType });
+          conflicts.push({
+            key,
+            existingFilename: existing.filename,
+            existingDocType: existing.docType,
+          });
           continue;
         }
 
-        const issue = (await jiraRequest('GET', `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`)) as Record<string, any>;
-        let { docType, content } = jiraIssueToMarkdown(issue);
+        const issue = (await jiraRequest(
+          'GET',
+          `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`
+        )) as Record<string, any>;
+        const { docType, content: initialContent } = jiraIssueToMarkdown(issue);
+        let content = initialContent;
 
         // Resolve team from JIRA labels
         const issueLabels = (issue.fields?.labels ?? []) as string[];
-        const teamLabel   = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
-        if (teamLabel && issueLabels.filter((l: string) => ALL_TEAM_JIRA_LABELS.has(l)).length > 1) {
+        const teamLabel = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
+        if (
+          teamLabel &&
+          issueLabels.filter((l: string) => ALL_TEAM_JIRA_LABELS.has(l)).length > 1
+        ) {
           console.warn(`[jira/pull] ${key} has multiple team labels — using first: ${teamLabel}`);
         }
         const localTeam = teamLabel ? JIRA_LABEL_TO_TEAM[teamLabel] : 'TBD';

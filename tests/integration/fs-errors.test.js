@@ -32,7 +32,10 @@ describe('GET /api/doc — file deleted from disk after indexing', () => {
     fs.unlinkSync(filepath);
 
     // 3. GET the doc — should return 404, not 500
-    const { status: gs, data: gd } = await api('GET', `/api/doc/epic/${encodeURIComponent(filename)}`);
+    const { status: gs, data: gd } = await api(
+      'GET',
+      `/api/doc/epic/${encodeURIComponent(filename)}`
+    );
     assert.equal(gs, 404);
     assert.equal(gd.error.code, 'NOT_FOUND');
   });

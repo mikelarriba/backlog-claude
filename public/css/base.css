@@ -1,5 +1,11 @@
 /* ── Reset ───────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    VW-THEMED DESIGN TOKENS
@@ -9,160 +15,160 @@
 
 /* ── Dark Theme ──────────────────────────────────────────────── */
 :root,
-[data-theme="dark"] {
+[data-theme='dark'] {
   /* Surfaces */
-  --bg:             #07101E;
-  --surface:        #0D1929;
-  --surface2:       #152238;
-  --border:         #1C3154;
+  --bg: #07101e;
+  --surface: #0d1929;
+  --surface2: #152238;
+  --border: #1c3154;
 
   /* Brand accent — VW Electric Blue */
-  --accent:         #0096D6;
-  --accent-hover:   #00ADEF;
-  --accent-subtle:  rgba(0,150,214,0.12);
+  --accent: #0096d6;
+  --accent-hover: #00adef;
+  --accent-subtle: rgba(0, 150, 214, 0.12);
 
   /* Typography */
-  --text:           #E5EEF8;
-  --text-body:      #B8CCE0;
-  --muted:          #5A7A9A;
+  --text: #e5eef8;
+  --text-body: #b8cce0;
+  --muted: #5a7a9a;
 
   /* Utility */
-  --shadow:         rgba(0,0,0,0.55);
-  --radius:         10px;
-  --code-color:     #7EC8EF;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --radius: 10px;
+  --code-color: #7ec8ef;
 
   /* ── State colors ── */
-  --success:        #22C55E;
-  --success-bg:     #052E16;
+  --success: #22c55e;
+  --success-bg: #052e16;
   --success-border: #166534;
-  --success-text:   #4ADE80;
-  --error:          #EF4444;
-  --error-bg:       #1C0808;
-  --error-border:   #7F1D1D;
-  --error-text:     #F87171;
-  --warning:        #F59E0B;
+  --success-text: #4ade80;
+  --error: #ef4444;
+  --error-bg: #1c0808;
+  --error-border: #7f1d1d;
+  --error-text: #f87171;
+  --warning: #f59e0b;
 
   /* ── Doc-type color tokens ── */
-  --type-feature-color: #7DB8F0;
-  --type-feature-bg:    rgba(0,96,200,0.14);
-  --type-epic-color:    #89C4F4;
-  --type-epic-bg:       rgba(0,130,210,0.14);
-  --type-story-color:   #6EE7B7;
-  --type-story-bg:      rgba(16,185,129,0.12);
-  --type-spike-color:   #FCD34D;
-  --type-spike-bg:      rgba(245,158,11,0.12);
-  --type-bug-color:     #FCA5A5;
-  --type-bug-bg:        rgba(239,68,68,0.12);
+  --type-feature-color: #7db8f0;
+  --type-feature-bg: rgba(0, 96, 200, 0.14);
+  --type-epic-color: #89c4f4;
+  --type-epic-bg: rgba(0, 130, 210, 0.14);
+  --type-story-color: #6ee7b7;
+  --type-story-bg: rgba(16, 185, 129, 0.12);
+  --type-spike-color: #fcd34d;
+  --type-spike-bg: rgba(245, 158, 11, 0.12);
+  --type-bug-color: #fca5a5;
+  --type-bug-bg: rgba(239, 68, 68, 0.12);
 
   /* ── Pill active colors ── */
-  --pill-feature-active: #9B1C1C;
-  --pill-epic-active:    #0066AA;
-  --pill-story-active:   #14532D;
-  --pill-spike-active:   #92400E;
-  --pill-bug-active:     #991B1B;
+  --pill-feature-active: #9b1c1c;
+  --pill-epic-active: #0066aa;
+  --pill-story-active: #14532d;
+  --pill-spike-active: #92400e;
+  --pill-bug-active: #991b1b;
 
   /* ── Quick-create panel tints ── */
-  --qc-epic-bg:          #0C0F20;
-  --qc-story-bg:         #091710;
-  --qc-spike-bg:         #14100A;
-  --qc-bug-bg:           #150A0A;
-  --qc-epic-btn-bg:      #1C0A0A;
-  --qc-epic-btn-border:  #7F1D1D;
-  --qc-epic-btn-color:   #F87171;
-  --qc-story-btn-bg:     #0A2E1C;
-  --qc-story-btn-border: #065F46;
-  --qc-story-btn-color:  #4ADE80;
-  --qc-spike-btn-bg:     #251A06;
-  --qc-spike-btn-border: #854D0E;
-  --qc-spike-btn-color:  #FCD34D;
-  --qc-bug-btn-bg:       #1C0A0A;
-  --qc-bug-btn-border:   #7F1D1D;
-  --qc-bug-btn-color:    #F87171;
+  --qc-epic-bg: #0c0f20;
+  --qc-story-bg: #091710;
+  --qc-spike-bg: #14100a;
+  --qc-bug-bg: #150a0a;
+  --qc-epic-btn-bg: #1c0a0a;
+  --qc-epic-btn-border: #7f1d1d;
+  --qc-epic-btn-color: #f87171;
+  --qc-story-btn-bg: #0a2e1c;
+  --qc-story-btn-border: #065f46;
+  --qc-story-btn-color: #4ade80;
+  --qc-spike-btn-bg: #251a06;
+  --qc-spike-btn-border: #854d0e;
+  --qc-spike-btn-color: #fcd34d;
+  --qc-bug-btn-bg: #1c0a0a;
+  --qc-bug-btn-border: #7f1d1d;
+  --qc-bug-btn-color: #f87171;
 
   /* ── Upgrade / AI panel ── */
-  --upgrade-bg:          #081510;
-  --upgrade-border:      #065F46;
-  --upgrade-color:       #34D399;
-  --upgrade-btn-bg:      #0A2E1C;
-  --upgrade-focus:       #34D399;
+  --upgrade-bg: #081510;
+  --upgrade-border: #065f46;
+  --upgrade-color: #34d399;
+  --upgrade-btn-bg: #0a2e1c;
+  --upgrade-focus: #34d399;
 }
 
 /* ── Light Theme — VW Day ────────────────────────────────────── */
-[data-theme="light"] {
+[data-theme='light'] {
   /* Surfaces */
-  --bg:             #F0F5FC;
-  --surface:        #FFFFFF;
-  --surface2:       #E8EDF8;
-  --border:         #C0CDE6;
+  --bg: #f0f5fc;
+  --surface: #ffffff;
+  --surface2: #e8edf8;
+  --border: #c0cde6;
 
   /* Brand accent — VW Deep Blue */
-  --accent:         #001E50;
-  --accent-hover:   #003480;
-  --accent-subtle:  rgba(0,30,80,0.07);
+  --accent: #001e50;
+  --accent-hover: #003480;
+  --accent-subtle: rgba(0, 30, 80, 0.07);
 
   /* Typography */
-  --text:           #001030;
-  --text-body:      #2E4060;
-  --muted:          #4A6480;
+  --text: #001030;
+  --text-body: #2e4060;
+  --muted: #4a6480;
 
   /* Utility */
-  --shadow:         rgba(0,20,80,0.1);
-  --code-color:     #0055A0;
+  --shadow: rgba(0, 20, 80, 0.1);
+  --code-color: #0055a0;
 
   /* ── State colors ── */
-  --success:        #16A34A;
-  --success-bg:     #F0FDF4;
-  --success-border: #BBF7D0;
-  --success-text:   #166534;
-  --error:          #DC2626;
-  --error-bg:       #FFF5F5;
-  --error-border:   #FECACA;
-  --error-text:     #B91C1C;
-  --warning:        #D97706;
+  --success: #16a34a;
+  --success-bg: #f0fdf4;
+  --success-border: #bbf7d0;
+  --success-text: #166534;
+  --error: #dc2626;
+  --error-bg: #fff5f5;
+  --error-border: #fecaca;
+  --error-text: #b91c1c;
+  --warning: #d97706;
 
   /* ── Doc-type color tokens ── */
-  --type-feature-color: #1D4ED8;
-  --type-feature-bg:    rgba(29,78,216,0.08);
-  --type-epic-color:    #004E99;
-  --type-epic-bg:       rgba(0,78,153,0.09);
-  --type-story-color:   #047857;
-  --type-story-bg:      rgba(4,120,87,0.09);
-  --type-spike-color:   #92400E;
-  --type-spike-bg:      rgba(146,64,14,0.1);
-  --type-bug-color:     #B91C1C;
-  --type-bug-bg:        rgba(185,28,28,0.09);
+  --type-feature-color: #1d4ed8;
+  --type-feature-bg: rgba(29, 78, 216, 0.08);
+  --type-epic-color: #004e99;
+  --type-epic-bg: rgba(0, 78, 153, 0.09);
+  --type-story-color: #047857;
+  --type-story-bg: rgba(4, 120, 87, 0.09);
+  --type-spike-color: #92400e;
+  --type-spike-bg: rgba(146, 64, 14, 0.1);
+  --type-bug-color: #b91c1c;
+  --type-bug-bg: rgba(185, 28, 28, 0.09);
 
   /* ── Pill active colors ── */
-  --pill-feature-active: #1D4ED8;
-  --pill-epic-active:    #001E50;
-  --pill-story-active:   #047857;
-  --pill-spike-active:   #92400E;
-  --pill-bug-active:     #B91C1C;
+  --pill-feature-active: #1d4ed8;
+  --pill-epic-active: #001e50;
+  --pill-story-active: #047857;
+  --pill-spike-active: #92400e;
+  --pill-bug-active: #b91c1c;
 
   /* ── Quick-create panel tints ── */
-  --qc-epic-bg:          #EEF4FF;
-  --qc-story-bg:         #F0FDF4;
-  --qc-spike-bg:         #FFFBEB;
-  --qc-bug-bg:           #FFF5F5;
-  --qc-epic-btn-bg:      #DBEAFE;
-  --qc-epic-btn-border:  #93C5FD;
-  --qc-epic-btn-color:   #1D4ED8;
-  --qc-story-btn-bg:     #DCFCE7;
-  --qc-story-btn-border: #86EFAC;
-  --qc-story-btn-color:  #166534;
-  --qc-spike-btn-bg:     #FEF3C7;
-  --qc-spike-btn-border: #FDE68A;
-  --qc-spike-btn-color:  #92400E;
-  --qc-bug-btn-bg:       #FEE2E2;
-  --qc-bug-btn-border:   #FCA5A5;
-  --qc-bug-btn-color:    #B91C1C;
+  --qc-epic-bg: #eef4ff;
+  --qc-story-bg: #f0fdf4;
+  --qc-spike-bg: #fffbeb;
+  --qc-bug-bg: #fff5f5;
+  --qc-epic-btn-bg: #dbeafe;
+  --qc-epic-btn-border: #93c5fd;
+  --qc-epic-btn-color: #1d4ed8;
+  --qc-story-btn-bg: #dcfce7;
+  --qc-story-btn-border: #86efac;
+  --qc-story-btn-color: #166534;
+  --qc-spike-btn-bg: #fef3c7;
+  --qc-spike-btn-border: #fde68a;
+  --qc-spike-btn-color: #92400e;
+  --qc-bug-btn-bg: #fee2e2;
+  --qc-bug-btn-border: #fca5a5;
+  --qc-bug-btn-color: #b91c1c;
 
   /* ── Upgrade / AI panel ── */
-  --upgrade-bg:          #F0FDF9;
-  --upgrade-border:      #6EE7B7;
-  --upgrade-color:       #059669;
-  --upgrade-btn-bg:      #D1FAE5;
-  --upgrade-focus:       #059669;
+  --upgrade-bg: #f0fdf9;
+  --upgrade-border: #6ee7b7;
+  --upgrade-color: #059669;
+  --upgrade-btn-bg: #d1fae5;
+  --upgrade-focus: #059669;
 }
 
 /* ── Body ────────────────────────────────────────────────────── */
@@ -174,10 +180,18 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: background 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* ── Visibility utility ──────────────────────────────────────── */
-.hidden { display: none !important; }
+.hidden {
+  display: none !important;
+}

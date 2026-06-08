@@ -10,7 +10,9 @@ function mockClient() {
   const res = {
     setHeader() {},
     flushHeaders() {},
-    write(data) { chunks.push(data); },
+    write(data) {
+      chunks.push(data);
+    },
     chunks,
   };
   return { req, res, chunks };
@@ -69,11 +71,13 @@ describe('createEventService', () => {
   test('broadcast survives a client that throws on write', () => {
     const { handleEvents, broadcast } = createEventService();
     const good = mockClient();
-    const bad  = mockClient();
+    const bad = mockClient();
     handleEvents(good.req, good.res);
     handleEvents(bad.req, bad.res);
     // Make the bad client throw on subsequent writes (after connected event)
-    bad.res.write = () => { throw new Error('broken pipe'); };
+    bad.res.write = () => {
+      throw new Error('broken pipe');
+    };
     // Should not throw — bad client is silently removed
     assert.doesNotThrow(() => broadcast({ type: 'test' }));
     assert.equal(good.chunks.length, 2); // connected + broadcast

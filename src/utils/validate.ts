@@ -15,8 +15,8 @@ export class ValidationError extends Error {
 // Single source of truth consumed by both TypeScript types and runtime checks.
 
 export const VALID_PRIORITIES = ['Critical', 'High', 'Medium', 'Low'] as const;
-export const VALID_STATUSES   = ['Draft', 'Created in JIRA', 'Archived'] as const;
-export const VALID_DOC_TYPES  = ['feature', 'epic', 'story', 'spike', 'bug'] as const;
+export const VALID_STATUSES = ['Draft', 'Created in JIRA', 'Archived'] as const;
+export const VALID_DOC_TYPES = ['feature', 'epic', 'story', 'spike', 'bug'] as const;
 export const VALID_LINK_TYPES = [
   'blocks',
   'parallel',
@@ -26,15 +26,15 @@ export const VALID_LINK_TYPES = [
   'bug→epic',
 ] as const;
 
-export type ValidPriority = typeof VALID_PRIORITIES[number];
-export type ValidLinkType = typeof VALID_LINK_TYPES[number];
+export type ValidPriority = (typeof VALID_PRIORITIES)[number];
+export type ValidLinkType = (typeof VALID_LINK_TYPES)[number];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function requireOneOf<T extends string>(
   value: unknown,
   allowed: readonly T[],
-  fieldName: string,
+  fieldName: string
 ): T {
   if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) {
     throw new ValidationError(`${fieldName} must be one of: ${allowed.join(', ')}`);
@@ -45,7 +45,7 @@ export function requireOneOf<T extends string>(
 export function requireString(
   value: unknown,
   fieldName: string,
-  opts?: { maxLength?: number; pattern?: RegExp },
+  opts?: { maxLength?: number; pattern?: RegExp }
 ): string {
   if (typeof value !== 'string' || !value.trim()) {
     throw new ValidationError(`${fieldName} is required and must be a non-empty string`);
@@ -62,7 +62,7 @@ export function requireString(
 export function requirePositiveInt(
   value: unknown,
   fieldName: string,
-  opts?: { max?: number },
+  opts?: { max?: number }
 ): number {
   const n = Number(value);
   if (!Number.isInteger(n) || n < 1) {
@@ -77,7 +77,7 @@ export function requirePositiveInt(
 export function optionalString(
   value: unknown,
   fieldName: string,
-  opts?: { maxLength?: number },
+  opts?: { maxLength?: number }
 ): string | undefined {
   if (value === undefined || value === null) return undefined;
   return requireString(value, fieldName, opts);

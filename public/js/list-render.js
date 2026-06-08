@@ -26,11 +26,11 @@ export function computeRankPositions(docs) {
 }
 
 export function buildTreeOrder(docs) {
-  const key        = d => `${d.docType}:${d.filename}`;
-  const byFilename = new Map(docs.map(d => [d.filename, d]));
+  const key = (d) => `${d.docType}:${d.filename}`;
+  const byFilename = new Map(docs.map((d) => [d.filename, d]));
   const childrenMap = buildChildrenMap(docs);
-  const ordered    = [];
-  const placed     = new Set();
+  const ordered = [];
+  const placed = new Set();
 
   function place(doc, indent) {
     if (placed.has(key(doc))) return;
@@ -38,16 +38,17 @@ export function buildTreeOrder(docs) {
     ordered.push({ doc, indent });
     if (_collapsedItems.has(doc.filename)) return; // skip children when collapsed
     const children = childrenMap.get(doc.filename) || [];
-    children.forEach(child => place(child, indent + 1));
+    children.forEach((child) => place(child, indent + 1));
   }
 
-  docs.forEach(d => {
+  docs.forEach((d) => {
     if (!d.parentFilename || !byFilename.has(d.parentFilename)) place(d, 0);
   });
   // Safety pass: only place truly orphaned docs (parent not in this swimlane).
   // Do NOT place children of collapsed parents — they should stay hidden.
-  docs.forEach(d => {
-    if (!placed.has(key(d)) && (!d.parentFilename || !byFilename.has(d.parentFilename))) place(d, 0);
+  docs.forEach((d) => {
+    if (!placed.has(key(d)) && (!d.parentFilename || !byFilename.has(d.parentFilename)))
+      place(d, 0);
   });
 
   return { ordered, childrenMap };
@@ -56,8 +57,8 @@ export function buildTreeOrder(docs) {
 // ── Swimlane rendering ────────────────────────────────────────
 export function categorizeDocs(docs) {
   const currentPi = [];
-  const nextPi    = [];
-  const backlog   = [];
+  const nextPi = [];
+  const backlog = [];
 
   for (const d of docs) {
     if (d.fixVersion && piSettings.currentPi && d.fixVersion === piSettings.currentPi) {
@@ -73,10 +74,10 @@ export function categorizeDocs(docs) {
 
 export function renderSwimlanes(docs) {
   // Rebuild global readiness lookup tables from all docs (cross-section)
-  _readinessAllDocsMap  = new Map(allDocs.map(d => [d.filename, d]));
+  _readinessAllDocsMap = new Map(allDocs.map((d) => [d.filename, d]));
   _readinessChildrenMap = buildChildrenMap(allDocs);
 
-  const list  = document.getElementById('epic-list');
+  const list = document.getElementById('epic-list');
   const count = document.getElementById('epic-count');
   count.textContent = docs.length;
 
@@ -97,8 +98,8 @@ export function renderSwimlanes(docs) {
 
   const html = [
     renderSwimlaneSectionHtml('currentPi', 'Current PI', piSettings.currentPi, currentPi),
-    renderSwimlaneSectionHtml('nextPi',    'Next PI',    piSettings.nextPi,    nextPi),
-    renderSwimlaneSectionHtml('backlog',   'Backlog',    null,                 backlog),
+    renderSwimlaneSectionHtml('nextPi', 'Next PI', piSettings.nextPi, nextPi),
+    renderSwimlaneSectionHtml('backlog', 'Backlog', null, backlog),
   ].join('');
 
   list.innerHTML = html;
@@ -108,15 +109,18 @@ export function renderSwimlanes(docs) {
 
 export function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
   const collapsed = _swimlanesCollapsed[sectionKey];
-  const chevron   = collapsed ? '▶' : '▼';
+  const chevron = collapsed ? '▶' : '▼';
   const bodyClass = collapsed ? 'swimlane-body collapsed' : 'swimlane-body';
 
   // Version selector for Current/Next PI
   let versionSelector = '';
   if (sectionKey !== 'backlog') {
-    const options = jiraVersions.map(v =>
-      `<option value="${escHtml(v.name)}" ${v.name === versionName ? 'selected' : ''}>${escHtml(v.name)}${v.released ? ' (released)' : ''}</option>`
-    ).join('');
+    const options = jiraVersions
+      .map(
+        (v) =>
+          `<option value="${escHtml(v.name)}" ${v.name === versionName ? 'selected' : ''}>${escHtml(v.name)}${v.released ? ' (released)' : ''}</option>`
+      )
+      .join('');
     versionSelector = `
       <select class="swimlane-version-select"
               data-section="${sectionKey}"
@@ -127,8 +131,10 @@ export function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) 
       </select>`;
   }
 
-  const versionDisplay = versionName ? `<span class="swimlane-version-name">${escHtml(versionName)}</span>` : '';
-  const countBadge     = `<span class="swimlane-count">${docs.length}</span>`;
+  const versionDisplay = versionName
+    ? `<span class="swimlane-version-name">${escHtml(versionName)}</span>`
+    : '';
+  const countBadge = `<span class="swimlane-count">${docs.length}</span>`;
 
   // Capacity summary + distribute button for PI swimlanes with sprint config
   let capacitySummary = '';
@@ -169,8 +175,8 @@ export function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) 
 }
 
 // ── Readiness helpers ─────────────────────────────────────────
-var _readinessAllDocsMap    = new Map();
-var _readinessChildrenMap   = new Map();
+var _readinessAllDocsMap = new Map();
+var _readinessChildrenMap = new Map();
 
 export function getAllLeaves(filename, childrenMap, docsMap) {
   const children = childrenMap.get(filename) || [];
@@ -178,13 +184,13 @@ export function getAllLeaves(filename, childrenMap, docsMap) {
     const doc = docsMap.get(filename);
     return doc ? [doc] : [];
   }
-  return children.flatMap(c => getAllLeaves(c.filename, childrenMap, docsMap));
+  return children.flatMap((c) => getAllLeaves(c.filename, childrenMap, docsMap));
 }
 
 export function computeReadiness(doc, childrenMap, docsMap) {
   const children = childrenMap.get(doc.filename) || [];
-  const isLeaf   = doc.docType === 'story' || doc.docType === 'spike' || doc.docType === 'bug';
-  const scores   = [];
+  const isLeaf = doc.docType === 'story' || doc.docType === 'spike' || doc.docType === 'bug';
+  const scores = [];
 
   // 1. Has children (features/epics only)
   if (doc.docType === 'feature' || doc.docType === 'epic') {
@@ -197,7 +203,7 @@ export function computeReadiness(doc, childrenMap, docsMap) {
   } else {
     const leaves = getAllLeaves(doc.filename, childrenMap, docsMap);
     if (leaves.length > 0) {
-      const withSP = leaves.filter(l => l.storyPoints != null).length;
+      const withSP = leaves.filter((l) => l.storyPoints != null).length;
       scores.push(withSP / leaves.length);
     }
   }
@@ -212,12 +218,12 @@ export function computeReadiness(doc, childrenMap, docsMap) {
 export function renderDocItem(d, indent, childrenMap) {
   const statusClass = (d.status || 'Draft').replace(/\s+/g, '-');
   // Connector shows when item has a parent in the current tree view
-  const connector   = indent > 0 ? `<span class="tree-connector">└</span>` : '';
+  const connector = indent > 0 ? `<span class="tree-connector">└</span>` : '';
 
-  const hasChildren   = (childrenMap && (childrenMap.get(d.filename) || []).length > 0);
+  const hasChildren = childrenMap && (childrenMap.get(d.filename) || []).length > 0;
   const isCollapsible = hasChildren && (d.docType === 'feature' || d.docType === 'epic');
-  const isCollapsed   = _collapsedItems.has(d.filename);
-  const collapseBtn   = isCollapsible
+  const isCollapsed = _collapsedItems.has(d.filename);
+  const collapseBtn = isCollapsible
     ? `<button class="collapse-btn${isCollapsed ? ' is-collapsed' : ''}"
                onclick="toggleItemCollapse('${escHtml(d.filename)}', event)"
                title="${isCollapsed ? 'Expand children' : 'Collapse children'}">
@@ -226,32 +232,43 @@ export function renderDocItem(d, indent, childrenMap) {
     : '<div class="collapse-spacer"></div>';
 
   // Readiness traffic light
-  const pct    = computeReadiness(d, _readinessChildrenMap, _readinessAllDocsMap);
-  const rdCls  = pct >= 80 ? 'ready-green' : pct >= 40 ? 'ready-amber' : 'ready-red';
-  const rdTip  = `Readiness: ${Math.round(pct)}%`;
+  const pct = computeReadiness(d, _readinessChildrenMap, _readinessAllDocsMap);
+  const rdCls = pct >= 80 ? 'ready-green' : pct >= 40 ? 'ready-amber' : 'ready-red';
+  const rdTip = `Readiness: ${Math.round(pct)}%`;
 
-  const selKey  = `${d.docType}:${d.filename}`;
+  const selKey = `${d.docType}:${d.filename}`;
   const multiSel = selectedItems.has(selKey) ? ' multi-selected' : '';
 
   // Dependency badges (leaf types only)
-  const isLeaf       = ['story', 'spike', 'bug'].includes(d.docType);
-  const blocksCnt    = isLeaf ? (d.blocks    || []).length : 0;
+  const isLeaf = ['story', 'spike', 'bug'].includes(d.docType);
+  const blocksCnt = isLeaf ? (d.blocks || []).length : 0;
   const blockedByCnt = isLeaf ? (d.blockedBy || []).length : 0;
-  const parallelCnt  = isLeaf ? (d.parallel  || []).length : 0;
+  const parallelCnt = isLeaf ? (d.parallel || []).length : 0;
   const depBadges = [
-    blocksCnt    ? `<span class="dep-badge dep-badge-blocks" title="Blocks ${blocksCnt} stor${blocksCnt !== 1 ? 'ies' : 'y'}">→ ${blocksCnt}</span>` : '',
-    blockedByCnt ? `<span class="dep-badge dep-badge-blocked" title="Blocked by ${blockedByCnt} stor${blockedByCnt !== 1 ? 'ies' : 'y'}">🔒 ${blockedByCnt}</span>` : '',
-    parallelCnt  ? `<span class="dep-badge dep-badge-parallel" title="Parallel with ${parallelCnt} stor${parallelCnt !== 1 ? 'ies' : 'y'}"># ${parallelCnt}</span>` : '',
+    blocksCnt
+      ? `<span class="dep-badge dep-badge-blocks" title="Blocks ${blocksCnt} stor${blocksCnt !== 1 ? 'ies' : 'y'}">→ ${blocksCnt}</span>`
+      : '',
+    blockedByCnt
+      ? `<span class="dep-badge dep-badge-blocked" title="Blocked by ${blockedByCnt} stor${blockedByCnt !== 1 ? 'ies' : 'y'}">🔒 ${blockedByCnt}</span>`
+      : '',
+    parallelCnt
+      ? `<span class="dep-badge dep-badge-parallel" title="Parallel with ${parallelCnt} stor${parallelCnt !== 1 ? 'ies' : 'y'}"># ${parallelCnt}</span>`
+      : '',
   ].join('');
-  const teamSlug    = d.team        ? d.team.toLowerCase().replace(/\s+/g, '-')        : null;
+  const teamSlug = d.team ? d.team.toLowerCase().replace(/\s+/g, '-') : null;
   const workCatSlug = d.workCategory ? d.workCategory.toLowerCase().replace(/\s+/g, '-') : null;
-  const teamBadge    = teamSlug    ? `<span class="team-badge team-badge--${teamSlug}">${escHtml(d.team)}</span>`               : '';
-  const workCatBadge = workCatSlug ? `<span class="work-cat-badge work-cat-badge--${workCatSlug}">${escHtml(d.workCategory)}</span>` : '';
+  const teamBadge = teamSlug
+    ? `<span class="team-badge team-badge--${teamSlug}">${escHtml(d.team)}</span>`
+    : '';
+  const workCatBadge = workCatSlug
+    ? `<span class="work-cat-badge work-cat-badge--${workCatSlug}">${escHtml(d.workCategory)}</span>`
+    : '';
 
   const spVal = d.storyPoints;
-  const spBadge = (spVal != null && spVal !== 'TBD' && String(spVal).trim() !== '')
-    ? `<span class="sp-badge" title="Story Points">${escHtml(String(spVal))} SP</span>`
-    : '';
+  const spBadge =
+    spVal != null && spVal !== 'TBD' && String(spVal).trim() !== ''
+      ? `<span class="sp-badge" title="Story Points">${escHtml(String(spVal))} SP</span>`
+      : '';
 
   return `
     <div class="epic-item${multiSel}"
@@ -284,17 +301,17 @@ export function applyDepCascade() {
   const INDENT_PX = 28;
 
   // Clear any previous cascade styles
-  document.querySelectorAll('#epic-list .epic-item[data-dep-level]').forEach(el => {
+  document.querySelectorAll('#epic-list .epic-item[data-dep-level]').forEach((el) => {
     el.style.marginLeft = '';
     el.removeAttribute('data-dep-level');
     el.classList.remove('dep-cascade');
   });
 
-  const docsMap = new Map(allDocs.map(d => [d.filename, d]));
+  const docsMap = new Map(allDocs.map((d) => [d.filename, d]));
 
   // Collect items in DOM order grouped by parentFilename
   const groups = new Map(); // parentFn → [{el, doc}]
-  document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach(el => {
+  document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach((el) => {
     const doc = docsMap.get(el.dataset.filename);
     if (!doc) return;
     const key = doc.parentFilename || '__none__';
@@ -303,7 +320,7 @@ export function applyDepCascade() {
   });
 
   for (const siblings of groups.values()) {
-    const inGroup = new Set(siblings.map(s => s.doc.filename));
+    const inGroup = new Set(siblings.map((s) => s.doc.filename));
     const visualDepth = new Map(); // filename → computed visual depth
     let runningMax = 0;
 
@@ -311,7 +328,7 @@ export function applyDepCascade() {
     // in rank order, so we can use their already-computed visual depth.
     for (const { el, doc } of siblings) {
       let ownDepth = 0;
-      for (const blockerFn of (doc.blockedBy || [])) {
+      for (const blockerFn of doc.blockedBy || []) {
         if (inGroup.has(blockerFn)) {
           ownDepth = Math.max(ownDepth, (visualDepth.get(blockerFn) || 0) + 1);
         }
@@ -347,13 +364,13 @@ export function hideDepConnectors() {
   if (svg) {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
   }
-  _depHighlightedEls.forEach(el => el.classList.remove('dep-hover-highlight'));
+  _depHighlightedEls.forEach((el) => el.classList.remove('dep-hover-highlight'));
   _depHighlightedEls = [];
 }
 
 export function showDepConnectors(filename) {
   hideDepConnectors();
-  const doc = allDocs.find(d => d.filename === filename);
+  const doc = allDocs.find((d) => d.filename === filename);
   if (!doc) return;
 
   const svg = document.getElementById('dep-connector-svg');
@@ -361,13 +378,13 @@ export function showDepConnectors(filename) {
 
   // Build pairs: blocker → blocked (sequential) and parallel
   const pairs = [];
-  for (const blockedFn of (doc.blocks || [])) {
+  for (const blockedFn of doc.blocks || []) {
     pairs.push({ blockerFn: filename, blockedFn, isParallel: false });
   }
-  for (const blockerFn of (doc.blockedBy || [])) {
+  for (const blockerFn of doc.blockedBy || []) {
     pairs.push({ blockerFn, blockedFn: filename, isParallel: false });
   }
-  for (const parallelFn of (doc.parallel || [])) {
+  for (const parallelFn of doc.parallel || []) {
     pairs.push({ blockerFn: filename, blockedFn: parallelFn, isParallel: true });
   }
 
@@ -397,16 +414,20 @@ export function showDepConnectors(filename) {
     const xMid = Math.min(x1, x2) - offset;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', `M${x1},${y1} H${xMid} V${y2} H${x2}`);
-    path.setAttribute('class', isParallel ? 'dep-connector-line dep-connector-line--parallel' : 'dep-connector-line');
+    path.setAttribute(
+      'class',
+      isParallel ? 'dep-connector-line dep-connector-line--parallel' : 'dep-connector-line'
+    );
     svg.appendChild(path);
   }
 }
 
 export function attachDepHoverListeners() {
-  document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach(el => {
-    const doc = allDocs.find(d => d.filename === el.dataset.filename);
+  document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach((el) => {
+    const doc = allDocs.find((d) => d.filename === el.dataset.filename);
     if (!doc) return;
-    if (!(doc.blocks || []).length && !(doc.blockedBy || []).length && !(doc.parallel || []).length) return;
+    if (!(doc.blocks || []).length && !(doc.blockedBy || []).length && !(doc.parallel || []).length)
+      return;
     el.addEventListener('mouseenter', () => showDepConnectors(doc.filename));
     el.addEventListener('mouseleave', hideDepConnectors);
   });

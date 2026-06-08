@@ -12,7 +12,12 @@ export function isoDate(): string {
 }
 
 export function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 50);
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .slice(0, 50);
 }
 
 export const WORKFLOW_STATUSES: string[] = ['Draft', 'Created in JIRA', 'Archived'];
@@ -20,9 +25,10 @@ export const WORKFLOW_STATUSES: string[] = ['Draft', 'Created in JIRA', 'Archive
 export function extractTitle(content: string): string | null {
   // Template placeholder headings ("## Epic Title", "## Story Title", etc.) -> grab the next non-empty line
   // Check ## before # — documents use ## for the title; # may appear inside JIRA descriptions
-  const m = content.match(/^## \w[\w ]* Title\s*\n+(.+)/m)
-    || content.match(/^## (.+)/m)
-    || content.match(/^# (.+)/m);
+  const m =
+    content.match(/^## \w[\w ]* Title\s*\n+(.+)/m) ||
+    content.match(/^## (.+)/m) ||
+    content.match(/^# (.+)/m);
   return m ? m[1].trim() : null;
 }
 
@@ -35,7 +41,11 @@ export function extractWorkflowStatus(content: string): string {
   return 'Draft';
 }
 
-export function setFrontmatterField(content: string, field: string, value: string | number): string {
+export function setFrontmatterField(
+  content: string,
+  field: string,
+  value: string | number
+): string {
   return patchFrontmatter(content, field, value);
 }
 
@@ -56,8 +66,14 @@ export function jiraToMarkdown(jira: string): string {
   let text = jira;
 
   // Code blocks: {code:lang}...{code} and {code}...{code} and {noformat}...{noformat}
-  text = text.replace(/\{code(?::[^}]*)?\}([\s\S]*?)\{code\}/g, (_, code: string) => `\`\`\`\n${code.trim()}\n\`\`\``);
-  text = text.replace(/\{noformat\}([\s\S]*?)\{noformat\}/g, (_, code: string) => `\`\`\`\n${code.trim()}\n\`\`\``);
+  text = text.replace(
+    /\{code(?::[^}]*)?\}([\s\S]*?)\{code\}/g,
+    (_, code: string) => `\`\`\`\n${code.trim()}\n\`\`\``
+  );
+  text = text.replace(
+    /\{noformat\}([\s\S]*?)\{noformat\}/g,
+    (_, code: string) => `\`\`\`\n${code.trim()}\n\`\`\``
+  );
 
   // Lists — JIRA uses # for ordered, - for unordered (already markdown for -)
   // Must run BEFORE heading conversion: h1./h2. etc. are different from list markers (#/##),
@@ -95,20 +111,24 @@ export function jiraToMarkdown(jira: string): string {
 
   // Tables: || header || → | header | and | cell | → | cell |
   text = text.replace(/^\|\|(.+)\|\|$/gm, (_, inner: string) => {
-    const cells = inner.split('||').map(c => c.trim());
-    const row   = `| ${cells.join(' | ')} |`;
-    const sep   = `| ${cells.map(() => '---').join(' | ')} |`;
+    const cells = inner.split('||').map((c) => c.trim());
+    const row = `| ${cells.join(' | ')} |`;
+    const sep = `| ${cells.map(() => '---').join(' | ')} |`;
     return `${row}\n${sep}`;
   });
   // Remaining single-pipe rows are already markdown table rows
   text = text.replace(/^\|(.+)\|$/gm, (_, inner: string) => {
-    const cells = inner.split('|').map(c => c.trim());
+    const cells = inner.split('|').map((c) => c.trim());
     return `| ${cells.join(' | ')} |`;
   });
 
   // Quote block: {quote}...{quote} → blockquote
   text = text.replace(/\{quote\}([\s\S]*?)\{quote\}/g, (_, body: string) =>
-    body.trim().split('\n').map(l => `> ${l}`).join('\n')
+    body
+      .trim()
+      .split('\n')
+      .map((l) => `> ${l}`)
+      .join('\n')
   );
 
   // Remove unknown remaining JIRA macros like {color:...} {color}, {panel}...{panel}, {expand}...
@@ -126,9 +146,9 @@ export function markdownToJira(md: string): string {
 
   text = text
     .replace(/^#### (.+)$/gm, 'h4. $1')
-    .replace(/^### (.+)$/gm,  'h3. $1')
-    .replace(/^## (.+)$/gm,   'h2. $1')
-    .replace(/^# (.+)$/gm,    'h1. $1')
+    .replace(/^### (.+)$/gm, 'h3. $1')
+    .replace(/^## (.+)$/gm, 'h2. $1')
+    .replace(/^# (.+)$/gm, 'h1. $1')
     .replace(/\*\*(.+?)\*\*/g, '*$1*')
     .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '_$1_')
     .replace(/^\* (.+)$/gm, '- $1')
@@ -136,5 +156,7 @@ export function markdownToJira(md: string): string {
     .replace(/^---+$/gm, '----')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '[$1|$2]');
 
-  return text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i: string) => `{code}\n${blocks[Number(i)]}{code}`);
+  // eslint-disable-next-line no-control-regex
+  const CODEBLOCK_RE = /\x00CODEBLOCK(\d+)\x00/g;
+  return text.replace(CODEBLOCK_RE, (_, i: string) => `{code}\n${blocks[Number(i)]}{code}`);
 }

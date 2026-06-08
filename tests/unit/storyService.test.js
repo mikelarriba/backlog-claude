@@ -1,7 +1,11 @@
 // ── Unit tests: src/services/storyService.js ─────────────────────────────────
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseStorySections, serializeStoryFile, extractStoryTitle } from '../../src/services/storyService.js';
+import {
+  parseStorySections,
+  serializeStoryFile,
+  extractStoryTitle,
+} from '../../src/services/storyService.js';
 
 const FIXTURE = `---
 JIRA_ID: TBD

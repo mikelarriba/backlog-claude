@@ -20,7 +20,7 @@ after(async () => {
 describe('POST /api/docs/draft — concurrent requests', () => {
   test('5 simultaneous draft requests all complete without server crash', async () => {
     const requests = Array.from({ length: 5 }, (_, i) =>
-      api('POST', '/api/docs/draft', { title: `Concurrent Story ${i}`, type: 'story' }),
+      api('POST', '/api/docs/draft', { title: `Concurrent Story ${i}`, type: 'story' })
     );
     const results = await Promise.all(requests);
 
@@ -37,10 +37,10 @@ describe('POST /api/docs/draft — concurrent requests', () => {
 
   test('simultaneous drafts produce distinct filenames', async () => {
     const requests = Array.from({ length: 5 }, (_, i) =>
-      api('POST', '/api/docs/draft', { title: `Unique Draft ${i} ${Date.now()}`, type: 'spike' }),
+      api('POST', '/api/docs/draft', { title: `Unique Draft ${i} ${Date.now()}`, type: 'spike' })
     );
     const results = await Promise.all(requests);
-    const filenames = results.map(r => r.data.filename);
+    const filenames = results.map((r) => r.data.filename);
     const unique = new Set(filenames);
     // Allow for some collision in slugs (they share a timestamp) but at least no crashes
     assert.ok(unique.size >= 1, 'Should produce at least one unique filename');
@@ -65,7 +65,7 @@ describe('GET /api/docs — concurrent reads', () => {
 describe('Mixed concurrent reads and writes', () => {
   test('interleaved creates and reads do not corrupt the response', async () => {
     const writes = Array.from({ length: 3 }, (_, i) =>
-      api('POST', '/api/docs/draft', { title: `Mixed Write ${i}`, type: 'epic' }),
+      api('POST', '/api/docs/draft', { title: `Mixed Write ${i}`, type: 'epic' })
     );
     const reads = Array.from({ length: 3 }, () => api('GET', '/api/docs'));
 

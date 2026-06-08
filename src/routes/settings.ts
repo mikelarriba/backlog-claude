@@ -11,7 +11,12 @@ import {
 } from '../services/claudeService.js';
 import type { SettingsRouteContext } from '../types.js';
 
-export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }: SettingsRouteContext) {
+export default function settingsRoutes({
+  rootDir,
+  broadcast,
+  logInfo,
+  jiraBase,
+}: SettingsRouteContext) {
   const router = Router();
 
   // ── App config (read-only, consumed by frontend) ───────────────────────────
@@ -19,13 +24,16 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     res.json({ jiraBase: jiraBase || '' });
   });
 
-  const PI_SETTINGS_PATH    = path.join(rootDir, '.pi-settings.json');
+  const PI_SETTINGS_PATH = path.join(rootDir, '.pi-settings.json');
   const MODEL_SETTINGS_PATH = path.join(rootDir, '.model-settings.json');
 
   async function loadPiSettings() {
     try {
-      if (fs.existsSync(PI_SETTINGS_PATH)) return JSON.parse(await fs.promises.readFile(PI_SETTINGS_PATH, 'utf-8'));
-    } catch {}
+      if (fs.existsSync(PI_SETTINGS_PATH))
+        return JSON.parse(await fs.promises.readFile(PI_SETTINGS_PATH, 'utf-8'));
+    } catch {
+      /* no-op */
+    }
     return { currentPi: null, nextPi: null, defaultBufferPct: 0 };
   }
 
@@ -41,12 +49,14 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
         if (saved.model) setModelOverride(saved.model);
         if (saved.provider) setProviderOverride(saved.provider);
       }
-    } catch {}
+    } catch {
+      /* no-op */
+    }
   })();
 
   // ── PI settings ────────────────────────────────────────────────────────────
   router.get('/api/settings/pi', async (req, res) => {
-    const { sprints, ...rest } = await loadPiSettings();
+    const { sprints: _sprints, ...rest } = await loadPiSettings();
     res.json(rest);
   });
 
@@ -55,7 +65,11 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     const existing = await loadPiSettings();
     const settings = { ...existing, currentPi: currentPi || null, nextPi: nextPi || null };
     await savePiSettings(settings);
-    broadcast({ type: 'pi_settings_updated', currentPi: settings.currentPi, nextPi: settings.nextPi });
+    broadcast({
+      type: 'pi_settings_updated',
+      currentPi: settings.currentPi,
+      nextPi: settings.nextPi,
+    });
     res.json({ success: true, currentPi: settings.currentPi, nextPi: settings.nextPi });
   });
 
@@ -106,7 +120,9 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
         return res.status(400).json({ error: 'Each sprint must have a non-empty name' });
       }
       if (typeof s.capacity !== 'number' || s.capacity < 0 || s.capacity > 999) {
-        return res.status(400).json({ error: `Sprint "${s.name}" capacity must be between 0 and 999` });
+        return res
+          .status(400)
+          .json({ error: `Sprint "${s.name}" capacity must be between 0 and 999` });
       }
       if (s.capacity > 999) {
         return res.status(400).json({ error: `Sprint "${s.name}" capacity cannot exceed 999` });
@@ -114,8 +130,11 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     }
     const settings = await loadPiSettings();
     if (!settings.sprints) settings.sprints = {};
-    settings.sprints[piName] = sprints.map(s => {
-      const entry: { name: string; capacity: number; bufferPct?: number } = { name: s.name.trim(), capacity: s.capacity };
+    settings.sprints[piName] = sprints.map((s) => {
+      const entry: { name: string; capacity: number; bufferPct?: number } = {
+        name: s.name.trim(),
+        capacity: s.capacity,
+      };
       if (typeof s.bufferPct === 'number' && s.bufferPct > 0) entry.bufferPct = s.bufferPct;
       return entry;
     });
@@ -142,8 +161,15 @@ export default function settingsRoutes({ rootDir, broadcast, logInfo, jiraBase }
     setProviderOverride(provider || null);
     const saved = { model: model || null, provider: provider || null };
     await fs.promises.writeFile(MODEL_SETTINGS_PATH, JSON.stringify(saved, null, 2));
-    logInfo('PUT /api/settings/model', `Provider: ${provider || 'claude-cli'}, Model: ${model || 'default'}`);
-    res.json({ success: true, model: getModelOverride(), provider: getProviderOverride() || 'claude-cli' });
+    logInfo(
+      'PUT /api/settings/model',
+      `Provider: ${provider || 'claude-cli'}, Model: ${model || 'default'}`
+    );
+    res.json({
+      success: true,
+      model: getModelOverride(),
+      provider: getProviderOverride() || 'claude-cli',
+    });
   });
 
   return router;

@@ -1,10 +1,23 @@
 import fs from 'fs';
 import path from 'path';
-import { stripFrontmatter, jiraToMarkdown } from '../utils/transforms.js';
+import { jiraToMarkdown } from '../utils/transforms.js';
 import type { TypeConfig } from '../types.js';
 
-export const LOCAL_TO_JIRA_TYPE: Record<string, string> = { feature: 'New Feature', epic: 'Epic', story: 'Story', spike: 'Task', bug: 'Bug' };
-export const JIRA_TO_LOCAL_TYPE: Record<string, string> = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Improvement: 'story', Task: 'spike', Bug: 'bug' };
+export const LOCAL_TO_JIRA_TYPE: Record<string, string> = {
+  feature: 'New Feature',
+  epic: 'Epic',
+  story: 'Story',
+  spike: 'Task',
+  bug: 'Bug',
+};
+export const JIRA_TO_LOCAL_TYPE: Record<string, string> = {
+  'New Feature': 'feature',
+  Epic: 'epic',
+  Story: 'story',
+  Improvement: 'story',
+  Task: 'spike',
+  Bug: 'bug',
+};
 
 const JIRA_TIMEOUT_MS = Number(process.env.JIRA_TIMEOUT_MS) || 30_000;
 
@@ -19,17 +32,44 @@ interface JiraServiceConfig {
 }
 
 export interface JiraServiceInstance {
-  jiraRequest: (method: string, urlPath: string, body?: any, opts?: { _retryOn429?: boolean }) => Promise<any>;
-  jiraPagedRequest: (jql: string, fields: string, opts?: { maxResults?: number; maxTotal?: number }) => Promise<any[]>;
-  jiraAgileRequest: (method: string, urlPath: string, body?: any, opts?: { _retryOn429?: boolean }) => Promise<any>;
+  jiraRequest: (
+    method: string,
+    urlPath: string,
+    body?: any,
+    opts?: { _retryOn429?: boolean }
+  ) => Promise<any>;
+  jiraPagedRequest: (
+    jql: string,
+    fields: string,
+    opts?: { maxResults?: number; maxTotal?: number }
+  ) => Promise<any[]>;
+  jiraAgileRequest: (
+    method: string,
+    urlPath: string,
+    body?: any,
+    opts?: { _retryOn429?: boolean }
+  ) => Promise<any>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<any>;
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
   jiraIssueToMarkdown: (issue: any) => { docType: string; content: string };
   extractJiraSummary: (content: string) => string;
 }
 
-export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIELD_STORY_POINTS, TYPE_CONFIG, isoDate, slugify }: JiraServiceConfig): JiraServiceInstance {
-  async function jiraRequest(method: string, urlPath: string, body?: any, { _retryOn429 = true } = {}): Promise<any> {
+export function createJiraService({
+  JIRA_BASE,
+  JIRA_TOKEN,
+  FIELD_EPIC_NAME: _FIELD_EPIC_NAME,
+  FIELD_STORY_POINTS,
+  TYPE_CONFIG,
+  isoDate,
+  slugify: _slugify,
+}: JiraServiceConfig): JiraServiceInstance {
+  async function jiraRequest(
+    method: string,
+    urlPath: string,
+    body?: any,
+    { _retryOn429 = true } = {}
+  ): Promise<any> {
     const url = `${JIRA_BASE}/rest/api/2${urlPath}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
@@ -47,7 +87,8 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
     try {
       res = await fetch(url, opts);
     } catch (err: any) {
-      if (err.name === 'AbortError') throw new Error(`JIRA request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
+      if (err.name === 'AbortError')
+        throw new Error(`JIRA request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
       throw err;
     } finally {
       clearTimeout(timer);
@@ -55,21 +96,28 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
     // Rate-limit: wait for Retry-After and retry once
     if (res.status === 429 && _retryOn429) {
       const retryAfter = Number(res.headers.get('Retry-After')) || 60;
-      await new Promise(r => setTimeout(r, retryAfter * 1000));
+      await new Promise((r) => setTimeout(r, retryAfter * 1000));
       return jiraRequest(method, urlPath, body, { _retryOn429: false });
     }
     if (!res.ok) {
       if (res.status === 429) throw new Error(`JIRA rate limit exceeded — try again later`);
       const text = await res.text().catch(() => '');
       // Scrub anything resembling a Bearer token from error output
-      const safeText = text.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]').slice(0, 300);
+      const safeText = text
+        .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]')
+        .slice(0, 300);
       throw new Error(`JIRA ${method} ${urlPath} → ${res.status}: ${safeText}`);
     }
     const text = await res.text();
     return text ? JSON.parse(text) : undefined;
   }
 
-  async function jiraAgileRequest(method: string, urlPath: string, body?: any, { _retryOn429 = true } = {}): Promise<any> {
+  async function jiraAgileRequest(
+    method: string,
+    urlPath: string,
+    body?: any,
+    { _retryOn429 = true } = {}
+  ): Promise<any> {
     const url = `${JIRA_BASE}/rest/agile/1.0${urlPath}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
@@ -87,27 +135,34 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
     try {
       res = await fetch(url, opts);
     } catch (err: any) {
-      if (err.name === 'AbortError') throw new Error(`JIRA Agile request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
+      if (err.name === 'AbortError')
+        throw new Error(`JIRA Agile request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
       throw err;
     } finally {
       clearTimeout(timer);
     }
     if (res.status === 429 && _retryOn429) {
       const retryAfter = Number(res.headers.get('Retry-After')) || 60;
-      await new Promise(r => setTimeout(r, retryAfter * 1000));
+      await new Promise((r) => setTimeout(r, retryAfter * 1000));
       return jiraAgileRequest(method, urlPath, body, { _retryOn429: false });
     }
     if (!res.ok) {
       if (res.status === 429) throw new Error(`JIRA Agile rate limit exceeded — try again later`);
       const text = await res.text().catch(() => '');
-      const safeText = text.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]').slice(0, 300);
+      const safeText = text
+        .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]')
+        .slice(0, 300);
       throw new Error(`JIRA Agile ${method} ${urlPath} → ${res.status}: ${safeText}`);
     }
     const text = await res.text();
     return text ? JSON.parse(text) : undefined;
   }
 
-  async function jiraPagedRequest(jql: string, fields: string, { maxResults = 100, maxTotal = 500 } = {}): Promise<any[]> {
+  async function jiraPagedRequest(
+    jql: string,
+    fields: string,
+    { maxResults = 100, maxTotal = 500 } = {}
+  ): Promise<any[]> {
     const all: any[] = [];
     let startAt = 0;
 
@@ -117,18 +172,21 @@ export function createJiraService({ JIRA_BASE, JIRA_TOKEN, FIELD_EPIC_NAME, FIEL
       const issues = page.issues || [];
       all.push(...issues);
 
-      if (all.length >= maxTotal || all.length >= (page.total || 0) || issues.length < maxResults) break;
+      if (all.length >= maxTotal || all.length >= (page.total || 0) || issues.length < maxResults)
+        break;
       startAt += issues.length;
     }
 
     return all.slice(0, maxTotal);
   }
 
-  async function findLocalFileByJiraId(jiraId: string): Promise<{ docType: string; filename: string } | null> {
+  async function findLocalFileByJiraId(
+    jiraId: string
+  ): Promise<{ docType: string; filename: string } | null> {
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
       const dir = cfg.dir();
       if (!fs.existsSync(dir)) continue;
-      for (const f of (await fs.promises.readdir(dir)).filter(f => f.endsWith('.md'))) {
+      for (const f of (await fs.promises.readdir(dir)).filter((f) => f.endsWith('.md'))) {
         const content = await fs.promises.readFile(path.join(dir, f), 'utf-8');
         const m = content.match(/^JIRA_ID:\s*(.+)$/m);
         if (m && m[1].trim() === jiraId) return { docType, filename: f };
@@ -182,7 +240,11 @@ ${description || '_No description in JIRA._'}
     return 'Untitled';
   }
 
-  async function jiraUploadAttachment(issueKey: string, filename: string, buffer: Buffer): Promise<any> {
+  async function jiraUploadAttachment(
+    issueKey: string,
+    filename: string,
+    buffer: Buffer
+  ): Promise<any> {
     const url = `${JIRA_BASE}/rest/api/2/issue/${issueKey}/attachments`;
     const formData = new FormData();
     formData.append('file', new Blob([new Uint8Array(buffer)]), filename);

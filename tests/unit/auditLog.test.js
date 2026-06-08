@@ -10,7 +10,7 @@ let auditPath;
 let logAudit;
 
 before(async () => {
-  tmpDir    = fs.mkdtempSync(path.join(os.tmpdir(), 'audit-test-'));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'audit-test-'));
   auditPath = path.join(tmpDir, 'audit.log');
   process.env.AUDIT_LOG_PATH = auditPath;
   // Dynamic import after env var is set so the module picks it up
@@ -28,15 +28,16 @@ beforeEach(() => {
 });
 
 function waitForWrite() {
-  return new Promise(resolve => setTimeout(resolve, 50));
+  return new Promise((resolve) => setTimeout(resolve, 50));
 }
 
 function readEvents() {
   if (!fs.existsSync(auditPath)) return [];
-  return fs.readFileSync(auditPath, 'utf-8')
+  return fs
+    .readFileSync(auditPath, 'utf-8')
     .split('\n')
     .filter(Boolean)
-    .map(line => JSON.parse(line));
+    .map((line) => JSON.parse(line));
 }
 
 describe('auditLog', () => {
@@ -63,7 +64,13 @@ describe('auditLog', () => {
   });
 
   test('includes optional fields object when provided', async () => {
-    logAudit({ op: 'update', docType: 'epic', filename: 'x.md', fields: { status: 'Archived' }, source: 'api' });
+    logAudit({
+      op: 'update',
+      docType: 'epic',
+      filename: 'x.md',
+      fields: { status: 'Archived' },
+      source: 'api',
+    });
     await waitForWrite();
     const events = readEvents();
     assert.deepEqual(events[0].fields, { status: 'Archived' });

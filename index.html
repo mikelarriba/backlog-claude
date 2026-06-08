@@ -1,858 +1,1266 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0096D6" />
-  <link rel="manifest" href="manifest.json" />
-  <title>MIDAS Backlog</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0096D6" />
+    <link rel="manifest" href="manifest.json" />
+    <title>MIDAS Backlog</title>
 
-  <!-- External CSS -->
-  <link rel="stylesheet" href="/public/css/base.css" />
-  <link rel="stylesheet" href="/public/css/layout.css" />
-  <link rel="stylesheet" href="/public/css/components.css" />
-  <link rel="stylesheet" href="/public/css/list.css" />
-  <link rel="stylesheet" href="/public/css/detail.css" />
-  <link rel="stylesheet" href="/public/css/stories.css" />
-  <link rel="stylesheet" href="/public/css/jira.css" />
-  <link rel="stylesheet" href="/public/css/bugs.css" />
-  <link rel="stylesheet" href="/public/css/piconfig.css" />
-  <link rel="stylesheet" href="/public/css/distribution.css" />
-  <link rel="stylesheet" href="/public/css/roadmap.css" />
+    <!-- External CSS -->
+    <link rel="stylesheet" href="/public/css/base.css" />
+    <link rel="stylesheet" href="/public/css/layout.css" />
+    <link rel="stylesheet" href="/public/css/components.css" />
+    <link rel="stylesheet" href="/public/css/list.css" />
+    <link rel="stylesheet" href="/public/css/detail.css" />
+    <link rel="stylesheet" href="/public/css/stories.css" />
+    <link rel="stylesheet" href="/public/css/jira.css" />
+    <link rel="stylesheet" href="/public/css/bugs.css" />
+    <link rel="stylesheet" href="/public/css/piconfig.css" />
+    <link rel="stylesheet" href="/public/css/distribution.css" />
+    <link rel="stylesheet" href="/public/css/roadmap.css" />
 
-  <!-- Theme (load before render to avoid flash) -->
-  <script src="/public/js/theme.js"></script>
+    <!-- Theme (load before render to avoid flash) -->
+    <script src="/public/js/theme.js"></script>
 
-  <!-- Markdown renderer (vendored locally; removes CDN dependency) -->
-  <script src="/public/js/vendor/marked.umd.js" integrity="sha384-8RA8Ah4c9upJmKfg5nH01OgjZoQ3mRX+ngrKYWXQYj2dHYxFqYz8POSlii33f0wB" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="/public/css/refine.css" />
-  <link rel="stylesheet" href="/public/css/split.css" />
-  <link rel="stylesheet" href="/public/css/swimlanes.css" />
-</head>
-<body>
-
-<div class="app" id="app-root">
-
-  <!-- ── Left Panel: Form ──────────────────────────────────────── -->
-  <div class="left">
-    <div class="app-header">
-      <div class="logo">
-        <div class="logo-icon">⚡</div>
-        <h1>MIDAS Backlog</h1>
-      </div>
-      <div class="theme-toggle" role="group" aria-label="Theme">
-        <button class="theme-btn" data-theme="light"  onclick="setTheme('light')"  title="Light mode">☀</button>
-        <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="System default">◑</button>
-        <button class="theme-btn" data-theme="dark"   onclick="setTheme('dark')"   title="Dark mode">☾</button>
-      </div>
-    </div>
-    <p class="subtitle">Turn a rough idea into a polished Epic.</p>
-
-    <div class="field">
-      <label for="doc-title">Title <span class="field-required">*</span></label>
-      <input id="doc-title" type="text" placeholder="e.g. Self-Service Auth" />
-    </div>
-
-    <div class="field">
-      <label for="idea">Notes / Idea <span class="field-optional">(optional for drafts)</span></label>
-      <textarea id="idea" placeholder="e.g. Users should be able to reset their password via email without contacting support..."></textarea>
-    </div>
-
-    <div class="meta-row">
-      <div class="field">
-        <label for="doc-type">Type</label>
-        <select id="doc-type">
-          <option value="feature">New Feature</option>
-          <option value="epic">Epic</option>
-          <option value="story">Story</option>
-          <option value="spike">Spike</option>
-          <option value="bug">Bug</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="priority">Priority</label>
-        <select id="priority">
-          <option value="Medium">Medium</option>
-          <option value="High">High</option>
-          <option value="Low">Low</option>
-          <option value="Critical">Critical</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="meta-row">
-      <div class="field">
-        <label for="team">Team</label>
-        <select id="team">
-          <option value="">— Select —</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="work-category">Work Category</label>
-        <select id="work-category">
-          <option value="">— Select —</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="actions">
-      <button class="btn-secondary" onclick="clearForm()">Clear</button>
-      <button class="btn-draft" id="draft-btn" onclick="saveDraft()">Save Draft</button>
-      <button class="btn-primary" id="generate-btn" onclick="generateDoc()">
-        <span id="btn-label">✨ Generate</span>
-      </button>
-    </div>
-    <button class="btn-bug-create" onclick="openBugModal()">
-      <span class="bug-icon">&#128027;</span> Create Bug Report
-    </button>
-
-    <div class="status" id="status"></div>
-
-    <!-- JIRA Import -->
-    <div class="collapsible jira-section">
-      <div class="collapsible-header" onclick="toggleJiraSection()">
-        <span class="collapsible-title">🔗 Import from JIRA</span>
-        <span class="collapsible-chevron" id="jira-chevron">▶</span>
-      </div>
-      <div class="collapsible-body" id="jira-section-body">
-        <div class="collapsible-inner">
-          <div class="jira-search-row">
-            <div class="field">
-              <label for="jira-type">Type</label>
-              <select id="jira-type">
-                <option value="all">All Types</option>
-                <option value="feature">New Feature</option>
-                <option value="epic">Epic</option>
-                <option value="story">Story</option>
-                <option value="spike">Task / Spike</option>
-                <option value="bug">Bug</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="jira-text">Keywords</label>
-              <input id="jira-text" type="text" placeholder="Search text…" onkeydown="if(event.key==='Enter') searchJira()" />
-            </div>
+    <!-- Markdown renderer (vendored locally; removes CDN dependency) -->
+    <script
+      src="/public/js/vendor/marked.umd.js"
+      integrity="sha384-8RA8Ah4c9upJmKfg5nH01OgjZoQ3mRX+ngrKYWXQYj2dHYxFqYz8POSlii33f0wB"
+      crossorigin="anonymous"
+    ></script>
+    <link rel="stylesheet" href="/public/css/refine.css" />
+    <link rel="stylesheet" href="/public/css/split.css" />
+    <link rel="stylesheet" href="/public/css/swimlanes.css" />
+  </head>
+  <body>
+    <div class="app" id="app-root">
+      <!-- ── Left Panel: Form ──────────────────────────────────────── -->
+      <div class="left">
+        <div class="app-header">
+          <div class="logo">
+            <div class="logo-icon">⚡</div>
+            <h1>MIDAS Backlog</h1>
           </div>
-          <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">Search JIRA</button>
-          <div class="jira-results" id="jira-results"></div>
-          <button class="btn-jira-download hidden" id="jira-download-btn" onclick="downloadSelected()">⬇ Download Selected</button>
-          <div class="jira-status" id="jira-status"></div>
-          <div class="jira-key-import">
-            <label for="jira-key-input">Import by key</label>
-            <div class="jira-key-row">
-              <input id="jira-key-input" type="text" placeholder="e.g. EAMDM-9969, EAMDM-1234"
-                     onkeydown="if(event.key==='Enter') pullByKey()" />
-              <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
-            </div>
+          <div class="theme-toggle" role="group" aria-label="Theme">
+            <button
+              class="theme-btn"
+              data-theme="light"
+              onclick="setTheme('light')"
+              title="Light mode"
+            >
+              ☀
+            </button>
+            <button
+              class="theme-btn"
+              data-theme="system"
+              onclick="setTheme('system')"
+              title="System default"
+            >
+              ◑
+            </button>
+            <button
+              class="theme-btn"
+              data-theme="dark"
+              onclick="setTheme('dark')"
+              title="Dark mode"
+            >
+              ☾
+            </button>
           </div>
         </div>
-      </div>
-    </div>
+        <p class="subtitle">Turn a rough idea into a polished Epic.</p>
 
-    <!-- Model Settings -->
-    <div class="collapsible model-section">
-      <div class="collapsible-header" onclick="toggleModelSection()">
-        <span class="collapsible-title">⚙ AI Model</span>
-        <span class="collapsible-chevron" id="model-chevron">▶</span>
-      </div>
-      <div class="collapsible-body model-body" id="model-section-body">
-        <div class="collapsible-inner">
+        <div class="field">
+          <label for="doc-title">Title <span class="field-required">*</span></label>
+          <input id="doc-title" type="text" placeholder="e.g. Self-Service Auth" />
+        </div>
+
+        <div class="field">
+          <label for="idea"
+            >Notes / Idea <span class="field-optional">(optional for drafts)</span></label
+          >
+          <textarea
+            id="idea"
+            placeholder="e.g. Users should be able to reset their password via email without contacting support..."
+          ></textarea>
+        </div>
+
+        <div class="meta-row">
           <div class="field">
-            <label for="provider-select">Provider</label>
-            <div class="provider-select-row">
-              <select id="provider-select" onchange="onProviderChange(this.value)"></select>
-              <button id="provider-refresh-btn" class="provider-refresh-btn" onclick="refreshProviders()" title="Refresh providers (re-detect Ollama)" aria-label="Refresh providers">↺</button>
-            </div>
+            <label for="doc-type">Type</label>
+            <select id="doc-type">
+              <option value="feature">New Feature</option>
+              <option value="epic">Epic</option>
+              <option value="story">Story</option>
+              <option value="spike">Spike</option>
+              <option value="bug">Bug</option>
+            </select>
           </div>
           <div class="field">
-            <label for="model-select">Model</label>
-            <select id="model-select" onchange="updateModelSetting(this.value)"></select>
-          </div>
-          <div class="model-status" id="model-status"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- PI Sprint Configuration -->
-    <div class="collapsible pi-config-section">
-      <div class="collapsible-header" onclick="togglePiConfigSection()">
-        <span class="collapsible-title">📊 PI Sprint Config</span>
-        <span class="collapsible-chevron" id="pi-config-chevron">▶</span>
-      </div>
-      <div class="collapsible-body" id="pi-config-body">
-        <div class="collapsible-inner">
-          <div class="pi-config-tabs" id="pi-config-tabs"></div>
-          <div class="pi-config-sprints" id="pi-config-sprints"></div>
-          <button class="btn-pi-add-sprint" onclick="addSprintRow()">+ Add Sprint</button>
-          <button class="btn-pi-save" id="pi-config-save-btn" onclick="saveSprintConfig()">Save Configuration</button>
-          <button class="btn-pi-distribute" id="pi-config-distribute-btn" onclick="openDistributionModal(_piConfigActivePi)">Distribute Stories</button>
-          <div class="pi-config-split-row">
-            <label class="pi-config-split-label" for="split-threshold-input">Split cards ≥</label>
-            <input class="pi-config-split-input" id="split-threshold-input" type="number" min="1" max="99"
-                   value="8" onchange="saveSplitThreshold(this.value)" />
-            <span class="pi-config-split-unit">SP</span>
-          </div>
-          <div class="pi-config-status" id="pi-config-status"></div>
-        </div>
-      </div>
-    </div>
-    <button class="left-toggle-btn" id="left-toggle-btn" onclick="toggleLeftPanel()" title="Toggle panel (Ctrl+B)">«</button>
-  </div>
-
-  <!-- ── Right Panel ───────────────────────────────────────────── -->
-  <div class="right">
-
-    <!-- List View -->
-    <div id="list-view">
-      <div class="list-header">
-        <div class="list-header-top">
-          <span class="list-title">Your Issues</span>
-          <span class="epic-count" id="epic-count">0</span>
-          <div class="list-header-actions">
-            <button class="btn-toolbar" onclick="collapseAll()" title="Collapse all">▶ Collapse</button>
-            <button class="btn-toolbar" onclick="expandAll()" title="Expand all">▼ Expand</button>
-            <button class="btn-toolbar btn-toolbar-jira" id="jira-check-all-btn" onclick="checkAllJira()" title="Check all JIRA-linked issues for changes">↕ Check JIRA</button>
-            <button class="btn-toolbar btn-toolbar-roadmap" onclick="openRoadmapView()">Roadmap</button>
-          </div>
-        </div>
-        <div class="search-wrap">
-          <span class="search-icon">🔍</span>
-          <input id="search" type="text" placeholder="Search..." oninput="applyFiltersDebounced()" />
-        </div>
-      </div>
-      <div class="filter-row">
-        <div class="filter-group">
-          <span class="filter-label">Type</span>
-          <button class="pill active"   data-type="all"     onclick="setTypeFilter('all')">All</button>
-          <button class="pill feature"  data-type="feature" onclick="setTypeFilter('feature')">Feature</button>
-          <button class="pill epic"     data-type="epic"    onclick="setTypeFilter('epic')">Epic</button>
-          <button class="pill story"    data-type="story"   onclick="setTypeFilter('story')">Story</button>
-          <button class="pill spike"    data-type="spike"   onclick="setTypeFilter('spike')">Spike</button>
-          <button class="pill bug"      data-type="bug"     onclick="setTypeFilter('bug')">Bug</button>
-        </div>
-        <div class="filter-group">
-          <span class="filter-label">Status</span>
-          <button class="pill active" data-status="all"              onclick="setStatusFilter('all')">All</button>
-          <button class="pill"        data-status="Draft"            onclick="setStatusFilter('Draft')">Draft</button>
-          <button class="pill"        data-status="Created in JIRA"  onclick="setStatusFilter('Created in JIRA')">In JIRA</button>
-          <button class="pill"        data-status="Archived"         onclick="setStatusFilter('Archived')">Archived</button>
-        </div>
-      </div>
-      <div class="filter-row filter-row-secondary">
-        <div class="filter-group">
-          <span class="filter-label">Team</span>
-          <button class="pill active"  data-team="all" onclick="setTeamFilter('all')">All</button>
-        </div>
-        <div class="filter-group filter-group-workcat">
-          <span class="filter-label">Work Category</span>
-          <button class="pill active"  data-workcat="all" onclick="setWorkCatFilter('all')">All</button>
-        </div>
-      </div>
-      <div class="epic-list" id="epic-list">
-        <div class="empty-state">
-          <div class="icon">📋</div>
-          No epics yet. Write your first idea on the left and click<br><strong>Generate Epic</strong>.
-        </div>
-      </div>
-    </div>
-
-    <!-- Detail View -->
-    <div id="detail-view">
-      <!-- Shown only in split mode when no issue is selected -->
-      <div id="split-placeholder">
-        <div class="split-placeholder-icon">←</div>
-        <span>Select an issue to preview it here</span>
-      </div>
-      <div class="detail-header">
-        <!-- Row 1: back + title + JIRA badge + SP -->
-        <div class="detail-row-1">
-          <button class="btn-ghost" onclick="showList()">← Back</button>
-          <input class="detail-title-input" id="detail-title-input"
-                 type="text" placeholder="Title…"
-                 onblur="saveTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelTitleEdit()}">
-          <a id="detail-jira-link" class="detail-jira-badge hidden" href="#" target="_blank" rel="noopener"></a>
-          <span id="detail-jira-status" class="detail-jira-status hidden"></span>
-          <div id="sp-wrap" class="sp-wrap hidden">
-            <span class="sp-label">SP:</span>
-            <input id="sp-input" class="sp-input" type="number" min="0" max="999" placeholder="—"
-                   onblur="saveStoryPoints()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){this.blur()}">
-          </div>
-          <div id="sp-sum-wrap" class="sp-sum-wrap hidden">
-            <span class="sp-label">SP:</span>
-            <span id="sp-sum" class="sp-sum">0</span>
-          </div>
-        </div>
-
-        <!-- Row 2: 2x2 field grid (Status/Team, Sprint/Category) -->
-        <div class="detail-row-2">
-          <div class="detail-field-group">
-            <label class="detail-field-label">Status</label>
-            <select class="detail-field-select" id="status-select" onchange="updateDocStatus(this.value)">
-              <option value="Draft">Draft</option>
-              <option value="Created in JIRA">Created in JIRA</option>
-              <option value="Archived">Archived</option>
-            </select>
-          </div>
-          <div class="detail-field-group">
-            <label class="detail-field-label">Team</label>
-            <select class="detail-field-select" id="detail-team-select" onchange="updateDocTeam(this.value)">
-              <option value="">No Team</option>
-            </select>
-          </div>
-          <div class="detail-field-group">
-            <label class="detail-field-label">Sprint</label>
-            <select class="detail-field-select hidden" id="sprint-select"
-                    onchange="updateDocSprint(this.value)">
-              <option value="">No Sprint</option>
-            </select>
-          </div>
-          <div class="detail-field-group">
-            <label class="detail-field-label">Category</label>
-            <select class="detail-field-select" id="detail-workcat-select" onchange="updateDocWorkCategory(this.value)">
-              <option value="">No Category</option>
+            <label for="priority">Priority</label>
+            <select id="priority">
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Low">Low</option>
+              <option value="Critical">Critical</option>
             </select>
           </div>
         </div>
 
-        <!-- Dependencies row (shown only when deps exist) -->
-        <div class="detail-deps-row hidden" id="detail-deps-row"></div>
-
-        <!-- Row 3: file reference -->
-        <div class="detail-row-3">
-          <span class="detail-file-label">File Reference:</span>
-          <span class="detail-filename" id="detail-filename"></span>
+        <div class="meta-row">
+          <div class="field">
+            <label for="team">Team</label>
+            <select id="team">
+              <option value="">— Select —</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="work-category">Work Category</label>
+            <select id="work-category">
+              <option value="">— Select —</option>
+            </select>
+          </div>
         </div>
 
-        <!-- Row 4: action buttons -->
-        <div class="detail-row-4">
-          <div class="detail-toolbar">
-            <button class="btn-toolbar" onclick="toggleUpgradePanel()">↑ Upgrade</button>
+        <div class="actions">
+          <button class="btn-secondary" onclick="clearForm()">Clear</button>
+          <button class="btn-draft" id="draft-btn" onclick="saveDraft()">Save Draft</button>
+          <button class="btn-primary" id="generate-btn" onclick="generateDoc()">
+            <span id="btn-label">✨ Generate</span>
+          </button>
+        </div>
+        <button class="btn-bug-create" onclick="openBugModal()">
+          <span class="bug-icon">&#128027;</span> Create Bug Report
+        </button>
 
-            <div class="dropdown-wrap hidden" id="create-dropdown-wrap">
-              <button class="btn-toolbar btn-toolbar-create" onclick="toggleDropdown('create-dropdown-menu')">
-                ＋ Create <span class="toolbar-caret">▾</span>
+        <div class="status" id="status"></div>
+
+        <!-- JIRA Import -->
+        <div class="collapsible jira-section">
+          <div class="collapsible-header" onclick="toggleJiraSection()">
+            <span class="collapsible-title">🔗 Import from JIRA</span>
+            <span class="collapsible-chevron" id="jira-chevron">▶</span>
+          </div>
+          <div class="collapsible-body" id="jira-section-body">
+            <div class="collapsible-inner">
+              <div class="jira-search-row">
+                <div class="field">
+                  <label for="jira-type">Type</label>
+                  <select id="jira-type">
+                    <option value="all">All Types</option>
+                    <option value="feature">New Feature</option>
+                    <option value="epic">Epic</option>
+                    <option value="story">Story</option>
+                    <option value="spike">Task / Spike</option>
+                    <option value="bug">Bug</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="jira-text">Keywords</label>
+                  <input
+                    id="jira-text"
+                    type="text"
+                    placeholder="Search text…"
+                    onkeydown="if (event.key === 'Enter') searchJira();"
+                  />
+                </div>
+              </div>
+              <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">
+                Search JIRA
               </button>
-              <div class="dropdown-menu" id="create-dropdown-menu">
-                <button id="create-story-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('story');closeDropdown('create-dropdown-menu')">
-                  <span class="di-badge story">Story</span>User Story
+              <div class="jira-results" id="jira-results"></div>
+              <button
+                class="btn-jira-download hidden"
+                id="jira-download-btn"
+                onclick="downloadSelected()"
+              >
+                ⬇ Download Selected
+              </button>
+              <div class="jira-status" id="jira-status"></div>
+              <div class="jira-key-import">
+                <label for="jira-key-input">Import by key</label>
+                <div class="jira-key-row">
+                  <input
+                    id="jira-key-input"
+                    type="text"
+                    placeholder="e.g. EAMDM-9969, EAMDM-1234"
+                    onkeydown="if (event.key === 'Enter') pullByKey();"
+                  />
+                  <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Model Settings -->
+        <div class="collapsible model-section">
+          <div class="collapsible-header" onclick="toggleModelSection()">
+            <span class="collapsible-title">⚙ AI Model</span>
+            <span class="collapsible-chevron" id="model-chevron">▶</span>
+          </div>
+          <div class="collapsible-body model-body" id="model-section-body">
+            <div class="collapsible-inner">
+              <div class="field">
+                <label for="provider-select">Provider</label>
+                <div class="provider-select-row">
+                  <select id="provider-select" onchange="onProviderChange(this.value)"></select>
+                  <button
+                    id="provider-refresh-btn"
+                    class="provider-refresh-btn"
+                    onclick="refreshProviders()"
+                    title="Refresh providers (re-detect Ollama)"
+                    aria-label="Refresh providers"
+                  >
+                    ↺
+                  </button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="model-select">Model</label>
+                <select id="model-select" onchange="updateModelSetting(this.value)"></select>
+              </div>
+              <div class="model-status" id="model-status"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PI Sprint Configuration -->
+        <div class="collapsible pi-config-section">
+          <div class="collapsible-header" onclick="togglePiConfigSection()">
+            <span class="collapsible-title">📊 PI Sprint Config</span>
+            <span class="collapsible-chevron" id="pi-config-chevron">▶</span>
+          </div>
+          <div class="collapsible-body" id="pi-config-body">
+            <div class="collapsible-inner">
+              <div class="pi-config-tabs" id="pi-config-tabs"></div>
+              <div class="pi-config-sprints" id="pi-config-sprints"></div>
+              <button class="btn-pi-add-sprint" onclick="addSprintRow()">+ Add Sprint</button>
+              <button class="btn-pi-save" id="pi-config-save-btn" onclick="saveSprintConfig()">
+                Save Configuration
+              </button>
+              <button
+                class="btn-pi-distribute"
+                id="pi-config-distribute-btn"
+                onclick="openDistributionModal(_piConfigActivePi)"
+              >
+                Distribute Stories
+              </button>
+              <div class="pi-config-split-row">
+                <label class="pi-config-split-label" for="split-threshold-input"
+                  >Split cards ≥</label
+                >
+                <input
+                  class="pi-config-split-input"
+                  id="split-threshold-input"
+                  type="number"
+                  min="1"
+                  max="99"
+                  value="8"
+                  onchange="saveSplitThreshold(this.value)"
+                />
+                <span class="pi-config-split-unit">SP</span>
+              </div>
+              <div class="pi-config-status" id="pi-config-status"></div>
+            </div>
+          </div>
+        </div>
+        <button
+          class="left-toggle-btn"
+          id="left-toggle-btn"
+          onclick="toggleLeftPanel()"
+          title="Toggle panel (Ctrl+B)"
+        >
+          «
+        </button>
+      </div>
+
+      <!-- ── Right Panel ───────────────────────────────────────────── -->
+      <div class="right">
+        <!-- List View -->
+        <div id="list-view">
+          <div class="list-header">
+            <div class="list-header-top">
+              <span class="list-title">Your Issues</span>
+              <span class="epic-count" id="epic-count">0</span>
+              <div class="list-header-actions">
+                <button class="btn-toolbar" onclick="collapseAll()" title="Collapse all">
+                  ▶ Collapse
                 </button>
-                <button id="create-spike-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('spike');closeDropdown('create-dropdown-menu')">
-                  <span class="di-badge spike">Spike</span>Research Spike
+                <button class="btn-toolbar" onclick="expandAll()" title="Expand all">
+                  ▼ Expand
                 </button>
-                <button id="create-bug-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('bug');closeDropdown('create-dropdown-menu')">
-                  <span class="di-badge bug">Bug</span>Bug Report
+                <button
+                  class="btn-toolbar btn-toolbar-jira"
+                  id="jira-check-all-btn"
+                  onclick="checkAllJira()"
+                  title="Check all JIRA-linked issues for changes"
+                >
+                  ↕ Check JIRA
                 </button>
-                <button id="create-epic-btn" class="dropdown-item hidden" onclick="toggleQuickCreate('epic');closeDropdown('create-dropdown-menu')">
-                  <span class="di-badge epic">Epic</span>Epic
+                <button class="btn-toolbar btn-toolbar-roadmap" onclick="openRoadmapView()">
+                  Roadmap
                 </button>
               </div>
             </div>
-
-            <div class="dropdown-wrap hidden" id="refine-dropdown-wrap">
-              <button class="btn-toolbar" onclick="toggleDropdown('refine-dropdown-menu')">
-                ✨ Refine <span class="toolbar-caret">▾</span>
+            <div class="search-wrap">
+              <span class="search-icon">🔍</span>
+              <input
+                id="search"
+                type="text"
+                placeholder="Search..."
+                oninput="applyFiltersDebounced()"
+              />
+            </div>
+          </div>
+          <div class="filter-row">
+            <div class="filter-group">
+              <span class="filter-label">Type</span>
+              <button class="pill active" data-type="all" onclick="setTypeFilter('all')">
+                All
               </button>
-              <div class="dropdown-menu" id="refine-dropdown-menu">
-                <button id="stories-btn" class="dropdown-item" onclick="generateStories();closeDropdown('refine-dropdown-menu')">
-                  <span class="di-badge story">Auto</span>AI Story Generation
-                </button>
-                <button class="dropdown-item" onclick="openManualRefine(currentFilename,currentDocType);closeDropdown('refine-dropdown-menu')">
-                  <span class="di-badge epic">Manual</span>Visual Refinement
-                </button>
+              <button class="pill feature" data-type="feature" onclick="setTypeFilter('feature')">
+                Feature
+              </button>
+              <button class="pill epic" data-type="epic" onclick="setTypeFilter('epic')">
+                Epic
+              </button>
+              <button class="pill story" data-type="story" onclick="setTypeFilter('story')">
+                Story
+              </button>
+              <button class="pill spike" data-type="spike" onclick="setTypeFilter('spike')">
+                Spike
+              </button>
+              <button class="pill bug" data-type="bug" onclick="setTypeFilter('bug')">Bug</button>
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">Status</span>
+              <button class="pill active" data-status="all" onclick="setStatusFilter('all')">
+                All
+              </button>
+              <button class="pill" data-status="Draft" onclick="setStatusFilter('Draft')">
+                Draft
+              </button>
+              <button
+                class="pill"
+                data-status="Created in JIRA"
+                onclick="setStatusFilter('Created in JIRA')"
+              >
+                In JIRA
+              </button>
+              <button class="pill" data-status="Archived" onclick="setStatusFilter('Archived')">
+                Archived
+              </button>
+            </div>
+          </div>
+          <div class="filter-row filter-row-secondary">
+            <div class="filter-group">
+              <span class="filter-label">Team</span>
+              <button class="pill active" data-team="all" onclick="setTeamFilter('all')">
+                All
+              </button>
+            </div>
+            <div class="filter-group filter-group-workcat">
+              <span class="filter-label">Work Category</span>
+              <button class="pill active" data-workcat="all" onclick="setWorkCatFilter('all')">
+                All
+              </button>
+            </div>
+          </div>
+          <div class="epic-list" id="epic-list">
+            <div class="empty-state">
+              <div class="icon">📋</div>
+              No epics yet. Write your first idea on the left and click<br /><strong
+                >Generate Epic</strong
+              >.
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail View -->
+        <div id="detail-view">
+          <!-- Shown only in split mode when no issue is selected -->
+          <div id="split-placeholder">
+            <div class="split-placeholder-icon">←</div>
+            <span>Select an issue to preview it here</span>
+          </div>
+          <div class="detail-header">
+            <!-- Row 1: back + title + JIRA badge + SP -->
+            <div class="detail-row-1">
+              <button class="btn-ghost" onclick="showList()">← Back</button>
+              <input
+                class="detail-title-input"
+                id="detail-title-input"
+                type="text"
+                placeholder="Title…"
+                onblur="saveTitle()"
+                onkeydown="
+                  if (event.key === 'Enter') {
+                    this.blur();
+                  }
+                  if (event.key === 'Escape') {
+                    cancelTitleEdit();
+                  }
+                "
+              />
+              <a
+                id="detail-jira-link"
+                class="detail-jira-badge hidden"
+                href="#"
+                target="_blank"
+                rel="noopener"
+              ></a>
+              <span id="detail-jira-status" class="detail-jira-status hidden"></span>
+              <div id="sp-wrap" class="sp-wrap hidden">
+                <span class="sp-label">SP:</span>
+                <input
+                  id="sp-input"
+                  class="sp-input"
+                  type="number"
+                  min="0"
+                  max="999"
+                  placeholder="—"
+                  onblur="saveStoryPoints()"
+                  onkeydown="
+                    if (event.key === 'Enter') {
+                      this.blur();
+                    }
+                    if (event.key === 'Escape') {
+                      this.blur();
+                    }
+                  "
+                />
+              </div>
+              <div id="sp-sum-wrap" class="sp-sum-wrap hidden">
+                <span class="sp-label">SP:</span>
+                <span id="sp-sum" class="sp-sum">0</span>
               </div>
             </div>
 
-            <div class="dropdown-wrap" id="jira-dropdown-wrap">
-              <button class="btn-toolbar btn-toolbar-jira" id="jira-push-btn" onclick="toggleDropdown('jira-dropdown-menu')">
-                ✦ JIRA <span class="toolbar-caret">▾</span>
-              </button>
-              <div class="dropdown-menu" id="jira-dropdown-menu">
-                <button class="dropdown-item" onclick="pushToJira();closeDropdown('jira-dropdown-menu')">
-                  <span class="di-badge jira">↑</span>Push to JIRA
-                </button>
-                <button class="dropdown-item" id="jira-pull-btn" onclick="pullFromJira()" title="Update title, description, story points, status and retrieve children from JIRA">
-                  <span class="di-badge">↓</span>Pull from JIRA
-                </button>
+            <!-- Row 2: 2x2 field grid (Status/Team, Sprint/Category) -->
+            <div class="detail-row-2">
+              <div class="detail-field-group">
+                <label class="detail-field-label">Status</label>
+                <select
+                  class="detail-field-select"
+                  id="status-select"
+                  onchange="updateDocStatus(this.value)"
+                >
+                  <option value="Draft">Draft</option>
+                  <option value="Created in JIRA">Created in JIRA</option>
+                  <option value="Archived">Archived</option>
+                </select>
+              </div>
+              <div class="detail-field-group">
+                <label class="detail-field-label">Team</label>
+                <select
+                  class="detail-field-select"
+                  id="detail-team-select"
+                  onchange="updateDocTeam(this.value)"
+                >
+                  <option value="">No Team</option>
+                </select>
+              </div>
+              <div class="detail-field-group">
+                <label class="detail-field-label">Sprint</label>
+                <select
+                  class="detail-field-select hidden"
+                  id="sprint-select"
+                  onchange="updateDocSprint(this.value)"
+                >
+                  <option value="">No Sprint</option>
+                </select>
+              </div>
+              <div class="detail-field-group">
+                <label class="detail-field-label">Category</label>
+                <select
+                  class="detail-field-select"
+                  id="detail-workcat-select"
+                  onchange="updateDocWorkCategory(this.value)"
+                >
+                  <option value="">No Category</option>
+                </select>
               </div>
             </div>
 
-            <button class="btn-toolbar hidden" id="export-pdf-btn" onclick="exportEpicToPdf(currentFilename, currentDocType)" title="Export epic with stories to PDF">
+            <!-- Dependencies row (shown only when deps exist) -->
+            <div class="detail-deps-row hidden" id="detail-deps-row"></div>
+
+            <!-- Row 3: file reference -->
+            <div class="detail-row-3">
+              <span class="detail-file-label">File Reference:</span>
+              <span class="detail-filename" id="detail-filename"></span>
+            </div>
+
+            <!-- Row 4: action buttons -->
+            <div class="detail-row-4">
+              <div class="detail-toolbar">
+                <button class="btn-toolbar" onclick="toggleUpgradePanel()">↑ Upgrade</button>
+
+                <div class="dropdown-wrap hidden" id="create-dropdown-wrap">
+                  <button
+                    class="btn-toolbar btn-toolbar-create"
+                    onclick="toggleDropdown('create-dropdown-menu')"
+                  >
+                    ＋ Create <span class="toolbar-caret">▾</span>
+                  </button>
+                  <div class="dropdown-menu" id="create-dropdown-menu">
+                    <button
+                      id="create-story-btn"
+                      class="dropdown-item hidden"
+                      onclick="
+                        toggleQuickCreate('story');
+                        closeDropdown('create-dropdown-menu');
+                      "
+                    >
+                      <span class="di-badge story">Story</span>User Story
+                    </button>
+                    <button
+                      id="create-spike-btn"
+                      class="dropdown-item hidden"
+                      onclick="
+                        toggleQuickCreate('spike');
+                        closeDropdown('create-dropdown-menu');
+                      "
+                    >
+                      <span class="di-badge spike">Spike</span>Research Spike
+                    </button>
+                    <button
+                      id="create-bug-btn"
+                      class="dropdown-item hidden"
+                      onclick="
+                        toggleQuickCreate('bug');
+                        closeDropdown('create-dropdown-menu');
+                      "
+                    >
+                      <span class="di-badge bug">Bug</span>Bug Report
+                    </button>
+                    <button
+                      id="create-epic-btn"
+                      class="dropdown-item hidden"
+                      onclick="
+                        toggleQuickCreate('epic');
+                        closeDropdown('create-dropdown-menu');
+                      "
+                    >
+                      <span class="di-badge epic">Epic</span>Epic
+                    </button>
+                  </div>
+                </div>
+
+                <div class="dropdown-wrap hidden" id="refine-dropdown-wrap">
+                  <button class="btn-toolbar" onclick="toggleDropdown('refine-dropdown-menu')">
+                    ✨ Refine <span class="toolbar-caret">▾</span>
+                  </button>
+                  <div class="dropdown-menu" id="refine-dropdown-menu">
+                    <button
+                      id="stories-btn"
+                      class="dropdown-item"
+                      onclick="
+                        generateStories();
+                        closeDropdown('refine-dropdown-menu');
+                      "
+                    >
+                      <span class="di-badge story">Auto</span>AI Story Generation
+                    </button>
+                    <button
+                      class="dropdown-item"
+                      onclick="
+                        openManualRefine(currentFilename, currentDocType);
+                        closeDropdown('refine-dropdown-menu');
+                      "
+                    >
+                      <span class="di-badge epic">Manual</span>Visual Refinement
+                    </button>
+                  </div>
+                </div>
+
+                <div class="dropdown-wrap" id="jira-dropdown-wrap">
+                  <button
+                    class="btn-toolbar btn-toolbar-jira"
+                    id="jira-push-btn"
+                    onclick="toggleDropdown('jira-dropdown-menu')"
+                  >
+                    ✦ JIRA <span class="toolbar-caret">▾</span>
+                  </button>
+                  <div class="dropdown-menu" id="jira-dropdown-menu">
+                    <button
+                      class="dropdown-item"
+                      onclick="
+                        pushToJira();
+                        closeDropdown('jira-dropdown-menu');
+                      "
+                    >
+                      <span class="di-badge jira">↑</span>Push to JIRA
+                    </button>
+                    <button
+                      class="dropdown-item"
+                      id="jira-pull-btn"
+                      onclick="pullFromJira()"
+                      title="Update title, description, story points, status and retrieve children from JIRA"
+                    >
+                      <span class="di-badge">↓</span>Pull from JIRA
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  class="btn-toolbar hidden"
+                  id="export-pdf-btn"
+                  onclick="exportEpicToPdf(currentFilename, currentDocType)"
+                  title="Export epic with stories to PDF"
+                >
+                  PDF
+                </button>
+              </div>
+              <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">
+                Delete
+              </button>
+            </div>
+            <!-- /.detail-row-4 -->
+          </div>
+          <!-- /.detail-header -->
+
+          <!-- Upgrade panel -->
+          <div id="upgrade-panel">
+            <div class="upgrade-title">↑ Upgrade Issue</div>
+            <textarea
+              id="upgrade-feedback"
+              placeholder="Describe what you'd like to change or improve — e.g. 'Add more detail to the execution steps', 'Split into smaller stories', 'Focus on the Data Engineer persona', 'Add RabbitMQ async flow'…"
+            ></textarea>
+            <div class="upgrade-actions">
+              <button class="btn-upgrade-run" id="upgrade-run-btn" onclick="executeUpgrade()">
+                Regenerate
+              </button>
+              <button class="btn-secondary" onclick="toggleUpgradePanel()">Cancel</button>
+            </div>
+            <div id="upgrade-stream"></div>
+          </div>
+
+          <!-- Quick Create panel (Story / Spike / Epic from detail view) -->
+          <div id="quick-create-panel">
+            <div class="quick-create-label" id="quick-create-label">＋ Create Story</div>
+            <input
+              class="quick-create-input"
+              id="quick-create-title-input"
+              type="text"
+              placeholder="Title (optional)…"
+            />
+            <textarea
+              class="quick-create-textarea"
+              id="quick-create-idea"
+              placeholder="Describe the story…"
+            ></textarea>
+            <div class="quick-create-actions">
+              <button class="btn-quick-run" id="quick-run-btn" onclick="executeQuickCreate()">
+                Generate
+              </button>
+              <button class="btn-secondary" onclick="closeQuickCreate()">Cancel</button>
+            </div>
+            <div id="quick-create-stream"></div>
+          </div>
+
+          <div class="detail-body">
+            <div class="markdown" id="detail-content"></div>
+
+            <!-- Internal comments (local only, never synced to JIRA) -->
+            <div id="comments-section" class="comments-section hidden"></div>
+
+            <!-- Original idea + upgrade history -->
+            <div class="original-section hidden" id="original-section">
+              <div class="original-toggle" onclick="toggleOriginal()">
+                <span class="original-toggle-label">📄 Original idea &amp; upgrade history</span>
+                <span class="original-chevron" id="original-chevron">▼</span>
+              </div>
+              <div class="original-body" id="original-body">
+                <div id="original-content"></div>
+              </div>
+            </div>
+
+            <!-- Streaming preview shown only during Refine generation -->
+            <div class="stories-stream-wrap hidden" id="stories-stream-wrap">
+              <div class="stories-stream-header">
+                <span>🧩 Generating stories…</span>
+                <span id="stories-spinner" class="spinner hidden"></span>
+              </div>
+              <div class="stories-progress hidden" id="stories-progress">
+                <div class="stories-progress-text" id="stories-progress-text"></div>
+                <div class="stories-progress-bar">
+                  <div class="stories-progress-fill" id="stories-progress-fill"></div>
+                </div>
+              </div>
+              <div class="stories-stream" id="stories-stream"></div>
+            </div>
+
+            <!-- Hierarchy panel: parent Feature or child Epics -->
+            <div class="hierarchy-section hidden" id="hierarchy-section">
+              <div class="hierarchy-header" onclick="toggleHierarchy()">
+                <span class="hierarchy-label" id="hierarchy-label">🔗 Linked Issues</span>
+                <span class="hierarchy-chevron" id="hierarchy-chevron">▼</span>
+              </div>
+              <div class="hierarchy-body open" id="hierarchy-body"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual Refine View: visual hierarchy editor -->
+        <div id="refine-view">
+          <div class="refine-header">
+            <button class="btn-ghost" onclick="closeRefineView()">← Back</button>
+            <span class="refine-title">✨ Refine: <span id="refine-epic-title"></span></span>
+            <div class="refine-add-btns" id="refine-add-btns"></div>
+            <input
+              type="text"
+              id="refine-search"
+              class="refine-search"
+              placeholder="Search cards…"
+              oninput="onCanvasSearch(this.value)"
+              autocomplete="off"
+            />
+            <button
+              class="btn-ghost btn-xs"
+              onclick="resetCanvasLayout(_canvasEpicFilename)"
+              title="Reset card positions to auto-layout"
+            >
+              ↺ Reset Layout
+            </button>
+            <button
+              class="btn-ghost btn-xs"
+              onclick="exportEpicToPdf(_canvasEpicFilename, _canvasDocType)"
+              title="Export epic to PDF"
+            >
               PDF
             </button>
           </div>
-          <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">Delete</button>
-        </div><!-- /.detail-row-4 -->
-      </div><!-- /.detail-header -->
-
-      <!-- Upgrade panel -->
-      <div id="upgrade-panel">
-        <div class="upgrade-title">↑ Upgrade Issue</div>
-        <textarea id="upgrade-feedback" placeholder="Describe what you'd like to change or improve — e.g. 'Add more detail to the execution steps', 'Split into smaller stories', 'Focus on the Data Engineer persona', 'Add RabbitMQ async flow'…"></textarea>
-        <div class="upgrade-actions">
-          <button class="btn-upgrade-run" id="upgrade-run-btn" onclick="executeUpgrade()">Regenerate</button>
-          <button class="btn-secondary" onclick="toggleUpgradePanel()">Cancel</button>
-        </div>
-        <div id="upgrade-stream"></div>
-      </div>
-
-      <!-- Quick Create panel (Story / Spike / Epic from detail view) -->
-      <div id="quick-create-panel">
-        <div class="quick-create-label" id="quick-create-label">＋ Create Story</div>
-        <input class="quick-create-input" id="quick-create-title-input" type="text" placeholder="Title (optional)…" />
-        <textarea class="quick-create-textarea" id="quick-create-idea" placeholder="Describe the story…"></textarea>
-        <div class="quick-create-actions">
-          <button class="btn-quick-run" id="quick-run-btn" onclick="executeQuickCreate()">Generate</button>
-          <button class="btn-secondary" onclick="closeQuickCreate()">Cancel</button>
-        </div>
-        <div id="quick-create-stream"></div>
-      </div>
-
-      <div class="detail-body">
-        <div class="markdown" id="detail-content"></div>
-
-        <!-- Internal comments (local only, never synced to JIRA) -->
-        <div id="comments-section" class="comments-section hidden"></div>
-
-        <!-- Original idea + upgrade history -->
-        <div class="original-section hidden" id="original-section">
-          <div class="original-toggle" onclick="toggleOriginal()">
-            <span class="original-toggle-label">📄 Original idea &amp; upgrade history</span>
-            <span class="original-chevron" id="original-chevron">▼</span>
-          </div>
-          <div class="original-body" id="original-body">
-            <div id="original-content"></div>
+          <div class="refine-body">
+            <div id="refine-canvas"></div>
+            <div class="refine-panel" id="refine-panel"></div>
           </div>
         </div>
 
-        <!-- Streaming preview shown only during Refine generation -->
-        <div class="stories-stream-wrap hidden" id="stories-stream-wrap">
-          <div class="stories-stream-header">
-            <span>🧩 Generating stories…</span>
-            <span id="stories-spinner" class="spinner hidden"></span>
+        <!-- PI Roadmap View: sprint board with draggable cards -->
+        <div id="roadmap-view">
+          <div class="roadmap-header">
+            <button class="btn-ghost" onclick="closeRoadmapView()">← Back</button>
+            <span class="roadmap-title">Roadmap</span>
+            <span id="rm-selection-badge" class="rm-selection-badge" hidden></span>
+            <div class="roadmap-header-right">
+              <div id="roadmap-pi-filter" class="rm-pi-checkboxes"></div>
+              <button
+                class="btn-toolbar"
+                onclick="openDistributionModal([..._roadmapVisiblePis][0])"
+                title="Distribute stories across sprints"
+              >
+                Distribute
+              </button>
+              <button
+                class="btn-toolbar"
+                onclick="pushSprintsToJira()"
+                title="Push sprint assignments to JIRA"
+              >
+                Push Sprints
+              </button>
+              <button
+                class="btn-toolbar"
+                onclick="openRoadmapExportDialog()"
+                title="Export roadmap as PDF"
+              >
+                Export PDF
+              </button>
+            </div>
           </div>
-          <div class="stories-progress hidden" id="stories-progress">
-            <div class="stories-progress-text" id="stories-progress-text"></div>
-            <div class="stories-progress-bar"><div class="stories-progress-fill" id="stories-progress-fill"></div></div>
+          <div class="roadmap-panels" id="roadmap-panels">
+            <div class="rm-panel rm-panel-epics" id="rm-panel-epics">
+              <div class="rm-panel-header">
+                <span
+                  class="rm-panel-chevron"
+                  id="rm-chevron-epics"
+                  onclick="toggleRoadmapPanel('epics')"
+                  >▼</span
+                >
+                <span class="rm-panel-label" onclick="toggleRoadmapPanel('epics')">Epics</span>
+                <span
+                  class="rm-panel-count"
+                  id="rm-count-epics"
+                  onclick="toggleRoadmapPanel('epics')"
+                  >0</span
+                >
+                <input
+                  type="text"
+                  id="rm-epic-search"
+                  class="rm-epic-search"
+                  placeholder="Filter epics…"
+                  oninput="filterRoadmapEpics(this.value)"
+                  onclick="event.stopPropagation()"
+                />
+              </div>
+              <div class="rm-panel-body" id="rm-body-epics"></div>
+            </div>
+            <div class="rm-panel rm-panel-stories" id="rm-panel-stories">
+              <div class="rm-panel-header" onclick="toggleRoadmapPanel('stories')">
+                <span class="rm-panel-chevron" id="rm-chevron-stories">▼</span>
+                <span class="rm-panel-label">Stories</span>
+                <span class="rm-panel-count" id="rm-count-stories">0</span>
+              </div>
+              <div class="rm-panel-body" id="rm-body-stories"></div>
+            </div>
           </div>
-          <div class="stories-stream" id="stories-stream"></div>
         </div>
+      </div>
+    </div>
 
-        <!-- Hierarchy panel: parent Feature or child Epics -->
-        <div class="hierarchy-section hidden" id="hierarchy-section">
-          <div class="hierarchy-header" onclick="toggleHierarchy()">
-            <span class="hierarchy-label" id="hierarchy-label">🔗 Linked Issues</span>
-            <span class="hierarchy-chevron" id="hierarchy-chevron">▼</span>
+    <!-- ── JIRA push toast ──────────────────────────────────────── -->
+    <div id="jira-push-toast"></div>
+
+    <!-- ── Bug creation modal ──────────────────────────────────── -->
+    <div class="dialog-overlay" id="bug-modal-overlay">
+      <div class="dialog bug-modal">
+        <div class="bug-modal-header">
+          <h3><span class="bug-icon">&#128027;</span> Create Bug Report</h3>
+          <button class="btn-ghost bug-modal-close" onclick="closeBugModal()">&times;</button>
+        </div>
+        <div class="bug-modal-body">
+          <div class="meta-row">
+            <div class="field">
+              <label for="bug-id">ID *</label>
+              <input id="bug-id" type="text" placeholder="e.g. SC3-1234" />
+            </div>
+            <div class="field">
+              <label for="bug-title">Title *</label>
+              <input id="bug-title" type="text" placeholder="Short description…" />
+            </div>
           </div>
-          <div class="hierarchy-body open" id="hierarchy-body"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Manual Refine View: visual hierarchy editor -->
-    <div id="refine-view">
-      <div class="refine-header">
-        <button class="btn-ghost" onclick="closeRefineView()">← Back</button>
-        <span class="refine-title">✨ Refine: <span id="refine-epic-title"></span></span>
-        <div class="refine-add-btns" id="refine-add-btns"></div>
-        <input type="text" id="refine-search" class="refine-search" placeholder="Search cards…" oninput="onCanvasSearch(this.value)" autocomplete="off" />
-        <button class="btn-ghost btn-xs" onclick="resetCanvasLayout(_canvasEpicFilename)" title="Reset card positions to auto-layout">↺ Reset Layout</button>
-        <button class="btn-ghost btn-xs" onclick="exportEpicToPdf(_canvasEpicFilename, _canvasDocType)" title="Export epic to PDF">PDF</button>
-      </div>
-      <div class="refine-body">
-        <div id="refine-canvas"></div>
-        <div class="refine-panel" id="refine-panel"></div>
-      </div>
-    </div>
-
-    <!-- PI Roadmap View: sprint board with draggable cards -->
-    <div id="roadmap-view">
-      <div class="roadmap-header">
-        <button class="btn-ghost" onclick="closeRoadmapView()">← Back</button>
-        <span class="roadmap-title">Roadmap</span>
-        <span id="rm-selection-badge" class="rm-selection-badge" hidden></span>
-        <div class="roadmap-header-right">
-          <div id="roadmap-pi-filter" class="rm-pi-checkboxes"></div>
-          <button class="btn-toolbar" onclick="openDistributionModal([..._roadmapVisiblePis][0])" title="Distribute stories across sprints">Distribute</button>
-          <button class="btn-toolbar" onclick="pushSprintsToJira()" title="Push sprint assignments to JIRA">Push Sprints</button>
-          <button class="btn-toolbar" onclick="openRoadmapExportDialog()" title="Export roadmap as PDF">Export PDF</button>
-        </div>
-      </div>
-      <div class="roadmap-panels" id="roadmap-panels">
-        <div class="rm-panel rm-panel-epics" id="rm-panel-epics">
-          <div class="rm-panel-header">
-            <span class="rm-panel-chevron" id="rm-chevron-epics" onclick="toggleRoadmapPanel('epics')">▼</span>
-            <span class="rm-panel-label" onclick="toggleRoadmapPanel('epics')">Epics</span>
-            <span class="rm-panel-count" id="rm-count-epics" onclick="toggleRoadmapPanel('epics')">0</span>
-            <input type="text" id="rm-epic-search" class="rm-epic-search" placeholder="Filter epics…"
-                   oninput="filterRoadmapEpics(this.value)" onclick="event.stopPropagation()">
+          <div class="meta-row">
+            <div class="field">
+              <label for="bug-team">Team</label>
+              <select id="bug-team">
+                <option value="">— Select —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="bug-work-category">Work Category</label>
+              <select id="bug-work-category">
+                <option value="">— Select —</option>
+              </select>
+            </div>
           </div>
-          <div class="rm-panel-body" id="rm-body-epics"></div>
-        </div>
-        <div class="rm-panel rm-panel-stories" id="rm-panel-stories">
-          <div class="rm-panel-header" onclick="toggleRoadmapPanel('stories')">
-            <span class="rm-panel-chevron" id="rm-chevron-stories">▼</span>
-            <span class="rm-panel-label">Stories</span>
-            <span class="rm-panel-count" id="rm-count-stories">0</span>
+          <div class="field">
+            <label for="bug-description">Description</label>
+            <textarea
+              id="bug-description"
+              placeholder="Detailed bug description — steps to reproduce, expected vs actual behaviour…"
+            ></textarea>
           </div>
-          <div class="rm-panel-body" id="rm-body-stories"></div>
+          <div class="field">
+            <label>Attachments (max 5)</label>
+            <div
+              class="bug-dropzone"
+              id="bug-dropzone"
+              onclick="document.getElementById('bug-files').click()"
+            >
+              <input
+                type="file"
+                id="bug-files"
+                class="hidden"
+                multiple
+                accept="*/*"
+                onchange="onBugFilesSelected(this.files)"
+              />
+              <div class="bug-dropzone-label" id="bug-dropzone-label">
+                Drop files here or click to browse
+              </div>
+            </div>
+            <div class="bug-file-list" id="bug-file-list"></div>
+          </div>
+        </div>
+        <div class="bug-modal-footer">
+          <div class="bug-modal-hint">
+            Title and description will be auto-translated to English. .msg files are converted to
+            PDF.
+          </div>
+          <div class="dialog-actions">
+            <button class="btn-secondary" onclick="closeBugModal()">Cancel</button>
+            <button
+              class="btn-primary btn-bug-submit"
+              id="bug-submit-btn"
+              onclick="submitBugReport()"
+            >
+              <span id="bug-submit-label">Create Bug</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-  </div>
-</div>
-
-<!-- ── JIRA push toast ──────────────────────────────────────── -->
-<div id="jira-push-toast"></div>
-
-<!-- ── Bug creation modal ──────────────────────────────────── -->
-<div class="dialog-overlay" id="bug-modal-overlay">
-  <div class="dialog bug-modal">
-    <div class="bug-modal-header">
-      <h3><span class="bug-icon">&#128027;</span> Create Bug Report</h3>
-      <button class="btn-ghost bug-modal-close" onclick="closeBugModal()">&times;</button>
-    </div>
-    <div class="bug-modal-body">
-      <div class="meta-row">
-        <div class="field">
-          <label for="bug-id">ID *</label>
-          <input id="bug-id" type="text" placeholder="e.g. SC3-1234" />
-        </div>
-        <div class="field">
-          <label for="bug-title">Title *</label>
-          <input id="bug-title" type="text" placeholder="Short description…" />
-        </div>
-      </div>
-      <div class="meta-row">
-        <div class="field">
-          <label for="bug-team">Team</label>
-          <select id="bug-team">
-            <option value="">— Select —</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="bug-work-category">Work Category</label>
-          <select id="bug-work-category">
-            <option value="">— Select —</option>
-          </select>
-        </div>
-      </div>
-      <div class="field">
-        <label for="bug-description">Description</label>
-        <textarea id="bug-description" placeholder="Detailed bug description — steps to reproduce, expected vs actual behaviour…"></textarea>
-      </div>
-      <div class="field">
-        <label>Attachments (max 5)</label>
-        <div class="bug-dropzone" id="bug-dropzone" onclick="document.getElementById('bug-files').click()">
-          <input type="file" id="bug-files" class="hidden" multiple accept="*/*" onchange="onBugFilesSelected(this.files)" />
-          <div class="bug-dropzone-label" id="bug-dropzone-label">Drop files here or click to browse</div>
-        </div>
-        <div class="bug-file-list" id="bug-file-list"></div>
-      </div>
-    </div>
-    <div class="bug-modal-footer">
-      <div class="bug-modal-hint">Title and description will be auto-translated to English. .msg files are converted to PDF.</div>
-      <div class="dialog-actions">
-        <button class="btn-secondary" onclick="closeBugModal()">Cancel</button>
-        <button class="btn-primary btn-bug-submit" id="bug-submit-btn" onclick="submitBugReport()">
-          <span id="bug-submit-label">Create Bug</span>
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Delete confirmation dialog ───────────────────────────── -->
-<div class="dialog-overlay" id="delete-overlay">
-  <div class="dialog">
-    <h3>Delete document?</h3>
-    <p id="delete-msg">This will permanently delete the file. This action cannot be undone.</p>
-    <div class="dialog-actions">
-      <button class="btn-secondary" onclick="closeDeleteDialog()">Cancel</button>
-      <button class="btn-delete" id="confirm-delete-btn" onclick="executeDelete()">Delete</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Bulk assign confirmation dialog ─────────────────────────── -->
-<div class="dialog-overlay" id="bulk-assign-overlay">
-  <div class="dialog">
-    <h3>Bulk assign</h3>
-    <p id="bulk-assign-msg"></p>
-    <div class="dialog-actions">
-      <button class="btn-secondary" onclick="closeBulkAssignDialog()">Cancel</button>
-      <button class="btn-primary" id="confirm-bulk-assign-btn">Apply</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Sync preview confirmation modal ─────────────────────────── -->
-<div class="dialog-overlay" id="sync-preview-overlay">
-  <div class="dialog sync-preview-dialog">
-    <div class="sync-preview-header">
-      <h3 id="sync-preview-title">Sync Preview</h3>
-      <div class="sync-preview-header-right">
-        <div class="sync-preview-bulk">
-          <button class="btn-ghost btn-xs" onclick="syncPreviewSelectAll(true)">All</button>
-          <button class="btn-ghost btn-xs" onclick="syncPreviewSelectAll(false)">None</button>
-        </div>
-        <span class="sync-preview-counts" id="sync-preview-counts"></span>
-      </div>
-    </div>
-    <div class="sync-preview-list" id="sync-preview-list"></div>
-    <div id="sync-progress-area" style="display:none">
-      <div class="sync-progress-label" id="sync-progress-label">Starting…</div>
-      <div class="sync-progress-bar-wrap">
-        <div class="sync-progress-bar" id="sync-progress-bar"></div>
-      </div>
-      <div class="sync-progress-summary" id="sync-progress-summary"></div>
-    </div>
-    <div class="dialog-actions">
-      <button class="btn-secondary" onclick="syncPreviewCancel()">Cancel</button>
-      <button class="btn-primary" id="sync-preview-confirm-btn" onclick="syncPreviewConfirm()">Confirm</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── JIRA selection modal ───────────────────────────────────── -->
-<div class="dialog-overlay" id="jira-select-overlay">
-  <div class="dialog jira-select-dialog">
-    <div class="jira-select-header">
-      <h3 id="jira-select-title">Select issues</h3>
-      <div class="jira-select-bulk">
-        <button class="btn-ghost btn-xs" onclick="jiraSelectAll(true)">All</button>
-        <button class="btn-ghost btn-xs" onclick="jiraSelectAll(false)">None</button>
-      </div>
-    </div>
-    <div class="jira-select-list" id="jira-select-list"></div>
-    <div class="dialog-actions">
-      <button class="btn-secondary" onclick="jiraSelectCancel()">Cancel</button>
-      <button class="btn-primary" id="jira-select-confirm-btn" onclick="jiraSelectConfirm()">Confirm</button>
-    </div>
-  </div>
-</div>
-
-<!-- AI Story Split modal -->
-<div class="dialog-overlay" id="split-overlay">
-  <div class="dialog split-dialog">
-    <div class="split-dialog-header">
-      <h3>Split Story with AI</h3>
-      <button class="btn-ghost btn-xs" onclick="closeSplitModal()">&times;</button>
-    </div>
-    <div class="split-dialog-meta">
-      <div class="split-meta-title" id="split-modal-title"></div>
-      <div class="split-meta-sp" id="split-modal-sp"></div>
-    </div>
-    <div class="split-sprint-row">
-      <div class="split-sprint-col">
-        <label class="split-sprint-label">Part 1 → Sprint</label>
-        <select class="sprint-select" id="split-sprint-1"></select>
-      </div>
-      <div class="split-sprint-arrow">→</div>
-      <div class="split-sprint-col">
-        <label class="split-sprint-label">Part 2 → Sprint</label>
-        <select class="sprint-select" id="split-sprint-2"></select>
-      </div>
-    </div>
-    <div class="split-modal-output" id="split-modal-output"></div>
-    <div class="split-modal-status" id="split-modal-status"></div>
-    <div class="dialog-actions">
-      <button class="btn-secondary" onclick="closeSplitModal()">Cancel</button>
-      <button class="btn-primary" id="split-apply-btn" onclick="executeSplit()">Split with AI</button>
-    </div>
-  </div>
-</div>
-
-<!-- Distribution modal -->
-<div class="dialog-overlay" id="distribution-overlay">
-  <div class="dialog distribution-dialog">
-    <div class="distribution-header">
-      <h3 id="distribution-title">Sprint Distribution</h3>
-      <button class="btn-ghost btn-xs" onclick="closeDistributionModal()">&times;</button>
-    </div>
-    <div class="distribution-body" id="distribution-body"></div>
-    <div class="distribution-messages" id="distribution-messages"></div>
-    <div class="dialog-actions">
-      <button class="btn-secondary" onclick="closeDistributionModal()">Cancel</button>
-      <button class="btn-primary" id="distribution-apply-btn" onclick="applyDistribution()">Apply Distribution</button>
-    </div>
-  </div>
-</div>
-
-<!-- Push Sprints preview modal -->
-<div class="dialog-overlay" id="sprint-push-overlay" onclick="if(event.target===this)closeSprintPushModal()">
-  <div class="dialog sprint-push-dialog">
-    <div class="sprint-push-header">
-      <h3>Push Sprints to JIRA</h3>
-      <div class="sprint-push-header-right">
-        <span class="sprint-push-stats" id="sprint-push-stats"></span>
-        <button class="btn-ghost btn-xs" onclick="closeSprintPushModal()">&times;</button>
-      </div>
-    </div>
-    <!-- Step 1: Sprint selector -->
-    <div class="sprint-push-select-step" id="sprint-push-select-step">
-      <p class="sprint-push-select-label">Select sprints to compare with JIRA:</p>
-      <div class="sprint-push-sprint-list" id="sprint-push-sprint-list"></div>
-      <div class="sprint-push-select-btns">
-        <button class="btn-ghost btn-xs" onclick="sprintPushToggleAllSprints(true)">Select all</button>
-        <button class="btn-ghost btn-xs" onclick="sprintPushToggleAllSprints(false)">Select none</button>
-      </div>
-      <div class="dialog-actions">
-        <button class="btn-secondary" onclick="closeSprintPushModal()">Cancel</button>
-        <button class="btn-primary" id="sprint-push-preview-btn" onclick="startSprintPushPreview()">Preview Changes</button>
-      </div>
-    </div>
-    <!-- Step 2: Loading + progress -->
-    <div class="sprint-push-loading" id="sprint-push-loading">
-      <div class="sprint-push-spinner"></div>
-      <span id="sprint-push-progress-msg">Comparing sprint assignments with JIRA…</span>
-      <div class="sprint-push-progress-bar" id="sprint-push-progress-bar">
-        <div class="sprint-push-progress-fill" id="sprint-push-progress-fill"></div>
-      </div>
-    </div>
-    <!-- Step 3: Results -->
-    <div class="sprint-push-filters" id="sprint-push-filters">
-      <button class="sprint-push-pill sprint-push-pill-add active" data-type="add" onclick="toggleSprintPushFilter('add')">↑ Push <span id="sprint-push-count-add">0</span></button>
-      <button class="sprint-push-pill sprint-push-pill-change active" data-type="change" onclick="toggleSprintPushFilter('change')">↺ Changed <span id="sprint-push-count-change">0</span></button>
-      <button class="sprint-push-pill sprint-push-pill-pull active" data-type="pull" onclick="toggleSprintPushFilter('pull')">↓ Pull <span id="sprint-push-count-pull">0</span></button>
-      <span class="sprint-push-select-actions">
-        <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(true)">All</button>
-        <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(false)">None</button>
-      </span>
-    </div>
-    <div class="sprint-push-error" id="sprint-push-error"></div>
-    <div class="sprint-push-empty" id="sprint-push-empty">All sprint assignments are already in sync with JIRA.</div>
-    <div class="sprint-push-list" id="sprint-push-list"></div>
-    <div class="dialog-actions" id="sprint-push-actions">
-      <button class="btn-secondary" onclick="closeSprintPushModal()">Cancel</button>
-      <button class="btn-primary" id="sprint-push-confirm" onclick="confirmSprintPush()">Sync Changes</button>
-    </div>
-  </div>
-</div>
-
-<!-- Roadmap Export dialog -->
-<div class="dialog-overlay" id="roadmap-export-overlay" onclick="if(event.target===this)closeRoadmapExportDialog()">
-  <div class="dialog roadmap-export-dialog">
-    <div class="roadmap-export-header">
-      <h3>Export Roadmap Report</h3>
-      <button class="btn-ghost btn-xs" onclick="closeRoadmapExportDialog()">&times;</button>
-    </div>
-    <div class="roadmap-export-body">
-      <p class="roadmap-export-desc">Select sections to include in the PDF report:</p>
-      <label class="roadmap-export-option">
-        <input type="checkbox" id="rexp-roadmap-graphic" checked />
-        <div>
-          <div class="roadmap-export-option-title">Graphical Roadmap</div>
-          <div class="roadmap-export-option-desc">Epic timeline bars and sprint column layout (landscape)</div>
-        </div>
-      </label>
-      <label class="roadmap-export-option">
-        <input type="checkbox" id="rexp-issue-titles" checked />
-        <div>
-          <div class="roadmap-export-option-title">Issue Titles</div>
-          <div class="roadmap-export-option-desc">Table of all issues with type, priority, and story points</div>
-        </div>
-      </label>
-      <label class="roadmap-export-option">
-        <input type="checkbox" id="rexp-issue-descriptions" />
-        <div>
-          <div class="roadmap-export-option-title">Issue Descriptions</div>
-          <div class="roadmap-export-option-desc">Full descriptions for each issue (increases report length)</div>
-        </div>
-      </label>
-      <label class="roadmap-export-option">
-        <input type="checkbox" id="rexp-distribution-charts" checked />
-        <div>
-          <div class="roadmap-export-option-title">Distribution Charts</div>
-          <div class="roadmap-export-option-desc">Team and work category breakdowns with visual charts</div>
-        </div>
-      </label>
-      <div class="roadmap-export-separator"></div>
-      <label class="roadmap-export-option">
-        <input type="checkbox" id="rexp-hide-empty-epics" checked />
-        <div>
-          <div class="roadmap-export-option-title">Hide empty Epics</div>
-          <div class="roadmap-export-option-desc">Exclude epics that have no stories assigned to any sprint</div>
-        </div>
-      </label>
-    </div>
-    <div class="dialog-actions">
-      <button class="btn-secondary" onclick="closeRoadmapExportDialog()">Cancel</button>
-      <button class="btn-primary" id="roadmap-export-btn" onclick="executeRoadmapExport()">Export</button>
-    </div>
-  </div>
-</div>
-
-<!-- Dependency modal -->
-<div class="dialog-overlay" id="dep-overlay">
-  <div class="dialog dep-dialog">
-    <div class="dep-header">
-      <h3 id="dep-modal-title">Manage Dependencies</h3>
-      <button class="btn-ghost btn-xs" onclick="closeDepModal()">&times;</button>
-    </div>
-    <div class="dep-modal-body">
-      <p class="dep-modal-subtitle" id="dep-modal-subtitle"></p>
-      <div class="dep-section">
-        <div class="dep-section-label">This story blocks (must come before):</div>
-        <div id="dep-blocks-list" class="dep-list"></div>
-      </div>
-      <div class="dep-section">
-        <div class="dep-section-label">This story is blocked by (must come after):</div>
-        <div id="dep-blockedby-list" class="dep-list"></div>
-      </div>
-      <div class="dep-section">
-        <div class="dep-section-label">This story runs in parallel with:</div>
-        <div id="dep-parallel-list" class="dep-list"></div>
-      </div>
-      <div class="dep-section dep-add-section">
-        <div class="dep-section-label">Add dependency — this story blocks:</div>
-        <div class="dep-add-row">
-          <select id="dep-target-select" class="dep-select"></select>
-          <button class="btn-primary btn-sm" onclick="addDepLink()">Add Block</button>
-        </div>
-      </div>
-      <div class="dep-section dep-add-section">
-        <div class="dep-section-label">Add parallel link — runs in parallel with:</div>
-        <div class="dep-add-row">
-          <select id="dep-parallel-select" class="dep-select"></select>
-          <button class="btn-primary btn-sm" onclick="addParallelLink()">Add Parallel</button>
+    <!-- ── Delete confirmation dialog ───────────────────────────── -->
+    <div class="dialog-overlay" id="delete-overlay">
+      <div class="dialog">
+        <h3>Delete document?</h3>
+        <p id="delete-msg">This will permanently delete the file. This action cannot be undone.</p>
+        <div class="dialog-actions">
+          <button class="btn-secondary" onclick="closeDeleteDialog()">Cancel</button>
+          <button class="btn-delete" id="confirm-delete-btn" onclick="executeDelete()">
+            Delete
+          </button>
         </div>
       </div>
     </div>
-    <div class="dialog-actions">
-      <button class="btn-secondary" onclick="closeDepModal()">Close</button>
-    </div>
-  </div>
-</div>
 
-<!-- ── ES Module entry point (theme.js and marked.umd.js stay as regular scripts) ── -->
-<script type="module" src="/public/js/main.js"></script>
+    <!-- ── Bulk assign confirmation dialog ─────────────────────────── -->
+    <div class="dialog-overlay" id="bulk-assign-overlay">
+      <div class="dialog">
+        <h3>Bulk assign</h3>
+        <p id="bulk-assign-msg"></p>
+        <div class="dialog-actions">
+          <button class="btn-secondary" onclick="closeBulkAssignDialog()">Cancel</button>
+          <button class="btn-primary" id="confirm-bulk-assign-btn">Apply</button>
+        </div>
+      </div>
+    </div>
 
-<svg id="dep-connector-svg" aria-hidden="true"></svg>
+    <!-- ── Sync preview confirmation modal ─────────────────────────── -->
+    <div class="dialog-overlay" id="sync-preview-overlay">
+      <div class="dialog sync-preview-dialog">
+        <div class="sync-preview-header">
+          <h3 id="sync-preview-title">Sync Preview</h3>
+          <div class="sync-preview-header-right">
+            <div class="sync-preview-bulk">
+              <button class="btn-ghost btn-xs" onclick="syncPreviewSelectAll(true)">All</button>
+              <button class="btn-ghost btn-xs" onclick="syncPreviewSelectAll(false)">None</button>
+            </div>
+            <span class="sync-preview-counts" id="sync-preview-counts"></span>
+          </div>
+        </div>
+        <div class="sync-preview-list" id="sync-preview-list"></div>
+        <div id="sync-progress-area" style="display: none">
+          <div class="sync-progress-label" id="sync-progress-label">Starting…</div>
+          <div class="sync-progress-bar-wrap">
+            <div class="sync-progress-bar" id="sync-progress-bar"></div>
+          </div>
+          <div class="sync-progress-summary" id="sync-progress-summary"></div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn-secondary" onclick="syncPreviewCancel()">Cancel</button>
+          <button class="btn-primary" id="sync-preview-confirm-btn" onclick="syncPreviewConfirm()">
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
 
-<!-- Split Issue modal (list view) -->
-<div class="dialog-overlay" id="issue-split-modal" onclick="if(event.target===this)closeIssueSplitModal()">
-  <div class="dialog" style="max-width:480px">
-    <div class="split-dialog-header">
-      <h3>✂ Split Issue</h3>
-      <button class="btn-ghost btn-xs" onclick="closeIssueSplitModal()">&times;</button>
+    <!-- ── JIRA selection modal ───────────────────────────────────── -->
+    <div class="dialog-overlay" id="jira-select-overlay">
+      <div class="dialog jira-select-dialog">
+        <div class="jira-select-header">
+          <h3 id="jira-select-title">Select issues</h3>
+          <div class="jira-select-bulk">
+            <button class="btn-ghost btn-xs" onclick="jiraSelectAll(true)">All</button>
+            <button class="btn-ghost btn-xs" onclick="jiraSelectAll(false)">None</button>
+          </div>
+        </div>
+        <div class="jira-select-list" id="jira-select-list"></div>
+        <div class="dialog-actions">
+          <button class="btn-secondary" onclick="jiraSelectCancel()">Cancel</button>
+          <button class="btn-primary" id="jira-select-confirm-btn" onclick="jiraSelectConfirm()">
+            Confirm
+          </button>
+        </div>
+      </div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      <span class="type-badge" id="issue-split-badge"></span>
-      <span id="issue-split-title" style="font-size:0.9rem;font-weight:600;"></span>
+
+    <!-- AI Story Split modal -->
+    <div class="dialog-overlay" id="split-overlay">
+      <div class="dialog split-dialog">
+        <div class="split-dialog-header">
+          <h3>Split Story with AI</h3>
+          <button class="btn-ghost btn-xs" onclick="closeSplitModal()">&times;</button>
+        </div>
+        <div class="split-dialog-meta">
+          <div class="split-meta-title" id="split-modal-title"></div>
+          <div class="split-meta-sp" id="split-modal-sp"></div>
+        </div>
+        <div class="split-sprint-row">
+          <div class="split-sprint-col">
+            <label class="split-sprint-label">Part 1 → Sprint</label>
+            <select class="sprint-select" id="split-sprint-1"></select>
+          </div>
+          <div class="split-sprint-arrow">→</div>
+          <div class="split-sprint-col">
+            <label class="split-sprint-label">Part 2 → Sprint</label>
+            <select class="sprint-select" id="split-sprint-2"></select>
+          </div>
+        </div>
+        <div class="split-modal-output" id="split-modal-output"></div>
+        <div class="split-modal-status" id="split-modal-status"></div>
+        <div class="dialog-actions">
+          <button class="btn-secondary" onclick="closeSplitModal()">Cancel</button>
+          <button class="btn-primary" id="split-apply-btn" onclick="executeSplit()">
+            Split with AI
+          </button>
+        </div>
+      </div>
     </div>
-    <div class="split-dialog-body">
-      <label class="rp-label" style="margin-bottom:6px;display:block">Describe what to extract into the new issue…</label>
-      <textarea class="rp-textarea" id="issue-split-idea" rows="4"
-        placeholder="What should the new issue cover?"
-        style="width:100%;box-sizing:border-box;"></textarea>
+
+    <!-- Distribution modal -->
+    <div class="dialog-overlay" id="distribution-overlay">
+      <div class="dialog distribution-dialog">
+        <div class="distribution-header">
+          <h3 id="distribution-title">Sprint Distribution</h3>
+          <button class="btn-ghost btn-xs" onclick="closeDistributionModal()">&times;</button>
+        </div>
+        <div class="distribution-body" id="distribution-body"></div>
+        <div class="distribution-messages" id="distribution-messages"></div>
+        <div class="dialog-actions">
+          <button class="btn-secondary" onclick="closeDistributionModal()">Cancel</button>
+          <button class="btn-primary" id="distribution-apply-btn" onclick="applyDistribution()">
+            Apply Distribution
+          </button>
+        </div>
+      </div>
     </div>
-    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;min-height:20px" id="issue-split-status"></div>
-    <div class="dialog-actions" style="margin-top:12px">
-      <button class="btn-secondary" onclick="closeIssueSplitModal()">Cancel</button>
-      <button class="btn-primary" id="issue-split-generate-btn" onclick="executeSplitIssue()">Generate</button>
+
+    <!-- Push Sprints preview modal -->
+    <div
+      class="dialog-overlay"
+      id="sprint-push-overlay"
+      onclick="if (event.target === this) closeSprintPushModal();"
+    >
+      <div class="dialog sprint-push-dialog">
+        <div class="sprint-push-header">
+          <h3>Push Sprints to JIRA</h3>
+          <div class="sprint-push-header-right">
+            <span class="sprint-push-stats" id="sprint-push-stats"></span>
+            <button class="btn-ghost btn-xs" onclick="closeSprintPushModal()">&times;</button>
+          </div>
+        </div>
+        <!-- Step 1: Sprint selector -->
+        <div class="sprint-push-select-step" id="sprint-push-select-step">
+          <p class="sprint-push-select-label">Select sprints to compare with JIRA:</p>
+          <div class="sprint-push-sprint-list" id="sprint-push-sprint-list"></div>
+          <div class="sprint-push-select-btns">
+            <button class="btn-ghost btn-xs" onclick="sprintPushToggleAllSprints(true)">
+              Select all
+            </button>
+            <button class="btn-ghost btn-xs" onclick="sprintPushToggleAllSprints(false)">
+              Select none
+            </button>
+          </div>
+          <div class="dialog-actions">
+            <button class="btn-secondary" onclick="closeSprintPushModal()">Cancel</button>
+            <button
+              class="btn-primary"
+              id="sprint-push-preview-btn"
+              onclick="startSprintPushPreview()"
+            >
+              Preview Changes
+            </button>
+          </div>
+        </div>
+        <!-- Step 2: Loading + progress -->
+        <div class="sprint-push-loading" id="sprint-push-loading">
+          <div class="sprint-push-spinner"></div>
+          <span id="sprint-push-progress-msg">Comparing sprint assignments with JIRA…</span>
+          <div class="sprint-push-progress-bar" id="sprint-push-progress-bar">
+            <div class="sprint-push-progress-fill" id="sprint-push-progress-fill"></div>
+          </div>
+        </div>
+        <!-- Step 3: Results -->
+        <div class="sprint-push-filters" id="sprint-push-filters">
+          <button
+            class="sprint-push-pill sprint-push-pill-add active"
+            data-type="add"
+            onclick="toggleSprintPushFilter('add')"
+          >
+            ↑ Push <span id="sprint-push-count-add">0</span>
+          </button>
+          <button
+            class="sprint-push-pill sprint-push-pill-change active"
+            data-type="change"
+            onclick="toggleSprintPushFilter('change')"
+          >
+            ↺ Changed <span id="sprint-push-count-change">0</span>
+          </button>
+          <button
+            class="sprint-push-pill sprint-push-pill-pull active"
+            data-type="pull"
+            onclick="toggleSprintPushFilter('pull')"
+          >
+            ↓ Pull <span id="sprint-push-count-pull">0</span>
+          </button>
+          <span class="sprint-push-select-actions">
+            <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(true)">All</button>
+            <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(false)">None</button>
+          </span>
+        </div>
+        <div class="sprint-push-error" id="sprint-push-error"></div>
+        <div class="sprint-push-empty" id="sprint-push-empty">
+          All sprint assignments are already in sync with JIRA.
+        </div>
+        <div class="sprint-push-list" id="sprint-push-list"></div>
+        <div class="dialog-actions" id="sprint-push-actions">
+          <button class="btn-secondary" onclick="closeSprintPushModal()">Cancel</button>
+          <button class="btn-primary" id="sprint-push-confirm" onclick="confirmSprintPush()">
+            Sync Changes
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
-</body>
+
+    <!-- Roadmap Export dialog -->
+    <div
+      class="dialog-overlay"
+      id="roadmap-export-overlay"
+      onclick="if (event.target === this) closeRoadmapExportDialog();"
+    >
+      <div class="dialog roadmap-export-dialog">
+        <div class="roadmap-export-header">
+          <h3>Export Roadmap Report</h3>
+          <button class="btn-ghost btn-xs" onclick="closeRoadmapExportDialog()">&times;</button>
+        </div>
+        <div class="roadmap-export-body">
+          <p class="roadmap-export-desc">Select sections to include in the PDF report:</p>
+          <label class="roadmap-export-option">
+            <input type="checkbox" id="rexp-roadmap-graphic" checked />
+            <div>
+              <div class="roadmap-export-option-title">Graphical Roadmap</div>
+              <div class="roadmap-export-option-desc">
+                Epic timeline bars and sprint column layout (landscape)
+              </div>
+            </div>
+          </label>
+          <label class="roadmap-export-option">
+            <input type="checkbox" id="rexp-issue-titles" checked />
+            <div>
+              <div class="roadmap-export-option-title">Issue Titles</div>
+              <div class="roadmap-export-option-desc">
+                Table of all issues with type, priority, and story points
+              </div>
+            </div>
+          </label>
+          <label class="roadmap-export-option">
+            <input type="checkbox" id="rexp-issue-descriptions" />
+            <div>
+              <div class="roadmap-export-option-title">Issue Descriptions</div>
+              <div class="roadmap-export-option-desc">
+                Full descriptions for each issue (increases report length)
+              </div>
+            </div>
+          </label>
+          <label class="roadmap-export-option">
+            <input type="checkbox" id="rexp-distribution-charts" checked />
+            <div>
+              <div class="roadmap-export-option-title">Distribution Charts</div>
+              <div class="roadmap-export-option-desc">
+                Team and work category breakdowns with visual charts
+              </div>
+            </div>
+          </label>
+          <div class="roadmap-export-separator"></div>
+          <label class="roadmap-export-option">
+            <input type="checkbox" id="rexp-hide-empty-epics" checked />
+            <div>
+              <div class="roadmap-export-option-title">Hide empty Epics</div>
+              <div class="roadmap-export-option-desc">
+                Exclude epics that have no stories assigned to any sprint
+              </div>
+            </div>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn-secondary" onclick="closeRoadmapExportDialog()">Cancel</button>
+          <button class="btn-primary" id="roadmap-export-btn" onclick="executeRoadmapExport()">
+            Export
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dependency modal -->
+    <div class="dialog-overlay" id="dep-overlay">
+      <div class="dialog dep-dialog">
+        <div class="dep-header">
+          <h3 id="dep-modal-title">Manage Dependencies</h3>
+          <button class="btn-ghost btn-xs" onclick="closeDepModal()">&times;</button>
+        </div>
+        <div class="dep-modal-body">
+          <p class="dep-modal-subtitle" id="dep-modal-subtitle"></p>
+          <div class="dep-section">
+            <div class="dep-section-label">This story blocks (must come before):</div>
+            <div id="dep-blocks-list" class="dep-list"></div>
+          </div>
+          <div class="dep-section">
+            <div class="dep-section-label">This story is blocked by (must come after):</div>
+            <div id="dep-blockedby-list" class="dep-list"></div>
+          </div>
+          <div class="dep-section">
+            <div class="dep-section-label">This story runs in parallel with:</div>
+            <div id="dep-parallel-list" class="dep-list"></div>
+          </div>
+          <div class="dep-section dep-add-section">
+            <div class="dep-section-label">Add dependency — this story blocks:</div>
+            <div class="dep-add-row">
+              <select id="dep-target-select" class="dep-select"></select>
+              <button class="btn-primary btn-sm" onclick="addDepLink()">Add Block</button>
+            </div>
+          </div>
+          <div class="dep-section dep-add-section">
+            <div class="dep-section-label">Add parallel link — runs in parallel with:</div>
+            <div class="dep-add-row">
+              <select id="dep-parallel-select" class="dep-select"></select>
+              <button class="btn-primary btn-sm" onclick="addParallelLink()">Add Parallel</button>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn-secondary" onclick="closeDepModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ES Module entry point (theme.js and marked.umd.js stay as regular scripts) ── -->
+    <script type="module" src="/public/js/main.js"></script>
+
+    <svg id="dep-connector-svg" aria-hidden="true"></svg>
+
+    <!-- Split Issue modal (list view) -->
+    <div
+      class="dialog-overlay"
+      id="issue-split-modal"
+      onclick="if (event.target === this) closeIssueSplitModal();"
+    >
+      <div class="dialog" style="max-width: 480px">
+        <div class="split-dialog-header">
+          <h3>✂ Split Issue</h3>
+          <button class="btn-ghost btn-xs" onclick="closeIssueSplitModal()">&times;</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px">
+          <span class="type-badge" id="issue-split-badge"></span>
+          <span id="issue-split-title" style="font-size: 0.9rem; font-weight: 600"></span>
+        </div>
+        <div class="split-dialog-body">
+          <label class="rp-label" style="margin-bottom: 6px; display: block"
+            >Describe what to extract into the new issue…</label
+          >
+          <textarea
+            class="rp-textarea"
+            id="issue-split-idea"
+            rows="4"
+            placeholder="What should the new issue cover?"
+            style="width: 100%; box-sizing: border-box"
+          ></textarea>
+        </div>
+        <div
+          style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; min-height: 20px"
+          id="issue-split-status"
+        ></div>
+        <div class="dialog-actions" style="margin-top: 12px">
+          <button class="btn-secondary" onclick="closeIssueSplitModal()">Cancel</button>
+          <button class="btn-primary" id="issue-split-generate-btn" onclick="executeSplitIssue()">
+            Generate
+          </button>
+        </div>
+      </div>
+    </div>
+  </body>
 </html>

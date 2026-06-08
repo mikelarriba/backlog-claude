@@ -16,13 +16,13 @@ function makeLogger() {
 
 const VALID_FIELDS = [
   { id: 'customfield_10006', name: 'Story Points' },
-  { id: 'customfield_10000', name: 'Epic Link'    },
-  { id: 'customfield_10002', name: 'Epic Name'    },
+  { id: 'customfield_10000', name: 'Epic Link' },
+  { id: 'customfield_10002', name: 'Epic Name' },
 ];
 
 function mockFetch(responses) {
   let callIndex = 0;
-  global.fetch = async (url) => {
+  global.fetch = async (_url) => {
     const resp = responses[callIndex++];
     if (resp instanceof Error) throw resp;
     return {
@@ -44,7 +44,10 @@ describe('validateJiraConfig', () => {
       fieldEpicName: 'customfield_10002',
       ...log,
     });
-    assert.ok(log.infos.some(m => m.includes('skipping')), 'should log skip message');
+    assert.ok(
+      log.infos.some((m) => m.includes('skipping')),
+      'should log skip message'
+    );
     assert.equal(log.warns.length, 0);
   });
 
@@ -58,7 +61,7 @@ describe('validateJiraConfig', () => {
       fieldEpicName: 'customfield_10002',
       ...log,
     });
-    assert.ok(log.warns.some(m => m.includes('JIRA_BASE_URL')));
+    assert.ok(log.warns.some((m) => m.includes('JIRA_BASE_URL')));
   });
 
   test('warns when token is invalid (401)', async () => {
@@ -72,7 +75,7 @@ describe('validateJiraConfig', () => {
       fieldEpicName: 'customfield_10002',
       ...log,
     });
-    assert.ok(log.warns.some(m => m.includes('invalid') || m.includes('401')));
+    assert.ok(log.warns.some((m) => m.includes('invalid') || m.includes('401')));
   });
 
   test('warns when a custom field ID does not exist in JIRA', async () => {
@@ -85,12 +88,12 @@ describe('validateJiraConfig', () => {
       jiraBase: 'https://jira.example.com',
       jiraToken: 'valid-token',
       fieldStoryPoints: 'customfield_10006',
-      fieldEpicLink: 'customfield_99999',   // unknown
-      fieldEpicName: 'customfield_88888',   // unknown
+      fieldEpicLink: 'customfield_99999', // unknown
+      fieldEpicName: 'customfield_88888', // unknown
       ...log,
     });
-    assert.ok(log.warns.some(m => m.includes('JIRA_FIELD_EPIC_LINK')));
-    assert.ok(log.warns.some(m => m.includes('JIRA_FIELD_EPIC_NAME')));
+    assert.ok(log.warns.some((m) => m.includes('JIRA_FIELD_EPIC_LINK')));
+    assert.ok(log.warns.some((m) => m.includes('JIRA_FIELD_EPIC_NAME')));
   });
 
   test('logs success when all fields are valid', async () => {
@@ -107,7 +110,7 @@ describe('validateJiraConfig', () => {
       fieldEpicName: 'customfield_10002',
       ...log,
     });
-    assert.ok(log.infos.some(m => m.includes('valid')));
+    assert.ok(log.infos.some((m) => m.includes('valid')));
     assert.equal(log.warns.length, 0);
   });
 
@@ -122,6 +125,6 @@ describe('validateJiraConfig', () => {
       fieldEpicName: 'customfield_10002',
       ...log,
     });
-    assert.ok(log.warns.some(m => m.includes('ECONNREFUSED') || m.includes('failed')));
+    assert.ok(log.warns.some((m) => m.includes('ECONNREFUSED') || m.includes('failed')));
   });
 });

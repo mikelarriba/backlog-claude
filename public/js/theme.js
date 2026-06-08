@@ -4,7 +4,7 @@
 
 (function () {
   const STORAGE_KEY = 'vw-theme';
-  const html        = document.documentElement;
+  const html = document.documentElement;
 
   function getSystemPreference() {
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
@@ -16,7 +16,7 @@
   }
 
   function updateButtons(preference) {
-    document.querySelectorAll('.theme-btn').forEach(btn => {
+    document.querySelectorAll('.theme-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.theme === preference);
     });
   }

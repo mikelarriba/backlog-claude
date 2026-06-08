@@ -29,7 +29,7 @@ export interface AssignedDoc extends DistributionDoc {
 
 export interface SprintBucket {
   name: string;
-  capacity: number;         // raw capacity
+  capacity: number; // raw capacity
   effectiveCapacity: number; // after buffer
   idx: number;
   assigned: AssignedDoc[];
@@ -47,7 +47,7 @@ const PRIORITY_RANK: Record<string, number> = { Critical: 0, Major: 0, High: 1, 
 
 function sortByRankPriority(
   a: { rank: number; priority: string; storyPoints: number },
-  b: { rank: number; priority: string; storyPoints: number },
+  b: { rank: number; priority: string; storyPoints: number }
 ): number {
   if (a.rank !== b.rank) return a.rank - b.rank;
   const pa = PRIORITY_RANK[a.priority] ?? 2;
@@ -66,13 +66,13 @@ function sortByRankPriority(
 export function proposeDistribution(
   leafDocs: DistributionDoc[],
   sprintCfg: SprintConfig[],
-  epicRankMap: Map<string, number>,
+  epicRankMap: Map<string, number>
 ): DistributionResult {
-  const assigned   = leafDocs.filter(d => d.sprint);
-  const unassigned = leafDocs.filter(d => !d.sprint);
+  const assigned = leafDocs.filter((d) => d.sprint);
+  const unassigned = leafDocs.filter((d) => !d.sprint);
 
   // Group unassigned by parent epic to maximise epic completion
-  const epicGroups  = new Map<string, DistributionDoc[]>();
+  const epicGroups = new Map<string, DistributionDoc[]>();
   const standalones: DistributionDoc[] = [];
   for (const doc of unassigned) {
     if (doc.parentFilename) {
@@ -100,25 +100,31 @@ export function proposeDistribution(
   const noEstimateOverflow: DistributionDoc[] = [];
   for (const docs of sortedGroups) {
     for (const d of docs) {
-      if (d.hasEstimate) workQueue.push(d); else noEstimateOverflow.push(d);
+      if (d.hasEstimate) workQueue.push(d);
+      else noEstimateOverflow.push(d);
     }
   }
   for (const d of standalones) {
-    if (d.hasEstimate) workQueue.push(d); else noEstimateOverflow.push(d);
+    if (d.hasEstimate) workQueue.push(d);
+    else noEstimateOverflow.push(d);
   }
 
   // Build buckets pre-filled with already-assigned docs
   const buckets: SprintBucket[] = sprintCfg.map((s, idx) => ({
-    name:              s.name,
-    capacity:          s.capacity,
+    name: s.name,
+    capacity: s.capacity,
     effectiveCapacity: Math.floor(s.capacity * (1 - (s.bufferPct ?? 0))),
     idx,
-    assigned:   assigned.filter(d => d.sprint === s.name).map(d => ({ ...d, wasAlreadyAssigned: true })),
-    usedPoints: assigned.filter(d => d.sprint === s.name).reduce((sum, d) => sum + d.storyPoints, 0),
+    assigned: assigned
+      .filter((d) => d.sprint === s.name)
+      .map((d) => ({ ...d, wasAlreadyAssigned: true })),
+    usedPoints: assigned
+      .filter((d) => d.sprint === s.name)
+      .reduce((sum, d) => sum + d.storyPoints, 0),
   }));
 
-  const sprintIdx    = new Map(buckets.map(b => [b.name, b.idx]));
-  const placementMap = new Map<string, string>(assigned.map(d => [d.filename, d.sprint!]));
+  const sprintIdx = new Map(buckets.map((b) => [b.name, b.idx]));
+  const placementMap = new Map<string, string>(assigned.map((d) => [d.filename, d.sprint!]));
   const depAdjusted: string[] = [];
 
   const epicStartSprint = new Map<string, number>();
@@ -183,7 +189,9 @@ export function proposeDistribution(
         if (bucket.idx < minIdx) continue;
         if (bucket.idx > hardMaxIdx) break;
         if (bucket.usedPoints + doc.storyPoints <= bucket.effectiveCapacity) {
-          depAdjusted.push(`"${doc.title}" spilled beyond preferred 2-sprint window into ${bucket.name}`);
+          depAdjusted.push(
+            `"${doc.title}" spilled beyond preferred 2-sprint window into ${bucket.name}`
+          );
           bucket.assigned.push({ ...doc, wasAlreadyAssigned: false });
           bucket.usedPoints += doc.storyPoints;
           placementMap.set(doc.filename, bucket.name);
@@ -209,24 +217,40 @@ export function proposeDistribution(
       seenParallelPairs.add(pairKey);
       const sibSprint = placementMap.get(siblingFn);
       if (sibSprint && sibSprint !== docSprint) {
-        depAdjusted.push(`Parallel stories "${doc.title}" (${docSprint}) and "${siblingFn}" (${sibSprint}) could not be co-located`);
+        depAdjusted.push(
+          `Parallel stories "${doc.title}" (${docSprint}) and "${siblingFn}" (${sibSprint}) could not be co-located`
+        );
       }
     }
   }
 
   const warnings: string[] = [];
   const suggestions: string[] = [];
-  if (noEstimateOverflow.length) warnings.push(`${noEstimateOverflow.length} item(s) have no story point estimate — add story points before distributing`);
+  if (noEstimateOverflow.length)
+    warnings.push(
+      `${noEstimateOverflow.length} item(s) have no story point estimate — add story points before distributing`
+    );
   if (depAdjusted.length) warnings.push(...depAdjusted);
-  const capacityOverflow = overflow.filter(d => d.hasEstimate);
+  const capacityOverflow = overflow.filter((d) => d.hasEstimate);
   if (capacityOverflow.length) {
     const overflowSP = capacityOverflow.reduce((s, d) => s + d.storyPoints, 0);
-    warnings.push(`${capacityOverflow.length} item(s) (${overflowSP} SP) exceed total sprint capacity`);
+    warnings.push(
+      `${capacityOverflow.length} item(s) (${overflowSP} SP) exceed total sprint capacity`
+    );
   }
   for (const bucket of buckets) {
-    const pct = bucket.effectiveCapacity > 0 ? Math.round((bucket.usedPoints / bucket.effectiveCapacity) * 100) : 0;
-    if (pct > 100) suggestions.push(`${bucket.name} is over capacity at ${pct}% — consider moving items to a later sprint`);
-    else if (pct < 50 && bucket.effectiveCapacity > 0) suggestions.push(`${bucket.name} has ${bucket.effectiveCapacity - bucket.usedPoints} SP of free capacity`);
+    const pct =
+      bucket.effectiveCapacity > 0
+        ? Math.round((bucket.usedPoints / bucket.effectiveCapacity) * 100)
+        : 0;
+    if (pct > 100)
+      suggestions.push(
+        `${bucket.name} is over capacity at ${pct}% — consider moving items to a later sprint`
+      );
+    else if (pct < 50 && bucket.effectiveCapacity > 0)
+      suggestions.push(
+        `${bucket.name} has ${bucket.effectiveCapacity - bucket.usedPoints} SP of free capacity`
+      );
   }
 
   return { sprints: buckets, overflow, warnings, suggestions };

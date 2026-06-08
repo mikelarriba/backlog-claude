@@ -8,7 +8,7 @@ export function buildGeneratePrompt(
   docType: string,
   command: string | null,
   filename: string,
-  rawContent: string,
+  rawContent: string
 ): string {
   if (command) return command.replace('$ARGUMENTS', `File: ${filename}\n\n${rawContent}`);
   return `Generate a complete ${docType} using the COVE Framework. Output ONLY the markdown content.\n\nFile: ${filename}\n\n${rawContent}`;
@@ -18,7 +18,7 @@ export function buildUpgradePrompt(
   docType: string,
   currentContent: string,
   feedback: string,
-  inboxHistory: string,
+  inboxHistory: string
 ): string {
   return `Rewrite the following ${docType} document applying the feedback below. The feedback is provided — apply it directly. Do NOT ask for clarification. Do NOT ask what changes are needed. Do NOT say you cannot see feedback. Output ONLY the rewritten markdown — no commentary, no preamble, no code fences.
 

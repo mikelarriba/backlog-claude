@@ -1,5 +1,7 @@
 /* ── PI Sprint Configuration panel ──────────────────────────── */
-.pi-config-section { margin-top: 12px; }
+.pi-config-section {
+  margin-top: 12px;
+}
 
 .pi-config-tabs {
   display: flex;
@@ -22,16 +24,24 @@
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  transition:
+    border-color 0.12s,
+    background 0.12s,
+    color 0.12s;
 }
 
-.pi-config-tab:hover { border-color: var(--accent); color: var(--text); }
+.pi-config-tab:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
 .pi-config-tab.active {
   border-color: var(--accent);
   background: var(--accent-subtle);
   color: var(--accent-hover);
 }
-[data-theme="light"] .pi-config-tab.active { color: var(--accent); }
+[data-theme='light'] .pi-config-tab.active {
+  color: var(--accent);
+}
 
 .pi-config-tab-name {
   font-size: 0.62rem;
@@ -73,7 +83,9 @@
   outline: none;
   transition: border-color 0.12s;
 }
-.pi-config-sprint-name:focus { border-color: var(--accent); }
+.pi-config-sprint-name:focus {
+  border-color: var(--accent);
+}
 
 .pi-config-capacity-wrap {
   display: flex;
@@ -94,8 +106,12 @@
   outline: none;
   transition: border-color 0.12s;
 }
-.pi-config-sprint-cap:focus { border-color: var(--accent); }
-.pi-config-sprint-cap::-webkit-inner-spin-button { -webkit-appearance: none; }
+.pi-config-sprint-cap:focus {
+  border-color: var(--accent);
+}
+.pi-config-sprint-cap::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+}
 
 .pi-config-cap-label {
   font-size: 0.65rem;
@@ -115,10 +131,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.12s, color 0.12s;
+  transition:
+    border-color 0.12s,
+    color 0.12s;
   font-family: inherit;
 }
-.pi-config-remove-btn:hover { border-color: var(--error-border); color: var(--error-text); }
+.pi-config-remove-btn:hover {
+  border-color: var(--error-border);
+  color: var(--error-text);
+}
 
 .btn-pi-add-sprint {
   width: 100%;
@@ -131,10 +152,15 @@
   font-weight: 500;
   cursor: pointer;
   font-family: inherit;
-  transition: border-color 0.12s, color 0.12s;
+  transition:
+    border-color 0.12s,
+    color 0.12s;
   margin-bottom: 8px;
 }
-.btn-pi-add-sprint:hover { border-color: var(--accent); color: var(--accent-hover); }
+.btn-pi-add-sprint:hover {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
 
 .btn-pi-save {
   width: 100%;
@@ -147,27 +173,41 @@
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
 }
-.btn-pi-save:hover:not(:disabled) { background: var(--accent-hover); }
-.btn-pi-save:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-pi-save:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn-pi-save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .btn-pi-distribute {
   width: 100%;
   background: transparent;
   color: var(--accent-hover);
-  border: 1px solid rgba(0,150,214,0.3);
+  border: 1px solid rgba(0, 150, 214, 0.3);
   border-radius: 8px;
   padding: 7px 12px;
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
   margin-top: 6px;
 }
-.btn-pi-distribute:hover { background: var(--accent-subtle); border-color: var(--accent); }
-[data-theme="light"] .btn-pi-distribute { color: var(--accent); }
+.btn-pi-distribute:hover {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+}
+[data-theme='light'] .btn-pi-distribute {
+  color: var(--accent);
+}
 
 .pi-config-status {
   font-size: 0.72rem;
@@ -176,9 +216,19 @@
   margin-top: 8px;
   display: none;
 }
-.pi-config-status.show { display: block; }
-.pi-config-status.success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
-.pi-config-status.error   { background: var(--error-bg);   border: 1px solid var(--error-border);   color: var(--error-text); }
+.pi-config-status.show {
+  display: block;
+}
+.pi-config-status.success {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success-text);
+}
+.pi-config-status.error {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  color: var(--error-text);
+}
 
 /* ── Sprint badge in list view ─────────────────────────────── */
 .sprint-badge {
@@ -193,7 +243,7 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-[data-theme="light"] .sprint-badge {
+[data-theme='light'] .sprint-badge {
   color: var(--accent);
   background: rgba(0, 30, 80, 0.08);
 }
@@ -211,7 +261,9 @@
   outline: none;
   transition: border-color 0.12s;
 }
-.sprint-select:focus { border-color: var(--accent); }
+.sprint-select:focus {
+  border-color: var(--accent);
+}
 
 /* ── Swimlane capacity summary ─────────────────────────────── */
 .swimlane-capacity {

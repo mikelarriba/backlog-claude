@@ -7,9 +7,22 @@
 // an upgrade (AI rewrite) panel, and a delete action.
 // "+ Story / + Spike / + Bug" buttons in the header open a creation
 // form that generates the doc and links it in one flow.
-import { escHtml, showJiraToast, TYPE_LABEL, streamSSE, stripFrontmatter, patchJSON } from './state.js';
+import {
+  escHtml,
+  showJiraToast,
+  TYPE_LABEL,
+  streamSSE,
+  stripFrontmatter,
+  patchJSON,
+} from './state.js';
 import { loadDocs } from './list.js';
-import { buildCanvasGraph, renderCanvas, saveCanvasLayout, rebuildCanvasEdges, _renderFpCanvas, computeAutoLayout } from './refine-canvas.js';
+import {
+  buildCanvasGraph,
+  renderCanvas,
+  rebuildCanvasEdges,
+  _renderFpCanvas,
+  computeAutoLayout,
+} from './refine-canvas.js';
 import { _closeLinkPopup } from './refine-edges.js';
 
 // ── Canvas state ─ all in state.js as _storeVar globals ──────
@@ -23,11 +36,13 @@ export function onCanvasSearch(query) {
 
   if (q.length < 3) {
     // Clear all filter classes
-    cards.forEach(c => { c.classList.remove('search-dimmed', 'search-match'); });
+    cards.forEach((c) => {
+      c.classList.remove('search-dimmed', 'search-match');
+    });
     return;
   }
 
-  cards.forEach(card => {
+  cards.forEach((card) => {
     const title = (card.querySelector('.canvas-card-title')?.textContent || '').toLowerCase();
     if (title.includes(q)) {
       card.classList.add('search-match');
@@ -44,15 +59,15 @@ export async function openManualRefine(filename, docType) {
   if (!filename) return;
   docType = docType || 'epic';
   _canvasEpicFilename = filename;
-  _canvasDocType      = docType;
+  _canvasDocType = docType;
   // Refine view needs the full right panel — suspend split mode while open
   document.querySelector('.right').classList.remove('split-mode');
 
-  const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+  const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
   document.getElementById('refine-epic-title').textContent = doc?.title || filename;
 
   // Switch views
-  document.getElementById('list-view').style.display  = 'none';
+  document.getElementById('list-view').style.display = 'none';
   document.getElementById('detail-view').classList.remove('show');
   document.getElementById('refine-view').classList.add('show');
 
@@ -85,7 +100,9 @@ export async function openManualRefine(filename, docType) {
 function _onCanvasKeydown(e) {
   if (e.key === 'Escape' && _canvasSelectedCards.size > 0) {
     _canvasSelectedCards.clear();
-    document.querySelectorAll('.canvas-card.canvas-multi-selected').forEach(el => el.classList.remove('canvas-multi-selected'));
+    document
+      .querySelectorAll('.canvas-card.canvas-multi-selected')
+      .forEach((el) => el.classList.remove('canvas-multi-selected'));
   }
 }
 
@@ -96,12 +113,12 @@ export function closeRefineView() {
 
   // Clear canvas state
   _canvasEpicFilename = null;
-  _canvasDocType      = null;
-  _activePanelState.layout       = {};
-  _activePanelState.stories      = [];
-  _activePanelState.parallel     = [];
-  _activePanelState.blocks       = [];
-  _canvasManageLinks  = false;
+  _canvasDocType = null;
+  _activePanelState.layout = {};
+  _activePanelState.stories = [];
+  _activePanelState.parallel = [];
+  _activePanelState.blocks = [];
+  _canvasManageLinks = false;
   _canvasSelectedCards.clear();
   const canvas = document.getElementById('refine-canvas');
   if (canvas) canvas.classList.remove('manage-links-active');
@@ -114,7 +131,7 @@ export function closeRefineView() {
 }
 
 // ── Feature multi-panel view ───────────────────────────────────
-const _FP_COLLAPSED_KEY = fn => `fp:collapsed:${fn}`;
+const _FP_COLLAPSED_KEY = (fn) => `fp:collapsed:${fn}`;
 
 export async function renderFeatureMultiPanel(featureFilename) {
   const container = document.getElementById('refine-canvas');
@@ -137,7 +154,12 @@ export async function renderFeatureMultiPanel(featureFilename) {
 
   for (const epic of data.epics) {
     const children = epic.children || [];
-    const ps = { stories: children, layout: {}, blocks: epic.blocks || [], parallel: epic.parallel || [] };
+    const ps = {
+      stories: children,
+      layout: {},
+      blocks: epic.blocks || [],
+      parallel: epic.parallel || [],
+    };
     _panelStates.set(epic.filename, ps);
 
     // Load or compute layout for this epic's panel
@@ -147,7 +169,9 @@ export async function renderFeatureMultiPanel(featureFilename) {
         const saved = await lr.json();
         if (Object.keys(saved).length) ps.layout = saved;
       }
-    } catch {}
+    } catch {
+      /* no-op */
+    }
     if (!Object.keys(ps.layout).length && children.length) {
       ps.layout = computeAutoLayout(children, ps.blocks, ps.parallel);
     }
@@ -171,18 +195,29 @@ export async function renderFeatureMultiPanel(featureFilename) {
 }
 
 function _fpLoadCollapsed(featureFilename) {
-  try { return new Set(JSON.parse(localStorage.getItem(_FP_COLLAPSED_KEY(featureFilename)) || '[]')); }
-  catch { return new Set(); }
+  try {
+    return new Set(JSON.parse(localStorage.getItem(_FP_COLLAPSED_KEY(featureFilename)) || '[]'));
+  } catch {
+    return new Set();
+  }
 }
 
 function _fpSaveCollapsed(featureFilename) {
   const collapsed = [];
-  document.querySelectorAll('.feature-panel.fp-collapsed').forEach(p => collapsed.push(p.dataset.epicFilename));
-  try { localStorage.setItem(_FP_COLLAPSED_KEY(featureFilename), JSON.stringify(collapsed)); } catch {}
+  document
+    .querySelectorAll('.feature-panel.fp-collapsed')
+    .forEach((p) => collapsed.push(p.dataset.epicFilename));
+  try {
+    localStorage.setItem(_FP_COLLAPSED_KEY(featureFilename), JSON.stringify(collapsed));
+  } catch {
+    /* no-op */
+  }
 }
 
 export function _toggleEpicPanel(epicFilename, featureFilename) {
-  const panel = document.querySelector(`.feature-panel[data-epic-filename="${CSS.escape(epicFilename)}"]`);
+  const panel = document.querySelector(
+    `.feature-panel[data-epic-filename="${CSS.escape(epicFilename)}"]`
+  );
   if (!panel) return;
   panel.classList.toggle('fp-collapsed');
   const chevron = panel.querySelector('.fp-chevron');
@@ -191,8 +226,11 @@ export function _toggleEpicPanel(epicFilename, featureFilename) {
 }
 
 function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
-  const totalSP = ps.stories.reduce((s, c) => s + (allDocs.find(d => d.filename === c.filename)?.storyPoints || 0), 0);
-  const count   = ps.stories.length;
+  const totalSP = ps.stories.reduce(
+    (s, c) => s + (allDocs.find((d) => d.filename === c.filename)?.storyPoints || 0),
+    0
+  );
+  const count = ps.stories.length;
   const ef = escHtml(epic.filename);
   const ff = escHtml(featureFilename);
 
@@ -219,7 +257,7 @@ function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
 
   // Right-click on epic header → context menu with Split Epic
   const header = panel.querySelector('.fp-header');
-  header.addEventListener('contextmenu', e => {
+  header.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     e.stopPropagation();
     _showEpicContextMenu(e.clientX, e.clientY, epic.filename, featureFilename);
@@ -234,8 +272,12 @@ function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
 export function closeRefinePanel() {
   const panel = document.getElementById('refine-panel');
   panel.classList.remove('open');
-  setTimeout(() => { if (!panel.classList.contains('open')) panel.innerHTML = ''; }, 230);
-  document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
+  setTimeout(() => {
+    if (!panel.classList.contains('open')) panel.innerHTML = '';
+  }, 230);
+  document
+    .querySelectorAll('.canvas-card.selected')
+    .forEach((el) => el.classList.remove('selected'));
 }
 
 export async function openRefinePanel(filename, docType) {
@@ -247,7 +289,7 @@ export async function openRefinePanel(filename, docType) {
     const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     if (!res.ok) throw new Error('Not found');
     const { content } = await res.json();
-    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     const title = doc?.title || filename;
 
     const ef = escHtml(filename);
@@ -268,14 +310,18 @@ export async function openRefinePanel(filename, docType) {
           data-filename="${ef}" data-doctype="${et}"
           onblur="saveRpTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelRpTitleEdit()}" />
         <div class="rp-edit-row">
-          ${isLeaf ? `<div class="rp-edit-field">
+          ${
+            isLeaf
+              ? `<div class="rp-edit-field">
             <label class="rp-edit-label">SP</label>
             <input class="rp-sp-input" id="rp-sp-input" type="number" min="0" max="999"
               value="${sp}" data-original="${sp}"
               placeholder="—"
               onblur="saveRpStoryPoints('${ef}','${et}')"
               onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){this.blur()}" />
-          </div>` : ''}
+          </div>`
+              : ''
+          }
           <div class="rp-edit-field">
             <label class="rp-edit-label">Priority</label>
             <select class="rp-priority-select" id="rp-priority-select"
@@ -313,8 +359,12 @@ export async function openRefinePanel(filename, docType) {
 
     // Load and render dependency section and comments
     _loadRpDeps(filename, docType);
-    _renderComments(_parseComments(content), filename, docType,
-      document.getElementById('rp-comments-section'));
+    _renderComments(
+      _parseComments(content),
+      filename,
+      docType,
+      document.getElementById('rp-comments-section')
+    );
   } catch {
     panel.innerHTML = '<div class="rp-loading">Failed to load content.</div>';
   }
@@ -324,8 +374,13 @@ async function _loadRpDeps(filename, docType) {
   const section = document.getElementById('rp-deps-section');
   if (!section) return;
   try {
-    const res = await fetch(`/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`);
-    if (!res.ok) { section.innerHTML = ''; return; }
+    const res = await fetch(
+      `/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`
+    );
+    if (!res.ok) {
+      section.innerHTML = '';
+      return;
+    }
     const data = await res.json();
 
     function depRow(item, lType) {
@@ -338,42 +393,61 @@ async function _loadRpDeps(filename, docType) {
       </div>`;
     }
 
-    const blocks   = data.blocks   || [];
+    const blocks = data.blocks || [];
     const blockedBy = data.blockedBy || [];
-    const parallel  = data.parallel  || [];
+    const parallel = data.parallel || [];
 
     section.innerHTML = `
       <div class="rp-deps-header">Dependencies</div>
       <div class="rp-dep-group">
         <div class="rp-dep-label">Blocks</div>
-        ${blocks.length   ? blocks.map(i => depRow(i, 'blocks')).join('') : '<div class="dep-empty">None</div>'}
+        ${blocks.length ? blocks.map((i) => depRow(i, 'blocks')).join('') : '<div class="dep-empty">None</div>'}
       </div>
       <div class="rp-dep-group">
         <div class="rp-dep-label">Blocked by</div>
-        ${blockedBy.length ? blockedBy.map(i => depRow(i, 'blockedBy')).join('') : '<div class="dep-empty">None</div>'}
+        ${blockedBy.length ? blockedBy.map((i) => depRow(i, 'blockedBy')).join('') : '<div class="dep-empty">None</div>'}
       </div>
       <div class="rp-dep-group">
         <div class="rp-dep-label">Parallel with</div>
-        ${parallel.length  ? parallel.map(i => depRow(i, 'parallel')).join('') : '<div class="dep-empty">None</div>'}
+        ${parallel.length ? parallel.map((i) => depRow(i, 'parallel')).join('') : '<div class="dep-empty">None</div>'}
       </div>`;
   } catch {
     section.innerHTML = '';
   }
 }
 
-export async function _removeCanvasLink(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+export async function _removeCanvasLink(
+  linkType,
+  srcFilename,
+  srcDocType,
+  tgtFilename,
+  tgtDocType
+) {
   // For blockedBy direction: the blocker is tgt, the blocked is src
-  let finalSrc = srcFilename, finalSrcType = srcDocType;
-  let finalTgt = tgtFilename, finalTgtType = tgtDocType;
+  let finalSrc = srcFilename,
+    finalSrcType = srcDocType;
+  let finalTgt = tgtFilename,
+    finalTgtType = tgtDocType;
   if (linkType === 'blockedBy') {
     linkType = 'blocks';
-    [finalSrc, finalSrcType, finalTgt, finalTgtType] = [tgtFilename, tgtDocType, srcFilename, srcDocType];
+    [finalSrc, finalSrcType, finalTgt, finalTgtType] = [
+      tgtFilename,
+      tgtDocType,
+      srcFilename,
+      srcDocType,
+    ];
   }
   try {
     await fetch('/api/link', {
-      method:  'DELETE',
+      method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ linkType, sourceType: finalSrcType, sourceFilename: finalSrc, targetType: finalTgtType, targetFilename: finalTgt }),
+      body: JSON.stringify({
+        linkType,
+        sourceType: finalSrcType,
+        sourceFilename: finalSrc,
+        targetType: finalTgtType,
+        targetFilename: finalTgt,
+      }),
     });
     await loadDocs();
     rebuildCanvasEdges();
@@ -392,16 +466,18 @@ export async function saveRpTitle() {
   const newTitle = input.value.trim();
   const original = input.dataset.original;
   const filename = input.dataset.filename;
-  const docType  = input.dataset.doctype;
+  const docType = input.dataset.doctype;
   if (!newTitle || newTitle === original || !filename) return;
   try {
     await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, { title: newTitle });
     input.dataset.original = newTitle;
     // Update canvas card title instantly
-    const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(filename)}"] .canvas-card-title`);
+    const card = document.querySelector(
+      `.canvas-card[data-filename="${CSS.escape(filename)}"] .canvas-card-title`
+    );
     if (card) card.textContent = newTitle;
     // Update in-memory allDocs
-    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     if (doc) doc.title = newTitle;
     // Update markdown heading in panel content
     const h2 = document.querySelector('#rp-content h2');
@@ -413,24 +489,30 @@ export async function saveRpTitle() {
 
 export function cancelRpTitleEdit() {
   const input = document.getElementById('rp-title-input');
-  if (input) { input.value = input.dataset.original || ''; input.blur(); }
+  if (input) {
+    input.value = input.dataset.original || '';
+    input.blur();
+  }
 }
 
 export async function saveRpStoryPoints(filename, docType) {
   const input = document.getElementById('rp-sp-input');
   if (!input) return;
   const newVal = input.value.trim();
-  const orig   = input.dataset.original || '';
+  const orig = input.dataset.original || '';
   if (newVal === orig) return;
   try {
-    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`,
-      { storyPoints: newVal === '' ? null : Number(newVal) });
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, {
+      storyPoints: newVal === '' ? null : Number(newVal),
+    });
     input.dataset.original = newVal;
     // Update canvas card SP badge instantly
-    const spEl = document.querySelector(`.canvas-card[data-filename="${CSS.escape(filename)}"] .canvas-card-sp`);
+    const spEl = document.querySelector(
+      `.canvas-card[data-filename="${CSS.escape(filename)}"] .canvas-card-sp`
+    );
     if (spEl) spEl.textContent = newVal ? `${newVal} SP` : '';
     // Update in-memory
-    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     if (doc) doc.storyPoints = newVal === '' ? null : Number(newVal);
   } catch {
     input.value = orig;
@@ -444,7 +526,7 @@ export async function saveRpPriority(filename, docType) {
   try {
     await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, { priority: newPri });
     // Update in-memory
-    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     if (doc) doc.priority = newPri;
   } catch (e) {
     showJiraToast('error', `Failed to save priority: ${e.message}`);
@@ -461,9 +543,12 @@ export function toggleRpUpgrade() {
 
 export async function executeRpUpgrade(filename, docType) {
   const feedback = document.getElementById('rp-upgrade-text')?.value.trim();
-  if (!feedback) { document.getElementById('rp-upgrade-text')?.focus(); return; }
+  if (!feedback) {
+    document.getElementById('rp-upgrade-text')?.focus();
+    return;
+  }
 
-  const btn    = document.getElementById('rp-upgrade-run');
+  const btn = document.getElementById('rp-upgrade-run');
   const stream = document.getElementById('rp-upgrade-stream');
   btn.disabled = true;
   btn.textContent = '⏳ Regenerating…';
@@ -476,19 +561,26 @@ export async function executeRpUpgrade(filename, docType) {
       `/api/doc/${docType}/${encodeURIComponent(filename)}/upgrade`,
       { feedback },
       {
-        onText: (text) => { stream.textContent += text; },
-        onDone: (payload) => { result = payload; },
+        onText: (text) => {
+          stream.textContent += text;
+        },
+        onDone: (payload) => {
+          result = payload;
+        },
       }
     );
 
     if (result) {
-      document.getElementById('rp-content').innerHTML =
-        marked.parse(stripFrontmatter(result.content));
+      document.getElementById('rp-content').innerHTML = marked.parse(
+        stripFrontmatter(result.content)
+      );
       await loadDocs();
       // Update the card title in the canvas
-      const updated = allDocs.find(d => d.filename === filename && d.docType === docType);
+      const updated = allDocs.find((d) => d.filename === filename && d.docType === docType);
       if (updated) {
-        const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(filename)}"] .canvas-card-title`);
+        const card = document.querySelector(
+          `.canvas-card[data-filename="${CSS.escape(filename)}"] .canvas-card-title`
+        );
         if (card) card.textContent = updated.title;
       }
     }
@@ -507,7 +599,9 @@ export async function executeRpUpgrade(filename, docType) {
 export async function confirmRpDelete(filename, docType) {
   if (!confirm(`Delete "${filename}"? This cannot be undone.`)) return;
   try {
-    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`, {
+      method: 'DELETE',
+    });
     if (!res.ok) throw new Error((await res.json()).error?.message || 'Delete failed');
     closeRefinePanel();
     await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
@@ -521,7 +615,9 @@ export function openCreatePanel(type) {
   if (!_canvasEpicFilename) return;
   const panel = document.getElementById('refine-panel');
   panel.classList.add('open');
-  document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
+  document
+    .querySelectorAll('.canvas-card.selected')
+    .forEach((el) => el.classList.remove('selected'));
 
   panel.innerHTML = `
     <div class="rp-header">
@@ -555,10 +651,13 @@ export function openCreatePanel(type) {
 
 export async function executeRpCreate(type) {
   const title = document.getElementById('rp-create-title').value.trim();
-  const idea  = document.getElementById('rp-create-idea').value.trim();
-  if (!idea) { document.getElementById('rp-create-idea').focus(); return; }
+  const idea = document.getElementById('rp-create-idea').value.trim();
+  if (!idea) {
+    document.getElementById('rp-create-idea').focus();
+    return;
+  }
 
-  const btn    = document.getElementById('rp-create-btn');
+  const btn = document.getElementById('rp-create-btn');
   const stream = document.getElementById('rp-create-stream');
   btn.disabled = true;
   btn.textContent = '⏳ Generating…';
@@ -566,16 +665,16 @@ export async function executeRpCreate(type) {
   stream.style.display = 'block';
 
   try {
-    const parentDoc = allDocs.find(d => d.filename === _canvasEpicFilename);
+    const parentDoc = allDocs.find((d) => d.filename === _canvasEpicFilename);
     const genBody = { title, idea, type, priority: 'Medium' };
     if (parentDoc?.fixVersion) genBody.fixVersion = parentDoc.fixVersion;
     if (parentDoc?.pi && parentDoc.pi !== 'TBD') genBody.pi = parentDoc.pi;
     if (_canvasDocType === 'epic') genBody.parentEpic = _canvasEpicFilename;
     if (_canvasDocType === 'feature') genBody.parentFeature = _canvasEpicFilename;
     const genRes = await fetch('/api/generate', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(genBody),
+      body: JSON.stringify(genBody),
     });
     if (!genRes.ok) throw new Error((await genRes.json()).error?.message || 'Generate failed');
     const { filename: newFilename } = await genRes.json();
@@ -583,12 +682,12 @@ export async function executeRpCreate(type) {
     stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
 
     const linkRes = await fetch('/api/link', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        sourceType:     type,
+      body: JSON.stringify({
+        sourceType: type,
         sourceFilename: newFilename,
-        targetType:     _canvasDocType,
+        targetType: _canvasDocType,
         targetFilename: _canvasEpicFilename,
       }),
     });
@@ -600,7 +699,9 @@ export async function executeRpCreate(type) {
     await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
 
     setTimeout(() => {
-      const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(newFilename)}"]`);
+      const card = document.querySelector(
+        `.canvas-card[data-filename="${CSS.escape(newFilename)}"]`
+      );
       if (card) {
         card.classList.add('selected');
         openRefinePanel(newFilename, type);

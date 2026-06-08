@@ -14,18 +14,25 @@ import {
 describe('translateToEnglish()', () => {
   test('returns empty string when text is empty', async () => {
     // The function short-circuits before calling Claude if text is falsy
-    const result = await translateToEnglish(() => { throw new Error('should not be called'); }, '');
+    const result = await translateToEnglish(() => {
+      throw new Error('should not be called');
+    }, '');
     assert.equal(result, '');
   });
 
   test('returns text unchanged when only whitespace', async () => {
-    const result = await translateToEnglish(() => { throw new Error('should not be called'); }, '   ');
+    const result = await translateToEnglish(() => {
+      throw new Error('should not be called');
+    }, '   ');
     assert.equal(result, '   ');
   });
 
   test('calls the provided callClaude function with a prompt containing the text', async () => {
     let capturedPrompt = '';
-    const mockClaude = async (prompt) => { capturedPrompt = prompt; return 'translated text'; };
+    const mockClaude = async (prompt) => {
+      capturedPrompt = prompt;
+      return 'translated text';
+    };
 
     const result = await translateToEnglish(mockClaude, 'Hola mundo');
     assert.equal(result, 'translated text');
@@ -96,7 +103,9 @@ describe('processAttachment()', () => {
   test('passes through non-.msg files unchanged', async () => {
     const pngBuf = Buffer.from([0x89, 0x50, 0x4e, 0x47]); // PNG magic bytes
     const file = { originalname: 'screenshot.png', buffer: pngBuf, mimetype: 'image/png' };
-    const result = await processAttachment(file, () => { throw new Error('should not call Claude'); });
+    const result = await processAttachment(file, () => {
+      throw new Error('should not call Claude');
+    });
     assert.equal(result.filename, 'screenshot.png');
     assert.deepEqual(result.buffer, pngBuf);
   });
@@ -104,7 +113,9 @@ describe('processAttachment()', () => {
   test('passes through PDF files unchanged', async () => {
     const pdfBuf = Buffer.from('%PDF-1.4 fake content');
     const file = { originalname: 'report.pdf', buffer: pdfBuf, mimetype: 'application/pdf' };
-    const result = await processAttachment(file, () => { throw new Error('should not call Claude'); });
+    const result = await processAttachment(file, () => {
+      throw new Error('should not call Claude');
+    });
     assert.equal(result.filename, 'report.pdf');
     assert.deepEqual(result.buffer, pdfBuf);
   });

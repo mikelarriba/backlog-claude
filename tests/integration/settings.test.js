@@ -10,20 +10,28 @@ import { startTestApp } from '../helpers/testApp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../../');
-const PI_SETTINGS_PATH    = path.join(PROJECT_ROOT, '.pi-settings.json');
+const PI_SETTINGS_PATH = path.join(PROJECT_ROOT, '.pi-settings.json');
 const MODEL_SETTINGS_PATH = path.join(PROJECT_ROOT, '.model-settings.json');
 
 let api, stop;
 
 // Snapshot of any pre-existing settings files so we can restore them after.
-let _prevPiSettings    = null;
+let _prevPiSettings = null;
 let _prevModelSettings = null;
 
 before(async () => {
   ({ api, stop } = await startTestApp());
   // Preserve existing settings so this test suite is non-destructive.
-  try { _prevPiSettings    = fs.readFileSync(PI_SETTINGS_PATH, 'utf-8'); }    catch {}
-  try { _prevModelSettings = fs.readFileSync(MODEL_SETTINGS_PATH, 'utf-8'); } catch {}
+  try {
+    _prevPiSettings = fs.readFileSync(PI_SETTINGS_PATH, 'utf-8');
+  } catch {
+    /* no-op */
+  }
+  try {
+    _prevModelSettings = fs.readFileSync(MODEL_SETTINGS_PATH, 'utf-8');
+  } catch {
+    /* no-op */
+  }
 });
 
 after(async () => {
@@ -32,12 +40,20 @@ after(async () => {
   if (_prevPiSettings !== null) {
     fs.writeFileSync(PI_SETTINGS_PATH, _prevPiSettings);
   } else {
-    try { fs.unlinkSync(PI_SETTINGS_PATH); } catch {}
+    try {
+      fs.unlinkSync(PI_SETTINGS_PATH);
+    } catch {
+      /* no-op */
+    }
   }
   if (_prevModelSettings !== null) {
     fs.writeFileSync(MODEL_SETTINGS_PATH, _prevModelSettings);
   } else {
-    try { fs.unlinkSync(MODEL_SETTINGS_PATH); } catch {}
+    try {
+      fs.unlinkSync(MODEL_SETTINGS_PATH);
+    } catch {
+      /* no-op */
+    }
   }
 });
 
@@ -63,17 +79,17 @@ describe('GET/PUT /api/settings/pi', () => {
   test('PUT updates and persists currentPi and nextPi', async () => {
     const { status, data } = await api('PUT', '/api/settings/pi', {
       currentPi: 'PI-2026.1',
-      nextPi:    'PI-2026.2',
+      nextPi: 'PI-2026.2',
     });
     assert.equal(status, 200);
     assert.equal(data.success, true);
     assert.equal(data.currentPi, 'PI-2026.1');
-    assert.equal(data.nextPi,    'PI-2026.2');
+    assert.equal(data.nextPi, 'PI-2026.2');
 
     // Verify persistence via a follow-up GET
     const { data: read } = await api('GET', '/api/settings/pi');
     assert.equal(read.currentPi, 'PI-2026.1');
-    assert.equal(read.nextPi,    'PI-2026.2');
+    assert.equal(read.nextPi, 'PI-2026.2');
   });
 });
 
@@ -87,7 +103,9 @@ describe('GET/PUT /api/settings/pi/split-threshold', () => {
   });
 
   test('PUT updates threshold and GET reflects new value', async () => {
-    const { status, data } = await api('PUT', '/api/settings/pi/split-threshold', { splitThreshold: 13 });
+    const { status, data } = await api('PUT', '/api/settings/pi/split-threshold', {
+      splitThreshold: 13,
+    });
     assert.equal(status, 200);
     assert.equal(data.splitThreshold, 13);
 
@@ -111,7 +129,10 @@ describe('GET/PUT /api/settings/pi/sprints/:piName', () => {
   const PI = 'PI-settings-test';
 
   test('GET returns empty sprints array for an unconfigured PI', async () => {
-    const { status, data } = await api('GET', `/api/settings/pi/sprints/${encodeURIComponent('PI-unconfigured-xyz')}`);
+    const { status, data } = await api(
+      'GET',
+      `/api/settings/pi/sprints/${encodeURIComponent('PI-unconfigured-xyz')}`
+    );
     assert.equal(status, 200);
     assert.ok(Array.isArray(data.sprints));
     assert.equal(data.sprints.length, 0);
@@ -122,7 +143,11 @@ describe('GET/PUT /api/settings/pi/sprints/:piName', () => {
       { name: 'Sprint A', capacity: 20 },
       { name: 'Sprint B', capacity: 15 },
     ];
-    const { status, data } = await api('PUT', `/api/settings/pi/sprints/${encodeURIComponent(PI)}`, { sprints });
+    const { status, data } = await api(
+      'PUT',
+      `/api/settings/pi/sprints/${encodeURIComponent(PI)}`,
+      { sprints }
+    );
     assert.equal(status, 200);
     assert.equal(data.success, true);
     assert.equal(data.sprints.length, 2);
@@ -166,7 +191,10 @@ describe('GET /api/settings/providers', () => {
 
   test('providers array always contains claude-cli', async () => {
     const { data } = await api('GET', '/api/settings/providers');
-    assert.ok(data.providers.some(p => p.id === 'claude-cli'), 'claude-cli must be present');
+    assert.ok(
+      data.providers.some((p) => p.id === 'claude-cli'),
+      'claude-cli must be present'
+    );
   });
 
   test('each provider has id, name, and models array', async () => {
@@ -189,7 +217,9 @@ describe('GET/PUT /api/settings/model', () => {
   });
 
   test('PUT sets model and GET returns updated value', async () => {
-    const { status, data } = await api('PUT', '/api/settings/model', { model: 'claude-haiku-4-5-20251001' });
+    const { status, data } = await api('PUT', '/api/settings/model', {
+      model: 'claude-haiku-4-5-20251001',
+    });
     assert.equal(status, 200);
     assert.equal(data.model, 'claude-haiku-4-5-20251001');
 
@@ -198,7 +228,10 @@ describe('GET/PUT /api/settings/model', () => {
   });
 
   test('PUT sets provider and GET returns it', async () => {
-    const { status, data } = await api('PUT', '/api/settings/model', { provider: 'claude-cli', model: null });
+    const { status, data } = await api('PUT', '/api/settings/model', {
+      provider: 'claude-cli',
+      model: null,
+    });
     assert.equal(status, 200);
     assert.equal(data.provider, 'claude-cli');
 

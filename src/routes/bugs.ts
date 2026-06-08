@@ -4,33 +4,61 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { sendError, ensureDir, parseApiError, assertFilename } from '../utils/routeHelpers.js';
-import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
+import { isoDate, slugify } from '../utils/transforms.js';
 import { translateToEnglish, processAttachment } from '../services/bugService.js';
 import type { BugRouteContext } from '../types.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex }: BugRouteContext) {
+export default function bugRoutes({
+  BUGS_DIR,
+  broadcast,
+  callClaude,
+  logInfo,
+  logError,
+  docIndex,
+}: BugRouteContext) {
   const router = Router();
 
   // ── POST /api/bugs/create ─────────────────────────────────────────────────
   router.post('/api/bugs/create', upload.array('attachments', 5), async (req, res) => {
     try {
       const { id, title, description, team, workCategory } = req.body;
-      if (!id || !title) return sendError(res, 400, 'VALIDATION_ERROR', 'ID and Title are required');
-      if (String(id).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'ID must be 200 characters or fewer');
-      if (String(title).length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
+      if (!id || !title)
+        return sendError(res, 400, 'VALIDATION_ERROR', 'ID and Title are required');
+      if (String(id).length > 200)
+        return sendError(res, 400, 'VALIDATION_ERROR', 'ID must be 200 characters or fewer');
+      if (String(title).length > 200)
+        return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
 
-      const ALLOWED_MIME = [/^image\//, /^application\/pdf$/, /^message\/rfc822$/, /^application\/vnd\.ms-outlook$/, /^text\//, /^application\/vnd\.ms-excel$/, /^application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet$/];
+      const ALLOWED_MIME = [
+        /^image\//,
+        /^application\/pdf$/,
+        /^message\/rfc822$/,
+        /^application\/vnd\.ms-outlook$/,
+        /^text\//,
+        /^application\/vnd\.ms-excel$/,
+        /^application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet$/,
+      ];
       // These formats are sent as application/octet-stream by browsers — allow by extension
       const ALLOWED_EXT = new Set(['.msg', '.log', '.txt', '.csv', '.xls', '.xlsx']);
       const multerFiles = (req.files as Express.Multer.File[] | undefined) || [];
-      const badFile = multerFiles.find(f => {
-        if (ALLOWED_MIME.some(p => p.test(f.mimetype))) return false;
-        if (f.mimetype === 'application/octet-stream' && ALLOWED_EXT.has(path.extname(f.originalname).toLowerCase())) return false;
+      const badFile = multerFiles.find((f) => {
+        if (ALLOWED_MIME.some((p) => p.test(f.mimetype))) return false;
+        if (
+          f.mimetype === 'application/octet-stream' &&
+          ALLOWED_EXT.has(path.extname(f.originalname).toLowerCase())
+        )
+          return false;
         return true;
       });
-      if (badFile) return sendError(res, 400, 'VALIDATION_ERROR', `Unsupported file type: ${badFile.mimetype}`);
+      if (badFile)
+        return sendError(
+          res,
+          400,
+          'VALIDATION_ERROR',
+          `Unsupported file type: ${badFile.mimetype}`
+        );
 
       // Concatenate id + title, translate if needed
       const rawTitle = `${id} ${title}`;
@@ -49,7 +77,10 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
           const result = await processAttachment(file, callClaude);
           processed.push(result);
         } catch (e) {
-          logError('bugs/create', `Failed to process attachment ${file.originalname}: ${e instanceof Error ? e.message : String(e)}`);
+          logError(
+            'bugs/create',
+            `Failed to process attachment ${file.originalname}: ${e instanceof Error ? e.message : String(e)}`
+          );
           // Save original on failure
           processed.push({ filename: file.originalname, buffer: file.buffer });
         }
@@ -67,7 +98,7 @@ export default function bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, lo
         }
       }
 
-      const bugTeam    = team        && team        !== 'TBD' ? team        : 'TBD';
+      const bugTeam = team && team !== 'TBD' ? team : 'TBD';
       const bugWorkCat = workCategory && workCategory !== 'TBD' ? workCategory : 'TBD';
 
       // Build markdown content
@@ -93,7 +124,9 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
       await docIndex.invalidate('bug', filename);
 
       broadcast({ type: 'bug_created', filename, docType: 'bug' });
-      logInfo('POST /api/bugs/create', `Bug created: ${filename}`, { attachments: processed.length });
+      logInfo('POST /api/bugs/create', `Bug created: ${filename}`, {
+        attachments: processed.length,
+      });
 
       res.json({ filename, docType: 'bug', title: translatedTitle });
     } catch (err) {
@@ -109,8 +142,11 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
     try {
       slug = assertFilename(req.params.slug);
       file = assertFilename(req.params.file);
-    } catch (err) {
-      logInfo('GET /api/bugs/attachment', `invalid attachment path: ${req.params.slug}/${req.params.file}`);
+    } catch (_err) {
+      logInfo(
+        'GET /api/bugs/attachment',
+        `invalid attachment path: ${req.params.slug}/${req.params.file}`
+      );
       return sendError(res, 400, 'INVALID_FILENAME', 'Invalid attachment path');
     }
     const filePath = path.join(BUGS_DIR, 'attachments', slug, file);

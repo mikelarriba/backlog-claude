@@ -2,13 +2,34 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { sendError, ensureDir, parseApiError, assertFilename, setupSSE } from '../utils/routeHelpers.js';
-import { extractTitle, extractFrontmatterField, setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
-import { parseStorySections, serializeStoryFile, extractStoryTitle } from '../services/storyService.js';
+import {
+  sendError,
+  ensureDir,
+  parseApiError,
+  assertFilename,
+  setupSSE,
+} from '../utils/routeHelpers.js';
+import { extractTitle, extractFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
+import {
+  parseStorySections,
+  serializeStoryFile,
+  extractStoryTitle,
+} from '../services/storyService.js';
 import { normalizeOutput } from '../services/claudeService.js';
 import type { RouteContext } from '../types.js';
 
-export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, logError, docIndex }: RouteContext) {
+export default function storiesRoutes({
+  TYPE_CONFIG: _TYPE_CONFIG,
+  EPICS_DIR,
+  STORIES_DIR,
+  INBOX_DIR,
+  broadcast,
+  loadCommand,
+  callClaude: _callClaude,
+  streamClaude,
+  logError,
+  docIndex,
+}: RouteContext) {
   const router = Router();
 
   // ── GET /api/stories/:filename ─────────────────────────────────────────────
@@ -16,16 +37,23 @@ export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INB
     try {
       const filename = assertFilename(req.params.filename);
       const filepath = path.join(STORIES_DIR, filename);
-      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
+      if (!fs.existsSync(filepath))
+        return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
       const content = await fs.promises.readFile(filepath, 'utf-8');
       const { sections } = parseStorySections(content);
       res.json({
         filename,
-        sections: sections.map((s, i) => ({ index: i, title: extractStoryTitle(s), content: s }))
+        sections: sections.map((s, i) => ({ index: i, title: extractStoryTitle(s), content: s })),
       });
     } catch (err) {
       const apiErr = parseApiError(err);
-      sendError(res, apiErr.code === 'INVALID_FILENAME' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+      sendError(
+        res,
+        apiErr.code === 'INVALID_FILENAME' ? 400 : 500,
+        apiErr.code,
+        apiErr.message,
+        apiErr.details
+      );
     }
   });
 
@@ -46,12 +74,16 @@ export default function storiesRoutes({ TYPE_CONFIG, EPICS_DIR, STORIES_DIR, INB
 
     try {
       const { storyIndex, feedback } = req.body;
-      if (!feedback?.trim()) { send({ error: { code: 'VALIDATION_ERROR', message: 'Feedback is required' } }); return res.end(); }
+      if (!feedback?.trim()) {
+        send({ error: { code: 'VALIDATION_ERROR', message: 'Feedback is required' } });
+        return res.end();
+      }
 
       const content = await fs.promises.readFile(filepath, 'utf-8');
       const { frontmatter, sections } = parseStorySections(content);
       if (storyIndex < 0 || storyIndex >= sections.length) {
-        send({ error: { code: 'VALIDATION_ERROR', message: 'Invalid story index' } }); return res.end();
+        send({ error: { code: 'VALIDATION_ERROR', message: 'Invalid story index' } });
+        return res.end();
       }
 
       const epicFilename = filename.replace('-stories.md', '.md');
@@ -73,7 +105,10 @@ ${feedback.trim()}
 Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections and YAML frontmatter structure.`;
 
       let newStory = '';
-      await streamClaude(upgradePrompt, chunk => { newStory += chunk; send({ text: chunk }); });
+      await streamClaude(upgradePrompt, (chunk) => {
+        newStory += chunk;
+        send({ text: chunk });
+      });
 
       newStory = normalizeOutput(newStory);
       sections[storyIndex] = newStory;
@@ -89,7 +124,13 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/stories/:filename/upgrade-story', apiErr.message, apiErr.details || {});
-      send({ error: { code: apiErr.code, message: apiErr.message, ...(apiErr.details ? { details: apiErr.details } : {}) } });
+      send({
+        error: {
+          code: apiErr.code,
+          message: apiErr.message,
+          ...(apiErr.details ? { details: apiErr.details } : {}),
+        },
+      });
       res.end();
     }
   });
@@ -99,7 +140,8 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
     try {
       const filename = assertFilename(req.params.filename);
       const filepath = path.join(STORIES_DIR, filename);
-      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
+      if (!fs.existsSync(filepath))
+        return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
 
       const { storyIndex } = req.body;
       const content = await fs.promises.readFile(filepath, 'utf-8');
@@ -113,7 +155,13 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
       res.json({ success: true, remaining: sections.length });
     } catch (err) {
       const apiErr = parseApiError(err);
-      sendError(res, apiErr.code === 'INVALID_FILENAME' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+      sendError(
+        res,
+        apiErr.code === 'INVALID_FILENAME' ? 400 : 500,
+        apiErr.code,
+        apiErr.message,
+        apiErr.details
+      );
     }
   });
 
@@ -140,15 +188,18 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
         : `Break down the following Epic into 3–6 sprint-sized User Stories using the COVE framework. Output ONLY the markdown, one story per ## Story N: Title section separated by ---.\n\n${epicContent}`;
 
       let fullContent = '';
-      await streamClaude(storiesPrompt, (chunk) => { fullContent += chunk; send({ text: chunk }); });
+      await streamClaude(storiesPrompt, (chunk) => {
+        fullContent += chunk;
+        send({ text: chunk });
+      });
 
       fullContent = normalizeOutput(fullContent);
 
       // Split into individual sections on "## Story N:" headings
       const rawSections = fullContent
         .split(/(?=^## Story \d+[:\s])/m)
-        .map(s => s.trim())
-        .filter(s => s && /^## Story \d+/i.test(s));
+        .map((s) => s.trim())
+        .filter((s) => s && /^## Story \d+/i.test(s));
 
       ensureDir(STORIES_DIR);
       const date = isoDate();
@@ -160,8 +211,8 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
         const section = rawSections[i];
         // Extract title — strip "Story N: " prefix to get the plain title
         const headingMatch = section.match(/^## Story \d+[:\s]+(.+)$/m);
-        const storyTitle   = headingMatch ? headingMatch[1].trim() : 'Untitled Story';
-        const slug         = slugify(storyTitle);
+        const storyTitle = headingMatch ? headingMatch[1].trim() : 'Untitled Story';
+        const slug = slugify(storyTitle);
         const storyFilename = `${date}-${slug}.md`;
 
         // Replace "## Story N: Title" heading with clean "## Title"
@@ -180,7 +231,13 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/epic/:filename/stories', apiErr.message, apiErr.details || {});
-      send({ error: { code: apiErr.code, message: apiErr.message, ...(apiErr.details ? { details: apiErr.details } : {}) } });
+      send({
+        error: {
+          code: apiErr.code,
+          message: apiErr.message,
+          ...(apiErr.details ? { details: apiErr.details } : {}),
+        },
+      });
       res.end();
     }
   });
@@ -189,13 +246,24 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
   router.get('/api/epics', async (_, res) => {
     try {
       ensureDir(EPICS_DIR);
-      const filenames = (await fs.promises.readdir(EPICS_DIR))
-        .filter(f => f.endsWith('.md') && f !== '.gitkeep');
-      const files = (await Promise.all(filenames.map(async f => {
-        const content = await fs.promises.readFile(path.join(EPICS_DIR, f), 'utf-8');
-        const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/);
-        return { filename: f, docType: 'epic', title: extractTitle(content) || f.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''), date: dateMatch ? dateMatch[1] : '' };
-      }))).sort((a, b) => b.filename.localeCompare(a.filename));
+      const filenames = (await fs.promises.readdir(EPICS_DIR)).filter(
+        (f) => f.endsWith('.md') && f !== '.gitkeep'
+      );
+      const files = (
+        await Promise.all(
+          filenames.map(async (f) => {
+            const content = await fs.promises.readFile(path.join(EPICS_DIR, f), 'utf-8');
+            const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/);
+            return {
+              filename: f,
+              docType: 'epic',
+              title:
+                extractTitle(content) || f.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''),
+              date: dateMatch ? dateMatch[1] : '',
+            };
+          })
+        )
+      ).sort((a, b) => b.filename.localeCompare(a.filename));
       res.json(files);
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -208,10 +276,20 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
       const filename = assertFilename(req.params.filename);
       const filepath = path.join(EPICS_DIR, filename);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
-      res.json({ filename, docType: 'epic', content: await fs.promises.readFile(filepath, 'utf-8') });
+      res.json({
+        filename,
+        docType: 'epic',
+        content: await fs.promises.readFile(filepath, 'utf-8'),
+      });
     } catch (err) {
       const apiErr = parseApiError(err);
-      sendError(res, apiErr.code === 'INVALID_FILENAME' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+      sendError(
+        res,
+        apiErr.code === 'INVALID_FILENAME' ? 400 : 500,
+        apiErr.code,
+        apiErr.message,
+        apiErr.details
+      );
     }
   });
 

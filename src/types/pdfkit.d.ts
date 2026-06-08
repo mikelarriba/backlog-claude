@@ -17,7 +17,7 @@ declare module 'pdfkit' {
   }
 
   interface PDFDocumentConstructor {
-    new(options?: PDFDocumentOptions): PDFDocument;
+    new (options?: PDFDocumentOptions): PDFDocument;
   }
 
   const PDFDocument: PDFDocumentConstructor;

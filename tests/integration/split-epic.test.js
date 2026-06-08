@@ -49,7 +49,10 @@ describe('POST /api/split-epic — auto-creates Feature when none exists', () =>
   const EPIC_FILE = '2026-01-01-orphan-epic.md';
 
   before(() => {
-    writeDoc('epics', EPIC_FILE, `---
+    writeDoc(
+      'epics',
+      EPIC_FILE,
+      `---
 JIRA_ID: TBD
 Story_Points: 5
 Status: Draft
@@ -65,7 +68,8 @@ An epic with no feature parent.
 
 ## Objective
 Test auto-feature creation.
-`);
+`
+    );
   });
 
   test('returns 200 with featureCreated=true and new epic filename', async () => {
@@ -99,10 +103,13 @@ Test auto-feature creation.
 // ── Epic with existing Feature ───────────────────────────────────────────────
 describe('POST /api/split-epic — uses existing Feature', () => {
   const FEATURE_FILE = '2026-01-01-existing-feature.md';
-  const EPIC_FILE    = '2026-01-01-epic-with-feature.md';
+  const EPIC_FILE = '2026-01-01-epic-with-feature.md';
 
   before(() => {
-    writeDoc('features', FEATURE_FILE, `---
+    writeDoc(
+      'features',
+      FEATURE_FILE,
+      `---
 JIRA_ID: TBD
 Status: Draft
 Priority: High
@@ -110,8 +117,12 @@ Created: 2026-01-01
 ---
 
 ## Existing Feature
-`);
-    writeDoc('epics', EPIC_FILE, `---
+`
+    );
+    writeDoc(
+      'epics',
+      EPIC_FILE,
+      `---
 JIRA_ID: TBD
 Story_Points: 3
 Status: Draft
@@ -124,7 +135,8 @@ Created: 2026-01-01
 
 ## Context
 Already linked to a feature.
-`);
+`
+    );
   });
 
   test('returns 200 with featureCreated=false and same feature filename', async () => {
@@ -145,7 +157,13 @@ Already linked to a feature.
       epicFilename: EPIC_FILE,
       description: 'Another split',
     });
-    const { data: newDoc } = await api('GET', `/api/doc/epic/${encodeURIComponent(data.newEpicFilename)}`);
-    assert.match(newDoc.content, new RegExp(`^Feature_ID: ${FEATURE_FILE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
+    const { data: newDoc } = await api(
+      'GET',
+      `/api/doc/epic/${encodeURIComponent(data.newEpicFilename)}`
+    );
+    assert.match(
+      newDoc.content,
+      new RegExp(`^Feature_ID: ${FEATURE_FILE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm')
+    );
   });
 });
