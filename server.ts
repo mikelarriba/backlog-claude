@@ -30,6 +30,7 @@ import jiraSearchRoutes from './src/routes/jira-search.js';
 import settingsRoutes from './src/routes/settings.js';
 import bugRoutes from './src/routes/bugs.js';
 import canvasRoutes from './src/routes/canvas.js';
+import { apiLimiter, aiLimiter, jiraLimiter } from './src/middleware/rateLimiter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -125,18 +126,27 @@ app.use((_req, res, next) => {
       "frame-ancestors 'none'",
     ].join('; ')
   );
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   next();
 });
 
 // ── Middleware & SSE ─────────────────────────────────────────────────────────
 app.use(requestLogger());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // Cache-Control: no-store for all /api/* responses
 app.use('/api', (_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
 });
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+app.use('/api/', apiLimiter);
+app.use('/api/generate', aiLimiter);
+app.use('/api/upgrade', aiLimiter);
+app.use('/api/jira/push', jiraLimiter);
 
 // JS and CSS: 5-minute browser cache with ETag revalidation
 app.use(
