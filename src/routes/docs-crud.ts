@@ -194,7 +194,7 @@ export default function docsCrudRoutes({
 
       await fs.promises.writeFile(filepath, content);
       await docIndex.invalidate(docType, filename);
-      broadcast({ type: 'title_updated', filename, docType });
+      broadcast({ type: 'title_updated', filename, docType, doc: docIndex.get(filename) });
       const changedFields = Object.fromEntries(
         Object.entries({
           status,
@@ -320,7 +320,12 @@ ${notesLine}`;
 
       await fs.promises.writeFile(path.join(destDir, filename), content);
       await docIndex.invalidate(normalizedType, filename);
-      broadcast({ type: cfg.event, filename, docType: normalizedType });
+      broadcast({
+        type: cfg.event,
+        filename,
+        docType: normalizedType,
+        doc: docIndex.get(filename),
+      });
       logAudit({
         op: 'create',
         docType: normalizedType,

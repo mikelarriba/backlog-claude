@@ -129,7 +129,12 @@ ${idea.trim()}
         _apiInFlight.delete(filename);
       }
 
-      broadcast({ type: cfg.event, filename, docType: normalizedType });
+      broadcast({
+        type: cfg.event,
+        filename,
+        docType: normalizedType,
+        doc: docIndex.get(filename),
+      });
       logAudit({
         op: 'create',
         docType: normalizedType,
@@ -157,70 +162,69 @@ ${idea.trim()}
 
   // ── POST /api/doc/:type/:filename/upgrade ── regenerate with feedback (SSE) ─
   router.post('/api/doc/:type/:filename/upgrade', async (req, res) => {
-      let docType, filename, filepath;
-      try {
-        ({ docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG));
-      } catch (err) {
-        const apiErr = parseApiError(err);
-        return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
-      }
-      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
-
-      setupSSE(res);
-      const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
-
-      try {
-        const { feedback } = req.body;
-
-        if (!feedback || !String(feedback).trim()) {
-          send({ error: { code: 'VALIDATION_ERROR', message: 'feedback is required' } });
-          res.end();
-          return;
-        }
-
-        const currentContent = await fs.promises.readFile(filepath, 'utf-8');
-        const currentStatus = extractWorkflowStatus(currentContent);
-
-        const inboxPath = path.join(INBOX_DIR, filename);
-        const inboxExists = fs.existsSync(inboxPath);
-        const inboxHistory = inboxExists
-          ? `\n\nOriginal idea and upgrade history (for context):\n---\n${await fs.promises.readFile(inboxPath, 'utf-8')}\n---`
-          : '';
-
-        const upgradePrompt = buildUpgradePrompt(docType, currentContent, feedback, inboxHistory);
-
-        let fullContent = '';
-        await streamClaude(upgradePrompt, (chunk: string) => {
-          fullContent += chunk;
-          send({ text: chunk });
-        });
-
-        fullContent = normalizeOutput(fullContent);
-        fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
-        await fs.promises.writeFile(filepath, fullContent);
-        await docIndex.invalidate(docType, filename);
-
-        if (inboxExists) {
-          const note = `\n\n---\n\n## Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}\n\n${feedback.trim()}\n`;
-          await fs.promises.appendFile(inboxPath, note);
-        }
-
-        send({ done: true, content: fullContent });
-        res.end();
-      } catch (err) {
-        const apiErr = parseApiError(err);
-        logError('POST /api/doc/:type/:filename/upgrade', apiErr.message, apiErr.details || {});
-        send({
-          error: {
-            code: apiErr.code,
-            message: apiErr.message,
-            ...(apiErr.details ? { details: apiErr.details } : {}),
-          },
-        });
-        res.end();
-      }
+    let docType, filename, filepath;
+    try {
+      ({ docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG));
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
     }
-  );
+    if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+
+    setupSSE(res);
+    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+
+    try {
+      const { feedback } = req.body;
+
+      if (!feedback || !String(feedback).trim()) {
+        send({ error: { code: 'VALIDATION_ERROR', message: 'feedback is required' } });
+        res.end();
+        return;
+      }
+
+      const currentContent = await fs.promises.readFile(filepath, 'utf-8');
+      const currentStatus = extractWorkflowStatus(currentContent);
+
+      const inboxPath = path.join(INBOX_DIR, filename);
+      const inboxExists = fs.existsSync(inboxPath);
+      const inboxHistory = inboxExists
+        ? `\n\nOriginal idea and upgrade history (for context):\n---\n${await fs.promises.readFile(inboxPath, 'utf-8')}\n---`
+        : '';
+
+      const upgradePrompt = buildUpgradePrompt(docType, currentContent, feedback, inboxHistory);
+
+      let fullContent = '';
+      await streamClaude(upgradePrompt, (chunk: string) => {
+        fullContent += chunk;
+        send({ text: chunk });
+      });
+
+      fullContent = normalizeOutput(fullContent);
+      fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
+      await fs.promises.writeFile(filepath, fullContent);
+      await docIndex.invalidate(docType, filename);
+
+      if (inboxExists) {
+        const note = `\n\n---\n\n## Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}\n\n${feedback.trim()}\n`;
+        await fs.promises.appendFile(inboxPath, note);
+      }
+
+      send({ done: true, content: fullContent });
+      res.end();
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/doc/:type/:filename/upgrade', apiErr.message, apiErr.details || {});
+      send({
+        error: {
+          code: apiErr.code,
+          message: apiErr.message,
+          ...(apiErr.details ? { details: apiErr.details } : {}),
+        },
+      });
+      res.end();
+    }
+  });
 
   // ── POST /api/docs/split-story ── AI-powered story split (SSE) ───────────────
   router.post('/api/docs/split-story', validateBody(SplitStorySchema), async (req, res) => {
@@ -305,7 +309,13 @@ ${idea.trim()}
         const destPath = path.join(cfg.dir(), newName);
 
         await fs.promises.writeFile(destPath, part);
-        broadcast({ type: `${docType}_created`, filename: newName, docType });
+        await docIndex.invalidate(docType, newName);
+        broadcast({
+          type: `${docType}_created`,
+          filename: newName,
+          docType,
+          doc: docIndex.get(newName),
+        });
         createdFiles.push({ filename: newName, title, sprint: sprints[i] || null });
       }
 
@@ -398,7 +408,12 @@ TBD
         ensureDir(featureCfg.dir());
         await fs.promises.writeFile(path.join(featureCfg.dir(), featureFilename), featureContent);
         await docIndex.invalidate('feature', featureFilename);
-        broadcast({ type: 'feature_created', filename: featureFilename, docType: 'feature' });
+        broadcast({
+          type: 'feature_created',
+          filename: featureFilename,
+          docType: 'feature',
+          doc: docIndex.get(featureFilename),
+        });
 
         // Link original epic to the new feature
         const updated = setFrontmatterField(epicContent, 'Feature_ID', featureFilename);
@@ -502,7 +517,12 @@ ${idea}
         _apiInFlight.delete(newEpicFilename);
       }
 
-      broadcast({ type: 'epic_created', filename: newEpicFilename, docType: 'epic' });
+      broadcast({
+        type: 'epic_created',
+        filename: newEpicFilename,
+        docType: 'epic',
+        doc: docIndex.get(newEpicFilename),
+      });
       logInfo(
         'POST /api/split-epic',
         `Split epic ${epicFilename} → new epic ${newEpicFilename}, feature ${featureFilename}`
