@@ -495,6 +495,28 @@ const evtSource = new EventSource('/api/events');
 evtSource.onmessage = (e) => {
   try {
     const payload = JSON.parse(e.data);
+
+    // Granular in-memory update when server includes the full DocEntry.
+    // Avoids a round-trip GET /api/docs for single-document operations.
+    if (payload.doc) {
+      const doc = payload.doc;
+      const idx = allDocs.findIndex((d) => d.filename === doc.filename);
+      if (idx !== -1) {
+        const updated = [...allDocs];
+        updated[idx] = doc;
+        allDocs = updated;
+      } else {
+        allDocs = [...allDocs, doc];
+      }
+      // applyFilters fires via store.subscribe('allDocs', applyFilters) in main.js
+      return;
+    }
+
+    if (payload.type === 'doc_deleted' && payload.filename) {
+      allDocs = allDocs.filter((d) => d.filename !== payload.filename);
+      return;
+    }
+
     if (
       [
         'feature_created',
