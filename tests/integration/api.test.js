@@ -18,6 +18,17 @@ after(async () => {
   await stop();
 });
 
+// ── GET /api/health ───────────────────────────────────────────────────────────
+describe('GET /api/health', () => {
+  test('returns 200 with status ok', async () => {
+    const { status, data } = await api('GET', '/api/health');
+    assert.equal(status, 200);
+    assert.equal(data.status, 'ok');
+    assert.ok(typeof data.uptime === 'number');
+    assert.ok(typeof data.docsDir === 'boolean');
+  });
+});
+
 // ── GET /api/docs ─────────────────────────────────────────────────────────────
 describe('GET /api/docs', () => {
   test('returns 200 with an array', async () => {

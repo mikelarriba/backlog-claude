@@ -191,6 +191,16 @@ app.get('/api/config/metadata', (_req, res) => {
   res.json({ teams: TEAMS, workCategories: WORK_CATEGORIES });
 });
 
+// ── Health check ─────────────────────────────────────────────────────────────
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    docsDir: fs.existsSync(DOCS_ROOT),
+    version: process.env.npm_package_version ?? 'unknown',
+  });
+});
+
 // ── OpenAPI spec & Swagger UI ─────────────────────────────────────────────────
 app.get('/swagger/openapi.yaml', (_req, res) => {
   res.setHeader('Content-Type', 'application/yaml; charset=utf-8');
