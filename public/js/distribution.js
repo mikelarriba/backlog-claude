@@ -6,12 +6,13 @@ let _distributionData = null;
 export async function openDistributionModal(piName) {
   if (!piName) return;
   const overlay = document.getElementById('distribution-overlay');
-  const body    = document.getElementById('distribution-body');
-  const msgs    = document.getElementById('distribution-messages');
+  const body = document.getElementById('distribution-body');
+  const msgs = document.getElementById('distribution-messages');
   const applyBtn = document.getElementById('distribution-apply-btn');
 
   document.getElementById('distribution-title').textContent = `Sprint Distribution: ${piName}`;
-  body.innerHTML = '<div class="distribution-loading"><div class="spinner"></div> Calculating distribution…</div>';
+  body.innerHTML =
+    '<div class="distribution-loading"><div class="spinner"></div> Calculating distribution…</div>';
   msgs.innerHTML = '';
   applyBtn.disabled = true;
   overlay.classList.add('show');
@@ -32,31 +33,36 @@ export function renderDistributionPreview(data) {
   const body = document.getElementById('distribution-body');
   const msgs = document.getElementById('distribution-messages');
 
-  const totalItems = data.sprints.reduce((s, sp) => s + sp.assigned.length, 0) + data.overflow.length;
+  const totalItems =
+    data.sprints.reduce((s, sp) => s + sp.assigned.length, 0) + data.overflow.length;
   if (totalItems === 0) {
-    body.innerHTML = '<div class="distribution-empty">No stories found in this PI to distribute.</div>';
+    body.innerHTML =
+      '<div class="distribution-empty">No stories found in this PI to distribute.</div>';
     document.getElementById('distribution-apply-btn').disabled = true;
     return;
   }
 
   // Sprint sections
-  let html = data.sprints.map((sprint, si) => {
-    const effectiveCap = sprint.effectiveCapacity ?? sprint.capacity;
-    const bufferPct = sprint.capacity > 0 && effectiveCap < sprint.capacity
-      ? Math.round((1 - effectiveCap / sprint.capacity) * 100)
-      : 0;
-    const pct = effectiveCap > 0 ? Math.round((sprint.usedPoints / effectiveCap) * 100) : 0;
-    const barClass = pct > 100 ? 'over' : pct > 90 ? 'warn' : '';
-    const barWidth = Math.min(pct, 100);
-    const statsText = bufferPct
-      ? `${sprint.usedPoints} / ${effectiveCap} SP (${pct}%, ${bufferPct}% buffer)`
-      : `${sprint.usedPoints} / ${sprint.capacity} SP (${pct}%)`;
+  let html = data.sprints
+    .map((sprint, si) => {
+      const effectiveCap = sprint.effectiveCapacity ?? sprint.capacity;
+      const bufferPct =
+        sprint.capacity > 0 && effectiveCap < sprint.capacity
+          ? Math.round((1 - effectiveCap / sprint.capacity) * 100)
+          : 0;
+      const pct = effectiveCap > 0 ? Math.round((sprint.usedPoints / effectiveCap) * 100) : 0;
+      const barClass = pct > 100 ? 'over' : pct > 90 ? 'warn' : '';
+      const barWidth = Math.min(pct, 100);
+      const statsText = bufferPct
+        ? `${sprint.usedPoints} / ${effectiveCap} SP (${pct}%, ${bufferPct}% buffer)`
+        : `${sprint.usedPoints} / ${sprint.capacity} SP (${pct}%)`;
 
-    const itemsHtml = sprint.assigned.length
-      ? sprint.assigned.map((item, ii) => {
-          const alreadyClass = item.wasAlreadyAssigned ? ' already-assigned' : '';
-          const priorityClass = (item.priority || 'Medium').toLowerCase();
-          return `
+      const itemsHtml = sprint.assigned.length
+        ? sprint.assigned
+            .map((item, ii) => {
+              const alreadyClass = item.wasAlreadyAssigned ? ' already-assigned' : '';
+              const priorityClass = (item.priority || 'Medium').toLowerCase();
+              return `
             <label class="distribution-item${alreadyClass}">
               <input type="checkbox" ${item.wasAlreadyAssigned ? '' : 'checked'} data-sprint="${si}" data-item="${ii}" />
               <div class="distribution-item-body">
@@ -69,10 +75,11 @@ export function renderDistributionPreview(data) {
                 </div>
               </div>
             </label>`;
-        }).join('')
-      : '<div class="distribution-sprint-empty">No items assigned</div>';
+            })
+            .join('')
+        : '<div class="distribution-sprint-empty">No items assigned</div>';
 
-    return `
+      return `
       <div class="distribution-sprint-section">
         <div class="distribution-sprint-header">
           <span class="distribution-sprint-name">${escHtml(sprint.name)}</span>
@@ -83,13 +90,15 @@ export function renderDistributionPreview(data) {
         </div>
         <div class="distribution-sprint-items">${itemsHtml}</div>
       </div>`;
-  }).join('');
+    })
+    .join('');
 
   // Overflow section
   if (data.overflow.length) {
-    const overflowItems = data.overflow.map(item => {
-      const priorityClass = (item.priority || 'Medium').toLowerCase();
-      return `
+    const overflowItems = data.overflow
+      .map((item) => {
+        const priorityClass = (item.priority || 'Medium').toLowerCase();
+        return `
         <div class="distribution-item overflow-item">
           <div class="distribution-item-body">
             <span class="distribution-item-title">${escHtml(item.title)}</span>
@@ -100,7 +109,8 @@ export function renderDistributionPreview(data) {
             </div>
           </div>
         </div>`;
-    }).join('');
+      })
+      .join('');
     html += `
       <div class="distribution-overflow-section">
         <div class="distribution-sprint-header overflow-header">
@@ -116,10 +126,14 @@ export function renderDistributionPreview(data) {
   // Warnings & suggestions
   let msgsHtml = '';
   if (data.warnings.length) {
-    msgsHtml += data.warnings.map(w => `<div class="distribution-msg warning">${escHtml(w)}</div>`).join('');
+    msgsHtml += data.warnings
+      .map((w) => `<div class="distribution-msg warning">${escHtml(w)}</div>`)
+      .join('');
   }
   if (data.suggestions.length) {
-    msgsHtml += data.suggestions.map(s => `<div class="distribution-msg suggestion">${escHtml(s)}</div>`).join('');
+    msgsHtml += data.suggestions
+      .map((s) => `<div class="distribution-msg suggestion">${escHtml(s)}</div>`)
+      .join('');
   }
   msgs.innerHTML = msgsHtml;
 }
@@ -156,8 +170,11 @@ export async function applyDistribution() {
     closeDistributionModal();
 
     if (data.depWarnings && data.depWarnings.length) {
-      const msgs = data.depWarnings.map(w => w.message).join('\n');
-      showJiraToast('warning', `Distributed ${data.updated} item(s). Dependency order warnings:\n${msgs}`);
+      const msgs = data.depWarnings.map((w) => w.message).join('\n');
+      showJiraToast(
+        'warning',
+        `Distributed ${data.updated} item(s). Dependency order warnings:\n${msgs}`
+      );
     } else {
       showJiraToast('success', `Distributed ${data.updated} item(s) across sprints.`);
     }

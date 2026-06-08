@@ -9,9 +9,9 @@ export function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
   popup.style.left = `${x}px`;
-  popup.style.top  = `${y}px`;
+  popup.style.top = `${y}px`;
 
-  const altType  = linkType === 'blocks' ? 'parallel' : 'blocks';
+  const altType = linkType === 'blocks' ? 'parallel' : 'blocks';
   const altLabel = linkType === 'blocks' ? 'Change to PARALLEL' : 'Change to BLOCKS';
 
   popup.innerHTML = `
@@ -21,10 +21,14 @@ export function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
     <button id="_edge-cancel-btn">Cancel</button>`;
   document.body.appendChild(popup);
 
-  popup.querySelector('#_edge-delete-btn').addEventListener('click', () =>
-    _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt));
-  popup.querySelector('#_edge-change-btn').addEventListener('click', () =>
-    _changeCanvasLinkType(linkType, altType, srcFn, srcDt, tgtFn, tgtDt));
+  popup
+    .querySelector('#_edge-delete-btn')
+    .addEventListener('click', () => _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt));
+  popup
+    .querySelector('#_edge-change-btn')
+    .addEventListener('click', () =>
+      _changeCanvasLinkType(linkType, altType, srcFn, srcDt, tgtFn, tgtDt)
+    );
   popup.querySelector('#_edge-cancel-btn').addEventListener('click', _closeLinkPopup);
 
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
@@ -34,11 +38,20 @@ export async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
   _closeLinkPopup();
   try {
     const res = await fetch('/api/link', {
-      method:  'DELETE',
+      method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ linkType, sourceType: srcDt, sourceFilename: srcFn, targetType: tgtDt, targetFilename: tgtFn }),
+      body: JSON.stringify({
+        linkType,
+        sourceType: srcDt,
+        sourceFilename: srcFn,
+        targetType: tgtDt,
+        targetFilename: tgtFn,
+      }),
     });
-    if (!res.ok) { const d = await res.json(); throw new Error(d.error?.message || 'Delete failed'); }
+    if (!res.ok) {
+      const d = await res.json();
+      throw new Error(d.error?.message || 'Delete failed');
+    }
     await loadDocs();
     rebuildCanvasEdges();
     renderCanvas(_canvasEpicFilename, _canvasDocType);
@@ -52,18 +65,33 @@ export async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtF
   _closeLinkPopup();
   try {
     const delRes = await fetch('/api/link', {
-      method:  'DELETE',
+      method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ linkType: oldType, sourceType: srcDt, sourceFilename: srcFn, targetType: tgtDt, targetFilename: tgtFn }),
+      body: JSON.stringify({
+        linkType: oldType,
+        sourceType: srcDt,
+        sourceFilename: srcFn,
+        targetType: tgtDt,
+        targetFilename: tgtFn,
+      }),
     });
     if (!delRes.ok) throw new Error('Delete failed');
 
     const addRes = await fetch('/api/link', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ linkType: newType, sourceType: srcDt, sourceFilename: srcFn, targetType: tgtDt, targetFilename: tgtFn }),
+      body: JSON.stringify({
+        linkType: newType,
+        sourceType: srcDt,
+        sourceFilename: srcFn,
+        targetType: tgtDt,
+        targetFilename: tgtFn,
+      }),
     });
-    if (!addRes.ok) { const d = await addRes.json(); throw new Error(d.error?.message || 'Create failed'); }
+    if (!addRes.ok) {
+      const d = await addRes.json();
+      throw new Error(d.error?.message || 'Create failed');
+    }
     await loadDocs();
     rebuildCanvasEdges();
     renderCanvas(_canvasEpicFilename, _canvasDocType);
@@ -79,7 +107,7 @@ export function _restoreManageLinksState() {
   if (btn) btn.classList.add('active');
   const canvas = document.getElementById('refine-canvas');
   if (canvas) canvas.classList.add('manage-links-active');
-  document.querySelectorAll('.canvas-card').forEach(c => c.setAttribute('draggable', 'false'));
+  document.querySelectorAll('.canvas-card').forEach((c) => c.setAttribute('draggable', 'false'));
 }
 
 // ── Manage Links mode ──────────────────────────────────────────
@@ -91,13 +119,13 @@ export function toggleManageLinks() {
   const canvas = document.getElementById('refine-canvas');
   if (canvas) canvas.classList.toggle('manage-links-active', _canvasManageLinks);
   // Disable card drag while in manage-links mode so handles don't compete with HTML5 drag
-  document.querySelectorAll('.canvas-card').forEach(c => {
+  document.querySelectorAll('.canvas-card').forEach((c) => {
     c.setAttribute('draggable', _canvasManageLinks ? 'false' : 'true');
   });
 }
 
 export function _closeLinkPopup() {
-  document.querySelectorAll('.canvas-link-popup').forEach(el => el.remove());
+  document.querySelectorAll('.canvas-link-popup').forEach((el) => el.remove());
 }
 
 export function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDocType) {
@@ -105,7 +133,7 @@ export function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDo
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
   popup.style.left = `${x}px`;
-  popup.style.top  = `${y}px`;
+  popup.style.top = `${y}px`;
   popup.innerHTML = `
     <button onclick="_createCanvasLink('blocks','${escHtml(srcFilename)}','${escHtml(srcDocType)}','${escHtml(tgtFilename)}','${escHtml(tgtDocType)}')">Add BLOCKS link</button>
     <button onclick="_createCanvasLink('parallel','${escHtml(srcFilename)}','${escHtml(srcDocType)}','${escHtml(tgtFilename)}','${escHtml(tgtDocType)}')">Add PARALLEL link</button>
@@ -115,7 +143,13 @@ export function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDo
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
 
-export async function _createCanvasLink(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+export async function _createCanvasLink(
+  linkType,
+  srcFilename,
+  srcDocType,
+  tgtFilename,
+  tgtDocType
+) {
   _closeLinkPopup();
   // Reject epic node links
   if (!['story', 'spike', 'bug'].includes(tgtDocType)) {
@@ -124,9 +158,15 @@ export async function _createCanvasLink(linkType, srcFilename, srcDocType, tgtFi
   }
   try {
     const res = await fetch('/api/link', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ linkType, sourceType: srcDocType, sourceFilename: srcFilename, targetType: tgtDocType, targetFilename: tgtFilename }),
+      body: JSON.stringify({
+        linkType,
+        sourceType: srcDocType,
+        sourceFilename: srcFilename,
+        targetType: tgtDocType,
+        targetFilename: tgtFilename,
+      }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || 'Link failed');

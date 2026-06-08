@@ -30,7 +30,8 @@ export interface Logger {
 export function createLogger(prefix: string): Logger {
   return {
     logDebug: (scope: string, message: string, meta: Record<string, any> = {}) => {
-      if (currentLevel() <= LEVEL_MAP.debug) console.debug(fmt(prefix, 'DEBUG', scope, message), meta);
+      if (currentLevel() <= LEVEL_MAP.debug)
+        console.debug(fmt(prefix, 'DEBUG', scope, message), meta);
     },
     logInfo: (scope: string, message: string, meta: Record<string, any> = {}) => {
       if (currentLevel() <= LEVEL_MAP.info) console.log(fmt(prefix, 'INFO', scope, message), meta);
@@ -39,7 +40,8 @@ export function createLogger(prefix: string): Logger {
       if (currentLevel() <= LEVEL_MAP.warn) console.warn(fmt(prefix, 'WARN', scope, message), meta);
     },
     logError: (scope: string, message: string, meta: Record<string, any> = {}) => {
-      if (currentLevel() <= LEVEL_MAP.error) console.error(fmt(prefix, 'ERROR', scope, message), meta);
+      if (currentLevel() <= LEVEL_MAP.error)
+        console.error(fmt(prefix, 'ERROR', scope, message), meta);
     },
   };
 }

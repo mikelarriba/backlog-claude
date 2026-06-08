@@ -8,9 +8,9 @@ import { _rankSortFn } from './list-render.js';
 // now declared as store-backed globals in state.js (moved from here).
 
 export async function moveDocRank(filename, docType, delta) {
-  const group  = allDocs.filter(d => d.docType === docType);
+  const group = allDocs.filter((d) => d.docType === docType);
   const sorted = [...group].sort(_rankSortFn);
-  const idx    = sorted.findIndex(d => d.filename === filename);
+  const idx = sorted.findIndex((d) => d.filename === filename);
   if (idx < 0) return;
   const newIdx = idx + delta;
   if (newIdx < 0 || newIdx >= sorted.length) return;
@@ -19,7 +19,10 @@ export async function moveDocRank(filename, docType, delta) {
   [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
 
   try {
-    await postJSON('/api/docs/rerank', { type: docType, orderedFilenames: sorted.map(d => d.filename) });
+    await postJSON('/api/docs/rerank', {
+      type: docType,
+      orderedFilenames: sorted.map((d) => d.filename),
+    });
   } catch (e) {
     showJiraToast('error', e.message);
   }
@@ -37,7 +40,9 @@ export async function loadDocs() {
 export async function loadPiSettings() {
   try {
     piSettings = await fetchJSON('/api/settings/pi');
-  } catch (e) { console.warn('Failed to load PI settings:', e.message); }
+  } catch (e) {
+    console.warn('Failed to load PI settings:', e.message);
+  }
 }
 
 export async function loadJiraVersions() {
@@ -60,7 +65,7 @@ export function contextSplitItem() {
   if (!modal) return;
 
   modal.dataset.filename = doc.filename;
-  modal.dataset.doctype  = doc.docType;
+  modal.dataset.doctype = doc.docType;
   modal.querySelector('#issue-split-badge').className = `type-badge ${doc.docType}`;
   modal.querySelector('#issue-split-badge').textContent = TYPE_LABEL[doc.docType] || doc.docType;
   modal.querySelector('#issue-split-title').textContent = doc.title || doc.filename;
@@ -81,11 +86,14 @@ export async function executeSplitIssue() {
   if (!modal) return;
 
   const filename = modal.dataset.filename;
-  const docType  = modal.dataset.doctype;
-  const idea     = modal.querySelector('#issue-split-idea').value.trim();
-  if (!idea) { modal.querySelector('#issue-split-idea').focus(); return; }
+  const docType = modal.dataset.doctype;
+  const idea = modal.querySelector('#issue-split-idea').value.trim();
+  if (!idea) {
+    modal.querySelector('#issue-split-idea').focus();
+    return;
+  }
 
-  const btn    = modal.querySelector('#issue-split-generate-btn');
+  const btn = modal.querySelector('#issue-split-generate-btn');
   const status = modal.querySelector('#issue-split-status');
   btn.disabled = true;
   btn.textContent = '⏳ Generating…';
@@ -121,7 +129,7 @@ export async function executeSplitIssue() {
     const origRes = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     if (!origRes.ok) throw new Error('Could not load original issue');
     const { content: origContent } = await origRes.json();
-    const origDoc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    const origDoc = allDocs.find((d) => d.filename === filename && d.docType === docType);
 
     status.textContent = '⚙ Generating new issue…';
 
@@ -133,8 +141,8 @@ export async function executeSplitIssue() {
     if (origDoc?.fixVersion) genBody.fixVersion = origDoc.fixVersion;
     if (origDoc?.pi && origDoc.pi !== 'TBD') genBody.pi = origDoc.pi;
     if (origDoc?.parentFilename) {
-      const parentDoc = allDocs.find(d => d.filename === origDoc.parentFilename);
-      if (parentDoc?.docType === 'epic')    genBody.parentEpic    = origDoc.parentFilename;
+      const parentDoc = allDocs.find((d) => d.filename === origDoc.parentFilename);
+      if (parentDoc?.docType === 'epic') genBody.parentEpic = origDoc.parentFilename;
       if (parentDoc?.docType === 'feature') genBody.parentFeature = origDoc.parentFilename;
     }
 
@@ -150,7 +158,7 @@ export async function executeSplitIssue() {
 
     // Link to same parent if original has one
     if (origDoc?.parentFilename) {
-      const parentDoc = allDocs.find(d => d.filename === origDoc.parentFilename);
+      const parentDoc = allDocs.find((d) => d.filename === origDoc.parentFilename);
       if (parentDoc) {
         await fetch('/api/link', {
           method: 'POST',

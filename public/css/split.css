@@ -57,7 +57,9 @@
 }
 
 /* ── Empty-state placeholder (kept for roadmap mode) ── */
-#split-placeholder { display: none; }
+#split-placeholder {
+  display: none;
+}
 
 .split-placeholder-icon {
   font-size: 2.2rem;

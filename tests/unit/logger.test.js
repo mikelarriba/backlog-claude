@@ -10,8 +10,8 @@ describe('createLogger — level filtering', () => {
 
   before(() => {
     // Intercept all console methods
-    console.log   = (...a) => calls.push({ method: 'log',   args: a });
-    console.warn  = (...a) => calls.push({ method: 'warn',  args: a });
+    console.log = (...a) => calls.push({ method: 'log', args: a });
+    console.warn = (...a) => calls.push({ method: 'warn', args: a });
     console.error = (...a) => calls.push({ method: 'error', args: a });
     console.debug = (...a) => calls.push({ method: 'debug', args: a });
   });
@@ -28,8 +28,8 @@ describe('createLogger — level filtering', () => {
     const { logDebug, logInfo } = createLogger('[test]');
     logDebug('scope', 'debug msg');
     logInfo('scope', 'info msg');
-    assert.equal(calls.filter(c => c.method === 'debug').length, 0, 'debug should be suppressed');
-    assert.equal(calls.filter(c => c.method === 'log').length, 1, 'info should pass through');
+    assert.equal(calls.filter((c) => c.method === 'debug').length, 0, 'debug should be suppressed');
+    assert.equal(calls.filter((c) => c.method === 'log').length, 1, 'info should pass through');
   });
 
   test('ERROR level suppresses INFO and WARN', () => {
@@ -39,9 +39,17 @@ describe('createLogger — level filtering', () => {
     logInfo('scope', 'info msg');
     logWarn('scope', 'warn msg');
     logError('scope', 'error msg');
-    assert.equal(calls.filter(c => c.method === 'log').length, 0, 'info suppressed at ERROR level');
-    assert.equal(calls.filter(c => c.method === 'warn').length, 0, 'warn suppressed at ERROR level');
-    assert.equal(calls.filter(c => c.method === 'error').length, 1, 'error passes through');
+    assert.equal(
+      calls.filter((c) => c.method === 'log').length,
+      0,
+      'info suppressed at ERROR level'
+    );
+    assert.equal(
+      calls.filter((c) => c.method === 'warn').length,
+      0,
+      'warn suppressed at ERROR level'
+    );
+    assert.equal(calls.filter((c) => c.method === 'error').length, 1, 'error passes through');
   });
 
   test('DEBUG level allows all calls through', () => {
@@ -61,8 +69,16 @@ describe('createLogger — level filtering', () => {
     const { logDebug, logInfo } = createLogger('[test]');
     logDebug('scope', 'debug msg');
     logInfo('scope', 'info msg');
-    assert.equal(calls.filter(c => c.method === 'debug').length, 0, 'debug suppressed by default');
-    assert.equal(calls.filter(c => c.method === 'log').length, 1, 'info passes through by default');
+    assert.equal(
+      calls.filter((c) => c.method === 'debug').length,
+      0,
+      'debug suppressed by default'
+    );
+    assert.equal(
+      calls.filter((c) => c.method === 'log').length,
+      1,
+      'info passes through by default'
+    );
   });
 
   test('log output includes scope and message', () => {

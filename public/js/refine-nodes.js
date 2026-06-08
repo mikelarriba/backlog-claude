@@ -1,7 +1,12 @@
 // ── Refine node interactions: context menus, create, split, move ─
 import { escHtml, showJiraToast, TYPE_LABEL } from './state.js';
 import { loadDocs } from './list.js';
-import { openRefinePanel, openManualRefine, closeRefinePanel, renderFeatureMultiPanel } from './refine.js';
+import {
+  openRefinePanel,
+  openManualRefine,
+  closeRefinePanel,
+  renderFeatureMultiPanel,
+} from './refine.js';
 import { buildCanvasGraph, renderCanvas, saveCanvasLayout } from './refine-canvas.js';
 import { _closeLinkPopup } from './refine-edges.js';
 
@@ -20,7 +25,12 @@ export async function _fpCreateChild(type, epicFilename, featureFilename) {
       await fetch('/api/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceType: type, sourceFilename: data.filename, targetType: 'epic', targetFilename: epicFilename }),
+        body: JSON.stringify({
+          sourceType: type,
+          sourceFilename: data.filename,
+          targetType: 'epic',
+          targetFilename: epicFilename,
+        }),
       });
       showJiraToast('ok', `Created ${data.filename}`);
       await renderFeatureMultiPanel(featureFilename);
@@ -36,7 +46,7 @@ export function _showCardContextMenu(x, y, filename, epicFilename, docType) {
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
   popup.style.left = `${x}px`;
-  popup.style.top  = `${y}px`;
+  popup.style.top = `${y}px`;
   popup.innerHTML = `
     <div class="canvas-link-popup-title">Move card</div>
     <button id="_ctx-left">← Move to Left</button>
@@ -47,14 +57,18 @@ export function _showCardContextMenu(x, y, filename, epicFilename, docType) {
     <button id="_ctx-split">✂ Split Issue</button>`;
   document.body.appendChild(popup);
 
-  popup.querySelector('#_ctx-left').addEventListener('click', () =>
-    _moveCardToEdge(filename, 'left', epicFilename, docType));
-  popup.querySelector('#_ctx-right').addEventListener('click', () =>
-    _moveCardToEdge(filename, 'right', epicFilename, docType));
-  popup.querySelector('#_ctx-top').addEventListener('click', () =>
-    _moveCardToEdge(filename, 'top', epicFilename, docType));
-  popup.querySelector('#_ctx-bottom').addEventListener('click', () =>
-    _moveCardToEdge(filename, 'bottom', epicFilename, docType));
+  popup
+    .querySelector('#_ctx-left')
+    .addEventListener('click', () => _moveCardToEdge(filename, 'left', epicFilename, docType));
+  popup
+    .querySelector('#_ctx-right')
+    .addEventListener('click', () => _moveCardToEdge(filename, 'right', epicFilename, docType));
+  popup
+    .querySelector('#_ctx-top')
+    .addEventListener('click', () => _moveCardToEdge(filename, 'top', epicFilename, docType));
+  popup
+    .querySelector('#_ctx-bottom')
+    .addEventListener('click', () => _moveCardToEdge(filename, 'bottom', epicFilename, docType));
   popup.querySelector('#_ctx-split').addEventListener('click', () => {
     _closeLinkPopup();
     _openCanvasSplit(filename, docType, epicFilename, _canvasDocType);
@@ -64,24 +78,33 @@ export function _showCardContextMenu(x, y, filename, epicFilename, docType) {
 }
 
 // ── Feature multi-panel card context menu ─────────────────────
-export function _showFpCardContextMenu(x, y, filename, docType, currentEpicFilename, featureFilename) {
+export function _showFpCardContextMenu(
+  x,
+  y,
+  filename,
+  docType,
+  currentEpicFilename,
+  featureFilename
+) {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
   popup.style.left = `${x}px`;
-  popup.style.top  = `${y}px`;
+  popup.style.top = `${y}px`;
 
   // Build "Move to Epic" submenu items from _panelStates
-  const epicItems = [..._panelStates.keys()].map(ef => {
-    const isCurrent = ef === currentEpicFilename;
-    const epicDoc = allDocs.find(d => d.filename === ef && d.docType === 'epic');
-    const label = epicDoc?.title || ef;
-    return `<button class="fp-ctx-epic-btn${isCurrent ? ' fp-ctx-epic-current' : ''}"
+  const epicItems = [..._panelStates.keys()]
+    .map((ef) => {
+      const isCurrent = ef === currentEpicFilename;
+      const epicDoc = allDocs.find((d) => d.filename === ef && d.docType === 'epic');
+      const label = epicDoc?.title || ef;
+      return `<button class="fp-ctx-epic-btn${isCurrent ? ' fp-ctx-epic-current' : ''}"
       ${isCurrent ? 'disabled' : ''}
       data-epic="${escHtml(ef)}">
       ${escHtml(label)}${isCurrent ? ' (current)' : ''}
     </button>`;
-  }).join('');
+    })
+    .join('');
 
   popup.innerHTML = `
     <div class="canvas-link-popup-title">Move to Epic</div>
@@ -91,10 +114,16 @@ export function _showFpCardContextMenu(x, y, filename, docType, currentEpicFilen
     <button id="_fp-ctx-split">✂ Split Issue</button>`;
   document.body.appendChild(popup);
 
-  popup.querySelectorAll('.fp-ctx-epic-btn:not([disabled])').forEach(btn => {
+  popup.querySelectorAll('.fp-ctx-epic-btn:not([disabled])').forEach((btn) => {
     btn.addEventListener('click', async () => {
       _closeLinkPopup();
-      await _fpMoveToEpic(filename, docType, currentEpicFilename, btn.dataset.epic, featureFilename);
+      await _fpMoveToEpic(
+        filename,
+        docType,
+        currentEpicFilename,
+        btn.dataset.epic,
+        featureFilename
+      );
     });
   });
   popup.querySelector('#_fp-ctx-open')?.addEventListener('click', () => {
@@ -112,13 +141,21 @@ export function _showFpCardContextMenu(x, y, filename, docType, currentEpicFilen
 export async function _fpMoveToEpic(filename, docType, fromEpic, toEpic, featureFilename) {
   try {
     const res = await fetch('/api/link', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ sourceType: docType, sourceFilename: filename, targetType: 'epic', targetFilename: toEpic }),
+      body: JSON.stringify({
+        sourceType: docType,
+        sourceFilename: filename,
+        targetType: 'epic',
+        targetFilename: toEpic,
+      }),
     });
-    if (!res.ok) { const d = await res.json(); throw new Error(d.error?.message || 'Move failed'); }
+    if (!res.ok) {
+      const d = await res.json();
+      throw new Error(d.error?.message || 'Move failed');
+    }
     await loadDocs();
-    showJiraToast('ok', `Moved to ${allDocs.find(d => d.filename === toEpic)?.title || toEpic}`);
+    showJiraToast('ok', `Moved to ${allDocs.find((d) => d.filename === toEpic)?.title || toEpic}`);
     await renderFeatureMultiPanel(featureFilename);
   } catch (e) {
     showJiraToast('error', e.message);
@@ -128,11 +165,11 @@ export async function _fpMoveToEpic(filename, docType, fromEpic, toEpic, feature
 // ── Epic context menu (right-click on epic header) ──────────
 export function _showEpicContextMenu(x, y, epicFilename, featureFilename) {
   _closeLinkPopup();
-  const epicDoc = allDocs.find(d => d.filename === epicFilename && d.docType === 'epic');
+  const epicDoc = allDocs.find((d) => d.filename === epicFilename && d.docType === 'epic');
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
   popup.style.left = `${x}px`;
-  popup.style.top  = `${y}px`;
+  popup.style.top = `${y}px`;
   popup.innerHTML = `
     <div class="canvas-link-popup-title">${escHtml(epicDoc?.title || epicFilename)}</div>
     <button id="_epic-ctx-split">✂ Split Epic</button>
@@ -141,7 +178,12 @@ export function _showEpicContextMenu(x, y, epicFilename, featureFilename) {
 
   popup.querySelector('#_epic-ctx-split').addEventListener('click', () => {
     _closeLinkPopup();
-    _openCanvasSplit(epicFilename, 'epic', featureFilename || epicFilename, featureFilename ? 'feature' : 'epic');
+    _openCanvasSplit(
+      epicFilename,
+      'epic',
+      featureFilename || epicFilename,
+      featureFilename ? 'feature' : 'epic'
+    );
   });
   popup.querySelector('#_epic-ctx-open').addEventListener('click', () => {
     _closeLinkPopup();
@@ -157,7 +199,7 @@ export function _showEmptyCellMenu(x, y, col, row, epicFilename, epicDocType) {
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
   popup.style.left = `${x}px`;
-  popup.style.top  = `${y}px`;
+  popup.style.top = `${y}px`;
   popup.innerHTML = `
     <div class="canvas-link-popup-title">Create new</div>
     <button id="_cell-story" class="green">＋ Story</button>
@@ -180,7 +222,9 @@ export function _openCellCreateForm(type, col, row, epicFilename, epicDocType) {
   const typeName = TYPE_LABEL[type] || type;
   const panel = document.getElementById('refine-panel');
   panel.classList.add('open');
-  document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
+  document
+    .querySelectorAll('.canvas-card.selected')
+    .forEach((el) => el.classList.remove('selected'));
 
   panel.innerHTML = `
     <div class="rp-header">
@@ -203,16 +247,22 @@ export function _openCellCreateForm(type, col, row, epicFilename, epicDocType) {
       <div class="rp-stream" id="rp-cell-stream" style="display:none"></div>
     </div>`;
 
-  document.getElementById('rp-cell-create-btn').addEventListener('click', () =>
-    _executeEmptyCellCreate(type, col, row, epicFilename, epicDocType));
+  document
+    .getElementById('rp-cell-create-btn')
+    .addEventListener('click', () =>
+      _executeEmptyCellCreate(type, col, row, epicFilename, epicDocType)
+    );
   document.getElementById('rp-cell-idea').focus();
 }
 
 export async function _executeEmptyCellCreate(type, col, row, epicFilename, epicDocType) {
   const idea = document.getElementById('rp-cell-idea')?.value.trim();
-  if (!idea) { document.getElementById('rp-cell-idea')?.focus(); return; }
+  if (!idea) {
+    document.getElementById('rp-cell-idea')?.focus();
+    return;
+  }
 
-  const btn    = document.getElementById('rp-cell-create-btn');
+  const btn = document.getElementById('rp-cell-create-btn');
   const stream = document.getElementById('rp-cell-stream');
   btn.disabled = true;
   btn.textContent = '⏳ Generating…';
@@ -220,7 +270,7 @@ export async function _executeEmptyCellCreate(type, col, row, epicFilename, epic
   stream.style.display = 'block';
 
   try {
-    const parentDoc = allDocs.find(d => d.filename === epicFilename);
+    const parentDoc = allDocs.find((d) => d.filename === epicFilename);
     const genBody = { idea, type, priority: 'Medium' };
     if (parentDoc?.fixVersion) genBody.fixVersion = parentDoc.fixVersion;
     if (parentDoc?.pi && parentDoc.pi !== 'TBD') genBody.pi = parentDoc.pi;
@@ -228,9 +278,9 @@ export async function _executeEmptyCellCreate(type, col, row, epicFilename, epic
     if (epicDocType === 'feature') genBody.parentFeature = epicFilename;
 
     const genRes = await fetch('/api/generate', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(genBody),
+      body: JSON.stringify(genBody),
     });
     if (!genRes.ok) throw new Error((await genRes.json()).error?.message || 'Generate failed');
     const { filename: newFilename } = await genRes.json();
@@ -238,12 +288,12 @@ export async function _executeEmptyCellCreate(type, col, row, epicFilename, epic
     stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
 
     const linkRes = await fetch('/api/link', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        sourceType:     type,
+      body: JSON.stringify({
+        sourceType: type,
         sourceFilename: newFilename,
-        targetType:     epicDocType,
+        targetType: epicDocType,
         targetFilename: epicFilename,
       }),
     });
@@ -260,7 +310,9 @@ export async function _executeEmptyCellCreate(type, col, row, epicFilename, epic
     await buildCanvasGraph(epicFilename, epicDocType);
 
     setTimeout(() => {
-      const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(newFilename)}"]`);
+      const card = document.querySelector(
+        `.canvas-card[data-filename="${CSS.escape(newFilename)}"]`
+      );
       if (card) {
         card.classList.add('selected');
         openRefinePanel(newFilename, type);
@@ -280,7 +332,7 @@ export function _showMultiCardContextMenu(x, y, epicFilename, docType) {
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
   popup.style.left = `${x}px`;
-  popup.style.top  = `${y}px`;
+  popup.style.top = `${y}px`;
   popup.innerHTML = `
     <div class="canvas-link-popup-title">${count} cards selected</div>
     <button id="_ctx-m-left">← Move all Left</button>
@@ -291,19 +343,31 @@ export function _showMultiCardContextMenu(x, y, epicFilename, docType) {
     <button id="_ctx-m-delete" style="color:var(--danger,#ef4444)">🗑 Delete ${count} cards</button>`;
   document.body.appendChild(popup);
 
-  popup.querySelector('#_ctx-m-left').addEventListener('click', () =>
-    _moveCardsToEdge([..._canvasSelectedCards], 'left', epicFilename, docType));
-  popup.querySelector('#_ctx-m-right').addEventListener('click', () =>
-    _moveCardsToEdge([..._canvasSelectedCards], 'right', epicFilename, docType));
-  popup.querySelector('#_ctx-m-top').addEventListener('click', () =>
-    _moveCardsToEdge([..._canvasSelectedCards], 'top', epicFilename, docType));
-  popup.querySelector('#_ctx-m-bottom').addEventListener('click', () =>
-    _moveCardsToEdge([..._canvasSelectedCards], 'bottom', epicFilename, docType));
+  popup
+    .querySelector('#_ctx-m-left')
+    .addEventListener('click', () =>
+      _moveCardsToEdge([..._canvasSelectedCards], 'left', epicFilename, docType)
+    );
+  popup
+    .querySelector('#_ctx-m-right')
+    .addEventListener('click', () =>
+      _moveCardsToEdge([..._canvasSelectedCards], 'right', epicFilename, docType)
+    );
+  popup
+    .querySelector('#_ctx-m-top')
+    .addEventListener('click', () =>
+      _moveCardsToEdge([..._canvasSelectedCards], 'top', epicFilename, docType)
+    );
+  popup
+    .querySelector('#_ctx-m-bottom')
+    .addEventListener('click', () =>
+      _moveCardsToEdge([..._canvasSelectedCards], 'bottom', epicFilename, docType)
+    );
   popup.querySelector('#_ctx-m-delete').addEventListener('click', async () => {
     _closeLinkPopup();
     if (!confirm(`Delete ${count} selected items? This cannot be undone.`)) return;
     for (const fn of _canvasSelectedCards) {
-      const doc = allDocs.find(d => d.filename === fn);
+      const doc = allDocs.find((d) => d.filename === fn);
       if (!doc) continue;
       await fetch(`/api/doc/${doc.docType}/${encodeURIComponent(fn)}`, { method: 'DELETE' });
     }
@@ -324,10 +388,18 @@ export async function _moveCardsToEdge(filenames, direction, epicFilename, docTy
     let newCol = cur.col;
     let newRow = cur.row;
     switch (direction) {
-      case 'left':   newCol = 0; break;
-      case 'right':  newCol = Math.max(...positions.map(p => p.col)) + 1; break;
-      case 'top':    newRow = 0; break;
-      case 'bottom': newRow = Math.max(...positions.map(p => p.row)) + 1; break;
+      case 'left':
+        newCol = 0;
+        break;
+      case 'right':
+        newCol = Math.max(...positions.map((p) => p.col)) + 1;
+        break;
+      case 'top':
+        newRow = 0;
+        break;
+      case 'bottom':
+        newRow = Math.max(...positions.map((p) => p.row)) + 1;
+        break;
     }
     _activePanelState.layout[fn] = { col: newCol, row: newRow };
   }
@@ -337,11 +409,13 @@ export async function _moveCardsToEdge(filenames, direction, epicFilename, docTy
 }
 
 export function _openCanvasSplit(filename, childDocType, epicFilename, epicDocType) {
-  const doc = allDocs.find(d => d.filename === filename);
+  const doc = allDocs.find((d) => d.filename === filename);
   const typeName = TYPE_LABEL[childDocType] || childDocType;
   const panel = document.getElementById('refine-panel');
   panel.classList.add('open');
-  document.querySelectorAll('.canvas-card.selected').forEach(el => el.classList.remove('selected'));
+  document
+    .querySelectorAll('.canvas-card.selected')
+    .forEach((el) => el.classList.remove('selected'));
 
   panel.innerHTML = `
     <div class="rp-header">
@@ -368,11 +442,19 @@ export function _openCanvasSplit(filename, childDocType, epicFilename, epicDocTy
   document.getElementById('rp-split-idea').focus();
 }
 
-export async function _executeCanvasSplit(originalFilename, childDocType, epicFilename, epicDocType) {
+export async function _executeCanvasSplit(
+  originalFilename,
+  childDocType,
+  epicFilename,
+  epicDocType
+) {
   const idea = document.getElementById('rp-split-idea')?.value.trim();
-  if (!idea) { document.getElementById('rp-split-idea')?.focus(); return; }
+  if (!idea) {
+    document.getElementById('rp-split-idea')?.focus();
+    return;
+  }
 
-  const btn    = document.getElementById('rp-split-btn');
+  const btn = document.getElementById('rp-split-btn');
   const stream = document.getElementById('rp-split-stream');
   btn.disabled = true;
   btn.textContent = '⏳ Generating…';
@@ -411,7 +493,7 @@ export async function _executeCanvasSplit(originalFilename, childDocType, epicFi
     const origRes = await fetch(`/api/doc/${childDocType}/${encodeURIComponent(originalFilename)}`);
     if (!origRes.ok) throw new Error('Could not load original issue');
     const { content: origContent } = await origRes.json();
-    const origDoc = allDocs.find(d => d.filename === originalFilename);
+    const origDoc = allDocs.find((d) => d.filename === originalFilename);
 
     stream.textContent = '⚙ Generating new issue…';
 
@@ -454,7 +536,9 @@ export async function _executeCanvasSplit(originalFilename, childDocType, epicFi
     await buildCanvasGraph(epicFilename, epicDocType);
 
     setTimeout(() => {
-      const card = document.querySelector(`.canvas-card[data-filename="${CSS.escape(newFilename)}"]`);
+      const card = document.querySelector(
+        `.canvas-card[data-filename="${CSS.escape(newFilename)}"]`
+      );
       if (card) {
         card.classList.add('selected');
         openRefinePanel(newFilename, childDocType);
@@ -481,13 +565,13 @@ export async function _moveCardToEdge(filename, direction, epicFilename, docType
       newCol = 0;
       break;
     case 'right':
-      newCol = Math.max(...positions.map(p => p.col)) + 1;
+      newCol = Math.max(...positions.map((p) => p.col)) + 1;
       break;
     case 'top':
       newRow = 0;
       break;
     case 'bottom':
-      newRow = Math.max(...positions.map(p => p.row)) + 1;
+      newRow = Math.max(...positions.map((p) => p.row)) + 1;
       break;
   }
 

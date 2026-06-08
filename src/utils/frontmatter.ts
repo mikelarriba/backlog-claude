@@ -43,7 +43,9 @@ export function parseFrontmatter(content: string): { meta: Record<string, string
  * Sanitises the value by stripping newlines to prevent block injection.
  */
 export function patchFrontmatter(content: string, field: string, value: string | number): string {
-  const safeValue = String(value).replace(/[\r\n]/g, ' ').trim();
+  const safeValue = String(value)
+    .replace(/[\r\n]/g, ' ')
+    .trim();
 
   const lines = content.split('\n');
   if (lines[0].trimEnd() !== FENCE) {
@@ -78,7 +80,7 @@ export function dropFrontmatterField(content: string, field: string): string {
   if (closeIdx === -1) return content;
 
   const fieldRe = new RegExp(`^${escapeRegex(field)}:\\s*`);
-  const relIdx = lines.slice(1, closeIdx).findIndex(l => fieldRe.test(l));
+  const relIdx = lines.slice(1, closeIdx).findIndex((l) => fieldRe.test(l));
   if (relIdx === -1) return content;
 
   lines.splice(1 + relIdx, 1);

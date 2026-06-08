@@ -18,7 +18,9 @@ after(async () => {
 function writeStory(filename, extra = '') {
   const dir = path.join(docsRoot, 'stories');
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, filename), `---
+  fs.writeFileSync(
+    path.join(dir, filename),
+    `---
 JIRA_ID: TBD
 Story_Points: 3
 Status: Draft
@@ -31,7 +33,8 @@ Created: 2026-01-01
 ${extra}---
 
 ## ${filename.replace('.md', '')}
-`);
+`
+  );
 }
 
 // ── POST /api/link linkType=blocks ────────────────────────────────────────────
@@ -44,8 +47,10 @@ describe('POST /api/link — blocks dependency', () => {
 
   test('creates a blocks link between two stories', async () => {
     const { status, data } = await api('POST', '/api/link', {
-      sourceType: 'story', sourceFilename: '2026-01-01-story-a.md',
-      targetType: 'story', targetFilename: '2026-01-01-story-b.md',
+      sourceType: 'story',
+      sourceFilename: '2026-01-01-story-a.md',
+      targetType: 'story',
+      targetFilename: '2026-01-01-story-b.md',
       linkType: 'blocks',
     });
     assert.equal(status, 200);
@@ -67,20 +72,22 @@ describe('POST /api/link — blocks dependency', () => {
     const { status, data } = await api('GET', '/api/links/story/2026-01-01-story-a.md');
     assert.equal(status, 200);
     assert.ok(Array.isArray(data.blocks));
-    assert.ok(data.blocks.some(b => b.filename === '2026-01-01-story-b.md'));
+    assert.ok(data.blocks.some((b) => b.filename === '2026-01-01-story-b.md'));
   });
 
   test('GET /api/links returns blockedBy for the blocked story', async () => {
     const { status, data } = await api('GET', '/api/links/story/2026-01-01-story-b.md');
     assert.equal(status, 200);
     assert.ok(Array.isArray(data.blockedBy));
-    assert.ok(data.blockedBy.some(b => b.filename === '2026-01-01-story-a.md'));
+    assert.ok(data.blockedBy.some((b) => b.filename === '2026-01-01-story-a.md'));
   });
 
   test('does not duplicate link if called twice', async () => {
     await api('POST', '/api/link', {
-      sourceType: 'story', sourceFilename: '2026-01-01-story-a.md',
-      targetType: 'story', targetFilename: '2026-01-01-story-b.md',
+      sourceType: 'story',
+      sourceFilename: '2026-01-01-story-a.md',
+      targetType: 'story',
+      targetFilename: '2026-01-01-story-b.md',
       linkType: 'blocks',
     });
     const { data } = await api('GET', '/api/doc/story/2026-01-01-story-a.md');
@@ -100,13 +107,17 @@ describe('POST /api/link — cycle detection', () => {
 
   test('rejects a direct cycle (A blocks B, B blocks A)', async () => {
     await api('POST', '/api/link', {
-      sourceType: 'story', sourceFilename: '2026-02-01-cycle-a.md',
-      targetType: 'story', targetFilename: '2026-02-01-cycle-b.md',
+      sourceType: 'story',
+      sourceFilename: '2026-02-01-cycle-a.md',
+      targetType: 'story',
+      targetFilename: '2026-02-01-cycle-b.md',
       linkType: 'blocks',
     });
     const { status, data } = await api('POST', '/api/link', {
-      sourceType: 'story', sourceFilename: '2026-02-01-cycle-b.md',
-      targetType: 'story', targetFilename: '2026-02-01-cycle-a.md',
+      sourceType: 'story',
+      sourceFilename: '2026-02-01-cycle-b.md',
+      targetType: 'story',
+      targetFilename: '2026-02-01-cycle-a.md',
       linkType: 'blocks',
     });
     assert.equal(status, 400);
@@ -115,8 +126,10 @@ describe('POST /api/link — cycle detection', () => {
 
   test('rejects a self-link', async () => {
     const { status, data } = await api('POST', '/api/link', {
-      sourceType: 'story', sourceFilename: '2026-02-01-cycle-c.md',
-      targetType: 'story', targetFilename: '2026-02-01-cycle-c.md',
+      sourceType: 'story',
+      sourceFilename: '2026-02-01-cycle-c.md',
+      targetType: 'story',
+      targetFilename: '2026-02-01-cycle-c.md',
       linkType: 'blocks',
     });
     assert.equal(status, 400);
@@ -137,16 +150,13 @@ describe('POST /api/docs/apply-distribution — dependency ordering', () => {
         ],
       },
     };
-    fs.writeFileSync(
-      path.join(docsRoot, '..', '.pi-settings.json'),
-      JSON.stringify(piSettings),
-    );
+    fs.writeFileSync(path.join(docsRoot, '..', '.pi-settings.json'), JSON.stringify(piSettings));
     // Note: rootDir in testApp is the tmpRoot, so .pi-settings.json goes to docsRoot/../
     // Actually the server uses rootDir = the temp root passed via TEST_DOCS_ROOT parent
     // Let's try both locations
     fs.writeFileSync(
       path.join(path.dirname(docsRoot), '.pi-settings.json'),
-      JSON.stringify(piSettings),
+      JSON.stringify(piSettings)
     );
 
     writeStory('2026-03-01-dep-a.md', 'Blocks: 2026-03-01-dep-b.md\n');

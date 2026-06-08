@@ -1,5 +1,14 @@
 // ── List filters, collapse, multi-select, and context menu ───────
-import { buildChildrenMap, getDescendants, debounce, escHtml, putJSON, postJSON, showJiraToast, TYPE_LABEL, SECTION_LABELS } from './state.js';
+import {
+  buildChildrenMap,
+  getDescendants,
+  debounce,
+  escHtml,
+  putJSON,
+  postJSON,
+  showJiraToast,
+  SECTION_LABELS,
+} from './state.js';
 import { openDoc } from './detail.js';
 import { loadDocs } from './list.js';
 import { renderSwimlanes } from './list-render.js';
@@ -18,7 +27,10 @@ export function toggleItemCollapse(filename, e) {
 export function collapseAll() {
   const childrenMap = buildChildrenMap(allDocs);
   for (const d of allDocs) {
-    if ((d.docType === 'feature' || d.docType === 'epic') && (childrenMap.get(d.filename) || []).length > 0) {
+    if (
+      (d.docType === 'feature' || d.docType === 'epic') &&
+      (childrenMap.get(d.filename) || []).length > 0
+    ) {
       _collapsedItems.add(d.filename);
     }
   }
@@ -34,7 +46,7 @@ export function toggleSwimlane(sectionKey) {
   _swimlanesCollapsed[sectionKey] = !_swimlanesCollapsed[sectionKey];
   const section = document.querySelector(`.swimlane-section[data-section="${sectionKey}"]`);
   if (!section) return;
-  const body    = section.querySelector('.swimlane-body');
+  const body = section.querySelector('.swimlane-body');
   const chevron = section.querySelector('.swimlane-chevron');
   if (_swimlanesCollapsed[sectionKey]) {
     body.classList.add('collapsed');
@@ -48,7 +60,7 @@ export function toggleSwimlane(sectionKey) {
 export async function updatePiVersion(sectionKey, versionName) {
   const update = { ...piSettings };
   if (sectionKey === 'currentPi') update.currentPi = versionName || null;
-  if (sectionKey === 'nextPi')    update.nextPi    = versionName || null;
+  if (sectionKey === 'nextPi') update.nextPi = versionName || null;
 
   try {
     await putJSON('/api/settings/pi', update);
@@ -62,7 +74,7 @@ export async function updatePiVersion(sectionKey, versionName) {
 // ── Filters ───────────────────────────────────────────────────
 export function setTypeFilter(type) {
   activeTypeFilter = type;
-  document.querySelectorAll('[data-type]').forEach(el => {
+  document.querySelectorAll('[data-type]').forEach((el) => {
     el.classList.toggle('active', el.dataset.type === type);
   });
   applyFilters();
@@ -70,7 +82,7 @@ export function setTypeFilter(type) {
 
 export function setStatusFilter(status) {
   activeStatusFilter = status;
-  document.querySelectorAll('[data-status]').forEach(el => {
+  document.querySelectorAll('[data-status]').forEach((el) => {
     el.classList.toggle('active', el.dataset.status === status);
   });
   applyFilters();
@@ -78,7 +90,7 @@ export function setStatusFilter(status) {
 
 export function setTeamFilter(team) {
   activeTeamFilter = team;
-  document.querySelectorAll('[data-team]').forEach(el => {
+  document.querySelectorAll('[data-team]').forEach((el) => {
     el.classList.toggle('active', el.dataset.team === team);
   });
   applyFilters();
@@ -86,7 +98,7 @@ export function setTeamFilter(team) {
 
 export function setWorkCatFilter(cat) {
   activeWorkCatFilter = cat;
-  document.querySelectorAll('[data-workcat]').forEach(el => {
+  document.querySelectorAll('[data-workcat]').forEach((el) => {
     el.classList.toggle('active', el.dataset.workcat === cat);
   });
   applyFilters();
@@ -95,23 +107,30 @@ export function setWorkCatFilter(cat) {
 export function applyFilters() {
   const q = document.getElementById('search').value.toLowerCase();
   let filtered = allDocs;
-  if (activeTypeFilter !== 'all')    filtered = filtered.filter(d => d.docType === activeTypeFilter);
-  if (activeStatusFilter !== 'all')  filtered = filtered.filter(d => (d.status || 'Draft') === activeStatusFilter);
-  if (activeTeamFilter !== 'all')    filtered = filtered.filter(d => d.team === activeTeamFilter);
-  if (activeWorkCatFilter !== 'all') filtered = filtered.filter(d => d.workCategory === activeWorkCatFilter);
-  if (q) filtered = filtered.filter(d => d.title.toLowerCase().includes(q) || d.filename.toLowerCase().includes(q));
+  if (activeTypeFilter !== 'all') filtered = filtered.filter((d) => d.docType === activeTypeFilter);
+  if (activeStatusFilter !== 'all')
+    filtered = filtered.filter((d) => (d.status || 'Draft') === activeStatusFilter);
+  if (activeTeamFilter !== 'all') filtered = filtered.filter((d) => d.team === activeTeamFilter);
+  if (activeWorkCatFilter !== 'all')
+    filtered = filtered.filter((d) => d.workCategory === activeWorkCatFilter);
+  if (q)
+    filtered = filtered.filter(
+      (d) => d.title.toLowerCase().includes(q) || d.filename.toLowerCase().includes(q)
+    );
   renderSwimlanes(filtered);
 }
 
 export var applyFiltersDebounced = debounce(applyFilters, 200);
 
 // ── Multi-select ─────────────────────────────────────────────
-export function itemKey(filename, docType) { return `${docType}:${filename}`; }
+export function itemKey(filename, docType) {
+  return `${docType}:${filename}`;
+}
 
 export function getVisibleItems() {
-  return Array.from(document.querySelectorAll('.epic-item')).map(el => ({
+  return Array.from(document.querySelectorAll('.epic-item')).map((el) => ({
     filename: el.dataset.filename,
-    docType:  el.dataset.doctype,
+    docType: el.dataset.doctype,
     el,
   }));
 }
@@ -119,11 +138,13 @@ export function getVisibleItems() {
 export function clearSelection() {
   selectedItems.clear();
   _lastClickedItem = null;
-  document.querySelectorAll('.epic-item.multi-selected').forEach(el => el.classList.remove('multi-selected'));
+  document
+    .querySelectorAll('.epic-item.multi-selected')
+    .forEach((el) => el.classList.remove('multi-selected'));
 }
 
 export function syncSelectionUI() {
-  document.querySelectorAll('.epic-item').forEach(el => {
+  document.querySelectorAll('.epic-item').forEach((el) => {
     const key = itemKey(el.dataset.filename, el.dataset.doctype);
     el.classList.toggle('multi-selected', selectedItems.has(key));
   });
@@ -156,11 +177,13 @@ export function handleItemClick(e, filename, docType) {
     // Shift+Click: range select
     e.preventDefault();
     const visible = getVisibleItems();
-    const lastIdx = visible.findIndex(v => v.filename === _lastClickedItem.filename && v.docType === _lastClickedItem.docType);
-    const curIdx  = visible.findIndex(v => v.filename === filename && v.docType === docType);
+    const lastIdx = visible.findIndex(
+      (v) => v.filename === _lastClickedItem.filename && v.docType === _lastClickedItem.docType
+    );
+    const curIdx = visible.findIndex((v) => v.filename === filename && v.docType === docType);
     if (lastIdx >= 0 && curIdx >= 0) {
       const start = Math.min(lastIdx, curIdx);
-      const end   = Math.max(lastIdx, curIdx);
+      const end = Math.max(lastIdx, curIdx);
       for (let i = start; i <= end; i++) {
         selectedItems.add(itemKey(visible[i].filename, visible[i].docType));
       }
@@ -203,16 +226,20 @@ export function showContextMenu(x, y) {
 
   // "Move to PI" submenu
   const piOptions = [];
-  if (piSettings.currentPi) piOptions.push({ label: piSettings.currentPi, badge: 'Current', section: 'currentPi' });
-  if (piSettings.nextPi)    piOptions.push({ label: piSettings.nextPi,    badge: 'Next',    section: 'nextPi' });
+  if (piSettings.currentPi)
+    piOptions.push({ label: piSettings.currentPi, badge: 'Current', section: 'currentPi' });
+  if (piSettings.nextPi)
+    piOptions.push({ label: piSettings.nextPi, badge: 'Next', section: 'nextPi' });
   piOptions.push({ label: 'Backlog (clear version)', badge: null, section: 'backlog' });
 
-  const piItems = piOptions.map(opt => {
-    const badge = opt.badge ? `<span class="ctx-badge">${escHtml(opt.badge)}</span>` : '';
-    return `<button class="ctx-item" onclick="contextMoveToPI('${opt.section}')">
+  const piItems = piOptions
+    .map((opt) => {
+      const badge = opt.badge ? `<span class="ctx-badge">${escHtml(opt.badge)}</span>` : '';
+      return `<button class="ctx-item" onclick="contextMoveToPI('${opt.section}')">
       ${badge}${escHtml(opt.label)}
     </button>`;
-  }).join('');
+    })
+    .join('');
 
   // "Assign Sprint" submenu — collect sprints from all PIs
   const allSprints = new Map();
@@ -221,26 +248,38 @@ export function showContextMenu(x, y) {
       if (!allSprints.has(s.name)) allSprints.set(s.name, pi);
     }
   }
-  const sprintItems = Array.from(allSprints.entries()).map(([name, pi]) =>
-    `<button class="ctx-item" onclick="contextAssignField('sprint','${escHtml(name)}')">${escHtml(name)}</button>`
-  ).join('');
+  const sprintItems = Array.from(allSprints.entries())
+    .map(
+      ([name, _pi]) =>
+        `<button class="ctx-item" onclick="contextAssignField('sprint','${escHtml(name)}')">${escHtml(name)}</button>`
+    )
+    .join('');
   const sprintClear = `<button class="ctx-item" onclick="contextAssignField('sprint','')">Clear sprint</button>`;
 
   // "Assign Team" submenu
-  const teamItems = (_metaTeams || []).map(t =>
-    `<button class="ctx-item" onclick="contextAssignField('team','${escHtml(t)}')">${escHtml(t)}</button>`
-  ).join('');
+  const teamItems = (_metaTeams || [])
+    .map(
+      (t) =>
+        `<button class="ctx-item" onclick="contextAssignField('team','${escHtml(t)}')">${escHtml(t)}</button>`
+    )
+    .join('');
   const teamClear = `<button class="ctx-item" onclick="contextAssignField('team','')">Clear team</button>`;
 
   // "Assign Category" submenu
-  const catItems = (_metaWorkCategories || []).map(c =>
-    `<button class="ctx-item" onclick="contextAssignField('workCategory','${escHtml(c)}')">${escHtml(c)}</button>`
-  ).join('');
+  const catItems = (_metaWorkCategories || [])
+    .map(
+      (c) =>
+        `<button class="ctx-item" onclick="contextAssignField('workCategory','${escHtml(c)}')">${escHtml(c)}</button>`
+    )
+    .join('');
   const catClear = `<button class="ctx-item" onclick="contextAssignField('workCategory','')">Clear category</button>`;
 
-  const splitOption = count === 1 ? `
+  const splitOption =
+    count === 1
+      ? `
     <div class="ctx-separator"></div>
-    <button class="ctx-item" onclick="contextSplitItem()">✂ Split Issue</button>` : '';
+    <button class="ctx-item" onclick="contextSplitItem()">✂ Split Issue</button>`
+      : '';
 
   menu.innerHTML = `
     <div class="ctx-header">${count} item${count > 1 ? 's' : ''} selected</div>
@@ -270,10 +309,10 @@ export function showContextMenu(x, y) {
 
   // Position: ensure it stays within viewport
   const rect = menu.getBoundingClientRect();
-  if (x + rect.width > window.innerWidth)  x = window.innerWidth - rect.width - 8;
+  if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
   if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
   menu.style.left = `${x}px`;
-  menu.style.top  = `${y}px`;
+  menu.style.top = `${y}px`;
 
   // Close on outside click (next tick)
   setTimeout(() => {
@@ -326,7 +365,7 @@ export async function contextMoveToPI(section) {
   try {
     await postJSON('/api/docs/batch-fix-version', {
       fixVersion: newFixVersion,
-      docs: allToMove.map(d => ({ type: d.docType, filename: d.filename })),
+      docs: allToMove.map((d) => ({ type: d.docType, filename: d.filename })),
     });
     showJiraToast('success', `Moved ${allToMove.length} item(s) to ${SECTION_LABELS[section]}`);
     clearSelection();
@@ -341,9 +380,10 @@ export async function contextDeleteSelected() {
   if (!docs.length) return;
 
   const count = docs.length;
-  const msg = count === 1
-    ? `Delete "${docs[0].title}"? This cannot be undone.`
-    : `Delete ${count} selected items? This cannot be undone.`;
+  const msg =
+    count === 1
+      ? `Delete "${docs[0].title}"? This cannot be undone.`
+      : `Delete ${count} selected items? This cannot be undone.`;
 
   document.getElementById('delete-msg').textContent = msg;
   document.getElementById('delete-overlay').classList.add('show');
@@ -355,14 +395,14 @@ export async function contextDeleteSelected() {
     btn.textContent = 'Deleting…';
     try {
       const data = await postJSON('/api/docs/batch-delete', {
-        docs: docs.map(d => ({ type: d.docType, filename: d.filename })),
+        docs: docs.map((d) => ({ type: d.docType, filename: d.filename })),
       });
       closeDeleteDialog();
       clearSelection();
       // Always reload to purge stale entries from the list
       await loadDocs();
       if (data.deleted === 0) {
-        const reasons = (data.skipped || []).map(s => s.reason).join('; ');
+        const reasons = (data.skipped || []).map((s) => s.reason).join('; ');
         showJiraToast('error', `Nothing deleted${reasons ? ': ' + reasons : ''}`);
       } else {
         showJiraToast('success', `Deleted ${data.deleted} item(s)`);
@@ -420,7 +460,7 @@ async function _executeBatchFieldUpdate(field, value, docs, label, displayValue)
     const data = await postJSON('/api/docs/batch-update-field', {
       field,
       value: value || null,
-      docs: docs.map(d => ({ type: d.docType, filename: d.filename })),
+      docs: docs.map((d) => ({ type: d.docType, filename: d.filename })),
     });
     clearSelection();
     if (data.updated > 0) {
@@ -442,7 +482,7 @@ export function getSelectedDocs() {
   for (const key of selectedItems) {
     const [docType, ...rest] = key.split(':');
     const filename = rest.join(':');
-    const doc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     if (doc) docs.push(doc);
   }
   return docs;

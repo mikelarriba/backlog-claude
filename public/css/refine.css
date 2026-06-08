@@ -7,7 +7,9 @@
   background: var(--bg);
 }
 
-#refine-view.show { display: flex; }
+#refine-view.show {
+  display: flex;
+}
 
 /* ── Header ──────────────────────────────────────────────────── */
 .refine-header {
@@ -46,11 +48,19 @@
   font-size: 0.78rem;
   padding: 4px 10px;
   font-family: inherit;
-  transition: border-color 0.15s, width 0.2s;
+  transition:
+    border-color 0.15s,
+    width 0.2s;
   flex-shrink: 0;
 }
-.refine-search::placeholder { color: var(--muted); }
-.refine-search:focus { outline: none; border-color: var(--accent); width: 200px; }
+.refine-search::placeholder {
+  color: var(--muted);
+}
+.refine-search:focus {
+  outline: none;
+  border-color: var(--accent);
+  width: 200px;
+}
 
 /* ── Body: canvas + slide-in panel ──────────────────────────── */
 .refine-body {
@@ -75,7 +85,9 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: width 0.22s ease, border-color 0.22s ease;
+  transition:
+    width 0.22s ease,
+    border-color 0.22s ease;
 }
 
 .refine-panel.open {
@@ -129,10 +141,19 @@
   padding: 4px 8px;
   margin-top: 4px;
   line-height: 1.35;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
-.rp-title-input:hover { border-color: var(--border); background: var(--surface2); }
-.rp-title-input:focus { outline: none; border-color: var(--accent); background: var(--surface2); }
+.rp-title-input:hover {
+  border-color: var(--border);
+  background: var(--surface2);
+}
+.rp-title-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface2);
+}
 
 /* ── Inline edit row (SP + Priority) ─────────────────────────── */
 .rp-edit-row {
@@ -167,14 +188,28 @@
   font-family: inherit;
   padding: 2px 6px;
   text-align: center;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
   -moz-appearance: textfield;
 }
 .rp-sp-input::-webkit-inner-spin-button,
-.rp-sp-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.rp-sp-input:hover { border-color: var(--border); background: var(--surface2); }
-.rp-sp-input:focus { outline: none; border-color: var(--accent); background: var(--surface2); }
-.rp-sp-input::placeholder { color: var(--muted); }
+.rp-sp-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.rp-sp-input:hover {
+  border-color: var(--border);
+  background: var(--surface2);
+}
+.rp-sp-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+.rp-sp-input::placeholder {
+  color: var(--muted);
+}
 
 .rp-priority-select {
   background: transparent;
@@ -185,10 +220,19 @@
   font-family: inherit;
   padding: 2px 4px;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
-.rp-priority-select:hover { border-color: var(--border); background: var(--surface2); }
-.rp-priority-select:focus { outline: none; border-color: var(--accent); background: var(--surface2); }
+.rp-priority-select:hover {
+  border-color: var(--border);
+  background: var(--surface2);
+}
+.rp-priority-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface2);
+}
 
 .rp-close {
   background: transparent;
@@ -200,9 +244,14 @@
   border-radius: 5px;
   line-height: 1;
   flex-shrink: 0;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
-.rp-close:hover { background: var(--border); color: var(--text); }
+.rp-close:hover {
+  background: var(--border);
+  color: var(--text);
+}
 
 /* ── Panel toolbar ───────────────────────────────────────────── */
 .rp-toolbar {
@@ -235,9 +284,16 @@
   line-height: 1.5;
   transition: border-color 0.15s;
 }
-.rp-textarea.rp-textarea-tall { min-height: 120px; }
-.rp-textarea::placeholder { color: var(--muted); }
-.rp-textarea:focus { outline: none; border-color: var(--accent); }
+.rp-textarea.rp-textarea-tall {
+  min-height: 120px;
+}
+.rp-textarea::placeholder {
+  color: var(--muted);
+}
+.rp-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
 
 .rp-btn-row {
   display: flex;
@@ -295,8 +351,13 @@
   font-family: inherit;
   transition: border-color 0.15s;
 }
-.rp-input::placeholder { color: var(--muted); }
-.rp-input:focus { outline: none; border-color: var(--accent); }
+.rp-input::placeholder {
+  color: var(--muted);
+}
+.rp-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
 
 /* ── Loading placeholder ─────────────────────────────────────── */
 .rp-loading {
@@ -369,11 +430,13 @@
   box-sizing: border-box;
   border: 1.5px dashed var(--border);
   border-radius: 10px;
-  transition: background 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
 }
 
 .canvas-swimlane-cell.drag-over {
-  background: var(--accent-subtle, rgba(0,150,214,0.08));
+  background: var(--accent-subtle, rgba(0, 150, 214, 0.08));
   border-color: var(--accent);
   border-style: solid;
 }
@@ -386,7 +449,9 @@
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .canvas-card:hover {
@@ -396,22 +461,31 @@
 
 .canvas-card.selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0,150,214,0.15));
+  box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0, 150, 214, 0.15));
 }
 
 .canvas-card.canvas-multi-selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0,150,214,0.15)), 0 0 0 4px rgba(0,150,214,0.08);
+  box-shadow:
+    0 0 0 2px var(--accent-subtle, rgba(0, 150, 214, 0.15)),
+    0 0 0 4px rgba(0, 150, 214, 0.08);
   background: color-mix(in srgb, var(--surface) 92%, var(--accent));
 }
 
 /* Cursor changes for drag state */
-.canvas-card[draggable="true"] { cursor: grab; }
-.canvas-card.dragging          { opacity: 0.3; cursor: grabbing; }
+.canvas-card[draggable='true'] {
+  cursor: grab;
+}
+.canvas-card.dragging {
+  opacity: 0.3;
+  cursor: grabbing;
+}
 
 /* During an active drag, disable pointer-events on cards so dragover
    reaches the swimlane cells beneath them */
-.drag-active .canvas-card { pointer-events: none; }
+.drag-active .canvas-card {
+  pointer-events: none;
+}
 
 .canvas-card-header {
   display: flex;
@@ -443,19 +517,24 @@
 /* ── Search filter states ───────────────────────────────────── */
 .canvas-card.search-dimmed {
   opacity: 0.25;
-  transition: opacity 0.2s, border-color 0.15s, box-shadow 0.15s;
+  transition:
+    opacity 0.2s,
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .canvas-card.search-match {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0,150,214,0.18)), 0 2px 10px var(--shadow);
+  box-shadow:
+    0 0 0 2px var(--accent-subtle, rgba(0, 150, 214, 0.18)),
+    0 2px 10px var(--shadow);
 }
 
 /* Unestimated cards — dashed border to flag missing story points */
 .canvas-card.no-estimate,
 .fp-card.no-estimate {
   border-style: dashed;
-  border-color: #F59E0B;
+  border-color: #f59e0b;
 }
 
 /* ── SVG edge labels ─────────────────────────────────────────── */
@@ -487,12 +566,30 @@
   z-index: 10;
 }
 
-#refine-canvas.manage-links-active .canvas-handle { display: block; }
+#refine-canvas.manage-links-active .canvas-handle {
+  display: block;
+}
 
-.canvas-handle--top    { top: -5px;    left: 50%; transform: translateX(-50%); }
-.canvas-handle--bottom { bottom: -5px; left: 50%; transform: translateX(-50%); }
-.canvas-handle--left   { left: -5px;   top: 50%;  transform: translateY(-50%); }
-.canvas-handle--right  { right: -5px;  top: 50%;  transform: translateY(-50%); }
+.canvas-handle--top {
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.canvas-handle--bottom {
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.canvas-handle--left {
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.canvas-handle--right {
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
 
 /* ── Link type popup ─────────────────────────────────────────── */
 .canvas-link-popup {
@@ -530,13 +627,17 @@
   color: var(--text);
   transition: background 0.12s;
 }
-.canvas-link-popup button:hover { background: var(--surface2); }
+.canvas-link-popup button:hover {
+  background: var(--surface2);
+}
 
 .canvas-link-popup-danger {
   color: #ef4444 !important;
   border-color: #ef444440 !important;
 }
-.canvas-link-popup-danger:hover { background: #ef444412 !important; }
+.canvas-link-popup-danger:hover {
+  background: #ef444412 !important;
+}
 
 /* ── Refine panel dependency section ─────────────────────────── */
 .rp-deps-section {
@@ -583,7 +684,7 @@
 
 /* Active state for Manage Links button */
 #manage-links-btn.active {
-  background: var(--accent-subtle, rgba(0,150,214,0.12));
+  background: var(--accent-subtle, rgba(0, 150, 214, 0.12));
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -621,7 +722,9 @@
   user-select: none;
   border-bottom: 1px solid var(--border);
 }
-.fp-header:hover { background: var(--border); }
+.fp-header:hover {
+  background: var(--border);
+}
 
 .fp-chevron {
   font-size: 0.65rem;
@@ -682,10 +785,15 @@
   padding: 8px 10px;
   box-sizing: border-box;
   cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
   z-index: 2;
 }
-.fp-card:hover { border-color: var(--accent); background: var(--surface); }
+.fp-card:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}
 
 .fp-card-header {
   display: flex;

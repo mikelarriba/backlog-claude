@@ -2,13 +2,7 @@
 // Single source of truth for allowed Team and Work_Category field values.
 // Adding a new team/category requires a change only here.
 
-export const TEAMS = [
-  'Backend',
-  'Frontend',
-  'Platform',
-  'Testing',
-  'UX',
-];
+export const TEAMS = ['Backend', 'Frontend', 'Platform', 'Testing', 'UX'];
 
 export const WORK_CATEGORIES = [
   'User Features',
@@ -22,11 +16,11 @@ export const WORK_CATEGORIES = [
 // Maps local Team names to the corresponding JIRA label.
 // Note: Platform maps to MIDAS_DevOps (not MIDAS_Platform) by convention.
 export const TEAM_TO_JIRA_LABEL: Record<string, string> = {
-  Backend:  'MIDAS_Backend',
+  Backend: 'MIDAS_Backend',
   Frontend: 'MIDAS_Frontend',
-  UX:       'MIDAS_UX',
+  UX: 'MIDAS_UX',
   Platform: 'MIDAS_DevOps',
-  Testing:  'MIDAS_Testing',
+  Testing: 'MIDAS_Testing',
 };
 
 // All possible MIDAS team label values (used to strip old team labels)

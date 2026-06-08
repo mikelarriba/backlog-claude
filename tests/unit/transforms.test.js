@@ -89,7 +89,7 @@ describe('setFrontmatterField', () => {
 
   test('does not duplicate the field', () => {
     const result = setFrontmatterField(base, 'Status', 'Archived');
-    assert.equal((result.match(/^Status:/mg) || []).length, 1);
+    assert.equal((result.match(/^Status:/gm) || []).length, 1);
   });
 
   test('inserts a missing field after opening ---', () => {
@@ -127,7 +127,10 @@ describe('markdownToJira', () => {
   });
 
   test('converts [text](url) link to [text|url]', () => {
-    assert.equal(markdownToJira('[click me](https://example.com)'), '[click me|https://example.com]');
+    assert.equal(
+      markdownToJira('[click me](https://example.com)'),
+      '[click me|https://example.com]'
+    );
   });
 
   test('wraps fenced code blocks in {code}', () => {
@@ -169,26 +172,26 @@ describe('extractFrontmatterField', () => {
 describe('setFrontmatterField — newline sanitization', () => {
   test('strips embedded newline that would break frontmatter block', () => {
     const content = '---\nTitle: old\n---\n## Body\n';
-    const result  = setFrontmatterField(content, 'Title', 'malicious\n---\ninjected: true');
+    const result = setFrontmatterField(content, 'Title', 'malicious\n---\ninjected: true');
     // The frontmatter block must remain on a single line — no injected closing ---
     // (the text may still appear as inline content, which is harmless)
     const lines = result.split('\n');
     const frontmatterLines = lines.slice(1, lines.indexOf('---', 1));
-    const hasSpuriousSeparator = frontmatterLines.some(l => l.trim() === '---');
+    const hasSpuriousSeparator = frontmatterLines.some((l) => l.trim() === '---');
     assert.ok(!hasSpuriousSeparator, 'no spurious --- inside frontmatter block');
     assert.ok(result.includes('Title: malicious'), 'sanitized value written');
   });
 
   test('strips carriage returns from value', () => {
     const content = '---\nSprint: old\n---\n';
-    const result  = setFrontmatterField(content, 'Sprint', 'Sprint 1\r\nSprint 2');
+    const result = setFrontmatterField(content, 'Sprint', 'Sprint 1\r\nSprint 2');
     assert.ok(!result.includes('\r'), 'carriage return removed');
     assert.ok(!result.includes('\nSprint 2'), 'newline removed from value');
   });
 
   test('safe values pass through unchanged', () => {
     const content = '---\nStatus: Draft\n---\n';
-    const result  = setFrontmatterField(content, 'Status', 'Created in JIRA');
+    const result = setFrontmatterField(content, 'Status', 'Created in JIRA');
     assert.ok(result.includes('Status: Created in JIRA'));
   });
 });

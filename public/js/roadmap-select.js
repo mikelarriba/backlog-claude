@@ -10,20 +10,22 @@
 // items from both panels into the same selection set.
 
 let _rmSelectedItems = new Set(); // "docType:filename" keys
-let _rmLastClicked   = null;      // { filename, docType, panel: 'story'|'epic' }
+let _rmLastClicked = null; // { filename, docType, panel: 'story'|'epic' }
 
 function _rmKey(filename, docType) {
   return `${docType}:${filename}`;
 }
 
 function _getVisibleStoryCards() {
-  return [...document.querySelectorAll('.roadmap-card[data-filename]')]
-    .filter(c => c.dataset.filename);
+  return [...document.querySelectorAll('.roadmap-card[data-filename]')].filter(
+    (c) => c.dataset.filename
+  );
 }
 
 function _getVisibleEpicCards() {
-  return [...document.querySelectorAll('.rm-epic-card[data-filename]')]
-    .filter(c => c.dataset.filename && c.style.display !== 'none');
+  return [...document.querySelectorAll('.rm-epic-card[data-filename]')].filter(
+    (c) => c.dataset.filename && c.style.display !== 'none'
+  );
 }
 
 export function clearRoadmapSelection() {
@@ -33,11 +35,13 @@ export function clearRoadmapSelection() {
 }
 
 export function syncRoadmapSelectionUI() {
-  document.querySelectorAll('.roadmap-card[data-filename], .rm-epic-card[data-filename]').forEach(el => {
-    if (!el.dataset.filename) return;
-    const key = _rmKey(el.dataset.filename, el.dataset.doctype);
-    el.classList.toggle('rm-multi-selected', _rmSelectedItems.has(key));
-  });
+  document
+    .querySelectorAll('.roadmap-card[data-filename], .rm-epic-card[data-filename]')
+    .forEach((el) => {
+      if (!el.dataset.filename) return;
+      const key = _rmKey(el.dataset.filename, el.dataset.doctype);
+      el.classList.toggle('rm-multi-selected', _rmSelectedItems.has(key));
+    });
   _rmUpdateSelectionBadge();
 }
 
@@ -54,8 +58,8 @@ function _rmUpdateSelectionBadge() {
 }
 
 export function handleRoadmapCardClick(e, filename, docType) {
-  const key     = _rmKey(filename, docType);
-  const isMeta  = e.metaKey || e.ctrlKey;
+  const key = _rmKey(filename, docType);
+  const isMeta = e.metaKey || e.ctrlKey;
   const isShift = e.shiftKey;
 
   if (isMeta) {
@@ -74,12 +78,12 @@ export function handleRoadmapCardClick(e, filename, docType) {
   if (isShift && _rmLastClicked) {
     e.preventDefault();
     e.stopPropagation();
-    const cards   = _getVisibleStoryCards();
-    const lastIdx = cards.findIndex(c => c.dataset.filename === _rmLastClicked.filename);
-    const curIdx  = cards.findIndex(c => c.dataset.filename === filename);
+    const cards = _getVisibleStoryCards();
+    const lastIdx = cards.findIndex((c) => c.dataset.filename === _rmLastClicked.filename);
+    const curIdx = cards.findIndex((c) => c.dataset.filename === filename);
     if (lastIdx >= 0 && curIdx >= 0) {
       const start = Math.min(lastIdx, curIdx);
-      const end   = Math.max(lastIdx, curIdx);
+      const end = Math.max(lastIdx, curIdx);
       for (let i = start; i <= end; i++) {
         _rmSelectedItems.add(_rmKey(cards[i].dataset.filename, cards[i].dataset.doctype));
       }
@@ -99,8 +103,8 @@ export function handleRoadmapCardClick(e, filename, docType) {
 }
 
 export function handleRoadmapEpicClick(e, filename, docType) {
-  const key     = _rmKey(filename, docType);
-  const isMeta  = e.metaKey || e.ctrlKey;
+  const key = _rmKey(filename, docType);
+  const isMeta = e.metaKey || e.ctrlKey;
   const isShift = e.shiftKey;
 
   if (isMeta) {
@@ -119,12 +123,12 @@ export function handleRoadmapEpicClick(e, filename, docType) {
   if (isShift && _rmLastClicked) {
     e.preventDefault();
     e.stopPropagation();
-    const cards   = _getVisibleEpicCards();
-    const lastIdx = cards.findIndex(c => c.dataset.filename === _rmLastClicked.filename);
-    const curIdx  = cards.findIndex(c => c.dataset.filename === filename);
+    const cards = _getVisibleEpicCards();
+    const lastIdx = cards.findIndex((c) => c.dataset.filename === _rmLastClicked.filename);
+    const curIdx = cards.findIndex((c) => c.dataset.filename === filename);
     if (lastIdx >= 0 && curIdx >= 0) {
       const start = Math.min(lastIdx, curIdx);
-      const end   = Math.max(lastIdx, curIdx);
+      const end = Math.max(lastIdx, curIdx);
       for (let i = start; i <= end; i++) {
         _rmSelectedItems.add(_rmKey(cards[i].dataset.filename, cards[i].dataset.doctype));
       }

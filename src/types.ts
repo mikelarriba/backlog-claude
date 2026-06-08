@@ -1,6 +1,5 @@
 // ── Shared TypeScript type definitions ────────────────────────────────────────
 
-import type { Request, Response } from 'express';
 import type { Logger } from './utils/logger.js';
 
 // ── Document types ──────────────────────────────────────────────────────────
@@ -154,9 +153,23 @@ export interface JiraRouteContext extends RouteContext {
   FIELD_EPIC_NAME: string;
   FIELD_EPIC_LINK: string;
   FIELD_STORY_POINTS: string;
-  jiraRequest: (method: string, urlPath: string, body?: unknown, opts?: { _retryOn429?: boolean }) => Promise<unknown>;
-  jiraAgileRequest: (method: string, urlPath: string, body?: unknown, opts?: { _retryOn429?: boolean }) => Promise<unknown>;
-  jiraPagedRequest: (jql: string, fields: string, opts?: { maxResults?: number; maxTotal?: number }) => Promise<unknown[]>;
+  jiraRequest: (
+    method: string,
+    urlPath: string,
+    body?: unknown,
+    opts?: { _retryOn429?: boolean }
+  ) => Promise<unknown>;
+  jiraAgileRequest: (
+    method: string,
+    urlPath: string,
+    body?: unknown,
+    opts?: { _retryOn429?: boolean }
+  ) => Promise<unknown>;
+  jiraPagedRequest: (
+    jql: string,
+    fields: string,
+    opts?: { maxResults?: number; maxTotal?: number }
+  ) => Promise<unknown[]>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
   jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };

@@ -12,13 +12,20 @@ interface SseClient {
   lastWriteAt: number;
 }
 
-export function createEventService(): { handleEvents: (req: Request, res: Response) => void; broadcast: BroadcastFn } {
+export function createEventService(): {
+  handleEvents: (req: Request, res: Response) => void;
+  broadcast: BroadcastFn;
+} {
   const sseClients = new Set<SseClient>();
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   function removeClient(client: SseClient): void {
     sseClients.delete(client);
-    try { client.res.end(); } catch { /* already ended */ }
+    try {
+      client.res.end();
+    } catch {
+      /* already ended */
+    }
   }
 
   function handleEvents(req: Request, res: Response): void {

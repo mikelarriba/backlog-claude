@@ -19,7 +19,7 @@ export async function exportEpicToPdf(filename, docType) {
     const epicRes = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     if (!epicRes.ok) throw new Error('Could not load epic');
     const { content: epicContent } = await epicRes.json();
-    const epicDoc = allDocs.find(d => d.filename === filename && d.docType === docType);
+    const epicDoc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     const epicTitle = epicDoc?.title || filename;
 
     // ── 2. Fetch children + links ──────────────────────────────
@@ -28,41 +28,48 @@ export async function exportEpicToPdf(filename, docType) {
     const children = linksData.children || [];
 
     // ── 3. Fetch each child's content ──────────────────────────
-    const childData = await Promise.all(children.map(async c => {
-      const doc = allDocs.find(d => d.filename === c.filename);
-      let content = '';
-      try {
-        const res = await fetch(`/api/doc/${c.docType}/${encodeURIComponent(c.filename)}`);
-        if (res.ok) content = (await res.json()).content || '';
-      } catch {}
-      return {
-        filename: c.filename,
-        docType: c.docType,
-        title: doc?.title || c.title || c.filename,
-        storyPoints: doc?.storyPoints || null,
-        priority: doc?.priority || 'Medium',
-        status: doc?.status || 'Draft',
-        jiraId: doc?.jiraId || null,
-        jiraUrl: doc?.jiraUrl || null,
-        content,
-      };
-    }));
+    const childData = await Promise.all(
+      children.map(async (c) => {
+        const doc = allDocs.find((d) => d.filename === c.filename);
+        let content = '';
+        try {
+          const res = await fetch(`/api/doc/${c.docType}/${encodeURIComponent(c.filename)}`);
+          if (res.ok) content = (await res.json()).content || '';
+        } catch {
+          /* no-op */
+        }
+        return {
+          filename: c.filename,
+          docType: c.docType,
+          title: doc?.title || c.title || c.filename,
+          storyPoints: doc?.storyPoints || null,
+          priority: doc?.priority || 'Medium',
+          status: doc?.status || 'Draft',
+          jiraId: doc?.jiraId || null,
+          jiraUrl: doc?.jiraUrl || null,
+          content,
+        };
+      })
+    );
 
     // ── 4. Compute layout for visual plan ──────────────────────
-    const childFilenames = new Set(children.map(c => c.filename));
+    const childFilenames = new Set(children.map((c) => c.filename));
     const blocks = [];
     const parallel = [];
     const seenParallel = new Set();
     for (const child of children) {
-      const doc = allDocs.find(d => d.filename === child.filename);
+      const doc = allDocs.find((d) => d.filename === child.filename);
       if (!doc) continue;
-      for (const fn of (doc.blocks || [])) {
+      for (const fn of doc.blocks || []) {
         if (childFilenames.has(fn)) blocks.push({ src: child.filename, tgt: fn });
       }
-      for (const fn of (doc.parallel || [])) {
+      for (const fn of doc.parallel || []) {
         if (childFilenames.has(fn)) {
           const key = [child.filename, fn].sort().join('|');
-          if (!seenParallel.has(key)) { seenParallel.add(key); parallel.push({ a: child.filename, b: fn }); }
+          if (!seenParallel.has(key)) {
+            seenParallel.add(key);
+            parallel.push({ a: child.filename, b: fn });
+          }
         }
       }
     }
@@ -71,7 +78,9 @@ export async function exportEpicToPdf(filename, docType) {
     try {
       const res = await fetch(`/api/canvas/layout/${encodeURIComponent(filename)}`);
       if (res.ok) layout = await res.json();
-    } catch {}
+    } catch {
+      /* no-op */
+    }
     if (!Object.keys(layout).length && children.length) {
       layout = computeAutoLayout(children, blocks, parallel);
     }
@@ -79,7 +88,17 @@ export async function exportEpicToPdf(filename, docType) {
     const totalSP = childData.reduce((sum, c) => sum + (c.storyPoints || 0), 0);
 
     // ── 5. Build full HTML page ────────────────────────────────
-    const html = _buildPrintPage(epicTitle, docType, totalSP, epicDoc, epicContent, childData, layout, blocks, parallel);
+    const html = _buildPrintPage(
+      epicTitle,
+      docType,
+      totalSP,
+      epicDoc,
+      epicContent,
+      childData,
+      layout,
+      blocks,
+      parallel
+    );
 
     // ── 6. Open in new tab → auto-print ────────────────────────
     const win = window.open('', '_blank');
@@ -98,15 +117,35 @@ export async function exportEpicToPdf(filename, docType) {
 
 // ── Full HTML page builder ─────────────────────────────────────
 
-function _buildPrintPage(epicTitle, docType, totalSP, epicDoc, epicContent, childData, layout, blocks, parallel) {
-  const status   = epicDoc?.status || 'Draft';
+function _buildPrintPage(
+  epicTitle,
+  docType,
+  totalSP,
+  epicDoc,
+  epicContent,
+  childData,
+  layout,
+  blocks,
+  parallel
+) {
+  const status = epicDoc?.status || 'Draft';
   const priority = epicDoc?.priority || '';
-  const count    = childData.length;
+  const count = childData.length;
   const descHtml = _renderDesc(epicContent);
   const gridHtml = _renderGrid(childData, layout, blocks, parallel || [], epicTitle, docType);
   const listHtml = _renderStoryCards(childData);
-  const dateStr  = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const badgeColor = { epic: '#0066cc', feature: '#8b5cf6', story: '#2563eb', spike: '#b45309', bug: '#dc2626' };
+  const dateStr = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  const badgeColor = {
+    epic: '#0066cc',
+    feature: '#8b5cf6',
+    story: '#2563eb',
+    spike: '#b45309',
+    bug: '#dc2626',
+  };
   const bc = badgeColor[docType] || '#666';
 
   return `<!DOCTYPE html>
@@ -262,7 +301,9 @@ ${listHtml}
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function _esc(s) { return escHtml(s); }
+function _esc(s) {
+  return escHtml(s);
+}
 
 function _renderDesc(epicContent) {
   const stripped = stripFrontmatter(epicContent).replace(/\n## Comments\b[\s\S]*$/, '');
@@ -274,8 +315,8 @@ function _renderGrid(childData, layout, blocks, parallel, epicTitle, docType) {
   if (!childData.length) return '';
 
   // ── Dimensions (scaled for print page ~700px wide) ────────────
-  const CELL_W  = 160;
-  const CELL_H  = 72;
+  const CELL_W = 160;
+  const CELL_H = 72;
   const GUTTER_X = 18;
   const GUTTER_Y = 28;
   const TOP_OFFSET = 60; // space for epic title node
@@ -285,8 +326,8 @@ function _renderGrid(childData, layout, blocks, parallel, epicTitle, docType) {
     positions[child.filename] = layout[child.filename] || { col: 0, row: 0 };
   }
 
-  const usedCols = [...new Set(Object.values(positions).map(p => p.col))].sort((a, b) => a - b);
-  const usedRows = [...new Set(Object.values(positions).map(p => p.row))].sort((a, b) => a - b);
+  const usedCols = [...new Set(Object.values(positions).map((p) => p.col))].sort((a, b) => a - b);
+  const usedRows = [...new Set(Object.values(positions).map((p) => p.row))].sort((a, b) => a - b);
   const colRemap = new Map(usedCols.map((c, i) => [c, i]));
   const rowRemap = new Map(usedRows.map((r, i) => [r, i]));
   for (const fn of Object.keys(positions)) {
@@ -315,8 +356,14 @@ function _renderGrid(childData, layout, blocks, parallel, epicTitle, docType) {
     cardPos[child.filename] = { cx: x + CELL_W / 2, cy: y + CELL_H / 2, x, y };
   }
 
-  const badgeColor = { epic: '#0066cc', feature: '#8b5cf6', story: '#2563eb', spike: '#b45309', bug: '#dc2626' };
-  const epicColor  = badgeColor[docType] || '#666';
+  const badgeColor = {
+    epic: '#0066cc',
+    feature: '#8b5cf6',
+    story: '#2563eb',
+    spike: '#b45309',
+    bug: '#dc2626',
+  };
+  const epicColor = badgeColor[docType] || '#666';
 
   // ── SVG: lane dividers ────────────────────────────────────────
   let svgContent = `<defs>
@@ -342,14 +389,19 @@ function _renderGrid(childData, layout, blocks, parallel, epicTitle, docType) {
   for (const colItems of Object.values(byCols)) {
     colItems.sort((a, b) => a.row - b.row);
     for (let i = 0; i < colItems.length - 1; i++) {
-      const hasExplicitBlock = blocks.some(b =>
-        (b.src === colItems[i].fn && b.tgt === colItems[i + 1].fn) ||
-        (b.src === colItems[i + 1].fn && b.tgt === colItems[i].fn)
+      const hasExplicitBlock = blocks.some(
+        (b) =>
+          (b.src === colItems[i].fn && b.tgt === colItems[i + 1].fn) ||
+          (b.src === colItems[i + 1].fn && b.tgt === colItems[i].fn)
       );
       if (hasExplicitBlock) continue;
-      const s = cardPos[colItems[i].fn], t = cardPos[colItems[i + 1].fn];
+      const s = cardPos[colItems[i].fn],
+        t = cardPos[colItems[i + 1].fn];
       if (!s || !t) continue;
-      const x1 = s.cx, y1 = s.y + CELL_H, x2 = t.cx, y2 = t.y;
+      const x1 = s.cx,
+        y1 = s.y + CELL_H,
+        x2 = t.cx,
+        y2 = t.y;
       svgContent += `<path d="M${x1},${y1} C${x1},${y1 + 10} ${x2},${y2 - 10} ${x2},${y2}" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#pdf-arr-sec)"/>`;
       svgContent += `<text x="${x1 + 4}" y="${y1 + (y2 - y1) / 2}" class="pdf-edge-label">SEC</text>`;
     }
@@ -357,20 +409,26 @@ function _renderGrid(childData, layout, blocks, parallel, epicTitle, docType) {
 
   // ── SVG: BLOCKS arrows (red) ──────────────────────────────────
   for (const { src, tgt } of blocks) {
-    const s = cardPos[src], t = cardPos[tgt];
+    const s = cardPos[src],
+      t = cardPos[tgt];
     if (!s || !t) continue;
-    const x1 = s.cx, y1 = s.y + CELL_H, x2 = t.cx, y2 = t.y;
+    const x1 = s.cx,
+      y1 = s.y + CELL_H,
+      x2 = t.cx,
+      y2 = t.y;
     svgContent += `<path d="M${x1},${y1} C${x1},${y1 + 12} ${x2},${y2 - 12} ${x2},${y2}" stroke="#ef4444" stroke-width="2" fill="none" marker-end="url(#pdf-arr-blk)"/>`;
     svgContent += `<text x="${(x1 + x2) / 2 + 4}" y="${y1 + (y2 - y1) / 2}" class="pdf-edge-label pdf-edge-label-blocks">BLOCKS</text>`;
   }
 
   // ── SVG: PARALLEL brackets (blue dashed) ─────────────────────
-  for (const { a, b } of (parallel || [])) {
-    const pa = cardPos[a], pb = cardPos[b];
+  for (const { a, b } of parallel || []) {
+    const pa = cardPos[a],
+      pb = cardPos[b];
     if (!pa || !pb) continue;
-    const x1 = pa.x, x2 = pb.x + CELL_W;
-    const y  = Math.min(pa.y, pb.y) - 10;
-    const d  = `M${x1},${pa.y - 3} V${y} H${x2} V${pb.y - 3}`;
+    const x1 = pa.x,
+      x2 = pb.x + CELL_W;
+    const y = Math.min(pa.y, pb.y) - 10;
+    const d = `M${x1},${pa.y - 3} V${y} H${x2} V${pb.y - 3}`;
     svgContent += `<path d="${d}" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5 3" fill="none"/>`;
     svgContent += `<text x="${(x1 + x2) / 2}" y="${y - 3}" text-anchor="middle" class="pdf-edge-label pdf-edge-label-parallel">PARALLEL</text>`;
   }
@@ -420,14 +478,22 @@ function _renderGrid(childData, layout, blocks, parallel, epicTitle, docType) {
 
 function _renderStoryCards(childData) {
   if (!childData.length) return '';
-  const badgeColor = { epic: '#0066cc', feature: '#8b5cf6', story: '#2563eb', spike: '#b45309', bug: '#dc2626' };
+  const badgeColor = {
+    epic: '#0066cc',
+    feature: '#8b5cf6',
+    story: '#2563eb',
+    spike: '#b45309',
+    bug: '#dc2626',
+  };
 
   let html = '<div class="sec-title">Stories &amp; Items</div>';
   for (const child of childData) {
     const bc = badgeColor[child.docType] || '#666';
     const sp = child.storyPoints ? `${child.storyPoints} SP` : '';
     const stripped = stripFrontmatter(child.content).replace(/\n## Comments\b[\s\S]*$/, '');
-    const body = stripped.trim() ? marked.parse(stripped) : '<em style="color:#94a3b8">No description</em>';
+    const body = stripped.trim()
+      ? marked.parse(stripped)
+      : '<em style="color:#94a3b8">No description</em>';
 
     const jiraLink = child.jiraId
       ? `<a href="${_esc(child.jiraUrl || '#')}" style="font-size:9px;color:#0066cc;font-weight:700;white-space:nowrap;">${_esc(child.jiraId)}</a>`
@@ -460,11 +526,11 @@ export function closeRoadmapExportDialog() {
 }
 
 export async function executeRoadmapExport() {
-  const includeRoadmap  = document.getElementById('rexp-roadmap-graphic').checked;
-  const includeTitles   = document.getElementById('rexp-issue-titles').checked;
-  const includeDescs    = document.getElementById('rexp-issue-descriptions').checked;
-  const includeCharts   = document.getElementById('rexp-distribution-charts').checked;
-  const hideEmptyEpics  = document.getElementById('rexp-hide-empty-epics').checked;
+  const includeRoadmap = document.getElementById('rexp-roadmap-graphic').checked;
+  const includeTitles = document.getElementById('rexp-issue-titles').checked;
+  const includeDescs = document.getElementById('rexp-issue-descriptions').checked;
+  const includeCharts = document.getElementById('rexp-distribution-charts').checked;
+  const hideEmptyEpics = document.getElementById('rexp-hide-empty-epics').checked;
 
   if (!includeRoadmap && !includeTitles && !includeDescs && !includeCharts) {
     showJiraToast('error', 'Select at least one section to export');
@@ -475,14 +541,14 @@ export async function executeRoadmapExport() {
   showJiraToast('info', 'Preparing roadmap report...');
 
   try {
-    const sprints   = getAllSprints();
-    const piFilter  = [..._roadmapVisiblePis].join(' + ') || null;
+    const sprints = getAllSprints();
+    const piFilter = [..._roadmapVisiblePis].join(' + ') || null;
     const leafTypes = new Set(['story', 'spike', 'bug']);
     const epicTypes = new Set(['epic']);
 
     // Visible leaf docs (same logic as renderStoryPanel)
-    const visibleLeafs = allDocs.filter(d =>
-      leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
+    const visibleLeafs = allDocs.filter(
+      (d) => leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
     );
 
     // Build epic map (same logic as renderEpicPanel)
@@ -490,7 +556,9 @@ export async function executeRoadmapExport() {
     for (const leaf of visibleLeafs) {
       const key = leaf.parentFilename || '__none__';
       if (!epicMap.has(key)) {
-        const epicDoc = leaf.parentFilename ? allDocs.find(d => d.filename === leaf.parentFilename) : null;
+        const epicDoc = leaf.parentFilename
+          ? allDocs.find((d) => d.filename === leaf.parentFilename)
+          : null;
         epicMap.set(key, { epicDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
       }
       const entry = epicMap.get(key);
@@ -517,22 +585,38 @@ export async function executeRoadmapExport() {
     // Fetch descriptions if needed
     let contentMap = {};
     if (includeDescs) {
-      const fetches = visibleLeafs.map(async d => {
+      const fetches = visibleLeafs.map(async (d) => {
         try {
           const res = await fetch(`/api/doc/${d.docType}/${encodeURIComponent(d.filename)}`);
-          if (res.ok) { const data = await res.json(); contentMap[d.filename] = data.content || ''; }
-        } catch {}
+          if (res.ok) {
+            const data = await res.json();
+            contentMap[d.filename] = data.content || '';
+          }
+        } catch {
+          /* no-op */
+        }
       });
       await Promise.all(fetches);
     }
 
     const html = _buildRoadmapPrintPage({
-      sprints, epicEntries, visibleLeafs, contentMap, piFilter,
-      includeRoadmap, includeTitles, includeDescs, includeCharts, hideEmptyEpics,
+      sprints,
+      epicEntries,
+      visibleLeafs,
+      contentMap,
+      piFilter,
+      includeRoadmap,
+      includeTitles,
+      includeDescs,
+      includeCharts,
+      hideEmptyEpics,
     });
 
     const win = window.open('', '_blank');
-    if (!win) { showJiraToast('error', 'Pop-up blocked — please allow pop-ups'); return; }
+    if (!win) {
+      showJiraToast('error', 'Pop-up blocked — please allow pop-ups');
+      return;
+    }
     win.document.write(html);
     win.document.close();
     showJiraToast('ok', 'Report ready — use Save as PDF in the print dialog');
@@ -544,20 +628,35 @@ export async function executeRoadmapExport() {
 // ── Roadmap print page builder ──────────────────────────────────
 
 function _buildRoadmapPrintPage(opts) {
-  const { sprints, epicEntries, visibleLeafs, contentMap, piFilter,
-          includeRoadmap, includeTitles, includeDescs, includeCharts, hideEmptyEpics } = opts;
+  const {
+    sprints,
+    epicEntries,
+    visibleLeafs,
+    contentMap,
+    piFilter,
+    includeRoadmap,
+    includeTitles,
+    includeDescs,
+    includeCharts,
+    hideEmptyEpics,
+  } = opts;
 
-  const piLabel  = piFilter || [piSettings.currentPi, piSettings.nextPi].filter(Boolean).join(' + ') || 'All';
-  const dateStr  = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const totalSP  = visibleLeafs.reduce((s, d) => s + (Number(d.storyPoints) || 0), 0);
+  const piLabel =
+    piFilter || [piSettings.currentPi, piSettings.nextPi].filter(Boolean).join(' + ') || 'All';
+  const dateStr = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  const totalSP = visibleLeafs.reduce((s, d) => s + (Number(d.storyPoints) || 0), 0);
   const issueCount = visibleLeafs.length;
-  const epicCount  = epicEntries.filter(([k]) => k !== '__none__').length;
+  const epicCount = epicEntries.filter(([k]) => k !== '__none__').length;
 
   let sections = '';
   if (includeRoadmap) sections += _renderRoadmapTimeline(sprints, epicEntries, hideEmptyEpics);
-  if (includeCharts)  sections += _renderRoadmapCharts(visibleLeafs);
-  if (includeTitles)  sections += _renderRoadmapIssueTitles(sprints, visibleLeafs);
-  if (includeDescs)   sections += _renderRoadmapIssueDescs(sprints, visibleLeafs, contentMap);
+  if (includeCharts) sections += _renderRoadmapCharts(visibleLeafs);
+  if (includeTitles) sections += _renderRoadmapIssueTitles(sprints, visibleLeafs);
+  if (includeDescs) sections += _renderRoadmapIssueDescs(sprints, visibleLeafs, contentMap);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -748,20 +847,22 @@ function _renderRoadmapTimeline(sprints, epicEntries, hideEmptyEpics) {
     // Skip epics with no stories in any sprint if the option is enabled
     if (hideEmptyEpics && sprintSet.size === 0) continue;
     const isNone = key === '__none__';
-    const title  = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
-    const color  = isNone ? '#94a3b8' : epicColor(key);
-    const meta   = `${storyCount} item${storyCount !== 1 ? 's' : ''} · ${totalSP} SP`;
+    const title = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
+    const color = isNone ? '#94a3b8' : epicColor(key);
+    const meta = `${storyCount} item${storyCount !== 1 ? 's' : ''} · ${totalSP} SP`;
 
     // Compute sprint span
-    const indices = [...sprintSet].filter(s => sprintIdx.has(s)).map(s => sprintIdx.get(s));
+    const indices = [...sprintSet].filter((s) => sprintIdx.has(s)).map((s) => sprintIdx.get(s));
     const minIdx = indices.length ? Math.min(...indices) : -1;
     const maxIdx = indices.length ? Math.max(...indices) : -1;
 
-    const jiraId  = epicDoc?.jiraId || null;
-    const jiraUrl = jiraId ? (epicDoc?.jiraUrl || `${jiraBase}/browse/${jiraId}`) : null;
-    const epicLabel = isNone ? _esc(title) : (jiraId
-      ? `<a href="${_esc(jiraUrl)}" class="rm-tl-epic-link">${_esc(jiraId)}</a> ${_esc(title)}`
-      : _esc(title));
+    const jiraId = epicDoc?.jiraId || null;
+    const jiraUrl = jiraId ? epicDoc?.jiraUrl || `${jiraBase}/browse/${jiraId}` : null;
+    const epicLabel = isNone
+      ? _esc(title)
+      : jiraId
+        ? `<a href="${_esc(jiraUrl)}" class="rm-tl-epic-link">${_esc(jiraId)}</a> ${_esc(title)}`
+        : _esc(title);
 
     let cells = `<td><span class="rm-tl-epic-dot" style="background:${color}"></span>${epicLabel}<span class="rm-tl-meta">${_esc(meta)}</span></td>`;
 
@@ -806,7 +907,8 @@ function _renderRoadmapIssueTitles(sprints, visibleLeafs) {
     else unassigned.push(d);
   }
 
-  let html = '<th>Type</th><th>Key</th><th>Title</th><th>Priority</th><th>SP</th><th>Parent</th><th>Team</th><th>Category</th>';
+  let html =
+    '<th>Type</th><th>Key</th><th>Title</th><th>Priority</th><th>SP</th><th>Parent</th><th>Team</th><th>Category</th>';
   let rows = '';
 
   const renderGroup = (label, docs) => {
@@ -815,7 +917,7 @@ function _renderRoadmapIssueTitles(sprints, visibleLeafs) {
     let out = `<tr class="rm-it-sprint-hdr"><td colspan="8">${_esc(label)}</td></tr>`;
     for (const d of sorted) {
       const bc = badgeColor[d.docType] || '#666';
-      const parent = d.parentFilename ? allDocs.find(p => p.filename === d.parentFilename) : null;
+      const parent = d.parentFilename ? allDocs.find((p) => p.filename === d.parentFilename) : null;
       const keyCell = d.jiraId
         ? `<a href="${_esc(d.jiraUrl || `${jiraBase}/browse/${d.jiraId}`)}" class="rm-it-key">${_esc(d.jiraId)}</a>`
         : '—';
@@ -871,7 +973,9 @@ function _renderRoadmapIssueDescs(sprints, visibleLeafs, contentMap) {
       const sp = d.storyPoints ? `${d.storyPoints} SP` : '';
       const raw = contentMap[d.filename] || '';
       const stripped = stripFrontmatter(raw).replace(/\n## Comments\b[\s\S]*$/, '');
-      const body = stripped.trim() ? marked.parse(stripped) : '<em style="color:#94a3b8">No description</em>';
+      const body = stripped.trim()
+        ? marked.parse(stripped)
+        : '<em style="color:#94a3b8">No description</em>';
       const descKeyLink = d.jiraId
         ? `<a href="${_esc(d.jiraUrl || `${jiraBase}/browse/${d.jiraId}`)}" class="rm-print-card-key">${_esc(d.jiraId)}</a>`
         : '';
@@ -904,7 +1008,16 @@ function _renderRoadmapIssueDescs(sprints, visibleLeafs, contentMap) {
 function _renderRoadmapCharts(visibleLeafs) {
   if (!visibleLeafs.length) return '';
 
-  const COLORS = ['#3B82F6','#8B5CF6','#10B981','#14B8A6','#F59E0B','#EC4899','#06B6D4','#6366F1'];
+  const COLORS = [
+    '#3B82F6',
+    '#8B5CF6',
+    '#10B981',
+    '#14B8A6',
+    '#F59E0B',
+    '#EC4899',
+    '#06B6D4',
+    '#6366F1',
+  ];
   const BAR_H = 28;
   const BAR_GAP = 8;
   const CHART_W = 460;
@@ -914,18 +1027,18 @@ function _renderRoadmapCharts(visibleLeafs) {
 
   // Aggregate by team
   const teamDist = {};
-  const catDist  = {};
+  const catDist = {};
   for (const d of visibleLeafs) {
     const team = d.team || 'Unassigned';
-    const cat  = d.workCategory || 'Uncategorized';
+    const cat = d.workCategory || 'Uncategorized';
     teamDist[team] = (teamDist[team] || 0) + (Number(d.storyPoints) || 0);
-    catDist[cat]   = (catDist[cat]  || 0) + (Number(d.storyPoints) || 0);
+    catDist[cat] = (catDist[cat] || 0) + (Number(d.storyPoints) || 0);
   }
 
   const buildChart = (title, dist) => {
     const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]);
     if (!entries.length) return '';
-    const maxVal = Math.max(...entries.map(e => e[1]), 1);
+    const maxVal = Math.max(...entries.map((e) => e[1]), 1);
     const totalVal = entries.reduce((s, e) => s + e[1], 0);
     const svgH = entries.length * (BAR_H + BAR_GAP) + 10;
 
@@ -948,7 +1061,7 @@ function _renderRoadmapCharts(visibleLeafs) {
   };
 
   const teamChart = buildChart('Story Points by Team', teamDist);
-  const catChart  = buildChart('Story Points by Category', catDist);
+  const catChart = buildChart('Story Points by Category', catDist);
 
   return `<div class="sec-title">Distribution</div>
 <div class="rm-charts-wrap">${teamChart}${catChart}</div>`;

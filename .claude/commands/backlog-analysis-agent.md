@@ -74,12 +74,15 @@ Status: Draft
 # Backlog Analysis Report — <YYYY-MM-DD>
 
 ## Executive Summary
+
 - 3–6 bullets: top risks, biggest refinement gaps, most urgent dependencies.
 
 ## Findings by Epic
+
 For each epic file reviewed, a subsection:
 
 ### <Epic title> — `<relative path>`
+
 - **Vulnerabilities:** …
 - **Dependencies:** … (link other epics/stories by path)
 - **Refinement proposals:** specific, actionable rewrites or questions to answer
@@ -89,16 +92,18 @@ For each epic file reviewed, a subsection:
 (Skip a bullet if there is genuinely nothing to say — do not pad.)
 
 ## Cross-cutting Findings
+
 - Themes that span multiple epics (e.g. "5 epics touch RabbitMQ but none describe the DLQ strategy").
 - Suggested sequencing / PI ordering changes.
 
 ## Recommended Next Actions
+
 - Prioritized list (P1/P2/P3) of refinement sessions, spikes to open, or stories to split.
 ```
 
 ## Rules
 
-- Be **specific**: cite the file path and quote or paraphrase the offending text. Avoid generic advice like "add more detail" — say *what* detail.
+- Be **specific**: cite the file path and quote or paraphrase the offending text. Avoid generic advice like "add more detail" — say _what_ detail.
 - Be **actionable**: every refinement proposal should be something the PO can do in the next refinement session.
 - Respect the COVE framework and the writing guidelines from `CLAUDE.md`.
 - Do **not** modify any backlog files — this agent is read-only on `/docs/**` except for writing the new report.

@@ -32,12 +32,15 @@ describe('POST /api/jira/check-all — no token configured', () => {
 
 // ── With mock JIRA ────────────────────────────────────────────────────────────
 describe('POST /api/jira/check-all — detects changes including description', () => {
-  const CHANGED_FILE   = '2026-01-10-check-all-changed.md';
+  const CHANGED_FILE = '2026-01-10-check-all-changed.md';
   const UNCHANGED_FILE = '2026-01-10-check-all-unchanged.md';
-  const originalFetch  = globalThis.fetch;
+  const originalFetch = globalThis.fetch;
 
   before(async () => {
-    writeDoc('epics', CHANGED_FILE, `---
+    writeDoc(
+      'epics',
+      CHANGED_FILE,
+      `---
 JIRA_ID: EAMDM-901
 Story_Points: 3
 Status: Draft
@@ -48,8 +51,12 @@ Created: 2026-01-10
 ## Old Title
 
 Old description text.
-`);
-    writeDoc('epics', UNCHANGED_FILE, `---
+`
+    );
+    writeDoc(
+      'epics',
+      UNCHANGED_FILE,
+      `---
 JIRA_ID: EAMDM-902
 Story_Points: 5
 Status: In Progress
@@ -60,20 +67,22 @@ Created: 2026-01-10
 ## Stable Title
 
 Stable description text.
-`);
+`
+    );
     process.env.JIRA_API_TOKEN = 'fake-token';
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/') && url.includes('EAMDM-901')) {
         const body = {
           fields: {
-            summary:           'New Title From JIRA',
-            status:            { name: 'In Progress' },
+            summary: 'New Title From JIRA',
+            status: { name: 'In Progress' },
             customfield_10006: 3,
-            description:       'New description text.',
+            description: 'New description text.',
           },
         };
         return {
-          ok: true, status: 200,
+          ok: true,
+          status: 200,
           json: async () => body,
           text: async () => JSON.stringify(body),
         };
@@ -81,14 +90,15 @@ Stable description text.
       if (typeof url === 'string' && url.includes('/rest/api/') && url.includes('EAMDM-902')) {
         const body = {
           fields: {
-            summary:           'Stable Title',
-            status:            { name: 'In Progress' },
+            summary: 'Stable Title',
+            status: { name: 'In Progress' },
             customfield_10006: 5,
-            description:       'Stable description text.',
+            description: 'Stable description text.',
           },
         };
         return {
-          ok: true, status: 200,
+          ok: true,
+          status: 200,
           json: async () => body,
           text: async () => JSON.stringify(body),
         };
@@ -113,9 +123,9 @@ Stable description text.
 
   test('EAMDM-901 appears in changed with summary and description diffs', async () => {
     const { data } = await api('POST', '/api/jira/check-all');
-    const item = data.changed.find(c => c.jiraId === 'EAMDM-901');
+    const item = data.changed.find((c) => c.jiraId === 'EAMDM-901');
     assert.ok(item, 'EAMDM-901 should be in changed list');
-    assert.ok(item.changes.summary,     'summary change should be detected');
+    assert.ok(item.changes.summary, 'summary change should be detected');
     assert.ok(item.changes.description, 'description change should be detected');
   });
 
@@ -126,7 +136,7 @@ Stable description text.
 
   test('unchanged item must not appear in changed list (no false positive from missing description)', async () => {
     const { data } = await api('POST', '/api/jira/check-all');
-    const item = data.changed.find(c => c.jiraId === 'EAMDM-902');
+    const item = data.changed.find((c) => c.jiraId === 'EAMDM-902');
     assert.equal(item, undefined, 'unchanged item must not appear in changed list');
   });
 });

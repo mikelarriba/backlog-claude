@@ -4,17 +4,21 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createJiraService, LOCAL_TO_JIRA_TYPE, JIRA_TO_LOCAL_TYPE } from '../../src/services/jiraService.js';
+import {
+  createJiraService,
+  LOCAL_TO_JIRA_TYPE,
+  JIRA_TO_LOCAL_TYPE,
+} from '../../src/services/jiraService.js';
 import { isoDate, slugify, stripFrontmatter } from '../../src/utils/transforms.js';
 
 let jiraService, tmpRoot;
 
 const TYPE_CONFIG = {
   feature: { command: 'create-features', dir: null, event: 'feature_created' },
-  epic:    { command: 'create-epics',    dir: null, event: 'epic_created' },
-  story:   { command: 'create-stories',  dir: null, event: 'story_created' },
-  spike:   { command: 'create-spikes',   dir: null, event: 'spike_created' },
-  bug:     { command: 'create-bugs',     dir: null, event: 'bug_created'   },
+  epic: { command: 'create-epics', dir: null, event: 'epic_created' },
+  story: { command: 'create-stories', dir: null, event: 'story_created' },
+  spike: { command: 'create-spikes', dir: null, event: 'spike_created' },
+  bug: { command: 'create-bugs', dir: null, event: 'bug_created' },
 };
 
 before(() => {
@@ -55,10 +59,14 @@ describe('JIRA type mappings', () => {
 describe('findLocalFileByJiraId', () => {
   before(() => {
     // Write a test doc with a known JIRA_ID
-    fs.writeFileSync(path.join(TYPE_CONFIG.epic.dir(), 'test-epic.md'),
-      '---\nJIRA_ID: EAMDM-100\nStatus: Draft\n---\n\n## Test Epic\n');
-    fs.writeFileSync(path.join(TYPE_CONFIG.story.dir(), 'test-story.md'),
-      '---\nJIRA_ID: EAMDM-200\nStatus: Draft\n---\n\n## Test Story\n');
+    fs.writeFileSync(
+      path.join(TYPE_CONFIG.epic.dir(), 'test-epic.md'),
+      '---\nJIRA_ID: EAMDM-100\nStatus: Draft\n---\n\n## Test Epic\n'
+    );
+    fs.writeFileSync(
+      path.join(TYPE_CONFIG.story.dir(), 'test-story.md'),
+      '---\nJIRA_ID: EAMDM-200\nStatus: Draft\n---\n\n## Test Story\n'
+    );
   });
 
   test('finds epic by JIRA_ID', () => {

@@ -5,43 +5,51 @@
 //   - Drop on a .swimlane-section (different)    → MOVE to that PI
 //
 // Uses mouse events (not HTML5 DnD) for reliable cross-browser behaviour.
-import { buildChildrenMap, getDescendants, postJSON, showJiraToast, escHtml, TYPE_LABEL, DRAG_TARGETS, SECTION_LABELS } from './state.js';
+import {
+  buildChildrenMap,
+  getDescendants,
+  postJSON,
+  showJiraToast,
+  TYPE_LABEL,
+  DRAG_TARGETS,
+  SECTION_LABELS,
+} from './state.js';
 import { loadHierarchy } from './detail.js';
 import { clearSelection, itemKey, getSelectedDocs, applyFilters } from './list-filters.js';
 import { _rankSortFn } from './list-render.js';
 
-const LEAF_TYPES = new Set(['story', 'spike', 'bug']);
-
 export function getSwimlaneSection(doc) {
   if (!doc) return 'backlog';
-  if (doc.fixVersion && piSettings.currentPi && doc.fixVersion === piSettings.currentPi) return 'currentPi';
+  if (doc.fixVersion && piSettings.currentPi && doc.fixVersion === piSettings.currentPi)
+    return 'currentPi';
   if (doc.fixVersion && piSettings.nextPi && doc.fixVersion === piSettings.nextPi) return 'nextPi';
   return 'backlog';
 }
 
 export function sectionToFixVersion(section) {
   if (section === 'currentPi') return piSettings.currentPi;
-  if (section === 'nextPi')    return piSettings.nextPi;
+  if (section === 'nextPi') return piSettings.nextPi;
   return null; // backlog = clear version
 }
 
 // ── Drop action popup ─────────────────────────────────────────
-let _dropPopup    = null;
+let _dropPopup = null;
 let _pendingDropSrc = null; // { filename, docType }
 let _pendingDropTgt = null; // { filename, docType }
-let _escListener  = null;
+let _escListener = null;
 
 export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY) {
   hideDropActionPopup();
 
   const tgtFilename = targetEl.dataset.filename;
-  const tgtDocType  = targetEl.dataset.doctype;
-  const tgtTitle    = targetEl.querySelector('.epic-title-text')?.textContent
-                   || targetEl.querySelector('.roadmap-card-title')?.textContent
-                   || tgtFilename;
+  const tgtDocType = targetEl.dataset.doctype;
+  const tgtTitle =
+    targetEl.querySelector('.epic-title-text')?.textContent ||
+    targetEl.querySelector('.roadmap-card-title')?.textContent ||
+    tgtFilename;
 
   const canLink = (DRAG_TARGETS[srcDocType] || []).includes(tgtDocType);
-  const canDep  = srcFilename !== tgtFilename && !canLink;
+  const canDep = srcFilename !== tgtFilename && !canLink;
 
   if (!canLink && !canDep) return; // nothing to offer
 
@@ -61,7 +69,10 @@ export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, 
     const btn = document.createElement('button');
     btn.className = 'drop-action-btn drop-link-btn';
     btn.innerHTML = '<span class="drop-action-btn-icon">🔗</span><span>Link as parent</span>';
-    btn.addEventListener('click', e => { e.stopPropagation(); executeDropLink(); });
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      executeDropLink();
+    });
     popup.appendChild(btn);
   }
 
@@ -69,7 +80,10 @@ export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, 
     const btn = document.createElement('button');
     btn.className = 'drop-action-btn drop-dep-btn';
     btn.innerHTML = '<span class="drop-action-btn-icon">🔒</span><span>Add dependency</span>';
-    btn.addEventListener('click', e => { e.stopPropagation(); executeDropDep(); });
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      executeDropDep();
+    });
     popup.appendChild(btn);
   }
 
@@ -77,14 +91,14 @@ export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, 
   _dropPopup = popup;
 
   // Position near cursor, clamped to viewport
-  const pw = popup.offsetWidth  || 220;
+  const pw = popup.offsetWidth || 220;
   const ph = popup.offsetHeight || 90;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const left = Math.min(cursorX + 12, vw - pw - 12);
-  const top  = Math.min(cursorY - 10, vh - ph - 12);
+  const top = Math.min(cursorY - 10, vh - ph - 12);
   popup.style.left = `${Math.max(8, left)}px`;
-  popup.style.top  = `${Math.max(8, top)}px`;
+  popup.style.top = `${Math.max(8, top)}px`;
 
   // Dismiss on outside click
   setTimeout(() => {
@@ -92,13 +106,21 @@ export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, 
   }, 0);
 
   // Dismiss on Escape
-  _escListener = e => { if (e.key === 'Escape') hideDropActionPopup(); };
+  _escListener = (e) => {
+    if (e.key === 'Escape') hideDropActionPopup();
+  };
   document.addEventListener('keydown', _escListener);
 }
 
 export function hideDropActionPopup() {
-  if (_dropPopup) { _dropPopup.remove(); _dropPopup = null; }
-  if (_escListener) { document.removeEventListener('keydown', _escListener); _escListener = null; }
+  if (_dropPopup) {
+    _dropPopup.remove();
+    _dropPopup = null;
+  }
+  if (_escListener) {
+    document.removeEventListener('keydown', _escListener);
+    _escListener = null;
+  }
   _pendingDropSrc = null;
   _pendingDropTgt = null;
 }
@@ -109,7 +131,7 @@ async function executeDropLink() {
   const tgt = _pendingDropTgt;
   hideDropActionPopup();
 
-  const tgtEl    = document.querySelector(`#epic-list [data-filename="${CSS.escape(tgt.filename)}"]`);
+  const tgtEl = document.querySelector(`#epic-list [data-filename="${CSS.escape(tgt.filename)}"]`);
   const tgtTitle = tgtEl?.querySelector('.epic-title-text')?.textContent || tgt.filename;
   const dragDocs = getDragDocs(src.filename, src.docType);
 
@@ -119,8 +141,10 @@ async function executeDropLink() {
       const valid = DRAG_TARGETS[d.docType] || [];
       if (!valid.includes(tgt.docType)) continue;
       await postJSON('/api/link', {
-        sourceType: d.docType, sourceFilename: d.filename,
-        targetType: tgt.docType, targetFilename: tgt.filename,
+        sourceType: d.docType,
+        sourceFilename: d.filename,
+        targetType: tgt.docType,
+        targetFilename: tgt.filename,
       });
       linked++;
     }
@@ -141,32 +165,43 @@ async function executeDropDep() {
   const tgt = _pendingDropTgt;
   hideDropActionPopup();
 
-  const tgtEl    = document.querySelector(`#epic-list [data-filename="${CSS.escape(tgt.filename)}"]`);
+  const tgtEl = document.querySelector(`#epic-list [data-filename="${CSS.escape(tgt.filename)}"]`);
   const tgtTitle = tgtEl?.querySelector('.epic-title-text')?.textContent || tgt.filename;
 
   try {
     await postJSON('/api/link', {
       linkType: 'blocks',
-      sourceType: src.docType, sourceFilename: src.filename,
-      targetType: tgt.docType, targetFilename: tgt.filename,
+      sourceType: src.docType,
+      sourceFilename: src.filename,
+      targetType: tgt.docType,
+      targetFilename: tgt.filename,
     });
     // Update allDocs entries optimistically
-    const srcDoc = allDocs.find(d => d.filename === src.filename);
-    if (srcDoc) { srcDoc.blocks = srcDoc.blocks || []; if (!srcDoc.blocks.includes(tgt.filename)) srcDoc.blocks.push(tgt.filename); }
-    const tgtDoc = allDocs.find(d => d.filename === tgt.filename);
-    if (tgtDoc) { tgtDoc.blockedBy = tgtDoc.blockedBy || []; if (!tgtDoc.blockedBy.includes(src.filename)) tgtDoc.blockedBy.push(src.filename); }
+    const srcDoc = allDocs.find((d) => d.filename === src.filename);
+    if (srcDoc) {
+      srcDoc.blocks = srcDoc.blocks || [];
+      if (!srcDoc.blocks.includes(tgt.filename)) srcDoc.blocks.push(tgt.filename);
+    }
+    const tgtDoc = allDocs.find((d) => d.filename === tgt.filename);
+    if (tgtDoc) {
+      tgtDoc.blockedBy = tgtDoc.blockedBy || [];
+      if (!tgtDoc.blockedBy.includes(src.filename)) tgtDoc.blockedBy.push(src.filename);
+    }
     applyFilters();
-    showJiraToast('success', `"${allDocs.find(d=>d.filename===src.filename)?.title||src.filename}" now blocks "${tgtTitle}"`);
+    showJiraToast(
+      'success',
+      `"${allDocs.find((d) => d.filename === src.filename)?.title || src.filename}" now blocks "${tgtTitle}"`
+    );
   } catch (err) {
     showJiraToast('error', err.message);
   }
 }
 
 // ── Existing drop actions ─────────────────────────────────────
-async function executeLinkDrop(srcFilename, srcDocType, dropTarget) {
+async function _executeLinkDrop(srcFilename, srcDocType, dropTarget) {
   const tgtFilename = dropTarget.dataset.filename;
-  const tgtDocType  = dropTarget.dataset.doctype;
-  const tgtTitle    = dropTarget.querySelector('.epic-title-text')?.textContent || tgtFilename;
+  const tgtDocType = dropTarget.dataset.doctype;
+  const tgtTitle = dropTarget.querySelector('.epic-title-text')?.textContent || tgtFilename;
 
   const dragDocs = getDragDocs(srcFilename, srcDocType);
 
@@ -176,8 +211,10 @@ async function executeLinkDrop(srcFilename, srcDocType, dropTarget) {
       const valid = DRAG_TARGETS[d.docType] || [];
       if (!valid.includes(tgtDocType)) continue;
       await postJSON('/api/link', {
-        sourceType: d.docType, sourceFilename: d.filename,
-        targetType: tgtDocType, targetFilename: tgtFilename,
+        sourceType: d.docType,
+        sourceFilename: d.filename,
+        targetType: tgtDocType,
+        targetFilename: tgtFilename,
       });
       linked++;
     }
@@ -221,10 +258,10 @@ async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
   try {
     await postJSON('/api/docs/batch-fix-version', {
       fixVersion: newFixVersion,
-      docs: allToMove.map(d => ({ type: d.docType, filename: d.filename })),
+      docs: allToMove.map((d) => ({ type: d.docType, filename: d.filename })),
     });
 
-    const label    = SECTION_LABELS[targetSection];
+    const label = SECTION_LABELS[targetSection];
     const countMsg = allToMove.length > 1 ? ` (${allToMove.length} items)` : '';
     showJiraToast('success', `Moved to ${label}${countMsg}`);
     clearSelection();
@@ -239,7 +276,7 @@ function getDragDocs(srcFilename, srcDocType) {
   if (selectedItems.size > 1 && selectedItems.has(key)) {
     return getSelectedDocs();
   }
-  const doc = allDocs.find(d => d.filename === srcFilename && d.docType === srcDocType);
+  const doc = allDocs.find((d) => d.filename === srcFilename && d.docType === srcDocType);
   return doc ? [doc] : [];
 }
 
@@ -259,11 +296,11 @@ export function showInsertionMarker(clientY) {
   const list = document.getElementById('epic-list');
   if (!list) return;
   const listRect = list.getBoundingClientRect();
-  const marker   = getInsertionMarker();
+  const marker = getInsertionMarker();
   marker.style.display = 'block';
-  marker.style.top     = `${clientY - 1}px`;
-  marker.style.left    = `${listRect.left + 4}px`;
-  marker.style.width   = `${listRect.width - 8}px`;
+  marker.style.top = `${clientY - 1}px`;
+  marker.style.left = `${listRect.left + 4}px`;
+  marker.style.width = `${listRect.width - 8}px`;
 }
 
 export function hideInsertionMarker() {
@@ -273,8 +310,9 @@ export function hideInsertionMarker() {
 // Returns the filename of the item the cursor is ABOVE (insert before it),
 // or null to insert at the end of the type group.
 function computeInsertBefore(srcDocType, clientY) {
-  const items = [...document.querySelectorAll('#epic-list .epic-item')]
-    .filter(el => el.dataset.doctype === srcDocType && !el.classList.contains('drag-source'));
+  const items = [...document.querySelectorAll('#epic-list .epic-item')].filter(
+    (el) => el.dataset.doctype === srcDocType && !el.classList.contains('drag-source')
+  );
 
   for (const el of items) {
     const rect = el.getBoundingClientRect();
@@ -284,30 +322,34 @@ function computeInsertBefore(srcDocType, clientY) {
 }
 
 export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFilename) {
-  const group  = allDocs.filter(d => d.docType === srcDocType);
+  const group = allDocs.filter((d) => d.docType === srcDocType);
   const sorted = [...group].sort(_rankSortFn);
 
-  const draggedIdx = sorted.findIndex(d => d.filename === srcFilename);
+  const draggedIdx = sorted.findIndex((d) => d.filename === srcFilename);
   if (draggedIdx < 0) return;
 
   const [dragged] = sorted.splice(draggedIdx, 1);
 
   let insertIdx = sorted.length; // default: end
   if (insertBeforeFilename) {
-    const targetIdx = sorted.findIndex(d => d.filename === insertBeforeFilename);
+    const targetIdx = sorted.findIndex((d) => d.filename === insertBeforeFilename);
     if (targetIdx >= 0) insertIdx = targetIdx;
   }
   sorted.splice(insertIdx, 0, dragged);
 
   try {
-    await postJSON('/api/docs/rerank', { type: srcDocType, orderedFilenames: sorted.map(d => d.filename) });
+    await postJSON('/api/docs/rerank', {
+      type: srcDocType,
+      orderedFilenames: sorted.map((d) => d.filename),
+    });
   } catch (e) {
     showJiraToast('error', e.message);
   }
 }
 
 function resolveDropTargets(snap, e) {
-  let dropTarget = null, dropSwimlane = null;
+  let dropTarget = null,
+    dropSwimlane = null;
 
   if (snap.started && snap.ghost) {
     snap.ghost.style.visibility = 'hidden';
@@ -316,19 +358,19 @@ function resolveDropTargets(snap, e) {
 
     const itemUnder = elUnder?.closest('.epic-item');
     if (itemUnder && itemUnder.dataset.filename !== snap.srcFilename) {
-      const rect     = itemUnder.getBoundingClientRect();
-      const relY     = e.clientY - rect.top;
+      const rect = itemUnder.getBoundingClientRect();
+      const relY = e.clientY - rect.top;
       const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
-      const tgtType  = itemUnder.dataset.doctype;
-      const canLink  = (DRAG_TARGETS[snap.srcDocType] || []).includes(tgtType);
-      const canDep   = !canLink;
+      const tgtType = itemUnder.dataset.doctype;
+      const canLink = (DRAG_TARGETS[snap.srcDocType] || []).includes(tgtType);
+      const canDep = !canLink;
       if (inCenter && (canLink || canDep)) dropTarget = itemUnder;
     }
 
     if (!dropTarget) {
       const sectionUnder = elUnder?.closest('.swimlane-section');
       if (sectionUnder) {
-        const srcDoc  = allDocs.find(d => d.filename === snap.srcFilename);
+        const srcDoc = allDocs.find((d) => d.filename === snap.srcFilename);
         const srcLane = getSwimlaneSection(srcDoc);
         if (sectionUnder.dataset.section !== srcLane) dropSwimlane = sectionUnder;
       }
@@ -336,7 +378,7 @@ function resolveDropTargets(snap, e) {
   }
 
   return {
-    dropTarget:   dropTarget   || snap.currentTarget,
+    dropTarget: dropTarget || snap.currentTarget,
     dropSwimlane: dropSwimlane || snap.currentSwimlane,
   };
 }
@@ -346,7 +388,7 @@ export function initDragDrop() {
   let state = null;
   const DRAG_THRESHOLD = 6;
 
-  list.addEventListener('mousedown', e => {
+  list.addEventListener('mousedown', (e) => {
     const handle = e.target.closest('.drag-handle');
     if (!handle) return;
     e.preventDefault();
@@ -354,14 +396,20 @@ export function initDragDrop() {
     if (!item) return;
 
     state = {
-      srcFilename: item.dataset.filename, srcDocType: item.dataset.doctype,
-      startX: e.clientX, startY: e.clientY,
-      started: false, ghost: null, currentTarget: null, currentSwimlane: null,
-      isReranking: false, rerankInsertBefore: undefined,
+      srcFilename: item.dataset.filename,
+      srcDocType: item.dataset.doctype,
+      startX: e.clientX,
+      startY: e.clientY,
+      started: false,
+      ghost: null,
+      currentTarget: null,
+      currentSwimlane: null,
+      isReranking: false,
+      rerankInsertBefore: undefined,
     };
   });
 
-  document.addEventListener('mousemove', e => {
+  document.addEventListener('mousemove', (e) => {
     if (!state) return;
 
     if (!state.started) {
@@ -372,7 +420,7 @@ export function initDragDrop() {
       state.started = true;
       _justDragged = true;
 
-      const dragDocs   = getDragDocs(state.srcFilename, state.srcDocType);
+      const dragDocs = getDragDocs(state.srcFilename, state.srcDocType);
       const multiCount = dragDocs.length;
 
       const ghost = document.createElement('div');
@@ -388,16 +436,20 @@ export function initDragDrop() {
         badge.className = `type-badge ${state.srcDocType}`;
         badge.textContent = TYPE_LABEL[state.srcDocType] || state.srcDocType;
         ghost.appendChild(badge);
-        ghost.appendChild(document.createTextNode(
-          allDocs.find(d => d.filename === state.srcFilename)?.title || state.srcFilename
-        ));
+        ghost.appendChild(
+          document.createTextNode(
+            allDocs.find((d) => d.filename === state.srcFilename)?.title || state.srcFilename
+          )
+        );
       }
       document.body.appendChild(ghost);
       state.ghost = ghost;
 
       if (multiCount > 1) {
         for (const d of dragDocs) {
-          const el = list.querySelector(`[data-filename="${CSS.escape(d.filename)}"][data-doctype="${d.docType}"]`);
+          const el = list.querySelector(
+            `[data-filename="${CSS.escape(d.filename)}"][data-doctype="${d.docType}"]`
+          );
           if (el) el.classList.add('drag-source');
         }
       } else {
@@ -409,28 +461,32 @@ export function initDragDrop() {
     }
 
     state.ghost.style.left = `${e.clientX + 14}px`;
-    state.ghost.style.top  = `${e.clientY + 10}px`;
+    state.ghost.style.top = `${e.clientY + 10}px`;
 
     state.ghost.style.visibility = 'hidden';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
     state.ghost.style.visibility = '';
 
-    list.querySelectorAll('.drag-target-hover').forEach(el => el.classList.remove('drag-target-hover'));
-    list.querySelectorAll('.swimlane-drop-target').forEach(el => el.classList.remove('swimlane-drop-target'));
-    state.currentTarget      = null;
-    state.currentSwimlane    = null;
-    state.isReranking        = false;
+    list
+      .querySelectorAll('.drag-target-hover')
+      .forEach((el) => el.classList.remove('drag-target-hover'));
+    list
+      .querySelectorAll('.swimlane-drop-target')
+      .forEach((el) => el.classList.remove('swimlane-drop-target'));
+    state.currentTarget = null;
+    state.currentSwimlane = null;
+    state.isReranking = false;
     state.rerankInsertBefore = undefined;
 
     // ── Zone detection ──────────────────────────────────────────
     const targetItem = elUnder?.closest('.epic-item');
     if (targetItem && targetItem.dataset.filename !== state.srcFilename) {
-      const rect     = targetItem.getBoundingClientRect();
-      const relY     = e.clientY - rect.top;
+      const rect = targetItem.getBoundingClientRect();
+      const relY = e.clientY - rect.top;
       const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
-      const tgtType  = targetItem.dataset.doctype;
-      const canLink  = (DRAG_TARGETS[state.srcDocType] || []).includes(tgtType);
-      const canDep   = !canLink;
+      const tgtType = targetItem.dataset.doctype;
+      const canLink = (DRAG_TARGETS[state.srcDocType] || []).includes(tgtType);
+      const canDep = !canLink;
 
       if (inCenter && (canLink || canDep)) {
         // Center of a valid target → highlight for action popup
@@ -444,7 +500,7 @@ export function initDragDrop() {
     // Not on a center-zone target → check swimlane or rerank
     const swimlaneSection = elUnder?.closest('.swimlane-section');
     if (swimlaneSection) {
-      const srcDoc  = allDocs.find(d => d.filename === state.srcFilename);
+      const srcDoc = allDocs.find((d) => d.filename === state.srcFilename);
       const srcLane = getSwimlaneSection(srcDoc);
       if (swimlaneSection.dataset.section !== srcLane) {
         // Different swimlane → PI move
@@ -453,7 +509,7 @@ export function initDragDrop() {
         hideInsertionMarker();
       } else {
         // Same swimlane → rerank
-        state.isReranking        = true;
+        state.isReranking = true;
         state.rerankInsertBefore = computeInsertBefore(state.srcDocType, e.clientY);
         showInsertionMarker(e.clientY);
       }
@@ -462,7 +518,7 @@ export function initDragDrop() {
     }
   });
 
-  document.addEventListener('mouseup', async e => {
+  document.addEventListener('mouseup', async (e) => {
     if (!state) return;
     const snap = state;
     state = null;
@@ -472,18 +528,30 @@ export function initDragDrop() {
     if (snap.ghost) snap.ghost.remove();
     hideInsertionMarker();
     list.classList.remove('dragging-active');
-    list.querySelectorAll('.drag-source, .drag-target-hover').forEach(el => {
+    list.querySelectorAll('.drag-source, .drag-target-hover').forEach((el) => {
       el.classList.remove('drag-source', 'drag-target-hover');
     });
-    list.querySelectorAll('.swimlane-drop-target').forEach(el => el.classList.remove('swimlane-drop-target'));
+    list
+      .querySelectorAll('.swimlane-drop-target')
+      .forEach((el) => el.classList.remove('swimlane-drop-target'));
     document.body.style.userSelect = '';
 
-    setTimeout(() => { _justDragged = false; }, 150);
+    setTimeout(() => {
+      _justDragged = false;
+    }, 150);
 
     if (!snap.started) return;
 
-    if (dropTarget)       return showDropActionPopup(snap.srcFilename, snap.srcDocType, dropTarget, e.clientX, e.clientY);
-    if (dropSwimlane)     return executeMoveDrop(snap.srcFilename, snap.srcDocType, dropSwimlane);
-    if (snap.isReranking) return executeRerankDrop(snap.srcFilename, snap.srcDocType, snap.rerankInsertBefore);
+    if (dropTarget)
+      return showDropActionPopup(
+        snap.srcFilename,
+        snap.srcDocType,
+        dropTarget,
+        e.clientX,
+        e.clientY
+      );
+    if (dropSwimlane) return executeMoveDrop(snap.srcFilename, snap.srcDocType, dropSwimlane);
+    if (snap.isReranking)
+      return executeRerankDrop(snap.srcFilename, snap.srcDocType, snap.rerankInsertBefore);
   });
 }

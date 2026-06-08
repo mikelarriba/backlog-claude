@@ -4,8 +4,12 @@ import { clearDocsDir, createFixtureDoc } from './fixtures.js';
 
 test.beforeAll(() => {
   clearDocsDir();
-  createFixtureDoc('epic',  { title: 'Roadmap Epic Alpha',  fixVersion: 'PI-2026.1' });
-  createFixtureDoc('story', { title: 'Roadmap Story Alpha', fixVersion: 'PI-2026.1', sprint: 'Sprint 1' });
+  createFixtureDoc('epic', { title: 'Roadmap Epic Alpha', fixVersion: 'PI-2026.1' });
+  createFixtureDoc('story', {
+    title: 'Roadmap Story Alpha',
+    fixVersion: 'PI-2026.1',
+    sprint: 'Sprint 1',
+  });
 });
 
 test.describe('Roadmap — open and layout', () => {
@@ -18,8 +22,12 @@ test.describe('Roadmap — open and layout', () => {
   test('roadmap view has two panel sections (epics + stories)', async ({ page }) => {
     await page.goto('/');
     await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();
-    await expect(page.locator('#rm-body-epics,   [id^="rm-body-epics"]')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('#rm-body-stories, [id^="rm-body-stories"]')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#rm-body-epics,   [id^="rm-body-epics"]')).toBeVisible({
+      timeout: 5000,
+    });
+    await expect(page.locator('#rm-body-stories, [id^="rm-body-stories"]')).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test('roadmap has a PI filter dropdown', async ({ page }) => {
@@ -36,8 +44,9 @@ test.describe('Roadmap — panel collapse', () => {
     await expect(page.locator('#rm-body-epics')).toBeVisible({ timeout: 5000 });
 
     // Find the epics panel toggle button/header
-    const epicsToggle = page.locator('#rm-chevron-epics').locator('..').locator('..').first();
-    const epicsHeader = page.locator('button:has(#rm-chevron-epics), [onclick*="toggleRoadmapPanel"][onclick*="epics"]').first();
+    const epicsHeader = page
+      .locator('button:has(#rm-chevron-epics), [onclick*="toggleRoadmapPanel"][onclick*="epics"]')
+      .first();
 
     if (await epicsHeader.isVisible()) {
       await epicsHeader.click();
@@ -54,7 +63,9 @@ test.describe('Roadmap — panel collapse', () => {
     await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();
     await expect(page.locator('#rm-body-stories')).toBeVisible({ timeout: 5000 });
 
-    const storiesHeader = page.locator('[onclick*="toggleRoadmapPanel"][onclick*="stories"]').first();
+    const storiesHeader = page
+      .locator('[onclick*="toggleRoadmapPanel"][onclick*="stories"]')
+      .first();
     if (await storiesHeader.isVisible()) {
       await storiesHeader.click();
       await expect(page.locator('#rm-body-stories')).toHaveClass(/collapsed/, { timeout: 3000 });
@@ -80,11 +91,13 @@ test.describe('Roadmap — PI filter', () => {
 
 test.describe('Roadmap — JIRA mock intercept', () => {
   test('JIRA API calls are interceptable via route mock', async ({ page }) => {
-    await page.route('**/api/jira/**', route => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ issues: [] }),
-    }));
+    await page.route('**/api/jira/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ issues: [] }),
+      })
+    );
 
     await page.goto('/');
     await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();

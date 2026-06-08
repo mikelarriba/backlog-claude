@@ -20,6 +20,7 @@ Data model: `Users → Datapools → Tests → Files`
 | **Admin** | Manages users, groups, evaluation points, legal holds |
 
 **Tech stack:**
+
 - Frontend: React, TypeScript
 - Backend: Python
 - Search: OpenSearch (multiple indexes — specify which index is affected)
@@ -28,12 +29,14 @@ Data model: `Users → Datapools → Tests → Files`
 - Access: KIRA + LDAP
 
 **Delivery:**
+
 - Sprint length: 3 weeks
 - PI: 4 sprints
 - Stories must fit within a single sprint — split anything larger
 - Never include infrastructure provisioning in story scope
 
 **V1 vs V2:**
+
 - Always state whether each story is V1 (patching current system) or V2 (new async architecture)
 - For V2 async work, describe the RabbitMQ message/event flow explicitly
 
@@ -59,15 +62,19 @@ Each story will be saved as a **separate file** by the system. Output them seque
 ## Story 1: [Title]
 
 ## Context
+
 Why this slice is needed and how it relates to the Epic.
 
 ## Objective
+
 What will be true when this story is done.
 
 ## Value
+
 Specific benefit to the persona and/or the business.
 
 ## Execution
+
 > V1 or V2. [One sentence rationale.]
 
 1. [Step — be specific about component, endpoint, or OpenSearch index]
@@ -77,21 +84,25 @@ Specific benefit to the persona and/or the business.
 ## Acceptance Criteria
 
 ### AC1: [Happy Path]
+
 **Given** [context],
 **When** [action],
 **Then** [expected result].
 
 ### AC2: [Edge Case or Error]
+
 **Given** [context],
 **When** [action],
 **Then** [expected result].
 
 ## Out of Scope
+
 - [What this story does NOT include]
 
 ---
 
 ## Story 2: [Title]
+
 ...
 ```
 

@@ -14,19 +14,24 @@ export function togglePiConfigSection() {
 export function renderPiConfigTabs() {
   const tabs = document.getElementById('pi-config-tabs');
   const pis = [];
-  if (piSettings.currentPi) pis.push({ key: 'currentPi', label: 'Current PI', name: piSettings.currentPi });
-  if (piSettings.nextPi)    pis.push({ key: 'nextPi',    label: 'Next PI',    name: piSettings.nextPi });
+  if (piSettings.currentPi)
+    pis.push({ key: 'currentPi', label: 'Current PI', name: piSettings.currentPi });
+  if (piSettings.nextPi) pis.push({ key: 'nextPi', label: 'Next PI', name: piSettings.nextPi });
 
   if (!pis.length) {
-    tabs.innerHTML = '<div class="pi-config-empty">Set PI versions in swimlane headers first.</div>';
+    tabs.innerHTML =
+      '<div class="pi-config-empty">Set PI versions in swimlane headers first.</div>';
     document.getElementById('pi-config-sprints').innerHTML = '';
     return;
   }
 
-  tabs.innerHTML = pis.map(p =>
-    `<button class="pi-config-tab${_piConfigActivePi === p.name ? ' active' : ''}"
+  tabs.innerHTML = pis
+    .map(
+      (p) =>
+        `<button class="pi-config-tab${_piConfigActivePi === p.name ? ' active' : ''}"
              onclick="selectPiConfigTab('${escHtml(p.name)}')">${escHtml(p.label)}<span class="pi-config-tab-name">${escHtml(p.name)}</span></button>`
-  ).join('');
+    )
+    .join('');
 
   if (!_piConfigActivePi) selectPiConfigTab(pis[0].name);
 }
@@ -34,7 +39,7 @@ export function renderPiConfigTabs() {
 export async function selectPiConfigTab(piName) {
   _piConfigActivePi = piName;
   // Update active tab style
-  document.querySelectorAll('.pi-config-tab').forEach(t => {
+  document.querySelectorAll('.pi-config-tab').forEach((t) => {
     t.classList.toggle('active', t.textContent.includes(piName));
   });
   await loadSprintConfigForPi(piName);
@@ -43,12 +48,15 @@ export async function selectPiConfigTab(piName) {
 export async function loadSprintConfigForPi(piName) {
   try {
     const data = await fetchJSON(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
-    const sprints = data.sprints && data.sprints.length ? data.sprints : [
-      { name: 'Sprint 1', capacity: 40 },
-      { name: 'Sprint 2', capacity: 40 },
-      { name: 'Sprint 3', capacity: 40 },
-      { name: 'Sprint 4', capacity: 40 },
-    ];
+    const sprints =
+      data.sprints && data.sprints.length
+        ? data.sprints
+        : [
+            { name: 'Sprint 1', capacity: 40 },
+            { name: 'Sprint 2', capacity: 40 },
+            { name: 'Sprint 3', capacity: 40 },
+            { name: 'Sprint 4', capacity: 40 },
+          ];
     sprintConfig[piName] = sprints;
     renderSprintRows(sprints);
   } catch {
@@ -59,10 +67,13 @@ export async function loadSprintConfigForPi(piName) {
 export function renderSprintRows(sprints) {
   const container = document.getElementById('pi-config-sprints');
   if (!sprints.length) {
-    container.innerHTML = '<div class="pi-config-empty">No sprints defined. Click "+ Add Sprint".</div>';
+    container.innerHTML =
+      '<div class="pi-config-empty">No sprints defined. Click "+ Add Sprint".</div>';
     return;
   }
-  container.innerHTML = sprints.map((s, i) => `
+  container.innerHTML = sprints
+    .map(
+      (s, i) => `
     <div class="pi-config-sprint-row" data-idx="${i}">
       <input class="pi-config-sprint-name" type="text" value="${escHtml(s.name)}" placeholder="Sprint name" />
       <div class="pi-config-capacity-wrap">
@@ -71,7 +82,9 @@ export function renderSprintRows(sprints) {
       </div>
       <button class="pi-config-remove-btn" onclick="removeSprintRow(${i})" title="Remove sprint">&times;</button>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 }
 
 export function addSprintRow() {
@@ -94,10 +107,12 @@ export function removeSprintRow(index) {
 
 export function collectSprintRows() {
   const rows = document.querySelectorAll('.pi-config-sprint-row');
-  return Array.from(rows).map(row => ({
-    name: row.querySelector('.pi-config-sprint-name').value.trim(),
-    capacity: Number(row.querySelector('.pi-config-sprint-cap').value) || 0,
-  })).filter(s => s.name);
+  return Array.from(rows)
+    .map((row) => ({
+      name: row.querySelector('.pi-config-sprint-name').value.trim(),
+      capacity: Number(row.querySelector('.pi-config-sprint-cap').value) || 0,
+    }))
+    .filter((s) => s.name);
 }
 
 export async function saveSprintConfig() {
@@ -113,7 +128,10 @@ export async function saveSprintConfig() {
   btn.textContent = 'Saving…';
 
   try {
-    const data = await putJSON(`/api/settings/pi/sprints/${encodeURIComponent(_piConfigActivePi)}`, { sprints });
+    const data = await putJSON(
+      `/api/settings/pi/sprints/${encodeURIComponent(_piConfigActivePi)}`,
+      { sprints }
+    );
     sprintConfig[_piConfigActivePi] = data.sprints;
     renderSprintRows(data.sprints);
     setPiConfigStatus('success', 'Sprint configuration saved.');
@@ -129,7 +147,10 @@ export function setPiConfigStatus(type, message) {
   const el = document.getElementById('pi-config-status');
   el.className = `pi-config-status${type !== 'hidden' ? ' show ' + type : ''}`;
   el.textContent = message || '';
-  if (type === 'success') setTimeout(() => { el.className = 'pi-config-status'; }, 3000);
+  if (type === 'success')
+    setTimeout(() => {
+      el.className = 'pi-config-status';
+    }, 3000);
 }
 
 // Load sprint config for both PIs (called during init) — parallel fetches
@@ -138,14 +159,18 @@ export async function loadAllSprintConfigs() {
 
   const [, thresholdRes] = await Promise.all([
     // Fetch all PI sprint configs in parallel
-    Promise.all(pis.map(async (piName) => {
-      try {
-        const data = await fetchJSON(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
-        if (data.sprints && data.sprints.length) {
-          sprintConfig[piName] = data.sprints;
+    Promise.all(
+      pis.map(async (piName) => {
+        try {
+          const data = await fetchJSON(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
+          if (data.sprints && data.sprints.length) {
+            sprintConfig[piName] = data.sprints;
+          }
+        } catch (e) {
+          console.warn(`Failed to load sprint config for ${piName}:`, e.message);
         }
-      } catch (e) { console.warn(`Failed to load sprint config for ${piName}:`, e.message); }
-    })),
+      })
+    ),
     // Fetch split threshold in parallel with sprint configs
     fetchJSON('/api/settings/pi/split-threshold').catch(() => null),
   ]);
@@ -165,7 +190,9 @@ export async function saveSplitThreshold(value) {
     splitThreshold = val;
     refreshRoadmapView();
     setPiConfigStatus('success', `Split threshold set to ${val} SP`);
-  } catch (e) { console.warn('Failed to save split threshold:', e.message); }
+  } catch (e) {
+    console.warn('Failed to save split threshold:', e.message);
+  }
 }
 
 // Get sprint names for a given PI version name

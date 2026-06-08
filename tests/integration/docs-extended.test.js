@@ -22,27 +22,39 @@ after(async () => {
 function ssePost(url, body) {
   const events = [];
   return new Promise((resolve, reject) => {
-    const parsed  = new URL(url);
+    const parsed = new URL(url);
     const bodyStr = JSON.stringify(body || {});
     const req = http.request(
-      { hostname: parsed.hostname, port: parsed.port, path: parsed.pathname, method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) } },
+      {
+        hostname: parsed.hostname,
+        port: parsed.port,
+        path: parsed.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(bodyStr),
+        },
+      },
       (res) => {
         let buf = '';
         res.setEncoding('utf8');
-        res.on('data', chunk => {
+        res.on('data', (chunk) => {
           buf += chunk;
           const lines = buf.split('\n');
           buf = lines.pop();
           for (const line of lines) {
             if (line.startsWith('data: ')) {
-              try { events.push(JSON.parse(line.slice(6))); } catch {}
+              try {
+                events.push(JSON.parse(line.slice(6)));
+              } catch {
+                /* no-op */
+              }
             }
           }
         });
         res.on('end', () => resolve({ status: res.statusCode, events }));
         res.on('error', reject);
-      },
+      }
     );
     req.on('error', reject);
     req.write(bodyStr);
@@ -55,8 +67,14 @@ describe('POST /api/docs/batch-delete', () => {
   let epicA, epicB;
 
   before(async () => {
-    const { data: a } = await api('POST', '/api/generate', { idea: 'Batch delete epic A', type: 'epic' });
-    const { data: b } = await api('POST', '/api/generate', { idea: 'Batch delete epic B', type: 'epic' });
+    const { data: a } = await api('POST', '/api/generate', {
+      idea: 'Batch delete epic A',
+      type: 'epic',
+    });
+    const { data: b } = await api('POST', '/api/generate', {
+      idea: 'Batch delete epic B',
+      type: 'epic',
+    });
     epicA = a.filename;
     epicB = b.filename;
   });
@@ -84,7 +102,10 @@ describe('POST /api/docs/batch-delete', () => {
   });
 
   test('skips non-existent files and reports them', async () => {
-    const { data: doc } = await api('POST', '/api/generate', { idea: 'Batch delete survivor', type: 'epic' });
+    const { data: doc } = await api('POST', '/api/generate', {
+      idea: 'Batch delete survivor',
+      type: 'epic',
+    });
     const { status, data } = await api('POST', '/api/docs/batch-delete', {
       docs: [
         { type: 'epic', filename: doc.filename },
@@ -112,8 +133,8 @@ describe('POST /api/docs/distribute', () => {
     });
     // Create a story with Fix_Version set to this PI
     await api('POST', '/api/generate', {
-      idea:       'Distribute story for sprint assignment',
-      type:       'story',
+      idea: 'Distribute story for sprint assignment',
+      type: 'story',
       fixVersion: PI_NAME,
     });
   });
@@ -153,9 +174,14 @@ describe('POST /api/docs/split-story', () => {
   });
 
   test('returns 400 when targetCount is not a number', async () => {
-    const { data: doc } = await api('POST', '/api/generate', { idea: 'Split count test', type: 'story' });
+    const { data: doc } = await api('POST', '/api/generate', {
+      idea: 'Split count test',
+      type: 'story',
+    });
     const { status, data } = await api('POST', '/api/docs/split-story', {
-      filename: doc.filename, docType: 'story', targetCount: 'abc',
+      filename: doc.filename,
+      docType: 'story',
+      targetCount: 'abc',
     });
     assert.equal(status, 400);
     assert.equal(data.error.code, 'VALIDATION_ERROR');
@@ -163,7 +189,9 @@ describe('POST /api/docs/split-story', () => {
 
   test('returns 404 when source file does not exist', async () => {
     const { status, data } = await api('POST', '/api/docs/split-story', {
-      filename: 'nonexistent-story.md', docType: 'story', targetCount: 2,
+      filename: 'nonexistent-story.md',
+      docType: 'story',
+      targetCount: 2,
     });
     assert.equal(status, 404);
     assert.equal(data.error.code, 'NOT_FOUND');
@@ -172,11 +200,16 @@ describe('POST /api/docs/split-story', () => {
   test('streams SSE events for an existing story (mock returns error event)', async () => {
     // Mock Claude does not produce ===SPLIT=== content, so an SSE error event is sent.
     // This verifies the SSE setup, streaming pipeline, and error-path event format.
-    const { data: doc } = await api('POST', '/api/generate', { idea: 'Story to split SSE test', type: 'story' });
-    const { status, events } = await ssePost(`${baseUrl}/api/docs/split-story`, {
-      filename: doc.filename, docType: 'story', targetCount: 2,
+    const { data: doc } = await api('POST', '/api/generate', {
+      idea: 'Story to split SSE test',
+      type: 'story',
     });
-    assert.equal(status, 200);           // SSE response always 200 at transport level
+    const { status, events } = await ssePost(`${baseUrl}/api/docs/split-story`, {
+      filename: doc.filename,
+      docType: 'story',
+      targetCount: 2,
+    });
+    assert.equal(status, 200); // SSE response always 200 at transport level
     assert.ok(events.length > 0, 'should receive at least one SSE event');
     // The mock can't produce a valid split, so we expect a text chunk + error event
     const lastEvent = events[events.length - 1];
@@ -190,13 +223,15 @@ describe('POST /api/doc/:type/:filename/upgrade', () => {
 
   before(async () => {
     const { data } = await api('POST', '/api/generate', {
-      idea:   'Upgrade endpoint test epic',
-      title:  'Upgrade Test Epic',
-      type:   'epic',
+      idea: 'Upgrade endpoint test epic',
+      title: 'Upgrade Test Epic',
+      type: 'epic',
     });
     epicFilename = data.filename;
     // Set a known status so we can verify it is preserved
-    await api('PATCH', `/api/doc/epic/${encodeURIComponent(epicFilename)}`, { status: 'Created in JIRA' });
+    await api('PATCH', `/api/doc/epic/${encodeURIComponent(epicFilename)}`, {
+      status: 'Created in JIRA',
+    });
   });
 
   test('returns 404 when document does not exist', async () => {
@@ -210,11 +245,11 @@ describe('POST /api/doc/:type/:filename/upgrade', () => {
   test('streams upgraded content and sends done:true (mock Claude)', async () => {
     const { status, events } = await ssePost(
       `${baseUrl}/api/doc/epic/${encodeURIComponent(epicFilename)}/upgrade`,
-      { feedback: 'Sharpen the objective and add more concrete KPIs' },
+      { feedback: 'Sharpen the objective and add more concrete KPIs' }
     );
     assert.equal(status, 200);
     assert.ok(events.length > 0, 'should receive at least one SSE event');
-    const doneEvent = events.find(e => e.done === true);
+    const doneEvent = events.find((e) => e.done === true);
     assert.ok(doneEvent, 'should receive a done:true event');
     assert.ok(typeof doneEvent.content === 'string', 'done event should include content');
   });
@@ -228,10 +263,10 @@ describe('POST /api/doc/:type/:filename/upgrade', () => {
   test('streams an SSE error event when feedback is missing', async () => {
     const { status, events } = await ssePost(
       `${baseUrl}/api/doc/epic/${encodeURIComponent(epicFilename)}/upgrade`,
-      { feedback: '' },
+      { feedback: '' }
     );
     assert.equal(status, 200);
-    const errEvent = events.find(e => e.error);
+    const errEvent = events.find((e) => e.error);
     assert.ok(errEvent, 'should receive an SSE error event');
     assert.equal(errEvent.error.code, 'VALIDATION_ERROR');
   });

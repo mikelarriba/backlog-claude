@@ -48,10 +48,26 @@
   transition: all 0.12s;
 }
 
-.btn-xs:hover { color: var(--text); border-color: var(--muted); background: var(--surface2); }
-.btn-xs:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-xs.green  { color: var(--upgrade-color); border-color: var(--upgrade-border); }
-.btn-xs.green:hover { background: var(--upgrade-bg); }
-.btn-xs.red    { color: var(--error-text); border-color: var(--error-border); }
-.btn-xs.red:hover { background: var(--error-bg); }
-
+.btn-xs:hover {
+  color: var(--text);
+  border-color: var(--muted);
+  background: var(--surface2);
+}
+.btn-xs:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-xs.green {
+  color: var(--upgrade-color);
+  border-color: var(--upgrade-border);
+}
+.btn-xs.green:hover {
+  background: var(--upgrade-bg);
+}
+.btn-xs.red {
+  color: var(--error-text);
+  border-color: var(--error-border);
+}
+.btn-xs.red:hover {
+  background: var(--error-bg);
+}

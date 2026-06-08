@@ -16,7 +16,11 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 24px 22px;
-  transition: background 0.2s, border-color 0.2s, width 0.25s ease, padding 0.25s ease;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    width 0.25s ease,
+    padding 0.25s ease;
   min-width: 0;
 }
 
@@ -51,9 +55,14 @@
   color: var(--text-muted);
   font-size: 13px;
   letter-spacing: 1px;
-  transition: color 0.12s, background 0.12s;
+  transition:
+    color 0.12s,
+    background 0.12s;
 }
-.left-toggle-btn:hover { color: var(--text); background: var(--surface2); }
+.left-toggle-btn:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
 
 /* When collapsed: bottom-left button to reopen */
 .app.left-collapsed .left-toggle-btn {
@@ -73,9 +82,14 @@
   letter-spacing: 1px;
   color: var(--text-muted);
 }
-.app.left-collapsed .left-toggle-btn:hover { color: var(--text); background: var(--surface2); }
+.app.left-collapsed .left-toggle-btn:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
 @media (max-width: 820px) {
-  .left-toggle-btn { display: none; }
+  .left-toggle-btn {
+    display: none;
+  }
 }
 
 /* ── Logo / App header ───────────────────────────────────────── */
@@ -105,7 +119,11 @@
   color: #fff;
 }
 
-.logo h1 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+.logo h1 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
 
 .subtitle {
   font-size: 0.78rem;
@@ -138,13 +156,23 @@
   cursor: pointer;
   color: var(--muted);
   padding: 0;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
   line-height: 1;
 }
 
-.theme-btn:hover { color: var(--text); background: var(--border); }
-.theme-btn.active { background: var(--accent); color: #fff; }
-.theme-btn:active { transform: none; }
+.theme-btn:hover {
+  color: var(--text);
+  background: var(--border);
+}
+.theme-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+.theme-btn:active {
+  transform: none;
+}
 
 /* ── Right Panel ─────────────────────────────────────────────── */
 .right {
@@ -174,7 +202,7 @@
     grid-template-rows: auto 1fr;
   }
   .left {
-    display: none;           /* hide generation form — backlog list is primary UI */
+    display: none; /* hide generation form — backlog list is primary UI */
   }
   .right {
     height: 100vh;

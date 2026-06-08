@@ -8,13 +8,13 @@ import path from 'node:path';
 let tmpDir, inboxDir, epicsDir;
 
 before(() => {
-  tmpDir    = fs.mkdtempSync(path.join(os.tmpdir(), 'inbox-test-'));
-  inboxDir  = path.join(tmpDir, 'inbox');
-  epicsDir  = path.join(tmpDir, 'epics');
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inbox-test-'));
+  inboxDir = path.join(tmpDir, 'inbox');
+  epicsDir = path.join(tmpDir, 'epics');
   fs.mkdirSync(inboxDir, { recursive: true });
   fs.mkdirSync(epicsDir, { recursive: true });
   process.env.INBOX_MAX_RETRIES = '2';
-  process.env.AUDIT_LOG_PATH    = 'none';
+  process.env.AUDIT_LOG_PATH = 'none';
 });
 
 after(() => {
@@ -44,7 +44,9 @@ function makeOptions({ callClaude }) {
   };
 }
 
-function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+function wait(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 describe('inboxWatcher retry', () => {
   test('successfully processes an inbox file on first attempt', async () => {
@@ -62,7 +64,7 @@ describe('inboxWatcher retry', () => {
     await wait(500);
 
     assert.ok(fs.existsSync(path.join(epicsDir, filename)), 'epic file should be created');
-    assert.ok(opts.broadcasts.some(e => e.type === 'epic_created'));
+    assert.ok(opts.broadcasts.some((e) => e.type === 'epic_created'));
   });
 
   test('retries on failure then moves to errors dir after max retries', async () => {
@@ -85,14 +87,22 @@ describe('inboxWatcher retry', () => {
 
     assert.equal(calls, 2, 'should have tried exactly INBOX_MAX_RETRIES=2 times');
     assert.ok(!fs.existsSync(path.join(inboxDir, filename)), 'file should not remain in inbox');
-    assert.ok(fs.existsSync(path.join(inboxDir, 'errors', filename)), 'file should be in errors dir');
-    assert.ok(fs.existsSync(path.join(inboxDir, 'errors', `${filename}.error.json`)), 'error JSON should exist');
+    assert.ok(
+      fs.existsSync(path.join(inboxDir, 'errors', filename)),
+      'file should be in errors dir'
+    );
+    assert.ok(
+      fs.existsSync(path.join(inboxDir, 'errors', `${filename}.error.json`)),
+      'error JSON should exist'
+    );
 
-    const errorMeta = JSON.parse(fs.readFileSync(path.join(inboxDir, 'errors', `${filename}.error.json`), 'utf-8'));
+    const errorMeta = JSON.parse(
+      fs.readFileSync(path.join(inboxDir, 'errors', `${filename}.error.json`), 'utf-8')
+    );
     assert.equal(errorMeta.attempts, 2);
     assert.ok(errorMeta.lastError.includes('Claude unavailable'));
     assert.ok(errorMeta.timestamp);
 
-    assert.ok(opts.broadcasts.some(e => e.type === 'inbox-error' && e.filename === filename));
+    assert.ok(opts.broadcasts.some((e) => e.type === 'inbox-error' && e.filename === filename));
   });
 });

@@ -4,7 +4,8 @@
 import fs from 'fs';
 import path from 'path';
 import {
-  extractTitle, extractWorkflowStatus,
+  extractTitle,
+  extractWorkflowStatus,
   extractFrontmatterField,
 } from '../utils/transforms.js';
 import { createLogger } from '../utils/logger.js';
@@ -23,28 +24,49 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     let parentType: string | null = null;
     if (docType === 'epic') {
       const val = extractFrontmatterField(content, 'Feature_ID');
-      if (val && val !== 'TBD') { parentFilename = val; parentType = 'feature'; }
+      if (val && val !== 'TBD') {
+        parentFilename = val;
+        parentType = 'feature';
+      }
     } else if (['story', 'spike', 'bug'].includes(docType)) {
       const val = extractFrontmatterField(content, 'Epic_ID');
-      if (val && val !== 'TBD') { parentFilename = val; parentType = 'epic'; }
+      if (val && val !== 'TBD') {
+        parentFilename = val;
+        parentType = 'epic';
+      }
     }
 
-    const fixVersion   = extractFrontmatterField(content, 'Fix_Version');
-    const jiraId       = extractFrontmatterField(content, 'JIRA_ID');
-    const jiraUrl      = extractFrontmatterField(content, 'JIRA_URL');
-    const storyPoints  = extractFrontmatterField(content, 'Story_Points');
-    const sprint       = extractFrontmatterField(content, 'Sprint');
-    const priority     = extractFrontmatterField(content, 'Priority') || 'Medium';
-    const rankRaw      = extractFrontmatterField(content, 'Rank');
-    const blocksRaw    = extractFrontmatterField(content, 'Blocks');
+    const fixVersion = extractFrontmatterField(content, 'Fix_Version');
+    const jiraId = extractFrontmatterField(content, 'JIRA_ID');
+    const jiraUrl = extractFrontmatterField(content, 'JIRA_URL');
+    const storyPoints = extractFrontmatterField(content, 'Story_Points');
+    const sprint = extractFrontmatterField(content, 'Sprint');
+    const priority = extractFrontmatterField(content, 'Priority') || 'Medium';
+    const rankRaw = extractFrontmatterField(content, 'Rank');
+    const blocksRaw = extractFrontmatterField(content, 'Blocks');
     const blockedByRaw = extractFrontmatterField(content, 'Blocked_By');
-    const parallelRaw  = extractFrontmatterField(content, 'Parallel');
-    const blocks    = blocksRaw    ? blocksRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
-    const blockedBy = blockedByRaw ? blockedByRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
-    const parallel  = parallelRaw  ? parallelRaw.split(',').map(s => s.trim()).filter(s => s && s !== 'TBD') : [];
-    const piRaw         = extractFrontmatterField(content, 'PI');
-    const teamRaw       = extractFrontmatterField(content, 'Team');
-    const workCatRaw    = extractFrontmatterField(content, 'Work_Category');
+    const parallelRaw = extractFrontmatterField(content, 'Parallel');
+    const blocks = blocksRaw
+      ? blocksRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s && s !== 'TBD')
+      : [];
+    const blockedBy = blockedByRaw
+      ? blockedByRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s && s !== 'TBD')
+      : [];
+    const parallel = parallelRaw
+      ? parallelRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s && s !== 'TBD')
+      : [];
+    const piRaw = extractFrontmatterField(content, 'PI');
+    const teamRaw = extractFrontmatterField(content, 'Team');
+    const workCatRaw = extractFrontmatterField(content, 'Work_Category');
 
     let body = content;
     if (body.startsWith('---')) {
@@ -52,28 +74,32 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
       if (end > -1) body = body.slice(end + 4);
     }
     body = body.replace(/^#{1,2}\s+.+$/m, '').trim();
-    body = body.replace(/_No description in JIRA\._/gi, '').replace(/\bTBD\b/g, '').trim();
+    body = body
+      .replace(/_No description in JIRA\._/gi, '')
+      .replace(/\bTBD\b/g, '')
+      .trim();
 
     return {
       filename,
       docType,
-      title:          extractTitle(content) || filename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''),
-      date:           dateMatch ? dateMatch[1] : '',
-      status:         extractWorkflowStatus(content),
-      fixVersion:     fixVersion  && fixVersion  !== 'TBD' ? fixVersion  : null,
-      jiraId:         jiraId      && jiraId      !== 'TBD' ? jiraId      : null,
-      jiraUrl:        jiraUrl     || null,
-      storyPoints:    storyPoints && storyPoints !== 'TBD' ? Number(storyPoints) || null : null,
-      sprint:         sprint      && sprint      !== 'TBD' ? sprint      : null,
-      rank:           rankRaw && !isNaN(Number(rankRaw)) ? Number(rankRaw) : null,
+      title:
+        extractTitle(content) || filename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''),
+      date: dateMatch ? dateMatch[1] : '',
+      status: extractWorkflowStatus(content),
+      fixVersion: fixVersion && fixVersion !== 'TBD' ? fixVersion : null,
+      jiraId: jiraId && jiraId !== 'TBD' ? jiraId : null,
+      jiraUrl: jiraUrl || null,
+      storyPoints: storyPoints && storyPoints !== 'TBD' ? Number(storyPoints) || null : null,
+      sprint: sprint && sprint !== 'TBD' ? sprint : null,
+      rank: rankRaw && !isNaN(Number(rankRaw)) ? Number(rankRaw) : null,
       priority,
       parentFilename,
       parentType,
       blocks,
       blockedBy,
       parallel,
-      pi:           piRaw      && piRaw      !== 'TBD' ? piRaw      : null,
-      team:         teamRaw    && teamRaw    !== 'TBD' ? teamRaw    : null,
+      pi: piRaw && piRaw !== 'TBD' ? piRaw : null,
+      team: teamRaw && teamRaw !== 'TBD' ? teamRaw : null,
       workCategory: workCatRaw && workCatRaw !== 'TBD' ? workCatRaw : null,
       hasDescription: body.length > 30,
       descriptionSnippet: body.length > 30 ? body.slice(0, 150) : null,
@@ -88,7 +114,9 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
       const dir = cfg.dir();
       if (!fs.existsSync(dir)) continue;
-      const files = (await fs.promises.readdir(dir)).filter(f => f.endsWith('.md') && f !== '.gitkeep');
+      const files = (await fs.promises.readdir(dir)).filter(
+        (f) => f.endsWith('.md') && f !== '.gitkeep'
+      );
       for (const f of files) {
         entries.push({ docType, dir, f });
       }
@@ -100,7 +128,9 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
           const entry = await _buildEntry(docType, dir, f);
           return { f, entry };
         } catch (err) {
-          logWarn('build', `skipping unreadable file ${f}`, { error: err instanceof Error ? err.message : String(err) });
+          logWarn('build', `skipping unreadable file ${f}`, {
+            error: err instanceof Error ? err.message : String(err),
+          });
           return null;
         }
       })
@@ -125,14 +155,22 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
   // Rebuild a single entry after a write; remove it after a delete.
   async function invalidate(docType: string, filename: string): Promise<void> {
     const cfg = TYPE_CONFIG[docType];
-    if (!cfg) { _map.delete(filename); return; }
+    if (!cfg) {
+      _map.delete(filename);
+      return;
+    }
     const filepath = path.join(cfg.dir(), filename);
-    if (!fs.existsSync(filepath)) { _map.delete(filename); return; }
+    if (!fs.existsSync(filepath)) {
+      _map.delete(filename);
+      return;
+    }
     try {
       const entry = await _buildEntry(docType, cfg.dir(), filename);
       _map.set(filename, entry);
     } catch (err) {
-      logWarn('invalidate', `could not rebuild entry for ${filename}`, { error: err instanceof Error ? err.message : String(err) });
+      logWarn('invalidate', `could not rebuild entry for ${filename}`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
       _map.delete(filename);
     }
   }
@@ -153,6 +191,13 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     return null;
   }
 
-  const docIndex: DocIndexInstance = { build, getAll, get, invalidate, invalidateAll, findByJiraId };
+  const docIndex: DocIndexInstance = {
+    build,
+    getAll,
+    get,
+    invalidate,
+    invalidateAll,
+    findByJiraId,
+  };
   return docIndex;
 }

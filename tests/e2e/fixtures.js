@@ -13,7 +13,7 @@ export function clearDocsDir() {
   for (const sub of ['features', 'epics', 'stories', 'spikes', 'bugs']) {
     const dir = path.join(E2E_DOCS_ROOT, sub);
     if (fs.existsSync(dir)) {
-      for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
+      for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.md'))) {
         fs.unlinkSync(path.join(dir, f));
       }
     }
@@ -29,9 +29,12 @@ export function createFixtureDoc(type, overrides = {}) {
   const dir = path.join(E2E_DOCS_ROOT, `${type}s`);
   fs.mkdirSync(dir, { recursive: true });
 
-  const date  = new Date().toISOString().slice(0, 10);
+  const date = new Date().toISOString().slice(0, 10);
   const title = overrides.title || `Fixture ${type} ${Date.now()}`;
-  const slug  = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .slice(0, 40);
   const filename = `${date}-${slug}.md`;
 
   const content = `---

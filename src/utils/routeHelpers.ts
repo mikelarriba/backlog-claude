@@ -12,7 +12,13 @@ interface ApiError {
   details?: any;
 }
 
-export function sendError(res: Response, status: number, code: string, message: string, details: any = null): Response {
+export function sendError(
+  res: Response,
+  status: number,
+  code: string,
+  message: string,
+  details: any = null
+): Response {
   return res.status(status).json({
     error: {
       code,
@@ -26,7 +32,11 @@ export function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-export function parseApiError(err: any, fallbackCode = 'INTERNAL_ERROR', fallbackMessage = 'Unexpected server error'): ApiError {
+export function parseApiError(
+  err: any,
+  fallbackCode = 'INTERNAL_ERROR',
+  fallbackMessage = 'Unexpected server error'
+): ApiError {
   if (!err) return { code: fallbackCode, message: fallbackMessage };
   if (err instanceof ValidationError) return { code: 'VALIDATION_ERROR', message: err.message };
   if (typeof err === 'string') return { code: fallbackCode, message: err };
@@ -38,7 +48,9 @@ export function parseApiError(err: any, fallbackCode = 'INTERNAL_ERROR', fallbac
 }
 
 export function normalizeType(value: any): string {
-  return String(value || '').toLowerCase().trim();
+  return String(value || '')
+    .toLowerCase()
+    .trim();
 }
 
 export function assertDocType(type: any, TYPE_CONFIG: Record<string, any>): string {
@@ -65,7 +77,7 @@ export function assertStatus(status: string): void {
 
 // Allow-list regex: lowercase alphanumeric + hyphens, must end in .md.
 // Rejects path traversal (../../), uppercase, spaces, and any other chars.
-const SAFE_FILENAME_RE = /^[a-z0-9][a-z0-9\-]*\.md$/;
+const SAFE_FILENAME_RE = /^[a-z0-9][a-z0-9-]*\.md$/;
 
 export function assertFilename(filename: any): string {
   const cleaned = path.basename(String(filename || '').trim());
@@ -79,7 +91,9 @@ export function assertFilename(filename: any): string {
 }
 
 export function assertBody(body: Record<string, any>, required: string[]): void {
-  const missing = required.filter(k => body[k] === undefined || body[k] === null || body[k] === '');
+  const missing = required.filter(
+    (k) => body[k] === undefined || body[k] === null || body[k] === ''
+  );
   if (missing.length) {
     throw {
       code: 'MISSING_FIELDS',
@@ -95,9 +109,12 @@ export function setupSSE(res: Response): void {
   res.setHeader('Connection', 'keep-alive');
 }
 
-export function resolveDocPath(req: Request, TYPE_CONFIG: Record<string, any>): { docType: string; cfg: any; filename: string; filepath: string } {
-  const docType  = assertDocType(req.params.type, TYPE_CONFIG);
-  const cfg      = TYPE_CONFIG[docType];
+export function resolveDocPath(
+  req: Request,
+  TYPE_CONFIG: Record<string, any>
+): { docType: string; cfg: any; filename: string; filepath: string } {
+  const docType = assertDocType(req.params.type, TYPE_CONFIG);
+  const cfg = TYPE_CONFIG[docType];
   const filename = assertFilename(req.params.filename);
   const filepath = path.join(cfg.dir(), filename);
   return { docType, cfg, filename, filepath };

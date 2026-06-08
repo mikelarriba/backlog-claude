@@ -38,36 +38,47 @@ Then include these sections:
 
 ```markdown
 ## Bug Title
+
 A concise title starting with a verb describing what is broken.
 Example: "Export job silently fails when test contains files larger than 5 GB"
 
 ## Summary
+
 One or two sentences describing the unexpected behaviour and its impact on users.
 
 ## Steps to Reproduce
+
 Numbered list of exact steps to trigger the bug.
+
 1. …
 2. …
 3. …
 
 ## Expected Behaviour
+
 What the user or system should see or experience.
 
 ## Actual Behaviour
+
 What actually happens instead.
 
 ## Environment
+
 - Affected component: [Frontend / Backend / Search / Upload / Export / other]
 - V1 / V2 / Both: [state which version is affected]
 
 ## Root Cause Hypothesis
+
 (Optional) If the reporter suspects a cause, note it here. Mark clearly as unconfirmed.
 
 ## Acceptance Criteria
+
 Gherkin format — define when this bug is considered fixed:
+
 - Given [context], When [action], Then [correct outcome].
 
 ## Out of Scope
+
 List what will NOT be addressed in this fix to prevent scope creep.
 ```
 

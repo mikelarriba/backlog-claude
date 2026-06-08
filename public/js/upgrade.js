@@ -2,7 +2,7 @@
 import { streamSSE, stripFrontmatter, TYPE_LABEL } from './state.js';
 
 export function toggleUpgradePanel() {
-  const panel  = document.getElementById('upgrade-panel');
+  const panel = document.getElementById('upgrade-panel');
   const isOpen = panel.classList.toggle('open');
   if (isOpen) {
     _prefillUpgradeIfDraft();
@@ -35,9 +35,12 @@ export function resetUpgradePanel() {
 export async function executeUpgrade() {
   if (!currentFilename || !currentDocType) return;
   const feedback = document.getElementById('upgrade-feedback').value.trim();
-  if (!feedback) { document.getElementById('upgrade-feedback').focus(); return; }
+  if (!feedback) {
+    document.getElementById('upgrade-feedback').focus();
+    return;
+  }
 
-  const btn    = document.getElementById('upgrade-run-btn');
+  const btn = document.getElementById('upgrade-run-btn');
   const stream = document.getElementById('upgrade-stream');
 
   btn.disabled = true;
@@ -51,19 +54,27 @@ export async function executeUpgrade() {
       `/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}/upgrade`,
       { feedback },
       {
-        onText:  (text) => { stream.style.display = 'block'; stream.textContent += text; },
-        onDone:  (payload) => { finalContent = payload.content; },
-        onError: (e) => { throw e; },
+        onText: (text) => {
+          stream.style.display = 'block';
+          stream.textContent += text;
+        },
+        onDone: (payload) => {
+          finalContent = payload.content;
+        },
+        onError: (e) => {
+          throw e;
+        },
       }
     );
 
     if (finalContent) {
-      document.getElementById('detail-content').innerHTML = marked.parse(stripFrontmatter(finalContent));
+      document.getElementById('detail-content').innerHTML = marked.parse(
+        stripFrontmatter(finalContent)
+      );
     }
     document.getElementById('upgrade-panel').classList.remove('open');
     resetUpgradePanel();
     btn.textContent = 'Regenerate';
-
   } catch (e) {
     stream.textContent += `\n\n❌ Error: ${e.message}`;
     btn.disabled = false;

@@ -32,14 +32,13 @@ export function watchInbox({
   logError,
 }: InboxWatcherOptions): void {
   ensureDir(INBOX_DIR);
-  const allDocDirs   = DOC_DIRS || [EPICS_DIR];
-  const _isClaimed   = isClaimedByApi || (() => false);
-  const maxRetries   = Number(process.env.INBOX_MAX_RETRIES) || DEFAULT_MAX_RETRIES;
+  const allDocDirs = DOC_DIRS || [EPICS_DIR];
+  const _isClaimed = isClaimedByApi || (() => false);
+  const maxRetries = Number(process.env.INBOX_MAX_RETRIES) || DEFAULT_MAX_RETRIES;
 
   // Skip if already saved to any doc dir OR if the API is currently generating it
   const shouldSkip = (filename: string): boolean =>
-    _isClaimed(filename) ||
-    allDocDirs.some(dir => fs.existsSync(path.join(dir, filename)));
+    _isClaimed(filename) || allDocDirs.some((dir) => fs.existsSync(path.join(dir, filename)));
 
   // Process existing inbox files sequentially to avoid spawning many claude subprocesses at once
   (async () => {
@@ -61,11 +60,11 @@ export function watchInbox({
 
   async function processInboxFile(filename: string): Promise<void> {
     logInfo('watchInbox', `New inbox file: ${filename}`);
-    const t          = Date.now();
-    const inboxPath  = path.join(INBOX_DIR, filename);
-    const errorsDir  = path.join(INBOX_DIR, 'errors');
-    let lastError    = '';
-    const delays     = [2000, 4000, 8000];
+    const t = Date.now();
+    const inboxPath = path.join(INBOX_DIR, filename);
+    const errorsDir = path.join(INBOX_DIR, 'errors');
+    let lastError = '';
+    const delays = [2000, 4000, 8000];
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -80,13 +79,19 @@ export function watchInbox({
         await fs.promises.writeFile(path.join(EPICS_DIR, filename), epicContent);
         broadcast({ type: 'epic_created', filename });
         logAudit({ op: 'create', docType: 'epic', filename, source: 'inbox' });
-        logInfo('watchInbox', `Inbox processed ${filename} → epics/${filename} in ${Date.now() - t}ms`);
+        logInfo(
+          'watchInbox',
+          `Inbox processed ${filename} → epics/${filename} in ${Date.now() - t}ms`
+        );
         return;
       } catch (err: unknown) {
         lastError = err instanceof Error ? err.message : String(err);
-        logError('watchInbox', `Attempt ${attempt}/${maxRetries} failed for ${filename}: ${lastError}`);
+        logError(
+          'watchInbox',
+          `Attempt ${attempt}/${maxRetries} failed for ${filename}: ${lastError}`
+        );
         if (attempt < maxRetries) {
-          await new Promise(r => setTimeout(r, delays[attempt - 1] ?? 8000));
+          await new Promise((r) => setTimeout(r, delays[attempt - 1] ?? 8000));
         }
       }
     }
@@ -105,9 +110,15 @@ export function watchInbox({
         JSON.stringify(errorMeta, null, 2)
       );
       broadcast({ type: 'inbox-error', filename, error: lastError });
-      logError('watchInbox', `Moved ${filename} to inbox/errors after ${maxRetries} failed attempts`);
+      logError(
+        'watchInbox',
+        `Moved ${filename} to inbox/errors after ${maxRetries} failed attempts`
+      );
     } catch (moveErr: unknown) {
-      logError('watchInbox', `Failed to move ${filename} to errors dir: ${moveErr instanceof Error ? moveErr.message : String(moveErr)}`);
+      logError(
+        'watchInbox',
+        `Failed to move ${filename} to errors dir: ${moveErr instanceof Error ? moveErr.message : String(moveErr)}`
+      );
     }
   }
 }

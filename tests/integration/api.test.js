@@ -35,7 +35,10 @@ describe('GET /api/docs', () => {
     const { filename } = cd;
 
     const { data: docs } = await api('GET', '/api/docs');
-    assert.ok(docs.some(d => d.filename === filename), 'new doc should appear in index');
+    assert.ok(
+      docs.some((d) => d.filename === filename),
+      'new doc should appear in index'
+    );
   });
 
   test('index invalidation: delete doc → GET /api/docs excludes it', async () => {
@@ -48,7 +51,10 @@ describe('GET /api/docs', () => {
     await api('DELETE', `/api/doc/spike/${encodeURIComponent(filename)}`);
 
     const { data: docs } = await api('GET', '/api/docs');
-    assert.ok(!docs.some(d => d.filename === filename), 'deleted doc should be absent from index');
+    assert.ok(
+      !docs.some((d) => d.filename === filename),
+      'deleted doc should be absent from index'
+    );
   });
 });
 
@@ -114,7 +120,10 @@ describe('GET /api/doc/:type/:filename', () => {
   });
 
   test('returns 200 with content for an existing doc', async () => {
-    const { status, data } = await api('GET', `/api/doc/epic/${encodeURIComponent(createdFilename)}`);
+    const { status, data } = await api(
+      'GET',
+      `/api/doc/epic/${encodeURIComponent(createdFilename)}`
+    );
     assert.equal(status, 200);
     assert.equal(data.filename, createdFilename);
     assert.ok(typeof data.content === 'string');
@@ -154,7 +163,9 @@ describe('PATCH /api/doc/:type/:filename — update status', () => {
   });
 
   test('persists the new status in the file', async () => {
-    await api('PATCH', `/api/doc/epic/${encodeURIComponent(filename)}`, { status: 'Created in JIRA' });
+    await api('PATCH', `/api/doc/epic/${encodeURIComponent(filename)}`, {
+      status: 'Created in JIRA',
+    });
     const { data } = await api('GET', `/api/doc/epic/${encodeURIComponent(filename)}`);
     assert.match(data.content, /^Status: Created in JIRA$/m);
   });
@@ -204,7 +215,10 @@ describe('GET /api/links/:type/:filename', () => {
       idea: 'Unlinked epic for hierarchy test',
       type: 'epic',
     });
-    const { status, data } = await api('GET', `/api/links/epic/${encodeURIComponent(gen.filename)}`);
+    const { status, data } = await api(
+      'GET',
+      `/api/links/epic/${encodeURIComponent(gen.filename)}`
+    );
     assert.equal(status, 200);
     assert.equal(data.parent, null);
     assert.ok(Array.isArray(data.children));
@@ -221,31 +235,47 @@ describe('POST /api/link', () => {
   let epicFilename, storyFilename, featureFilename;
 
   before(async () => {
-    const { data: epic } = await api('POST', '/api/generate', { idea: 'Link target epic', type: 'epic' });
+    const { data: epic } = await api('POST', '/api/generate', {
+      idea: 'Link target epic',
+      type: 'epic',
+    });
     epicFilename = epic.filename;
-    const { data: story } = await api('POST', '/api/generate', { idea: 'Link source story', type: 'story' });
+    const { data: story } = await api('POST', '/api/generate', {
+      idea: 'Link source story',
+      type: 'story',
+    });
     storyFilename = story.filename;
-    const { data: feature } = await api('POST', '/api/generate', { idea: 'Link target feature', type: 'feature' });
+    const { data: feature } = await api('POST', '/api/generate', {
+      idea: 'Link target feature',
+      type: 'feature',
+    });
     featureFilename = feature.filename;
   });
 
   test('links a story to an epic and updates Epic_ID in frontmatter', async () => {
     const { status, data } = await api('POST', '/api/link', {
-      sourceType: 'story', sourceFilename: storyFilename,
-      targetType: 'epic',  targetFilename: epicFilename,
+      sourceType: 'story',
+      sourceFilename: storyFilename,
+      targetType: 'epic',
+      targetFilename: epicFilename,
     });
     assert.equal(status, 200);
     assert.equal(data.success, true);
     assert.equal(data.field, 'Epic_ID');
     // Verify frontmatter was updated on disk
     const { data: doc } = await api('GET', `/api/doc/story/${encodeURIComponent(storyFilename)}`);
-    assert.match(doc.content, new RegExp(`^Epic_ID: ${epicFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
+    assert.match(
+      doc.content,
+      new RegExp(`^Epic_ID: ${epicFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm')
+    );
   });
 
   test('links an epic to a feature and updates Feature_ID', async () => {
     const { status, data } = await api('POST', '/api/link', {
-      sourceType: 'epic',    sourceFilename: epicFilename,
-      targetType: 'feature', targetFilename: featureFilename,
+      sourceType: 'epic',
+      sourceFilename: epicFilename,
+      targetType: 'feature',
+      targetFilename: featureFilename,
     });
     assert.equal(status, 200);
     assert.equal(data.field, 'Feature_ID');
@@ -259,8 +289,10 @@ describe('POST /api/link', () => {
 
   test('returns 400 for invalid link direction', async () => {
     const { status, data } = await api('POST', '/api/link', {
-      sourceType: 'epic', sourceFilename: epicFilename,
-      targetType: 'story', targetFilename: storyFilename,
+      sourceType: 'epic',
+      sourceFilename: epicFilename,
+      targetType: 'story',
+      targetFilename: storyFilename,
     });
     assert.equal(status, 400);
     assert.equal(data.error.code, 'INVALID_LINK');
@@ -268,17 +300,24 @@ describe('POST /api/link', () => {
 
   test('returns 404 when source document does not exist', async () => {
     const { status } = await api('POST', '/api/link', {
-      sourceType: 'story', sourceFilename: 'nonexistent.md',
-      targetType: 'epic',  targetFilename: epicFilename,
+      sourceType: 'story',
+      sourceFilename: 'nonexistent.md',
+      targetType: 'epic',
+      targetFilename: epicFilename,
     });
     assert.equal(status, 404);
   });
 
   test('returns 404 when target document does not exist', async () => {
-    const { data: story } = await api('POST', '/api/generate', { idea: 'Link target check story', type: 'story' });
+    const { data: story } = await api('POST', '/api/generate', {
+      idea: 'Link target check story',
+      type: 'story',
+    });
     const { status, data } = await api('POST', '/api/link', {
-      sourceType: 'story', sourceFilename: story.filename,
-      targetType: 'epic',  targetFilename: 'nonexistent-epic.md',
+      sourceType: 'story',
+      sourceFilename: story.filename,
+      targetType: 'epic',
+      targetFilename: 'nonexistent-epic.md',
     });
     assert.equal(status, 404);
     assert.equal(data.error.code, 'NOT_FOUND');
@@ -290,32 +329,57 @@ describe('GET /api/links — with linked documents', () => {
   let epicFilename, storyFilename, featureFilename;
 
   before(async () => {
-    const { data: feature } = await api('POST', '/api/generate', { idea: 'Feature for link test', type: 'feature' });
+    const { data: feature } = await api('POST', '/api/generate', {
+      idea: 'Feature for link test',
+      type: 'feature',
+    });
     featureFilename = feature.filename;
-    const { data: epic } = await api('POST', '/api/generate', { idea: 'Epic for link test', type: 'epic' });
+    const { data: epic } = await api('POST', '/api/generate', {
+      idea: 'Epic for link test',
+      type: 'epic',
+    });
     epicFilename = epic.filename;
-    const { data: story } = await api('POST', '/api/generate', { idea: 'Story for link test', type: 'story' });
+    const { data: story } = await api('POST', '/api/generate', {
+      idea: 'Story for link test',
+      type: 'story',
+    });
     storyFilename = story.filename;
     // Link epic→feature and story→epic
-    await api('POST', '/api/link', { sourceType: 'epic', sourceFilename: epicFilename, targetType: 'feature', targetFilename: featureFilename });
-    await api('POST', '/api/link', { sourceType: 'story', sourceFilename: storyFilename, targetType: 'epic', targetFilename: epicFilename });
+    await api('POST', '/api/link', {
+      sourceType: 'epic',
+      sourceFilename: epicFilename,
+      targetType: 'feature',
+      targetFilename: featureFilename,
+    });
+    await api('POST', '/api/link', {
+      sourceType: 'story',
+      sourceFilename: storyFilename,
+      targetType: 'epic',
+      targetFilename: epicFilename,
+    });
   });
 
   test('epic links show parent feature and child story', async () => {
-    const { status, data } = await api('GET', `/api/links/epic/${encodeURIComponent(epicFilename)}`);
+    const { status, data } = await api(
+      'GET',
+      `/api/links/epic/${encodeURIComponent(epicFilename)}`
+    );
     assert.equal(status, 200);
     assert.ok(data.parent, 'should have a parent');
     assert.equal(data.parent.docType, 'feature');
     assert.equal(data.parent.filename, featureFilename);
     assert.ok(data.children.length >= 1);
-    assert.ok(data.children.some(c => c.filename === storyFilename));
+    assert.ok(data.children.some((c) => c.filename === storyFilename));
   });
 
   test('feature links show child epics', async () => {
-    const { status, data } = await api('GET', `/api/links/feature/${encodeURIComponent(featureFilename)}`);
+    const { status, data } = await api(
+      'GET',
+      `/api/links/feature/${encodeURIComponent(featureFilename)}`
+    );
     assert.equal(status, 200);
     assert.equal(data.parent, null);
-    assert.ok(data.children.some(c => c.filename === epicFilename));
+    assert.ok(data.children.some((c) => c.filename === epicFilename));
   });
 });
 
@@ -324,26 +388,51 @@ describe('GET /api/links/feature/:filename/deep', () => {
   let featureFilename, epicFilename, storyFilename;
 
   before(async () => {
-    const { data: feature } = await api('POST', '/api/generate', { idea: 'Deep feature test', type: 'feature' });
+    const { data: feature } = await api('POST', '/api/generate', {
+      idea: 'Deep feature test',
+      type: 'feature',
+    });
     featureFilename = feature.filename;
-    const { data: epic } = await api('POST', '/api/generate', { idea: 'Deep epic test', type: 'epic' });
+    const { data: epic } = await api('POST', '/api/generate', {
+      idea: 'Deep epic test',
+      type: 'epic',
+    });
     epicFilename = epic.filename;
-    const { data: story } = await api('POST', '/api/generate', { idea: 'Deep story test', type: 'story' });
+    const { data: story } = await api('POST', '/api/generate', {
+      idea: 'Deep story test',
+      type: 'story',
+    });
     storyFilename = story.filename;
-    await api('POST', '/api/link', { sourceType: 'epic', sourceFilename: epicFilename, targetType: 'feature', targetFilename: featureFilename });
-    await api('POST', '/api/link', { sourceType: 'story', sourceFilename: storyFilename, targetType: 'epic', targetFilename: epicFilename });
+    await api('POST', '/api/link', {
+      sourceType: 'epic',
+      sourceFilename: epicFilename,
+      targetType: 'feature',
+      targetFilename: featureFilename,
+    });
+    await api('POST', '/api/link', {
+      sourceType: 'story',
+      sourceFilename: storyFilename,
+      targetType: 'epic',
+      targetFilename: epicFilename,
+    });
   });
 
   test('returns feature + epics with their children in one call', async () => {
-    const { status, data } = await api('GET', `/api/links/feature/${encodeURIComponent(featureFilename)}/deep`);
+    const { status, data } = await api(
+      'GET',
+      `/api/links/feature/${encodeURIComponent(featureFilename)}/deep`
+    );
     assert.equal(status, 200);
     assert.equal(data.feature.filename, featureFilename);
     assert.ok(Array.isArray(data.epics));
-    const epic = data.epics.find(e => e.filename === epicFilename);
+    const epic = data.epics.find((e) => e.filename === epicFilename);
     assert.ok(epic, 'epic should appear in epics array');
     assert.equal(epic.docType, 'epic');
     assert.ok(Array.isArray(epic.children));
-    assert.ok(epic.children.some(c => c.filename === storyFilename), 'story should appear under epic children');
+    assert.ok(
+      epic.children.some((c) => c.filename === storyFilename),
+      'story should appear under epic children'
+    );
     assert.ok(Array.isArray(epic.blocks));
     assert.ok(Array.isArray(epic.parallel));
   });
@@ -359,9 +448,15 @@ describe('POST /api/docs/batch-fix-version', () => {
   let epicFilename, storyFilename;
 
   before(async () => {
-    const { data: epic } = await api('POST', '/api/generate', { idea: 'Batch version epic', type: 'epic' });
+    const { data: epic } = await api('POST', '/api/generate', {
+      idea: 'Batch version epic',
+      type: 'epic',
+    });
     epicFilename = epic.filename;
-    const { data: story } = await api('POST', '/api/generate', { idea: 'Batch version story', type: 'story' });
+    const { data: story } = await api('POST', '/api/generate', {
+      idea: 'Batch version story',
+      type: 'story',
+    });
     storyFilename = story.filename;
   });
 
@@ -379,7 +474,10 @@ describe('POST /api/docs/batch-fix-version', () => {
     // Verify on disk
     const { data: epicDoc } = await api('GET', `/api/doc/epic/${encodeURIComponent(epicFilename)}`);
     assert.match(epicDoc.content, /^Fix_Version: PI-2026\.1$/m);
-    const { data: storyDoc } = await api('GET', `/api/doc/story/${encodeURIComponent(storyFilename)}`);
+    const { data: storyDoc } = await api(
+      'GET',
+      `/api/doc/story/${encodeURIComponent(storyFilename)}`
+    );
     assert.match(storyDoc.content, /^Fix_Version: PI-2026\.1$/m);
   });
 
@@ -418,7 +516,10 @@ describe('PATCH /api/doc/:type/:filename — fixVersion update', () => {
   let filename;
 
   before(async () => {
-    const { data } = await api('POST', '/api/generate', { idea: 'Fix version patch test', type: 'epic' });
+    const { data } = await api('POST', '/api/generate', {
+      idea: 'Fix version patch test',
+      type: 'epic',
+    });
     filename = data.filename;
   });
 
@@ -433,7 +534,9 @@ describe('PATCH /api/doc/:type/:filename — fixVersion update', () => {
   });
 
   test('clears Fix_Version to TBD when empty string', async () => {
-    const { status } = await api('PATCH', `/api/doc/epic/${encodeURIComponent(filename)}`, { fixVersion: '' });
+    const { status } = await api('PATCH', `/api/doc/epic/${encodeURIComponent(filename)}`, {
+      fixVersion: '',
+    });
     assert.equal(status, 200);
     const { data: doc } = await api('GET', `/api/doc/epic/${encodeURIComponent(filename)}`);
     assert.match(doc.content, /^Fix_Version: TBD$/m);
@@ -444,10 +547,15 @@ describe('PATCH /api/doc/:type/:filename — fixVersion update', () => {
 
 describe('POST /api/link — target document validation', () => {
   test('returns 404 when target document does not exist', async () => {
-    const { data: story } = await api('POST', '/api/generate', { idea: 'Link source story v2', type: 'story' });
+    const { data: story } = await api('POST', '/api/generate', {
+      idea: 'Link source story v2',
+      type: 'story',
+    });
     const { status, data } = await api('POST', '/api/link', {
-      sourceType: 'story', sourceFilename: story.filename,
-      targetType: 'epic',  targetFilename: 'nonexistent-target.md',
+      sourceType: 'story',
+      sourceFilename: story.filename,
+      targetType: 'epic',
+      targetFilename: 'nonexistent-target.md',
     });
     assert.equal(status, 404);
     assert.equal(data.error.code, 'NOT_FOUND');
@@ -456,7 +564,9 @@ describe('POST /api/link — target document validation', () => {
 
 describe('PUT /api/settings/pi/split-threshold — upper bound validation', () => {
   test('returns 400 when splitThreshold exceeds 50', async () => {
-    const { status, data } = await api('PUT', '/api/settings/pi/split-threshold', { splitThreshold: 999 });
+    const { status, data } = await api('PUT', '/api/settings/pi/split-threshold', {
+      splitThreshold: 999,
+    });
     assert.equal(status, 400);
     assert.ok(data.error, 'should return an error');
   });
@@ -469,25 +579,33 @@ describe('PUT /api/settings/pi/split-threshold — upper bound validation', () =
 
 describe('PUT /api/settings/pi/sprints/:piName — sprint count validation', () => {
   test('returns 400 when more than 10 sprints are provided', async () => {
-    const sprints = Array.from({ length: 11 }, (_, i) => ({ name: `Sprint ${i + 1}`, capacity: 10 }));
+    const sprints = Array.from({ length: 11 }, (_, i) => ({
+      name: `Sprint ${i + 1}`,
+      capacity: 10,
+    }));
     const { status, data } = await api('PUT', '/api/settings/pi/sprints/myPI', { sprints });
     assert.equal(status, 400);
     assert.ok(data.error, 'should return an error');
   });
 
   test('accepts exactly 10 sprints', async () => {
-    const sprints = Array.from({ length: 10 }, (_, i) => ({ name: `Sprint ${i + 1}`, capacity: 10 }));
+    const sprints = Array.from({ length: 10 }, (_, i) => ({
+      name: `Sprint ${i + 1}`,
+      capacity: 10,
+    }));
     const { status } = await api('PUT', '/api/settings/pi/sprints/myPI', { sprints });
     assert.equal(status, 200);
   });
 });
 
-
 describe('PATCH /api/doc/:type/:filename — storyPoints validation', () => {
   let filename;
 
   before(async () => {
-    const { data } = await api('POST', '/api/generate', { idea: 'Story points test', type: 'story' });
+    const { data } = await api('POST', '/api/generate', {
+      idea: 'Story points test',
+      type: 'story',
+    });
     filename = data.filename;
   });
 
@@ -500,12 +618,16 @@ describe('PATCH /api/doc/:type/:filename — storyPoints validation', () => {
   });
 
   test('accepts storyPoints of 0', async () => {
-    const { status } = await api('PATCH', `/api/doc/story/${encodeURIComponent(filename)}`, { storyPoints: 0 });
+    const { status } = await api('PATCH', `/api/doc/story/${encodeURIComponent(filename)}`, {
+      storyPoints: 0,
+    });
     assert.equal(status, 200);
   });
 
   test('accepts positive storyPoints', async () => {
-    const { status } = await api('PATCH', `/api/doc/story/${encodeURIComponent(filename)}`, { storyPoints: 5 });
+    const { status } = await api('PATCH', `/api/doc/story/${encodeURIComponent(filename)}`, {
+      storyPoints: 5,
+    });
     assert.equal(status, 200);
   });
 });
@@ -528,7 +650,10 @@ describe('POST /api/docs/apply-distribution — entry validation', () => {
   });
 
   test('applies valid assignments successfully', async () => {
-    const { data: doc } = await api('POST', '/api/generate', { idea: 'Apply dist success test', type: 'story' });
+    const { data: doc } = await api('POST', '/api/generate', {
+      idea: 'Apply dist success test',
+      type: 'story',
+    });
     const { status, data } = await api('POST', '/api/docs/apply-distribution', {
       assignments: [{ docType: 'story', filename: doc.filename, sprint: 'Sprint 1' }],
     });
@@ -546,7 +671,9 @@ describe('SSE /api/events — event type per doc type', () => {
   function openSseConnection(url) {
     const events = [];
     let connectedResolve;
-    const connectedPromise = new Promise(r => { connectedResolve = r; });
+    const connectedPromise = new Promise((r) => {
+      connectedResolve = r;
+    });
 
     const req = http.request(url, (res) => {
       let buffer = '';
@@ -561,7 +688,9 @@ describe('SSE /api/events — event type per doc type', () => {
               const event = JSON.parse(line.slice(6));
               events.push(event);
               if (event.type === 'connected') connectedResolve();
-            } catch {}
+            } catch {
+              /* no-op */
+            }
           }
         }
       });
@@ -573,9 +702,9 @@ describe('SSE /api/events — event type per doc type', () => {
 
   for (const [type, expectedEvent] of [
     ['feature', 'feature_created'],
-    ['epic',    'epic_created'],
-    ['story',   'story_created'],
-    ['spike',   'spike_created'],
+    ['epic', 'epic_created'],
+    ['story', 'story_created'],
+    ['spike', 'spike_created'],
   ]) {
     test(`broadcasts ${expectedEvent} when creating a ${type}`, async () => {
       const sse = openSseConnection(`${baseUrl}/api/events`);
@@ -588,10 +717,10 @@ describe('SSE /api/events — event type per doc type', () => {
       });
       assert.equal(status, 200);
 
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 150));
       sse.close();
 
-      const created = sse.events.find(e => e.type === expectedEvent);
+      const created = sse.events.find((e) => e.type === expectedEvent);
       assert.ok(created, `expected ${expectedEvent} SSE event`);
       assert.equal(created.docType, type);
       assert.equal(created.filename, data.filename);

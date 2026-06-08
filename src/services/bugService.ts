@@ -1,10 +1,10 @@
 import path from 'path';
 import MsgReaderModule from '@kenjiuno/msgreader';
-// @ts-ignore — pdfkit has no bundled types and no @types package
+// @ts-expect-error — pdfkit has no bundled types and no @types package
 import PDFDocument from 'pdfkit';
 import type { EmailSegment, ProcessedAttachment, ParsedMsg } from '../types.js';
 
-// @ts-ignore — @kenjiuno/msgreader exports default differently in CJS/ESM interop
+// @ts-expect-error — @kenjiuno/msgreader exports default differently in CJS/ESM interop
 const MsgReader = MsgReaderModule.default;
 
 // ── HTML → segments ──────────────────────────────────────────────────────────
@@ -36,9 +36,10 @@ function htmlToSegments(html: string, inlineImages: Map<string, Buffer>): EmailS
       const cidMatch = part.match(/src=["']cid:([^"']+)["']/i);
       if (cidMatch) {
         const rawCid = cidMatch[1].trim();
-        const imgBuf = inlineImages.get(rawCid)
-          || inlineImages.get(rawCid.replace(/^<|>$/g, ''))
-          || inlineImages.get(`<${rawCid}>`);
+        const imgBuf =
+          inlineImages.get(rawCid) ||
+          inlineImages.get(rawCid.replace(/^<|>$/g, '')) ||
+          inlineImages.get(`<${rawCid}>`);
         if (imgBuf) {
           segments.push({ type: 'image', buffer: imgBuf });
           continue;
@@ -50,20 +51,22 @@ function htmlToSegments(html: string, inlineImages: Map<string, Buffer>): EmailS
       if (dataMatch) {
         try {
           segments.push({ type: 'image', buffer: Buffer.from(dataMatch[1], 'base64') });
-        } catch { /* invalid base64 — skip */ }
+        } catch {
+          /* invalid base64 — skip */
+        }
         continue;
       }
       // No matching buffer — omit the broken image reference entirely
     } else {
       const text = part
-        .replace(/<[^>]+>/g, '')            // strip remaining tags
+        .replace(/<[^>]+>/g, '') // strip remaining tags
         .replace(/&nbsp;/g, ' ')
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"')
         .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(parseInt(n, 10)))
-        .replace(/\n{3,}/g, '\n\n')         // collapse excessive blank lines
+        .replace(/\n{3,}/g, '\n\n') // collapse excessive blank lines
         .trim();
       if (text) segments.push({ type: 'text', value: text });
     }
@@ -88,9 +91,10 @@ function plainTextToSegments(text: string, inlineImages: Map<string, Buffer>): E
     } else {
       // CID reference — same lookup strategy as htmlToSegments
       const rawCid = parts[i].trim();
-      const imgBuf = inlineImages.get(rawCid)
-        || inlineImages.get(rawCid.replace(/^<|>$/g, ''))
-        || inlineImages.get(`<${rawCid}>`);
+      const imgBuf =
+        inlineImages.get(rawCid) ||
+        inlineImages.get(rawCid.replace(/^<|>$/g, '')) ||
+        inlineImages.get(`<${rawCid}>`);
       if (imgBuf) segments.push({ type: 'image', buffer: imgBuf });
     }
   }
@@ -98,7 +102,10 @@ function plainTextToSegments(text: string, inlineImages: Map<string, Buffer>): E
 }
 
 // ── Translation ───────────────────────────────────────────────────────────────
-export async function translateToEnglish(callClaude: (prompt: string) => Promise<string>, text: string): Promise<string> {
+export async function translateToEnglish(
+  callClaude: (prompt: string) => Promise<string>,
+  text: string
+): Promise<string> {
   if (!text || !text.trim()) return text;
   const prompt = [
     'Detect the language of the following text.',
@@ -124,7 +131,7 @@ export function parseMsgFile(buffer: Buffer): ParsedMsg {
   // Non-CID image attachments appended at the end of the PDF
   const attachmentImages: Array<{ filename: string; buffer: Buffer }> = [];
 
-  for (const att of (fileData.attachments || [])) {
+  for (const att of fileData.attachments || []) {
     try {
       const { content } = reader.getAttachment(att);
       if (!content) continue;
@@ -136,16 +143,18 @@ export function parseMsgFile(buffer: Buffer): ParsedMsg {
       } else if (IMAGE_EXT.test(att.fileName || '')) {
         attachmentImages.push({ filename: att.fileName, buffer: buf });
       }
-    } catch { /* skip unreadable attachments */ }
+    } catch {
+      /* skip unreadable attachments */
+    }
   }
 
   return {
-    subject:          fileData.subject || '',
-    senderName:       fileData.senderName || '',
-    senderEmail:      fileData.senderSmtpAddress || fileData.senderEmail || '',
-    sentDate:         fileData.headers?.match(/Date:\s*(.+)/)?.[1]?.trim() || '',
-    body:             fileData.body || '',
-    bodyHtml:         fileData.bodyHtml || '',
+    subject: fileData.subject || '',
+    senderName: fileData.senderName || '',
+    senderEmail: fileData.senderSmtpAddress || fileData.senderEmail || '',
+    sentDate: fileData.headers?.match(/Date:\s*(.+)/)?.[1]?.trim() || '',
+    body: fileData.body || '',
+    bodyHtml: fileData.bodyHtml || '',
     inlineImages,
     attachmentImages,
   };
@@ -157,10 +166,10 @@ export function textToPdfBuffer(title: string, segments: EmailSegment[] | string
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-    doc.on('end',  () => resolve(Buffer.concat(chunks)));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const margin   = 50;
+    const margin = 50;
     const maxWidth = doc.page.width - margin * 2;
 
     // Title
@@ -168,8 +177,8 @@ export function textToPdfBuffer(title: string, segments: EmailSegment[] | string
     doc.moveDown(0.5);
     doc.fontSize(10).font('Helvetica');
 
-    const MAX_IMAGE_BYTES = 5 * 1024 * 1024;   // 5 MB per image
-    const MAX_TOTAL_BYTES = 20 * 1024 * 1024;  // 20 MB total inline images
+    const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
+    const MAX_TOTAL_BYTES = 20 * 1024 * 1024; // 20 MB total inline images
     let totalImageBytes = 0;
 
     const list: EmailSegment[] = Array.isArray(segments)
@@ -186,7 +195,9 @@ export function textToPdfBuffer(title: string, segments: EmailSegment[] | string
       } else if (seg.type === 'image') {
         const bytes = seg.buffer?.byteLength ?? 0;
         if (bytes > MAX_IMAGE_BYTES) {
-          doc.text(`[Image omitted — exceeds ${MAX_IMAGE_BYTES / 1024 / 1024} MB limit]`, { align: 'left' });
+          doc.text(`[Image omitted — exceeds ${MAX_IMAGE_BYTES / 1024 / 1024} MB limit]`, {
+            align: 'left',
+          });
           doc.moveDown(0.3);
         } else if (totalImageBytes + bytes > MAX_TOTAL_BYTES) {
           doc.text('[Image omitted — total image budget exceeded]', { align: 'left' });
@@ -209,35 +220,33 @@ export function textToPdfBuffer(title: string, segments: EmailSegment[] | string
 }
 
 // ── Main attachment processor ─────────────────────────────────────────────────
-export async function processAttachment(file: { originalname: string; buffer: Buffer }, callClaude: (prompt: string) => Promise<string>): Promise<ProcessedAttachment> {
+export async function processAttachment(
+  file: { originalname: string; buffer: Buffer },
+  callClaude: (prompt: string) => Promise<string>
+): Promise<ProcessedAttachment> {
   const ext = path.extname(file.originalname).toLowerCase();
 
   if (ext === '.msg') {
     const msgData = parseMsgFile(file.buffer);
 
     const headerLines = [
-      msgData.subject    ? `Subject: ${msgData.subject}`                            : '',
+      msgData.subject ? `Subject: ${msgData.subject}` : '',
       msgData.senderName ? `From: ${msgData.senderName} <${msgData.senderEmail}>` : '',
-      msgData.sentDate   ? `Date: ${msgData.sentDate}`                              : '',
+      msgData.sentDate ? `Date: ${msgData.sentDate}` : '',
     ].filter(Boolean);
 
-    let segments: EmailSegment[] = [];
+    const rawSegments =
+      msgData.bodyHtml && msgData.bodyHtml.trim()
+        ? htmlToSegments(msgData.bodyHtml, msgData.inlineImages)
+        : plainTextToSegments(msgData.body, msgData.inlineImages);
 
-    if (msgData.bodyHtml && msgData.bodyHtml.trim()) {
-      segments = htmlToSegments(msgData.bodyHtml, msgData.inlineImages);
-      for (const seg of segments) {
-        if (seg.type === 'text') {
-          seg.value = await translateToEnglish(callClaude, seg.value!);
-        }
-      }
-    } else {
-      segments = plainTextToSegments(msgData.body, msgData.inlineImages);
-      for (const seg of segments) {
-        if (seg.type === 'text') {
-          seg.value = await translateToEnglish(callClaude, seg.value!);
-        }
+    for (const seg of rawSegments) {
+      if (seg.type === 'text') {
+        seg.value = await translateToEnglish(callClaude, seg.value!);
       }
     }
+
+    const segments: EmailSegment[] = rawSegments;
 
     // Prepend email header
     if (headerLines.length) {
@@ -250,7 +259,7 @@ export async function processAttachment(file: { originalname: string; buffer: Bu
     }
 
     const pdfBuffer = await textToPdfBuffer(msgData.subject || 'Email', segments);
-    const pdfName   = file.originalname.replace(/\.msg$/i, '.pdf');
+    const pdfName = file.originalname.replace(/\.msg$/i, '.pdf');
     return { filename: pdfName, buffer: pdfBuffer };
   }
 

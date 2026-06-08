@@ -19,11 +19,11 @@ export function resetStoriesSection() {
 export async function generateStories() {
   if (!currentFilename) return;
 
-  const btn     = document.getElementById('stories-btn');
-  const wrap    = document.getElementById('stories-stream-wrap');
-  const stream  = document.getElementById('stories-stream');
+  const btn = document.getElementById('stories-btn');
+  const wrap = document.getElementById('stories-stream-wrap');
+  const stream = document.getElementById('stories-stream');
   const spinner = document.getElementById('stories-spinner');
-  const bar     = document.getElementById('stories-progress');
+  const bar = document.getElementById('stories-progress');
   const barFill = document.getElementById('stories-progress-fill');
   const barText = document.getElementById('stories-progress-text');
 
@@ -41,8 +41,12 @@ export async function generateStories() {
       `/api/epic/${encodeURIComponent(currentFilename)}/stories`,
       {},
       {
-        onText: (text) => { stream.textContent += text; },
-        onDone: (payload) => { donePayload = payload; },
+        onText: (text) => {
+          stream.textContent += text;
+        },
+        onDone: (payload) => {
+          donePayload = payload;
+        },
         onProgress: (progress) => {
           // Show progress bar, hide streaming text
           spinner.classList.add('hidden');
@@ -51,7 +55,8 @@ export async function generateStories() {
             bar.classList.remove('hidden');
             const pct = Math.round((progress.current / progress.total) * 100);
             if (barFill) barFill.style.width = `${pct}%`;
-            if (barText) barText.textContent = `Saving story ${progress.current} of ${progress.total}: ${progress.title}`;
+            if (barText)
+              barText.textContent = `Saving story ${progress.current} of ${progress.total}: ${progress.title}`;
           }
         },
       }
@@ -63,8 +68,9 @@ export async function generateStories() {
     if (donePayload?.files?.length) {
       const count = donePayload.files.length;
       if (bar) bar.classList.add('hidden');
-      stream.textContent = `✅ Created ${count} stor${count === 1 ? 'y' : 'ies'}:\n` +
-        donePayload.files.map(f => `• ${f.title}`).join('\n');
+      stream.textContent =
+        `✅ Created ${count} stor${count === 1 ? 'y' : 'ies'}:\n` +
+        donePayload.files.map((f) => `• ${f.title}`).join('\n');
       wrap.classList.remove('hidden');
 
       // Sequential refresh: loadDocs first, then hierarchy
@@ -81,7 +87,6 @@ export async function generateStories() {
 
     btn.disabled = false;
     btn.textContent = 'AI Story Generation';
-
   } catch (e) {
     spinner.classList.add('hidden');
     if (bar) bar.classList.add('hidden');

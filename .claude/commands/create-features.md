@@ -31,16 +31,17 @@ New Feature  (strategic capability — this document)
 
 ## COVE Framework
 
-| Component | Description |
-| :--- | :--- |
-| **C - Context** | Why are we building this capability now? What business or technical driver demands it? Reference V2 migration if relevant. |
-| **O - Objective** | The measurable outcome this Feature delivers. What will be true when all Epics under it are done? |
-| **V - Value** | Strategic benefit to Test Engineers, Data Engineers, or the VW Group. |
+| Component         | Description                                                                                                                       |
+| :---------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
+| **C - Context**   | Why are we building this capability now? What business or technical driver demands it? Reference V2 migration if relevant.        |
+| **O - Objective** | The measurable outcome this Feature delivers. What will be true when all Epics under it are done?                                 |
+| **V - Value**     | Strategic benefit to Test Engineers, Data Engineers, or the VW Group.                                                             |
 | **E - Execution** | The Epics that will deliver this Feature — one line each. These will be created separately and linked via "Is Contained" in JIRA. |
 
 ## Output Format
 
 **CRITICAL — output rules (no exceptions):**
+
 - Output ONLY the raw markdown document — nothing before the opening `---` and nothing after the last section
 - Do NOT write any preamble, analysis, or commentary before the frontmatter
 - Do NOT wrap the output in a code fence (no ` ```yaml ` or ` ``` `)
@@ -65,20 +66,25 @@ Then include these sections:
 
 ```markdown
 ## Feature Title
+
 A clear, strategic title (e.g. "Async File Ingestion Pipeline")
 
 ## Context
+
 Why are we building this capability now? What driver — user pain, V2 migration, compliance, business need — demands it?
 
 ## Objective
+
 The specific, measurable outcome. What will be true when all Epics under this Feature are complete?
 
 ## Value
+
 - **For Test Engineers:** [specific benefit]
 - **For Data Engineers:** [specific benefit]
 - **Business impact:** [what this enables or unblocks at VW Group level]
 
 ## Execution
+
 Planned Epics that will deliver this Feature (each will be linked via "Is Contained" in JIRA):
 
 1. **Epic:** [Name] — [one-line description]
@@ -86,6 +92,7 @@ Planned Epics that will deliver this Feature (each will be linked via "Is Contai
 3. **Epic:** [Name] — [one-line description]
 
 ## Out of Scope
+
 - [What this Feature deliberately does NOT include]
 - Infrastructure provisioning (flag as dependency if needed)
 ```
@@ -93,6 +100,7 @@ Planned Epics that will deliver this Feature (each will be linked via "Is Contai
 ## Refinement Behaviour
 
 If the user adds feedback after seeing the Feature (e.g. "add more Epics", "sharpen the objective"):
+
 - Update only the relevant section(s)
 - Re-output the full document with changes applied
 - Do not ask clarifying questions unless the feedback is genuinely ambiguous

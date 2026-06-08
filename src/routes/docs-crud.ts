@@ -2,14 +2,26 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { sendError, ensureDir, parseApiError, assertDocType, assertStatus, assertFilename, resolveDocPath } from '../utils/routeHelpers.js';
+import {
+  sendError,
+  ensureDir,
+  parseApiError,
+  assertDocType,
+  assertStatus,
+  resolveDocPath,
+} from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { logAudit } from '../utils/auditLog.js';
 import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
 import { VALID_PRIORITIES } from '../utils/validate.js';
 import type { RouteContext } from '../types.js';
 
-export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docIndex }: RouteContext) {
+export default function docsCrudRoutes({
+  TYPE_CONFIG,
+  broadcast,
+  logInfo,
+  docIndex,
+}: RouteContext) {
   const router = Router();
 
   // ── GET /api/docs ──────────────────────────────────────────────────────────
@@ -33,7 +45,13 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       res.json({ filename, docType, content });
     } catch (err) {
       const apiErr = parseApiError(err);
-      sendError(res, apiErr.code === 'INVALID_TYPE' || apiErr.code === 'INVALID_FILENAME' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+      sendError(
+        res,
+        apiErr.code === 'INVALID_TYPE' || apiErr.code === 'INVALID_FILENAME' ? 400 : 500,
+        apiErr.code,
+        apiErr.message,
+        apiErr.details
+      );
     }
   });
 
@@ -43,10 +61,32 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const { status, title, fixVersion, storyPoints, sprint, rank, team, workCategory, priority, commentsSection } = req.body;
+      const {
+        status,
+        title,
+        fixVersion,
+        storyPoints,
+        sprint,
+        rank,
+        team,
+        workCategory,
+        priority,
+        commentsSection,
+      } = req.body;
 
-      const updatableFields = ['status', 'title', 'fixVersion', 'storyPoints', 'sprint', 'rank', 'team', 'workCategory', 'priority', 'commentsSection'];
-      if (!updatableFields.some(f => req.body[f] !== undefined)) {
+      const updatableFields = [
+        'status',
+        'title',
+        'fixVersion',
+        'storyPoints',
+        'sprint',
+        'rank',
+        'team',
+        'workCategory',
+        'priority',
+        'commentsSection',
+      ];
+      if (!updatableFields.some((f) => req.body[f] !== undefined)) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'At least one field must be provided');
       }
 
@@ -71,7 +111,10 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
             return sendError(res, 400, 'VALIDATION_ERROR', 'storyPoints cannot exceed 40');
           }
         }
-        const val = storyPoints === null || storyPoints === '' ? 'TBD' : String(Number(storyPoints) || storyPoints);
+        const val =
+          storyPoints === null || storyPoints === ''
+            ? 'TBD'
+            : String(Number(storyPoints) || storyPoints);
         content = setFrontmatterField(content, 'Story_Points', val);
       }
 
@@ -89,21 +132,36 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
 
       if (team !== undefined) {
         if (team && team !== 'TBD' && !TEAMS.includes(team)) {
-          return sendError(res, 400, 'VALIDATION_ERROR', `Team must be one of: ${TEAMS.join(', ')}, TBD`);
+          return sendError(
+            res,
+            400,
+            'VALIDATION_ERROR',
+            `Team must be one of: ${TEAMS.join(', ')}, TBD`
+          );
         }
         content = setFrontmatterField(content, 'Team', team || 'TBD');
       }
 
       if (workCategory !== undefined) {
         if (workCategory && workCategory !== 'TBD' && !WORK_CATEGORIES.includes(workCategory)) {
-          return sendError(res, 400, 'VALIDATION_ERROR', `Work Category must be one of: ${WORK_CATEGORIES.join(', ')}, TBD`);
+          return sendError(
+            res,
+            400,
+            'VALIDATION_ERROR',
+            `Work Category must be one of: ${WORK_CATEGORIES.join(', ')}, TBD`
+          );
         }
         content = setFrontmatterField(content, 'Work_Category', workCategory || 'TBD');
       }
 
       if (priority !== undefined) {
         if (!(VALID_PRIORITIES as readonly string[]).includes(priority)) {
-          return sendError(res, 400, 'VALIDATION_ERROR', `Priority must be one of: ${VALID_PRIORITIES.join(', ')}`);
+          return sendError(
+            res,
+            400,
+            'VALIDATION_ERROR',
+            `Priority must be one of: ${VALID_PRIORITIES.join(', ')}`
+          );
         }
         content = setFrontmatterField(content, 'Priority', priority);
       }
@@ -127,25 +185,56 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
         // Strip existing ## Comments section, then append the new one
         const commentIdx = content.search(/\n## Comments\b/);
         const withoutComments = commentIdx !== -1 ? content.slice(0, commentIdx) : content;
-        content = commentsSection ? withoutComments.trimEnd() + '\n\n' + commentsSection : withoutComments;
+        content = commentsSection
+          ? withoutComments.trimEnd() + '\n\n' + commentsSection
+          : withoutComments;
       }
 
       await fs.promises.writeFile(filepath, content);
       await docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType });
       const changedFields = Object.fromEntries(
-        Object.entries({ status, title, fixVersion, storyPoints, sprint, rank, team, workCategory, priority })
-          .filter(([, v]) => v !== undefined)
+        Object.entries({
+          status,
+          title,
+          fixVersion,
+          storyPoints,
+          sprint,
+          rank,
+          team,
+          workCategory,
+          priority,
+        }).filter(([, v]) => v !== undefined)
       );
       logAudit({ op: 'update', docType, filename, fields: changedFields, source: 'api' });
-      logInfo('PATCH /api/doc', `Patched ${docType}/${filename}: ${Object.keys(changedFields).join(', ')}`);
-      res.json({ success: true, ...(status !== undefined && { status }), ...(title !== undefined && { title }), ...(fixVersion !== undefined && { fixVersion }), ...(storyPoints !== undefined && { storyPoints }), ...(sprint !== undefined && { sprint }), ...(rank !== undefined && { rank }), ...(team !== undefined && { team }), ...(workCategory !== undefined && { workCategory }), ...(priority !== undefined && { priority }) });
+      logInfo(
+        'PATCH /api/doc',
+        `Patched ${docType}/${filename}: ${Object.keys(changedFields).join(', ')}`
+      );
+      res.json({
+        success: true,
+        ...(status !== undefined && { status }),
+        ...(title !== undefined && { title }),
+        ...(fixVersion !== undefined && { fixVersion }),
+        ...(storyPoints !== undefined && { storyPoints }),
+        ...(sprint !== undefined && { sprint }),
+        ...(rank !== undefined && { rank }),
+        ...(team !== undefined && { team }),
+        ...(workCategory !== undefined && { workCategory }),
+        ...(priority !== undefined && { priority }),
+      });
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(
         res,
-        ['INVALID_TYPE', 'INVALID_FILENAME', 'INVALID_STATUS', 'INVALID_TITLE'].includes(apiErr.code) ? 400 : 500,
-        apiErr.code, apiErr.message, apiErr.details
+        ['INVALID_TYPE', 'INVALID_FILENAME', 'INVALID_STATUS', 'INVALID_TITLE'].includes(
+          apiErr.code
+        )
+          ? 400
+          : 500,
+        apiErr.code,
+        apiErr.message,
+        apiErr.details
       );
     }
   });
@@ -163,38 +252,57 @@ export default function docsCrudRoutes({ TYPE_CONFIG, broadcast, logInfo, docInd
       res.json({ success: true });
     } catch (err) {
       const apiErr = parseApiError(err);
-      sendError(res, ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+      sendError(
+        res,
+        ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500,
+        apiErr.code,
+        apiErr.message,
+        apiErr.details
+      );
     }
   });
 
   // ── POST /api/docs/draft ── save a draft without AI ────────────────────────
   router.post('/api/docs/draft', async (req, res) => {
     try {
-      const { title, idea, type = 'epic', priority = 'Medium', parentEpic, parentFeature, fixVersion, team, workCategory } = req.body;
+      const {
+        title,
+        idea,
+        type = 'epic',
+        priority = 'Medium',
+        parentEpic,
+        parentFeature,
+        fixVersion,
+        team,
+        workCategory,
+      } = req.body;
       if (!title?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'Title is required');
-      if (title.length > 200) return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
-      if (idea && idea.length > 5000) return sendError(res, 400, 'VALIDATION_ERROR', 'Idea must be 5000 characters or fewer');
+      if (title.length > 200)
+        return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
+      if (idea && idea.length > 5000)
+        return sendError(res, 400, 'VALIDATION_ERROR', 'Idea must be 5000 characters or fewer');
 
       const normalizedType = assertDocType(type, TYPE_CONFIG);
-      const cfg  = TYPE_CONFIG[normalizedType];
+      const cfg = TYPE_CONFIG[normalizedType];
       const date = isoDate();
       const slug = slugify(title.trim().slice(0, 60));
       const filename = `${date}-${slug}.md`;
-      const destDir  = cfg.dir();
+      const destDir = cfg.dir();
       ensureDir(destDir);
 
       const notesLine = idea?.trim() ? `\n${idea.trim()}\n` : '\n';
 
       // Build extra frontmatter lines for parent links
-      const epicIdLine     = (['story','spike','bug'].includes(normalizedType) && parentEpic)
-        ? `\nEpic_ID: ${parentEpic}` : '';
-      const featureIdLine  = (normalizedType === 'epic' && parentFeature)
-        ? `\nFeature_ID: ${parentFeature}` : '';
-      const fixVersionLine = (fixVersion && fixVersion !== 'TBD')
-        ? fixVersion : 'TBD';
+      const epicIdLine =
+        ['story', 'spike', 'bug'].includes(normalizedType) && parentEpic
+          ? `\nEpic_ID: ${parentEpic}`
+          : '';
+      const featureIdLine =
+        normalizedType === 'epic' && parentFeature ? `\nFeature_ID: ${parentFeature}` : '';
+      const fixVersionLine = fixVersion && fixVersion !== 'TBD' ? fixVersion : 'TBD';
 
-      const teamLine     = team        && team        !== 'TBD' ? team        : 'TBD';
-      const workCatLine  = workCategory && workCategory !== 'TBD' ? workCategory : 'TBD';
+      const teamLine = team && team !== 'TBD' ? team : 'TBD';
+      const workCatLine = workCategory && workCategory !== 'TBD' ? workCategory : 'TBD';
 
       const content = `---
 JIRA_ID: TBD
@@ -216,12 +324,24 @@ ${notesLine}`;
       await fs.promises.writeFile(path.join(destDir, filename), content);
       await docIndex.invalidate(normalizedType, filename);
       broadcast({ type: cfg.event, filename, docType: normalizedType });
-      logAudit({ op: 'create', docType: normalizedType, filename, fields: { title: title.trim() }, source: 'api' });
+      logAudit({
+        op: 'create',
+        docType: normalizedType,
+        filename,
+        fields: { title: title.trim() },
+        source: 'api',
+      });
       logInfo('POST /api/docs/draft', `Created draft ${filename}`);
       res.json({ success: true, filename, docType: normalizedType });
     } catch (err) {
       const apiErr = parseApiError(err);
-      sendError(res, ['VALIDATION_ERROR', 'INVALID_TYPE'].includes(apiErr.code) ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+      sendError(
+        res,
+        ['VALIDATION_ERROR', 'INVALID_TYPE'].includes(apiErr.code) ? 400 : 500,
+        apiErr.code,
+        apiErr.message,
+        apiErr.details
+      );
     }
   });
 

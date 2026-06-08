@@ -6,10 +6,10 @@ test.beforeAll(() => {
   clearDocsDir();
   // Create a known set of fixture documents for filtering
   createFixtureDoc('story', { title: 'Filter Story Alpha', status: 'Draft' });
-  createFixtureDoc('story', { title: 'Filter Story Beta',  status: 'Draft' });
-  createFixtureDoc('epic',  { title: 'Filter Epic One',    status: 'Draft' });
-  createFixtureDoc('epic',  { title: 'Filter Epic Two',    status: 'Created in JIRA' });
-  createFixtureDoc('spike', { title: 'Filter Spike One',   status: 'Draft' });
+  createFixtureDoc('story', { title: 'Filter Story Beta', status: 'Draft' });
+  createFixtureDoc('epic', { title: 'Filter Epic One', status: 'Draft' });
+  createFixtureDoc('epic', { title: 'Filter Epic Two', status: 'Created in JIRA' });
+  createFixtureDoc('spike', { title: 'Filter Spike One', status: 'Draft' });
 });
 
 test.describe('List view — type filter pills', () => {
@@ -17,7 +17,9 @@ test.describe('List view — type filter pills', () => {
     await page.goto('/');
     await expect(page.locator('.pill[data-type="all"]')).toHaveClass(/active/);
     // At least some items should be visible
-    await expect(page.locator('#epic-list .list-item, #epic-list .doc-card, #epic-list [data-doctype]').first()).toBeVisible({ timeout: 5000 });
+    await expect(
+      page.locator('#epic-list .list-item, #epic-list .doc-card, #epic-list [data-doctype]').first()
+    ).toBeVisible({ timeout: 5000 });
   });
 
   test('filter by Story shows only stories', async ({ page }) => {

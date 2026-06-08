@@ -1,8 +1,8 @@
 // ── Unit tests: src/services/claudeService.js ─────────────────────────────────
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import fs   from 'node:fs';
-import os   from 'node:os';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   callClaude,
@@ -17,8 +17,12 @@ import {
 } from '../../src/services/claudeService.js';
 
 // All tests run with MOCK_CLAUDE=1 to avoid spawning the real claude process.
-before(() => { process.env.MOCK_CLAUDE = '1'; });
-after(() => { delete process.env.MOCK_CLAUDE; });
+before(() => {
+  process.env.MOCK_CLAUDE = '1';
+});
+after(() => {
+  delete process.env.MOCK_CLAUDE;
+});
 
 describe('callClaude (mock mode)', () => {
   test('returns mock response content', async () => {
@@ -91,7 +95,7 @@ describe('callClaude — error path (real subprocess)', () => {
       (err) => {
         assert.match(err.message, /fake failure|claude exited 1/i);
         return true;
-      },
+      }
     );
   });
 
@@ -101,12 +105,10 @@ describe('callClaude — error path (real subprocess)', () => {
     fs.writeFileSync(scriptPath, '#!/bin/sh\necho "Error: invalid api key" >&2\nexit 1\n');
     fs.chmodSync(scriptPath, '0755');
 
-    let attempts = 0;
+    let _attempts = 0;
     // Wrap in a local spy — we can't directly count retries, so we count fast
     const start = Date.now();
-    await assert.rejects(
-      () => callClaude('/tmp', 'test', { maxAttempts: 3 }),
-    );
+    await assert.rejects(() => callClaude('/tmp', 'test', { maxAttempts: 3 }));
     // With a user error, there should be NO back-off delay (< 500ms total even with 3 attempts)
     const elapsed = Date.now() - start;
     assert.ok(elapsed < 500, `Expected no back-off for user error, but took ${elapsed}ms`);
@@ -163,7 +165,10 @@ describe('getAvailableProviders', () => {
     // Stub fetch so Ollama health check fails instantly (no real server)
     global.fetch = async (url, opts) => {
       const u = String(url);
-      if (u.includes('localhost:11434') || u.includes(process.env.OLLAMA_BASE_URL || 'localhost:11434')) {
+      if (
+        u.includes('localhost:11434') ||
+        u.includes(process.env.OLLAMA_BASE_URL || 'localhost:11434')
+      ) {
         throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
       }
       return origFetch(url, opts);
@@ -181,21 +186,30 @@ describe('getAvailableProviders', () => {
     delete process.env.GITHUB_MODELS_TOKEN;
     _resetOllamaCache();
     const providers = await getAvailableProviders();
-    assert.ok(providers.some(p => p.id === 'claude-cli'), 'claude-cli must be present');
+    assert.ok(
+      providers.some((p) => p.id === 'claude-cli'),
+      'claude-cli must be present'
+    );
   });
 
   test('does not include github-models when token is absent', async () => {
     delete process.env.GITHUB_MODELS_TOKEN;
     _resetOllamaCache();
     const providers = await getAvailableProviders();
-    assert.ok(!providers.some(p => p.id === 'github-models'), 'github-models must be absent without token');
+    assert.ok(
+      !providers.some((p) => p.id === 'github-models'),
+      'github-models must be absent without token'
+    );
   });
 
   test('includes github-models when GITHUB_MODELS_TOKEN is set', async () => {
     process.env.GITHUB_MODELS_TOKEN = 'ghp_test_token';
     _resetOllamaCache();
     const providers = await getAvailableProviders();
-    assert.ok(providers.some(p => p.id === 'github-models'), 'github-models must appear when token is set');
+    assert.ok(
+      providers.some((p) => p.id === 'github-models'),
+      'github-models must appear when token is set'
+    );
     delete process.env.GITHUB_MODELS_TOKEN;
   });
 
@@ -203,7 +217,7 @@ describe('getAvailableProviders', () => {
     delete process.env.GITHUB_MODELS_TOKEN;
     _resetOllamaCache();
     const providers = await getAvailableProviders();
-    const claudeProvider = providers.find(p => p.id === 'claude-cli');
+    const claudeProvider = providers.find((p) => p.id === 'claude-cli');
     assert.ok(claudeProvider);
     assert.ok(Array.isArray(claudeProvider.models) && claudeProvider.models.length > 0);
   });
@@ -212,16 +226,19 @@ describe('getAvailableProviders', () => {
     process.env.GITHUB_MODELS_TOKEN = 'ghp_test_token';
     _resetOllamaCache();
     const providers = await getAvailableProviders();
-    const ghProvider = providers.find(p => p.id === 'github-models');
+    const ghProvider = providers.find((p) => p.id === 'github-models');
     assert.ok(ghProvider);
-    assert.ok(ghProvider.models.some(m => m.id === 'openai/gpt-4o'));
+    assert.ok(ghProvider.models.some((m) => m.id === 'openai/gpt-4o'));
     delete process.env.GITHUB_MODELS_TOKEN;
   });
 
   test('omits ollama when Ollama is not running', async () => {
     _resetOllamaCache();
     const providers = await getAvailableProviders();
-    assert.ok(!providers.some(p => p.id === 'ollama'), 'ollama must be absent when health check fails');
+    assert.ok(
+      !providers.some((p) => p.id === 'ollama'),
+      'ollama must be absent when health check fails'
+    );
   });
 });
 
@@ -247,16 +264,19 @@ describe('Ollama provider (mocked fetch)', () => {
       const u = String(url);
       if (u === 'http://localhost:11434/') return { ok: true, json: async () => ({}) };
       if (u === 'http://localhost:11434/api/tags') {
-        return { ok: true, json: async () => ({ models: [{ name: 'llama3' }, { name: 'mistral' }] }) };
+        return {
+          ok: true,
+          json: async () => ({ models: [{ name: 'llama3' }, { name: 'mistral' }] }),
+        };
       }
       return origFetch(url);
     };
     const providers = await getAvailableProviders();
-    const ollama = providers.find(p => p.id === 'ollama');
+    const ollama = providers.find((p) => p.id === 'ollama');
     assert.ok(ollama, 'ollama provider must appear when health check passes');
     assert.equal(ollama.name, 'Ollama (local)');
-    assert.ok(ollama.models.some(m => m.id === 'llama3'));
-    assert.ok(ollama.models.some(m => m.id === 'mistral'));
+    assert.ok(ollama.models.some((m) => m.id === 'llama3'));
+    assert.ok(ollama.models.some((m) => m.id === 'mistral'));
   });
 
   test('omits ollama provider when health check returns non-ok', async () => {
@@ -266,7 +286,10 @@ describe('Ollama provider (mocked fetch)', () => {
       return origFetch(url);
     };
     const providers = await getAvailableProviders();
-    assert.ok(!providers.some(p => p.id === 'ollama'), 'ollama must be absent when health check fails');
+    assert.ok(
+      !providers.some((p) => p.id === 'ollama'),
+      'ollama must be absent when health check fails'
+    );
   });
 
   test('caches health check result for TTL duration', async () => {
@@ -274,8 +297,12 @@ describe('Ollama provider (mocked fetch)', () => {
     let callCount = 0;
     global.fetch = async (url) => {
       const u = String(url);
-      if (u === 'http://localhost:11434/') { callCount++; return { ok: true, json: async () => ({}) }; }
-      if (u === 'http://localhost:11434/api/tags') return { ok: true, json: async () => ({ models: [] }) };
+      if (u === 'http://localhost:11434/') {
+        callCount++;
+        return { ok: true, json: async () => ({}) };
+      }
+      if (u === 'http://localhost:11434/api/tags')
+        return { ok: true, json: async () => ({ models: [] }) };
       return origFetch(url);
     };
     await getAvailableProviders();
@@ -303,7 +330,9 @@ describe('Ollama provider (mocked fetch)', () => {
 
 // ── callClaude — mock mode with provider override ─────────────────────────────
 describe('callClaude — mock mode with provider override', () => {
-  before(() => { process.env.MOCK_CLAUDE = '1'; });
+  before(() => {
+    process.env.MOCK_CLAUDE = '1';
+  });
   after(() => {
     delete process.env.MOCK_CLAUDE;
     setProviderOverride(null);
@@ -318,7 +347,9 @@ describe('callClaude — mock mode with provider override', () => {
 
 // ── streamClaude — mock mode with provider override ──────────────────────────
 describe('streamClaude — mock mode with provider override', () => {
-  before(() => { process.env.MOCK_CLAUDE = '1'; });
+  before(() => {
+    process.env.MOCK_CLAUDE = '1';
+  });
   after(() => {
     delete process.env.MOCK_CLAUDE;
     setProviderOverride(null);
@@ -327,7 +358,7 @@ describe('streamClaude — mock mode with provider override', () => {
   test('calls onChunk with mock response when provider is github-models (MOCK_CLAUDE=1)', async () => {
     setProviderOverride('github-models');
     const chunks = [];
-    await streamClaude('/tmp', 'test prompt', chunk => chunks.push(chunk));
+    await streamClaude('/tmp', 'test prompt', (chunk) => chunks.push(chunk));
     assert.equal(chunks.length, 1);
     assert.match(chunks[0], /Mock Epic Title/);
   });
@@ -335,7 +366,9 @@ describe('streamClaude — mock mode with provider override', () => {
 
 // ── callClaude — mock mode with Ollama provider override ──────────────────────
 describe('callClaude — mock mode with Ollama provider override', () => {
-  before(() => { process.env.MOCK_CLAUDE = '1'; });
+  before(() => {
+    process.env.MOCK_CLAUDE = '1';
+  });
   after(() => {
     delete process.env.MOCK_CLAUDE;
     setProviderOverride(null);
@@ -350,7 +383,9 @@ describe('callClaude — mock mode with Ollama provider override', () => {
 
 // ── streamClaude — mock mode with Ollama provider override ────────────────────
 describe('streamClaude — mock mode with Ollama provider override', () => {
-  before(() => { process.env.MOCK_CLAUDE = '1'; });
+  before(() => {
+    process.env.MOCK_CLAUDE = '1';
+  });
   after(() => {
     delete process.env.MOCK_CLAUDE;
     setProviderOverride(null);
@@ -359,7 +394,7 @@ describe('streamClaude — mock mode with Ollama provider override', () => {
   test('calls onChunk with mock response when provider is ollama (MOCK_CLAUDE=1)', async () => {
     setProviderOverride('ollama');
     const chunks = [];
-    await streamClaude('/tmp', 'test prompt', chunk => chunks.push(chunk));
+    await streamClaude('/tmp', 'test prompt', (chunk) => chunks.push(chunk));
     assert.equal(chunks.length, 1);
     assert.match(chunks[0], /Mock Epic Title/);
   });

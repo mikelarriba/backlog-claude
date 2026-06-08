@@ -2,23 +2,61 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { sendError, ensureDir, parseApiError, assertDocType, assertFilename, setupSSE, resolveDocPath } from '../utils/routeHelpers.js';
+import {
+  sendError,
+  ensureDir,
+  parseApiError,
+  assertDocType,
+  assertFilename,
+  setupSSE,
+  resolveDocPath,
+} from '../utils/routeHelpers.js';
 import { normalizeOutput } from '../services/claudeService.js';
-import { buildGeneratePrompt, buildUpgradePrompt, buildSplitStoryPrompt } from '../services/aiPromptBuilder.js';
+import {
+  buildGeneratePrompt,
+  buildUpgradePrompt,
+  buildSplitStoryPrompt,
+} from '../services/aiPromptBuilder.js';
 import { logAudit } from '../utils/auditLog.js';
 import {
-  isoDate, slugify, extractTitle, extractWorkflowStatus,
-  setFrontmatterField, extractFrontmatterField,
+  isoDate,
+  slugify,
+  extractTitle,
+  extractWorkflowStatus,
+  setFrontmatterField,
+  extractFrontmatterField,
 } from '../utils/transforms.js';
 import type { RouteContext } from '../types.js';
 
-export default function docsAiRoutes({ TYPE_CONFIG, INBOX_DIR, broadcast, loadCommand, callClaude, streamClaude, _apiInFlight, logInfo, logError, docIndex }: RouteContext) {
+export default function docsAiRoutes({
+  TYPE_CONFIG,
+  INBOX_DIR,
+  broadcast,
+  loadCommand,
+  callClaude,
+  streamClaude,
+  _apiInFlight,
+  logInfo,
+  logError,
+  docIndex,
+}: RouteContext) {
   const router = Router();
 
   // ── POST /api/generate ─────────────────────────────────────────────────────
   router.post('/api/generate', async (req, res) => {
     try {
-      const { title: rawTitle, idea: rawIdea, priority = 'Medium', type = 'epic', parentFeature, parentEpic, fixVersion, team, workCategory, pi } = req.body;
+      const {
+        title: rawTitle,
+        idea: rawIdea,
+        priority = 'Medium',
+        type = 'epic',
+        parentFeature,
+        parentEpic,
+        fixVersion,
+        team,
+        workCategory,
+        pi,
+      } = req.body;
       if (!rawIdea?.trim()) {
         return sendError(res, 400, 'VALIDATION_ERROR', 'Idea is required');
       }
@@ -30,9 +68,10 @@ export default function docsAiRoutes({ TYPE_CONFIG, INBOX_DIR, broadcast, loadCo
       }
       // Strip control characters (except \t and \n which are valid in body text)
       // to prevent prompt injection via crafted null bytes or escape sequences.
+      // eslint-disable-next-line no-control-regex
       const stripControls = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
       const title = rawTitle ? stripControls(rawTitle) : rawTitle;
-      const idea  = stripControls(rawIdea);
+      const idea = stripControls(rawIdea);
 
       const normalizedType = assertDocType(type, TYPE_CONFIG);
       const cfg = TYPE_CONFIG[normalizedType];
@@ -93,13 +132,28 @@ ${idea.trim()}
       }
 
       broadcast({ type: cfg.event, filename, docType: normalizedType });
-      logAudit({ op: 'create', docType: normalizedType, filename, fields: { title: title || idea.slice(0, 60) }, source: 'api' });
-      logInfo('POST /api/generate', `Generated ${normalizedType}/${filename} in ${Date.now() - _genStart}ms`);
+      logAudit({
+        op: 'create',
+        docType: normalizedType,
+        filename,
+        fields: { title: title || idea.slice(0, 60) },
+        source: 'api',
+      });
+      logInfo(
+        'POST /api/generate',
+        `Generated ${normalizedType}/${filename} in ${Date.now() - _genStart}ms`
+      );
       res.json({ success: true, filename, docType: normalizedType });
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/generate', apiErr.message, apiErr.details || {});
-      sendError(res, apiErr.code === 'VALIDATION_ERROR' || apiErr.code === 'INVALID_TYPE' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+      sendError(
+        res,
+        apiErr.code === 'VALIDATION_ERROR' || apiErr.code === 'INVALID_TYPE' ? 400 : 500,
+        apiErr.code,
+        apiErr.message,
+        apiErr.details
+      );
     }
   });
 
@@ -119,10 +173,13 @@ ${idea.trim()}
 
     try {
       const { feedback } = req.body;
-      if (!feedback?.trim()) { send({ error: { code: 'VALIDATION_ERROR', message: 'Feedback is required' } }); return res.end(); }
+      if (!feedback?.trim()) {
+        send({ error: { code: 'VALIDATION_ERROR', message: 'Feedback is required' } });
+        return res.end();
+      }
 
       const currentContent = await fs.promises.readFile(filepath, 'utf-8');
-      const currentStatus  = extractWorkflowStatus(currentContent);
+      const currentStatus = extractWorkflowStatus(currentContent);
 
       const inboxPath = path.join(INBOX_DIR, filename);
       const inboxExists = fs.existsSync(inboxPath);
@@ -133,7 +190,10 @@ ${idea.trim()}
       const upgradePrompt = buildUpgradePrompt(docType, currentContent, feedback, inboxHistory);
 
       let fullContent = '';
-      await streamClaude(upgradePrompt, (chunk: string) => { fullContent += chunk; send({ text: chunk }); });
+      await streamClaude(upgradePrompt, (chunk: string) => {
+        fullContent += chunk;
+        send({ text: chunk });
+      });
 
       fullContent = normalizeOutput(fullContent);
       fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
@@ -150,7 +210,13 @@ ${idea.trim()}
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/doc/:type/:filename/upgrade', apiErr.message, apiErr.details || {});
-      send({ error: { code: apiErr.code, message: apiErr.message, ...(apiErr.details ? { details: apiErr.details } : {}) } });
+      send({
+        error: {
+          code: apiErr.code,
+          message: apiErr.message,
+          ...(apiErr.details ? { details: apiErr.details } : {}),
+        },
+      });
       res.end();
     }
   });
@@ -160,13 +226,16 @@ ${idea.trim()}
     let docType, cfg, filename, filepath, rawCount, sprints;
     try {
       const { filename: fn, docType: dt, targetCount = 2, sprints: sprintsRaw = [] } = req.body;
-      if (!fn || !dt) return sendError(res, 400, 'VALIDATION_ERROR', 'filename and docType are required');
+      if (!fn || !dt)
+        return sendError(res, 400, 'VALIDATION_ERROR', 'filename and docType are required');
       sprints = sprintsRaw;
-      if (!Array.isArray(sprints)) return sendError(res, 400, 'VALIDATION_ERROR', 'sprints must be an array');
+      if (!Array.isArray(sprints))
+        return sendError(res, 400, 'VALIDATION_ERROR', 'sprints must be an array');
       rawCount = Number(targetCount);
-      if (Number.isNaN(rawCount)) return sendError(res, 400, 'VALIDATION_ERROR', 'targetCount must be a number');
-      docType  = assertDocType(dt, TYPE_CONFIG);
-      cfg      = TYPE_CONFIG[docType];
+      if (Number.isNaN(rawCount))
+        return sendError(res, 400, 'VALIDATION_ERROR', 'targetCount must be a number');
+      docType = assertDocType(dt, TYPE_CONFIG);
+      cfg = TYPE_CONFIG[docType];
       filename = assertFilename(fn);
       filepath = path.join(cfg.dir(), filename);
     } catch (err) {
@@ -183,17 +252,25 @@ ${idea.trim()}
       const content = await fs.promises.readFile(filepath, 'utf-8');
 
       // Extract key frontmatter fields to forward to child stories
-      const epicId      = extractFrontmatterField(content, 'Epic_ID')      || 'TBD';
-      const fixVersion  = extractFrontmatterField(content, 'Fix_Version')   || 'TBD';
-      const priority    = extractFrontmatterField(content, 'Priority')      || 'Medium';
-      const currentSP   = Number(extractFrontmatterField(content, 'Story_Points')) || 0;
-      const perStorySP  = currentSP ? Math.round(currentSP / count) : 'TBD';
+      const epicId = extractFrontmatterField(content, 'Epic_ID') || 'TBD';
+      const fixVersion = extractFrontmatterField(content, 'Fix_Version') || 'TBD';
+      const priority = extractFrontmatterField(content, 'Priority') || 'Medium';
+      const currentSP = Number(extractFrontmatterField(content, 'Story_Points')) || 0;
+      const perStorySP = currentSP ? Math.round(currentSP / count) : 'TBD';
 
       const sprintList = sprints.length
         ? sprints.map((s, i) => `Part ${i + 1} → sprint: "${s}"`).join(', ')
         : `assign all parts to the same sprint as the original`;
 
-      const splitPrompt = buildSplitStoryPrompt({ content, count, epicId, fixVersion, priority, perStorySP, sprintList });
+      const splitPrompt = buildSplitStoryPrompt({
+        content,
+        count,
+        epicId,
+        fixVersion,
+        priority,
+        perStorySP,
+        sprintList,
+      });
 
       let fullOutput = '';
       await streamClaude(splitPrompt, (chunk: string) => {
@@ -206,11 +283,13 @@ ${idea.trim()}
       // Parse parts by the ===SPLIT=== separator
       const parts = fullOutput
         .split(/^===SPLIT===/m)
-        .map(p => p.trim())
-        .filter(p => p.length > 0);
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
 
       if (parts.length < 2) {
-        throw new Error(`Claude returned ${parts.length} part(s) — expected ${count}. Please try again.`);
+        throw new Error(
+          `Claude returned ${parts.length} part(s) — expected ${count}. Please try again.`
+        );
       }
 
       const date = isoDate();
@@ -224,9 +303,9 @@ ${idea.trim()}
           part = setFrontmatterField(part, 'Sprint', sprints[i]);
         }
 
-        const title    = extractTitle(part) || `Part ${i + 1} of ${filename.replace(/\.md$/, '')}`;
-        const slug     = slugify(title);
-        const newName  = `${date}-${slug}.md`;
+        const title = extractTitle(part) || `Part ${i + 1} of ${filename.replace(/\.md$/, '')}`;
+        const slug = slugify(title);
+        const newName = `${date}-${slug}.md`;
         const destPath = path.join(cfg.dir(), newName);
 
         await fs.promises.writeFile(destPath, part);
@@ -245,7 +324,13 @@ ${idea.trim()}
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/docs/split-story', apiErr.message, apiErr.details || {});
-      send({ error: { code: apiErr.code, message: apiErr.message, ...(apiErr.details ? { details: apiErr.details } : {}) } });
+      send({
+        error: {
+          code: apiErr.code,
+          message: apiErr.message,
+          ...(apiErr.details ? { details: apiErr.details } : {}),
+        },
+      });
       res.end();
     }
   });
@@ -254,27 +339,35 @@ ${idea.trim()}
   router.post('/api/split-epic', async (req, res) => {
     try {
       const { epicFilename: rawFilename, description } = req.body;
-      if (!rawFilename?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'epicFilename is required');
-      if (!description?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'description is required');
-      if (description.length > 5000) return sendError(res, 400, 'VALIDATION_ERROR', 'description must be 5000 characters or fewer');
+      if (!rawFilename?.trim())
+        return sendError(res, 400, 'VALIDATION_ERROR', 'epicFilename is required');
+      if (!description?.trim())
+        return sendError(res, 400, 'VALIDATION_ERROR', 'description is required');
+      if (description.length > 5000)
+        return sendError(
+          res,
+          400,
+          'VALIDATION_ERROR',
+          'description must be 5000 characters or fewer'
+        );
 
       const epicFilename = assertFilename(rawFilename);
-      const epicCfg  = TYPE_CONFIG.epic;
+      const epicCfg = TYPE_CONFIG.epic;
       const epicPath = path.join(epicCfg.dir(), epicFilename);
       if (!fs.existsSync(epicPath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
 
-      const epicContent   = await fs.promises.readFile(epicPath, 'utf-8');
-      const epicTitle     = extractTitle(epicContent) || epicFilename;
-      const epicPriority  = extractFrontmatterField(epicContent, 'Priority') || 'Medium';
-      const epicFixVer    = extractFrontmatterField(epicContent, 'Fix_Version');
-      const epicPi        = extractFrontmatterField(epicContent, 'PI');
-      const epicTeam      = extractFrontmatterField(epicContent, 'Team');
-      const epicWorkCat   = extractFrontmatterField(epicContent, 'Work_Category');
-      let   featureId     = extractFrontmatterField(epicContent, 'Feature_ID');
+      const epicContent = await fs.promises.readFile(epicPath, 'utf-8');
+      const epicTitle = extractTitle(epicContent) || epicFilename;
+      const epicPriority = extractFrontmatterField(epicContent, 'Priority') || 'Medium';
+      const epicFixVer = extractFrontmatterField(epicContent, 'Fix_Version');
+      const epicPi = extractFrontmatterField(epicContent, 'PI');
+      const epicTeam = extractFrontmatterField(epicContent, 'Team');
+      const epicWorkCat = extractFrontmatterField(epicContent, 'Work_Category');
+      let featureId = extractFrontmatterField(epicContent, 'Feature_ID');
 
       let featureFilename = null;
-      let featureCreated  = false;
-      let featureTitle    = null;
+      let featureCreated = false;
+      let featureTitle = null;
 
       // Step 1: Resolve or create the parent Feature
       if (!featureId || featureId === 'TBD') {
@@ -323,31 +416,47 @@ TBD
         broadcast({ type: 'feature_created', filename: featureFilename, docType: 'feature' });
 
         // Link original epic to the new feature
-        let updated = setFrontmatterField(epicContent, 'Feature_ID', featureFilename);
+        const updated = setFrontmatterField(epicContent, 'Feature_ID', featureFilename);
         await fs.promises.writeFile(epicPath, updated);
         await docIndex.invalidate('epic', epicFilename);
 
         featureId = featureFilename;
         featureCreated = true;
 
-        logInfo('POST /api/split-epic', `Auto-created feature ${featureFilename} for epic ${epicFilename}`);
+        logInfo(
+          'POST /api/split-epic',
+          `Auto-created feature ${featureFilename} for epic ${epicFilename}`
+        );
       } else {
         featureFilename = featureId;
         // Resolve feature title
         const featureCfg = TYPE_CONFIG.feature;
         const featurePath = path.join(featureCfg.dir(), featureFilename);
         if (fs.existsSync(featurePath)) {
-          featureTitle = extractTitle(await fs.promises.readFile(featurePath, 'utf-8')) || featureFilename;
+          featureTitle =
+            extractTitle(await fs.promises.readFile(featurePath, 'utf-8')) || featureFilename;
         } else {
           featureTitle = featureFilename;
         }
       }
 
       // Step 2: Generate new epic via AI
+      // eslint-disable-next-line no-control-regex
       const stripControls = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-      const idea = stripControls(`${description.trim()}\n\n---\nContext from original epic:\n${epicContent}`);
+      const idea = stripControls(
+        `${description.trim()}\n\n---\nContext from original epic:\n${epicContent}`
+      );
 
-      const genBody: { idea: string; type: string; priority: string; parentFeature: string; fixVersion?: string; pi?: string; team?: string; workCategory?: string } = {
+      const genBody: {
+        idea: string;
+        type: string;
+        priority: string;
+        parentFeature: string;
+        fixVersion?: string;
+        pi?: string;
+        team?: string;
+        workCategory?: string;
+      } = {
         idea,
         type: 'epic',
         priority: epicPriority,
@@ -382,17 +491,26 @@ ${idea}
         ensureDir(INBOX_DIR);
         await fs.promises.writeFile(path.join(INBOX_DIR, newEpicFilename), rawContent);
 
-        const prompt = buildGeneratePrompt('epic', loadCommand(epicCfg.command), newEpicFilename, rawContent);
+        const prompt = buildGeneratePrompt(
+          'epic',
+          loadCommand(epicCfg.command),
+          newEpicFilename,
+          rawContent
+        );
         const generatedContent = await callClaude(prompt);
 
         const destDir = epicCfg.dir();
         ensureDir(destDir);
         let finalContent = setFrontmatterField(generatedContent, 'Status', 'Draft');
         finalContent = setFrontmatterField(finalContent, 'Feature_ID', featureFilename);
-        if (epicFixVer && epicFixVer !== 'TBD') finalContent = setFrontmatterField(finalContent, 'Fix_Version', epicFixVer);
-        if (epicPi && epicPi !== 'TBD') finalContent = setFrontmatterField(finalContent, 'PI', epicPi);
-        if (epicTeam && epicTeam !== 'TBD') finalContent = setFrontmatterField(finalContent, 'Team', epicTeam);
-        if (epicWorkCat && epicWorkCat !== 'TBD') finalContent = setFrontmatterField(finalContent, 'Work_Category', epicWorkCat);
+        if (epicFixVer && epicFixVer !== 'TBD')
+          finalContent = setFrontmatterField(finalContent, 'Fix_Version', epicFixVer);
+        if (epicPi && epicPi !== 'TBD')
+          finalContent = setFrontmatterField(finalContent, 'PI', epicPi);
+        if (epicTeam && epicTeam !== 'TBD')
+          finalContent = setFrontmatterField(finalContent, 'Team', epicTeam);
+        if (epicWorkCat && epicWorkCat !== 'TBD')
+          finalContent = setFrontmatterField(finalContent, 'Work_Category', epicWorkCat);
         await fs.promises.writeFile(path.join(destDir, newEpicFilename), finalContent);
         await docIndex.invalidate('epic', newEpicFilename);
       } finally {
@@ -400,7 +518,10 @@ ${idea}
       }
 
       broadcast({ type: 'epic_created', filename: newEpicFilename, docType: 'epic' });
-      logInfo('POST /api/split-epic', `Split epic ${epicFilename} → new epic ${newEpicFilename}, feature ${featureFilename}`);
+      logInfo(
+        'POST /api/split-epic',
+        `Split epic ${epicFilename} → new epic ${newEpicFilename}, feature ${featureFilename}`
+      );
 
       res.json({
         success: true,
@@ -412,7 +533,13 @@ ${idea}
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/split-epic', apiErr.message, apiErr.details || {});
-      sendError(res, apiErr.code === 'VALIDATION_ERROR' || apiErr.code === 'NOT_FOUND' ? 400 : 500, apiErr.code, apiErr.message, apiErr.details);
+      sendError(
+        res,
+        apiErr.code === 'VALIDATION_ERROR' || apiErr.code === 'NOT_FOUND' ? 400 : 500,
+        apiErr.code,
+        apiErr.message,
+        apiErr.details
+      );
     }
   });
 

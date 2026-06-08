@@ -2,7 +2,10 @@ export function parseStorySections(content: string): { frontmatter: string; sect
   const fmMatch = content.match(/^---[\s\S]*?---\n?/);
   const frontmatter = fmMatch ? fmMatch[0] : '';
   const body = content.slice(frontmatter.length).trim();
-  const sections = body.split(/(?=^## Story \d+[:\s])/m).map(s => s.trim()).filter(Boolean);
+  const sections = body
+    .split(/(?=^## Story \d+[:\s])/m)
+    .map((s) => s.trim())
+    .filter(Boolean);
   return { frontmatter, sections };
 }
 

@@ -55,7 +55,10 @@ describe('/api/v1/ — versioned endpoint alias', () => {
     const filename = created.filename;
 
     // Read via v0
-    const { status, data: doc } = await api('GET', `/api/doc/story/${encodeURIComponent(filename)}`);
+    const { status, data: doc } = await api(
+      'GET',
+      `/api/doc/story/${encodeURIComponent(filename)}`
+    );
     assert.equal(status, 200);
     assert.equal(doc.filename, filename);
   });

@@ -131,7 +131,10 @@ describe('optionalString', () => {
   });
 
   test('throws when length exceeds maxLength', () => {
-    assert.throws(() => optionalString('too long string', 'name', { maxLength: 5 }), ValidationError);
+    assert.throws(
+      () => optionalString('too long string', 'name', { maxLength: 5 }),
+      ValidationError
+    );
   });
 });
 
@@ -149,6 +152,9 @@ describe('enum constants', () => {
   });
 
   test('VALID_LINK_TYPES contains expected values', () => {
-    assert.deepEqual([...VALID_LINK_TYPES], ['blocks', 'parallel', 'epic→feature', 'story→epic', 'spike→epic', 'bug→epic']);
+    assert.deepEqual(
+      [...VALID_LINK_TYPES],
+      ['blocks', 'parallel', 'epic→feature', 'story→epic', 'spike→epic', 'bug→epic']
+    );
   });
 });
