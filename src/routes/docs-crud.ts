@@ -14,6 +14,8 @@ import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { logAudit } from '../utils/auditLog.js';
 import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
 import { VALID_PRIORITIES } from '../utils/validate.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import { DraftDocSchema } from '../schemas/docs.js';
 import type { RouteContext } from '../types.js';
 
 export default function docsCrudRoutes({
@@ -263,7 +265,7 @@ export default function docsCrudRoutes({
   });
 
   // ── POST /api/docs/draft ── save a draft without AI ────────────────────────
-  router.post('/api/docs/draft', async (req, res) => {
+  router.post('/api/docs/draft', validateBody(DraftDocSchema), async (req, res) => {
     try {
       const {
         title,
@@ -276,11 +278,6 @@ export default function docsCrudRoutes({
         team,
         workCategory,
       } = req.body;
-      if (!title?.trim()) return sendError(res, 400, 'VALIDATION_ERROR', 'Title is required');
-      if (title.length > 200)
-        return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
-      if (idea && idea.length > 5000)
-        return sendError(res, 400, 'VALIDATION_ERROR', 'Idea must be 5000 characters or fewer');
 
       const normalizedType = assertDocType(type, TYPE_CONFIG);
       const cfg = TYPE_CONFIG[normalizedType];

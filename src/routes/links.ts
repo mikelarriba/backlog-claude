@@ -14,7 +14,8 @@ import {
   extractFrontmatterField,
   removeFrontmatterField,
 } from '../utils/transforms.js';
-import { VALID_LINK_TYPES } from '../utils/validate.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import { CreateLinkSchema, DeleteLinkSchema } from '../schemas/links.js';
 import type { RouteContext } from '../types.js';
 
 export default function linksRoutes({
@@ -198,7 +199,7 @@ export default function linksRoutes({
   });
 
   // ── POST /api/link ─────────────────────────────────────────────────────────
-  router.post('/api/link', async (req, res) => {
+  router.post('/api/link', validateBody(CreateLinkSchema), async (req, res) => {
     const LINK_RULES: Record<
       string,
       { field: string; sourceDir: () => string; targetDir: () => string }
@@ -215,32 +216,6 @@ export default function linksRoutes({
 
     try {
       const { sourceType, sourceFilename, targetType, targetFilename, linkType } = req.body;
-      if (
-        typeof sourceType !== 'string' ||
-        !sourceType ||
-        typeof sourceFilename !== 'string' ||
-        !sourceFilename ||
-        typeof targetType !== 'string' ||
-        !targetType ||
-        typeof targetFilename !== 'string' ||
-        !targetFilename
-      ) {
-        return sendError(
-          res,
-          400,
-          'VALIDATION_ERROR',
-          'sourceType, sourceFilename, targetType and targetFilename are required'
-        );
-      }
-
-      if (linkType !== undefined && !(VALID_LINK_TYPES as readonly string[]).includes(linkType)) {
-        return sendError(
-          res,
-          400,
-          'VALIDATION_ERROR',
-          `linkType must be one of: ${VALID_LINK_TYPES.join(', ')}`
-        );
-      }
 
       const srcFile = assertFilename(sourceFilename);
       const tgtFile = assertFilename(targetFilename);
@@ -458,30 +433,9 @@ export default function linksRoutes({
   });
 
   // ── DELETE /api/link ── remove a blocks dependency ─────────────────────────
-  router.delete('/api/link', async (req, res) => {
+  router.delete('/api/link', validateBody(DeleteLinkSchema), async (req, res) => {
     try {
       const { sourceType, sourceFilename, targetType, targetFilename, linkType } = req.body;
-      if (!['blocks', 'parallel'].includes(linkType)) {
-        return sendError(
-          res,
-          400,
-          'VALIDATION_ERROR',
-          'Only linkType "blocks" or "parallel" supports DELETE'
-        );
-      }
-      if (
-        typeof sourceFilename !== 'string' ||
-        !sourceFilename ||
-        typeof targetFilename !== 'string' ||
-        !targetFilename
-      ) {
-        return sendError(
-          res,
-          400,
-          'VALIDATION_ERROR',
-          'sourceFilename and targetFilename are required'
-        );
-      }
 
       const srcType = normalizeType(sourceType || 'story');
       const tgtType = normalizeType(targetType || 'story');

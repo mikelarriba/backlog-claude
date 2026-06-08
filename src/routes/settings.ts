@@ -9,6 +9,13 @@ import {
   getProviderOverride,
   getAvailableProviders,
 } from '../services/claudeService.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import {
+  PiSettingsSchema,
+  SplitThresholdSchema,
+  SprintsSchema,
+  ModelSchema,
+} from '../schemas/settings.js';
 import type { SettingsRouteContext } from '../types.js';
 
 export default function settingsRoutes({
@@ -60,7 +67,7 @@ export default function settingsRoutes({
     res.json(rest);
   });
 
-  router.put('/api/settings/pi', async (req, res) => {
+  router.put('/api/settings/pi', validateBody(PiSettingsSchema), async (req, res) => {
     const { currentPi, nextPi } = req.body;
     const existing = await loadPiSettings();
     const settings = { ...existing, currentPi: currentPi || null, nextPi: nextPi || null };
@@ -79,21 +86,19 @@ export default function settingsRoutes({
     res.json({ splitThreshold: settings.splitThreshold ?? 8 });
   });
 
-  router.put('/api/settings/pi/split-threshold', async (req, res) => {
-    const { splitThreshold } = req.body;
-    const val = Number(splitThreshold);
-    if (!Number.isInteger(val) || val < 1) {
-      return res.status(400).json({ error: 'splitThreshold must be a positive integer' });
+  router.put(
+    '/api/settings/pi/split-threshold',
+    validateBody(SplitThresholdSchema),
+    async (req, res) => {
+      const { splitThreshold } = req.body;
+      const val = Number(splitThreshold);
+      const settings = await loadPiSettings();
+      settings.splitThreshold = val;
+      await savePiSettings(settings);
+      broadcast({ type: 'split_threshold_updated', splitThreshold: val });
+      res.json({ success: true, splitThreshold: val });
     }
-    if (val > 50) {
-      return res.status(400).json({ error: 'splitThreshold cannot exceed 50' });
-    }
-    const settings = await loadPiSettings();
-    settings.splitThreshold = val;
-    await savePiSettings(settings);
-    broadcast({ type: 'split_threshold_updated', splitThreshold: val });
-    res.json({ success: true, splitThreshold: val });
-  });
+  );
 
   // ── Sprint config per PI ──────────────────────────────────────────────────
   router.get('/api/settings/pi/sprints/:piName', async (req, res) => {
@@ -103,31 +108,9 @@ export default function settingsRoutes({
     res.json({ piName, sprints });
   });
 
-  router.put('/api/settings/pi/sprints/:piName', async (req, res) => {
-    const piName = decodeURIComponent(req.params.piName);
-    if (!piName.trim()) {
-      return res.status(400).json({ error: 'PI name cannot be empty' });
-    }
-    const { sprints } = req.body;
-    if (!Array.isArray(sprints) || sprints.length < 1) {
-      return res.status(400).json({ error: 'At least one sprint is required' });
-    }
-    if (sprints.length > 10) {
-      return res.status(400).json({ error: 'A PI can have at most 10 sprints' });
-    }
-    for (const s of sprints) {
-      if (!s.name || typeof s.name !== 'string' || !s.name.trim()) {
-        return res.status(400).json({ error: 'Each sprint must have a non-empty name' });
-      }
-      if (typeof s.capacity !== 'number' || s.capacity < 0 || s.capacity > 999) {
-        return res
-          .status(400)
-          .json({ error: `Sprint "${s.name}" capacity must be between 0 and 999` });
-      }
-      if (s.capacity > 999) {
-        return res.status(400).json({ error: `Sprint "${s.name}" capacity cannot exceed 999` });
-      }
-    }
+  router.put('/api/settings/pi/sprints/:piName', validateBody(SprintsSchema), async (req, res) => {
+    const piName = decodeURIComponent(String(req.params.piName));
+    const sprints: Array<{ name: string; capacity: number; bufferPct?: number }> = req.body.sprints;
     const settings = await loadPiSettings();
     if (!settings.sprints) settings.sprints = {};
     settings.sprints[piName] = sprints.map((s) => {
@@ -155,7 +138,7 @@ export default function settingsRoutes({
     res.json({ model: getModelOverride(), provider: getProviderOverride() || 'claude-cli' });
   });
 
-  router.put('/api/settings/model', async (req, res) => {
+  router.put('/api/settings/model', validateBody(ModelSchema), async (req, res) => {
     const { model, provider } = req.body;
     setModelOverride(model || null);
     setProviderOverride(provider || null);

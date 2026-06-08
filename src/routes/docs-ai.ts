@@ -26,6 +26,13 @@ import {
   setFrontmatterField,
   extractFrontmatterField,
 } from '../utils/transforms.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import {
+  GenerateDocSchema,
+  UpgradeDocSchema,
+  SplitStorySchema,
+  SplitEpicSchema,
+} from '../schemas/docs.js';
 import type { RouteContext } from '../types.js';
 
 export default function docsAiRoutes({
@@ -43,7 +50,7 @@ export default function docsAiRoutes({
   const router = Router();
 
   // ── POST /api/generate ─────────────────────────────────────────────────────
-  router.post('/api/generate', async (req, res) => {
+  router.post('/api/generate', validateBody(GenerateDocSchema), async (req, res) => {
     try {
       const {
         title: rawTitle,
@@ -57,15 +64,6 @@ export default function docsAiRoutes({
         workCategory,
         pi,
       } = req.body;
-      if (!rawIdea?.trim()) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'Idea is required');
-      }
-      if (rawTitle && rawTitle.length > 200) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'Title must be 200 characters or fewer');
-      }
-      if (rawIdea.length > 5000) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'Idea must be 5000 characters or fewer');
-      }
       // Strip control characters (except \t and \n which are valid in body text)
       // to prevent prompt injection via crafted null bytes or escape sequences.
       // eslint-disable-next-line no-control-regex
@@ -158,82 +156,76 @@ ${idea.trim()}
   });
 
   // ── POST /api/doc/:type/:filename/upgrade ── regenerate with feedback (SSE) ─
-  router.post('/api/doc/:type/:filename/upgrade', async (req, res) => {
-    let docType, filename, filepath;
-    try {
-      ({ docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG));
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
-    }
-    if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
-
-    setupSSE(res);
-    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
-
-    try {
-      const { feedback } = req.body;
-      if (!feedback?.trim()) {
-        send({ error: { code: 'VALIDATION_ERROR', message: 'Feedback is required' } });
-        return res.end();
+  router.post(
+    '/api/doc/:type/:filename/upgrade',
+    validateBody(UpgradeDocSchema),
+    async (req, res) => {
+      let docType, filename, filepath;
+      try {
+        ({ docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG));
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
       }
+      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const currentContent = await fs.promises.readFile(filepath, 'utf-8');
-      const currentStatus = extractWorkflowStatus(currentContent);
+      setupSSE(res);
+      const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-      const inboxPath = path.join(INBOX_DIR, filename);
-      const inboxExists = fs.existsSync(inboxPath);
-      const inboxHistory = inboxExists
-        ? `\n\nOriginal idea and upgrade history (for context):\n---\n${await fs.promises.readFile(inboxPath, 'utf-8')}\n---`
-        : '';
+      try {
+        const { feedback } = req.body;
 
-      const upgradePrompt = buildUpgradePrompt(docType, currentContent, feedback, inboxHistory);
+        const currentContent = await fs.promises.readFile(filepath, 'utf-8');
+        const currentStatus = extractWorkflowStatus(currentContent);
 
-      let fullContent = '';
-      await streamClaude(upgradePrompt, (chunk: string) => {
-        fullContent += chunk;
-        send({ text: chunk });
-      });
+        const inboxPath = path.join(INBOX_DIR, filename);
+        const inboxExists = fs.existsSync(inboxPath);
+        const inboxHistory = inboxExists
+          ? `\n\nOriginal idea and upgrade history (for context):\n---\n${await fs.promises.readFile(inboxPath, 'utf-8')}\n---`
+          : '';
 
-      fullContent = normalizeOutput(fullContent);
-      fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
-      await fs.promises.writeFile(filepath, fullContent);
-      await docIndex.invalidate(docType, filename);
+        const upgradePrompt = buildUpgradePrompt(docType, currentContent, feedback, inboxHistory);
 
-      if (inboxExists) {
-        const note = `\n\n---\n\n## Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}\n\n${feedback.trim()}\n`;
-        await fs.promises.appendFile(inboxPath, note);
+        let fullContent = '';
+        await streamClaude(upgradePrompt, (chunk: string) => {
+          fullContent += chunk;
+          send({ text: chunk });
+        });
+
+        fullContent = normalizeOutput(fullContent);
+        fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
+        await fs.promises.writeFile(filepath, fullContent);
+        await docIndex.invalidate(docType, filename);
+
+        if (inboxExists) {
+          const note = `\n\n---\n\n## Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}\n\n${feedback.trim()}\n`;
+          await fs.promises.appendFile(inboxPath, note);
+        }
+
+        send({ done: true, content: fullContent });
+        res.end();
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        logError('POST /api/doc/:type/:filename/upgrade', apiErr.message, apiErr.details || {});
+        send({
+          error: {
+            code: apiErr.code,
+            message: apiErr.message,
+            ...(apiErr.details ? { details: apiErr.details } : {}),
+          },
+        });
+        res.end();
       }
-
-      send({ done: true, content: fullContent });
-      res.end();
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError('POST /api/doc/:type/:filename/upgrade', apiErr.message, apiErr.details || {});
-      send({
-        error: {
-          code: apiErr.code,
-          message: apiErr.message,
-          ...(apiErr.details ? { details: apiErr.details } : {}),
-        },
-      });
-      res.end();
     }
-  });
+  );
 
   // ── POST /api/docs/split-story ── AI-powered story split (SSE) ───────────────
-  router.post('/api/docs/split-story', async (req, res) => {
+  router.post('/api/docs/split-story', validateBody(SplitStorySchema), async (req, res) => {
     let docType, cfg, filename, filepath, rawCount, sprints;
     try {
       const { filename: fn, docType: dt, targetCount = 2, sprints: sprintsRaw = [] } = req.body;
-      if (!fn || !dt)
-        return sendError(res, 400, 'VALIDATION_ERROR', 'filename and docType are required');
       sprints = sprintsRaw;
-      if (!Array.isArray(sprints))
-        return sendError(res, 400, 'VALIDATION_ERROR', 'sprints must be an array');
       rawCount = Number(targetCount);
-      if (Number.isNaN(rawCount))
-        return sendError(res, 400, 'VALIDATION_ERROR', 'targetCount must be a number');
       docType = assertDocType(dt, TYPE_CONFIG);
       cfg = TYPE_CONFIG[docType];
       filename = assertFilename(fn);
@@ -258,8 +250,9 @@ ${idea.trim()}
       const currentSP = Number(extractFrontmatterField(content, 'Story_Points')) || 0;
       const perStorySP = currentSP ? Math.round(currentSP / count) : 'TBD';
 
-      const sprintList = sprints.length
-        ? sprints.map((s, i) => `Part ${i + 1} → sprint: "${s}"`).join(', ')
+      const sprintArr = sprints as string[];
+      const sprintList = sprintArr.length
+        ? sprintArr.map((s, i) => `Part ${i + 1} → sprint: "${s}"`).join(', ')
         : `assign all parts to the same sprint as the original`;
 
       const splitPrompt = buildSplitStoryPrompt({
@@ -336,20 +329,9 @@ ${idea.trim()}
   });
 
   // ── POST /api/split-epic ── Split an epic, auto-creating a Feature if needed ─
-  router.post('/api/split-epic', async (req, res) => {
+  router.post('/api/split-epic', validateBody(SplitEpicSchema), async (req, res) => {
     try {
       const { epicFilename: rawFilename, description } = req.body;
-      if (!rawFilename?.trim())
-        return sendError(res, 400, 'VALIDATION_ERROR', 'epicFilename is required');
-      if (!description?.trim())
-        return sendError(res, 400, 'VALIDATION_ERROR', 'description is required');
-      if (description.length > 5000)
-        return sendError(
-          res,
-          400,
-          'VALIDATION_ERROR',
-          'description must be 5000 characters or fewer'
-        );
 
       const epicFilename = assertFilename(rawFilename);
       const epicCfg = TYPE_CONFIG.epic;
