@@ -22,6 +22,6 @@ export const SprintsSchema = z.object({
 });
 
 export const ModelSchema = z.object({
-  model: z.string().optional(),
-  provider: z.string().optional(),
+  model: z.string().nullable().optional(),
+  provider: z.string().nullable().optional(),
 });

@@ -156,10 +156,7 @@ ${idea.trim()}
   });
 
   // ── POST /api/doc/:type/:filename/upgrade ── regenerate with feedback (SSE) ─
-  router.post(
-    '/api/doc/:type/:filename/upgrade',
-    validateBody(UpgradeDocSchema),
-    async (req, res) => {
+  router.post('/api/doc/:type/:filename/upgrade', async (req, res) => {
       let docType, filename, filepath;
       try {
         ({ docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG));
@@ -174,6 +171,12 @@ ${idea.trim()}
 
       try {
         const { feedback } = req.body;
+
+        if (!feedback || !String(feedback).trim()) {
+          send({ error: { code: 'VALIDATION_ERROR', message: 'feedback is required' } });
+          res.end();
+          return;
+        }
 
         const currentContent = await fs.promises.readFile(filepath, 'utf-8');
         const currentStatus = extractWorkflowStatus(currentContent);

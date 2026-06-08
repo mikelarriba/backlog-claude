@@ -10,6 +10,7 @@ import {
   getAvailableProviders,
 } from '../services/claudeService.js';
 import { validateBody } from '../utils/validateMiddleware.js';
+import { sendError } from '../utils/routeHelpers.js';
 import {
   PiSettingsSchema,
   SplitThresholdSchema,
@@ -109,7 +110,8 @@ export default function settingsRoutes({
   });
 
   router.put('/api/settings/pi/sprints/:piName', validateBody(SprintsSchema), async (req, res) => {
-    const piName = decodeURIComponent(String(req.params.piName));
+    const piName = decodeURIComponent(String(req.params.piName)).trim();
+    if (!piName) return sendError(res, 400, 'VALIDATION_ERROR', 'piName cannot be empty');
     const sprints: Array<{ name: string; capacity: number; bufferPct?: number }> = req.body.sprints;
     const settings = await loadPiSettings();
     if (!settings.sprints) settings.sprints = {};

@@ -23,7 +23,7 @@ export const DraftDocSchema = z.object({
 export const GenerateDocSchema = z.object({
   idea: z.string().min(1).max(5000),
   title: z.string().max(200).optional(),
-  type: DocTypeEnum.optional(),
+  type: z.string().optional(),
   priority: PriorityEnum.optional(),
   parentFeature: z.string().optional(),
   parentEpic: z.string().optional(),
@@ -54,7 +54,7 @@ export const BatchDeleteSchema = z.object({
 });
 
 export const BatchFixVersionSchema = z.object({
-  fixVersion: z.string().min(1),
+  fixVersion: z.string().nullable(),
   docs: z.array(DocItemSchema).min(1),
 });
 

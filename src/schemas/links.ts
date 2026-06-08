@@ -7,7 +7,7 @@ export const CreateLinkSchema = z.object({
   sourceFilename: z.string().min(1),
   targetType: z.string().min(1),
   targetFilename: z.string().min(1),
-  linkType: LinkTypeEnum,
+  linkType: LinkTypeEnum.optional(),
 });
 
 export const DeleteLinkSchema = z.object({
