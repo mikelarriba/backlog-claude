@@ -45,6 +45,26 @@ open http://localhost:3000
 
 ---
 
+## Docker
+
+```bash
+# Start with Docker Compose
+docker compose up
+
+# Or build and run manually
+docker build -t backlog-claude .
+docker run -p 3000:3000 --env-file .env \
+  -v ./docs:/app/docs \
+  -v ./inbox:/app/inbox \
+  backlog-claude
+```
+
+The `docs/` and `inbox/` directories are volume-mounted so data persists across container restarts. Set environment variables via `.env` (copy from `.env.example`).
+
+Health check: `GET /api/health` returns `{ status: "ok", uptime, docsDir, version }`.
+
+---
+
 ## Environment variables
 
 | Variable         | Required   | Description                                                   |
