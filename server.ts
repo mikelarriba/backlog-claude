@@ -32,6 +32,7 @@ import jiraSearchRoutes from './src/routes/jira-search.js';
 import settingsRoutes from './src/routes/settings.js';
 import bugRoutes from './src/routes/bugs.js';
 import canvasRoutes from './src/routes/canvas.js';
+import exportRoutes from './src/routes/export.js';
 import { apiLimiter, aiLimiter, jiraLimiter } from './src/middleware/rateLimiter.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -315,6 +316,7 @@ app.use(jiraSearchRoutes(jiraShared));
 app.use(settingsRoutes({ rootDir: __dirname, broadcast, logInfo, jiraBase: JIRA_BASE }));
 app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex }));
 app.use(canvasRoutes({ rootDir: __dirname, logInfo }));
+app.use(exportRoutes({ rootDir: __dirname, TYPE_CONFIG, docIndex }));
 
 // ── Centralised ValidationError handler ─────────────────────────────────────
 // Catches ValidationError instances thrown and forwarded via next(err).
