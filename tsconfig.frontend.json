@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "rootDir": "public/ts",
+    "outDir": "public/js",
+    "lib": ["ES2020", "DOM"],
+    "allowJs": false,
+    "declaration": false,
+    "skipLibCheck": true,
+    "noEmit": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["public/ts/**/*.ts"],
+  "exclude": ["node_modules", "public/js"]
+}

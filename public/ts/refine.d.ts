@@ -1,0 +1,17 @@
+export function onCanvasSearch(query: string): void;
+export function openManualRefine(filename: string, docType: string): void;
+export function closeRefineView(): void;
+export function renderFeatureMultiPanel(filename: string): void;
+export function _toggleEpicPanel(filename: string): void;
+export function closeRefinePanel(): void;
+export function openRefinePanel(filename: string, docType: string): void;
+export function _removeCanvasLink(fromFilename: string, toFilename: string, type: string): void;
+export function saveRpTitle(filename: string, docType: string): void;
+export function cancelRpTitleEdit(): void;
+export function saveRpStoryPoints(filename: string, docType: string): void;
+export function saveRpPriority(filename: string, docType: string, priority: string): void;
+export function toggleRpUpgrade(): void;
+export function executeRpUpgrade(filename: string, docType: string): void;
+export function confirmRpDelete(filename: string, docType: string): void;
+export function openCreatePanel(epicFilename: string, docType: string): void;
+export function executeRpCreate(): void;

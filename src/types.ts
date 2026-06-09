@@ -2,6 +2,9 @@
 
 import type { Logger } from './utils/logger.js';
 
+// Re-export frontend-shared types not defined below (PISettings, SprintConfig, etc.)
+export type { PISettings, SprintConfig, SwimlaneCollapsed, PanelState } from './shared/types.js';
+
 // ── Document types ──────────────────────────────────────────────────────────
 
 export type DocType = 'feature' | 'epic' | 'story' | 'spike' | 'bug';

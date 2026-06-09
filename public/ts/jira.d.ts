@@ -1,0 +1,15 @@
+export function jiraSelectAll(): void;
+export function jiraSelectCancel(): void;
+export function jiraSelectConfirm(): void;
+export function syncPreviewSelectAll(): void;
+export function syncPreviewCancel(): void;
+export function syncPreviewConfirm(): void;
+export function pullFromJira(): void;
+export function pushToJira(filename: string, docType: string): void;
+export function checkAllJira(): void;
+export function toggleJiraSection(id: string): void;
+export function searchJira(): void;
+export function downloadSelected(): void;
+export function pullByKey(key: string): void;
+export function submitUpdateFromJiraKey(): void;
+export function toggleJiraItem(key: string): void;

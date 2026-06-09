@@ -1,0 +1,13 @@
+export function _fpCreateChild(epicFilename: string, docType: string): void;
+export function _showCardContextMenu(e: MouseEvent, filename: string): void;
+export function _showFpCardContextMenu(e: MouseEvent, filename: string): void;
+export function _fpMoveToEpic(filename: string, epicFilename: string): void;
+export function _showEpicContextMenu(e: MouseEvent, filename: string): void;
+export function _showEmptyCellMenu(e: MouseEvent, epicFilename: string, col: number): void;
+export function _openCellCreateForm(epicFilename: string, col: number): void;
+export function _executeEmptyCellCreate(): void;
+export function _showMultiCardContextMenu(e: MouseEvent): void;
+export function _moveCardsToEdge(edge: string): void;
+export function _openCanvasSplit(filename: string): void;
+export function _executeCanvasSplit(): void;
+export function _moveCardToEdge(filename: string, edge: string): void;
