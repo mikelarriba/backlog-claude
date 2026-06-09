@@ -1,6 +1,7 @@
 // ── ES Module entry point ────────────────────────────────────────
-import { store, fetchJSON, putJSON, debounce, toggleSection } from './state.js';
+import { fetchJSON, putJSON, debounce, toggleSection } from './state.js';
 import type { DocEntry } from './state.js';
+import { on, upsertDoc, removeDoc, setPiSettings } from './store.js';
 import {
   loadDocs,
   loadPiSettings,
@@ -511,7 +512,9 @@ interface SSEPayload {
 }
 
 // ── Store subscriptions ───────────────────────────────────────
-store.subscribe('allDocs', applyFilters as (value: unknown) => void);
+// Subscribe to domain event so any mutation (upsertDoc, removeDoc, setDocs,
+// or direct allDocs assignment via window) triggers applyFilters.
+on('docs:changed', ({ docs }: { docs: DocEntry[] }) => applyFilters(docs));
 
 // Bootstrap
 (async () => {
@@ -537,22 +540,14 @@ evtSource.onmessage = (e: MessageEvent) => {
 
     // Granular in-memory update when server includes the full DocEntry.
     // Avoids a round-trip GET /api/docs for single-document operations.
+    // upsertDoc / removeDoc emit domain events that trigger subscribers.
     if (payload.doc) {
-      const doc = payload.doc;
-      const idx = allDocs.findIndex((d: DocEntry) => d.filename === doc.filename);
-      if (idx !== -1) {
-        const updated = [...allDocs];
-        updated[idx] = doc;
-        allDocs = updated;
-      } else {
-        allDocs = [...allDocs, doc];
-      }
-      // applyFilters fires via store.subscribe('allDocs', applyFilters)
+      upsertDoc(payload.doc);
       return;
     }
 
     if (payload.type === 'doc_deleted' && payload.filename) {
-      allDocs = allDocs.filter((d: DocEntry) => d.filename !== payload.filename);
+      removeDoc(payload.filename);
       return;
     }
 
@@ -575,7 +570,7 @@ evtSource.onmessage = (e: MessageEvent) => {
       _loadDocsDebounced();
     }
     if (payload.type === 'pi_settings_updated') {
-      piSettings = { currentPi: payload.currentPi ?? null, nextPi: payload.nextPi ?? null };
+      setPiSettings({ currentPi: payload.currentPi ?? null, nextPi: payload.nextPi ?? null });
       loadAllSprintConfigs().then(() => {
         _loadDocsDebounced();
         refreshRoadmapView();

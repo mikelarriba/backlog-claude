@@ -1,5 +1,6 @@
 // ── ES Module entry point ────────────────────────────────────────
-import { store, fetchJSON, putJSON, debounce, toggleSection } from './state.js';
+import { fetchJSON, putJSON, debounce, toggleSection } from './state.js';
+import { on, upsertDoc, removeDoc, setPiSettings } from './store.js';
 import { loadDocs, loadPiSettings, loadJiraVersions, contextSplitItem, closeIssueSplitModal, executeSplitIssue, } from './list.js';
 import { toggleItemCollapse, collapseAll, expandAll, toggleSwimlane, updatePiVersion, setTypeFilter, setStatusFilter, setTeamFilter, setWorkCatFilter, applyFilters, handleItemClick, handleItemContextMenu, showContextMenu, closeContextMenu, contextMoveToPI, contextDeleteSelected, contextAssignField, closeBulkAssignDialog, } from './list-filters.js';
 import './list-render.js';
@@ -307,7 +308,9 @@ async function _saveModelSetting(provider, model) {
     }
 }
 // ── Store subscriptions ───────────────────────────────────────
-store.subscribe('allDocs', applyFilters);
+// Subscribe to domain event so any mutation (upsertDoc, removeDoc, setDocs,
+// or direct allDocs assignment via window) triggers applyFilters.
+on('docs:changed', ({ docs }) => applyFilters(docs));
 // Bootstrap
 (async () => {
     await Promise.all([
@@ -329,22 +332,13 @@ evtSource.onmessage = (e) => {
         const payload = JSON.parse(e.data);
         // Granular in-memory update when server includes the full DocEntry.
         // Avoids a round-trip GET /api/docs for single-document operations.
+        // upsertDoc / removeDoc emit domain events that trigger subscribers.
         if (payload.doc) {
-            const doc = payload.doc;
-            const idx = allDocs.findIndex((d) => d.filename === doc.filename);
-            if (idx !== -1) {
-                const updated = [...allDocs];
-                updated[idx] = doc;
-                allDocs = updated;
-            }
-            else {
-                allDocs = [...allDocs, doc];
-            }
-            // applyFilters fires via store.subscribe('allDocs', applyFilters)
+            upsertDoc(payload.doc);
             return;
         }
         if (payload.type === 'doc_deleted' && payload.filename) {
-            allDocs = allDocs.filter((d) => d.filename !== payload.filename);
+            removeDoc(payload.filename);
             return;
         }
         if ([
@@ -364,7 +358,7 @@ evtSource.onmessage = (e) => {
             _loadDocsDebounced();
         }
         if (payload.type === 'pi_settings_updated') {
-            piSettings = { currentPi: payload.currentPi ?? null, nextPi: payload.nextPi ?? null };
+            setPiSettings({ currentPi: payload.currentPi ?? null, nextPi: payload.nextPi ?? null });
             loadAllSprintConfigs().then(() => {
                 _loadDocsDebounced();
                 refreshRoadmapView();

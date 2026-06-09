@@ -1,6 +1,10 @@
 // ── Shared State ─────────────────────────────────────────────────────────────
 // ES module: all shared state and utilities. Imported by every other module.
 // Frontend type definitions mirror src/shared/types.ts (backend canonical copy).
+// allDocs and piSettings mutations route through store.ts for domain events.
+// Re-export event-driven store API so callers can import from state.js
+export { getState, on, setDocs, upsertDoc, removeDoc, setPiSettings } from './store.js';
+import { setDocs as _setDocs, setPiSettings as _setPiSettings, getState as _getState, } from './store.js';
 export const store = (function () {
     const _state = {};
     const _listeners = {};
@@ -43,7 +47,20 @@ function _storeVar(name, initial) {
     });
 }
 // ── Store-backed global state ─────────────────────────────────────────────────
-_storeVar('allDocs', []);
+// allDocs and piSettings are backed by store.ts (event-driven), so any write
+// via the window global also emits domain events (docs:changed / piSettings:changed).
+Object.defineProperty(window, 'allDocs', {
+    get: () => _getState().docs,
+    set: (docs) => _setDocs(docs),
+    configurable: true,
+    enumerable: true,
+});
+Object.defineProperty(window, 'piSettings', {
+    get: () => _getState().piSettings,
+    set: (settings) => _setPiSettings(settings),
+    configurable: true,
+    enumerable: true,
+});
 _storeVar('jiraBase', '');
 _storeVar('currentFilename', null);
 _storeVar('currentDocType', null);
@@ -63,7 +80,6 @@ _storeVar('splitThreshold', 8);
 _storeVar('_metaTeams', []);
 _storeVar('_metaWorkCategories', []);
 // List-level state (moved here from list.js so all state is centralised)
-_storeVar('piSettings', { currentPi: null, nextPi: null });
 _storeVar('jiraVersions', []);
 _storeVar('_swimlanesCollapsed', { currentPi: false, nextPi: false, backlog: false });
 _storeVar('_collapsedItems', new Set());
