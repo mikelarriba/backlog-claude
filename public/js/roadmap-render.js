@@ -55,21 +55,17 @@ export function topoSortCards(docs) {
   return sorted;
 }
 
-// Palette for epic cards — consistent hash-based colour
-const _EPIC_COLORS = [
-  '#3B82F6',
-  '#8B5CF6',
-  '#10B981',
-  '#14B8A6',
-  '#F59E0B',
-  '#EC4899',
-  '#06B6D4',
-  '#6366F1',
-];
-export function epicColor(key) {
-  let h = 0;
-  for (const c of key || '') h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return _EPIC_COLORS[h % _EPIC_COLORS.length];
+// Category-based colours for epic cards
+const _CATEGORY_COLORS = {
+  'User Features':        '#16a34a',
+  'Platform Features':    '#0891b2',
+  'Testing Features':     '#d97706',
+  'Platform Maintenance': '#64748b',
+  'Technical Debt':       '#dc2626',
+};
+const _CATEGORY_FALLBACK = '#94a3b8';
+export function epicColor(workCategory) {
+  return _CATEGORY_COLORS[workCategory] || _CATEGORY_FALLBACK;
 }
 
 // ── Main render ──────────────────────────────────────────────
@@ -158,7 +154,7 @@ export function renderEpicPanel(sprints) {
   for (const [key, { epicDoc, sprints: sprintSet, storyCount, totalSP }] of sorted) {
     const isNone = key === '__none__';
     const title = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
-    const color = isNone ? 'var(--muted)' : epicColor(key);
+    const color = isNone ? 'var(--muted)' : epicColor(epicDoc?.workCategory);
     const fn = epicDoc?.filename || '';
     const snippet = epicDoc?.descriptionSnippet || '';
 
@@ -188,8 +184,8 @@ export function renderEpicPanel(sprints) {
     const epicDocType = epicDoc?.docType || 'epic';
     rowsHtml += `
       <div class="rm-epic-card${isNone ? ' rm-epic-unlinked' : ''}"
-           data-filename="${escHtml(fn)}" data-doctype="${epicDocType}"${tooltipAttrs}
-           onclick="${fn ? `handleRoadmapEpicClick(event,'${escHtml(fn)}','${epicDocType}')` : ''}"
+           data-filename="${escHtml(fn || '__none__')}" data-doctype="${epicDocType}"${tooltipAttrs}
+           onclick="${fn || isNone ? `handleRoadmapEpicClick(event,'${fn ? escHtml(fn) : '__none__'}','${epicDocType}')` : ''}"
            oncontextmenu="${fn ? `handleEpicContextMenu(event,'${escHtml(fn)}','${epicDocType}')` : ''}">
         <div class="rm-epic-name-col">
           <div class="rm-epic-dot" style="background:${color}"></div>
@@ -311,7 +307,7 @@ export function renderRoadmapCard(d, _sprintName) {
   if (parentFn) {
     const parent = allDocs.find((p) => p.filename === parentFn);
     if (parent) {
-      const color = epicColor(parentFn);
+      const color = epicColor(parent.workCategory);
       parentHtml = `<div class="roadmap-card-parent"><span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}</div>`;
     }
   }
@@ -420,7 +416,7 @@ export function injectGhostCards() {
     }
     if (!targetList) continue;
 
-    const color = epicColor(parent.filename);
+    const color = epicColor(parent.workCategory);
     const ghostHtml = `
       <div class="roadmap-card ghost-card"
            onclick="openDoc('${escHtml(story.filename)}','${story.docType}')"

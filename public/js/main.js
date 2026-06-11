@@ -14,10 +14,10 @@ import { resetCanvasLayout } from './refine-canvas.js';
 import { _showEdgePopup, _deleteCanvasLink, _changeCanvasLinkType, toggleManageLinks, _closeLinkPopup, _createCanvasLink, } from './refine-edges.js';
 import { _fpCreateChild, _showCardContextMenu, _showFpCardContextMenu, _fpMoveToEpic, _showEpicContextMenu, _showEmptyCellMenu, _openCellCreateForm, _executeEmptyCellCreate, _showMultiCardContextMenu, _moveCardsToEdge, _openCanvasSplit, _executeCanvasSplit, _moveCardToEdge, } from './refine-nodes.js';
 import { onCanvasSearch, openManualRefine, closeRefineView, renderFeatureMultiPanel, _toggleEpicPanel, closeRefinePanel, openRefinePanel, _removeCanvasLink, saveRpTitle, cancelRpTitleEdit, saveRpStoryPoints, saveRpPriority, toggleRpUpgrade, executeRpUpgrade, confirmRpDelete, openCreatePanel, executeRpCreate, } from './refine.js';
-import { exportEpicToPdf, openRoadmapExportDialog, closeRoadmapExportDialog, executeRoadmapExport, } from './export.js';
+import { exportEpicToPdf, openRoadmapExportDialog, closeRoadmapExportDialog, executeRoadmapExport, rexpToggleAllSprints, rexpToggleAllTeams, } from './export.js';
 import { togglePiConfigSection, addSprintRow, removeSprintRow, selectPiConfigTab, saveSprintConfig, saveSplitThreshold, loadAllSprintConfigs, } from './piconfig.js';
 import { openDistributionModal, closeDistributionModal, applyDistribution, } from './distribution.js';
-import { openRoadmapView, closeRoadmapView, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, pushSprintsToJira, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, sprintPushToggleAllSprints, startSprintPushPreview, confirmSprintPush, _sprintPushUpdateCount, addDepLink, addParallelLink, removeDepLink, closeDepModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory, rmCtxSetSprint, } from './roadmap.js';
+import { openRoadmapView, closeRoadmapView, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, pushSprintsToJira, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, sprintPushToggleAllSprints, startSprintPushPreview, confirmSprintPush, _sprintPushUpdateCount, pullFromJiraSprints, closePullSprintModal, pullSprintToggleAll, startPullSprintPreview, pullSprintSelectAllItems, _pullSprintUpdateCount, confirmPullSprint, addDepLink, addParallelLink, removeDepLink, closeDepModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory, rmCtxSetSprint, } from './roadmap.js';
 import { handleRoadmapCardClick, handleRoadmapEpicClick, clearRoadmapSelection, } from './roadmap-select.js';
 import { initDragDrop } from './dragdrop.js';
 if ('serviceWorker' in navigator) {
@@ -106,6 +106,17 @@ document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
         e.preventDefault();
         toggleLeftPanel();
+    }
+    if (e.key === 'Escape') {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT'))
+            return;
+        const overlays = document.querySelectorAll('.dialog-overlay.show');
+        if (overlays.length)
+            return;
+        const detail = document.getElementById('detail-view');
+        if (detail && detail.classList.contains('show'))
+            showList();
     }
 });
 // ── Model / Provider settings ─────────────────────────────────
@@ -532,6 +543,8 @@ const _globals = {
     openRoadmapExportDialog,
     closeRoadmapExportDialog,
     executeRoadmapExport,
+    rexpToggleAllSprints,
+    rexpToggleAllTeams,
     // piconfig.js
     togglePiConfigSection,
     addSprintRow,
@@ -559,6 +572,13 @@ const _globals = {
     startSprintPushPreview,
     confirmSprintPush,
     _sprintPushUpdateCount,
+    pullFromJiraSprints,
+    closePullSprintModal,
+    pullSprintToggleAll,
+    startPullSprintPreview,
+    pullSprintSelectAllItems,
+    _pullSprintUpdateCount,
+    confirmPullSprint,
     closeDepModal,
     addDepLink,
     addParallelLink,

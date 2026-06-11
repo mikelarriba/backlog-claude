@@ -3,14 +3,18 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { pMap } from '../utils/pMap.js';
-import { sendError, parseApiError, setupSSE } from '../utils/routeHelpers.js';
-import { setFrontmatterField } from '../utils/transforms.js';
+import { sendError, parseApiError, setupSSE, ensureDir } from '../utils/routeHelpers.js';
+import { setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
+import { JIRA_LABEL_TO_TEAM } from '../config/metadata.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraPushSprintsRoutes({
   TYPE_CONFIG,
   JIRA_BOARD_ID,
+  FIELD_STORY_POINTS,
+  jiraRequest,
   jiraAgileRequest,
+  jiraIssueToMarkdown,
   broadcast,
   logInfo,
   logWarn,
@@ -406,6 +410,149 @@ export default function jiraPushSprintsRoutes({
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/jira/push-sprints', apiErr.message, apiErr.details || {});
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── POST /api/jira/pull-sprint-preview ── scan JIRA sprints for issues not in local app (SSE) ──
+  router.post('/api/jira/pull-sprint-preview', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN)
+      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+    if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
+
+    setupSSE(res);
+    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+
+    try {
+      const { selectedSprints = [] } = req.body as { selectedSprints: string[] };
+
+      send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
+      const sprintMap = await ensureSprintCache();
+
+      // Build sprint name mapping
+      const { localToJira } = buildSprintNameMap(selectedSprints, sprintMap);
+      const activeSprintMap = new Map<string, number>();
+      for (const localName of selectedSprints) {
+        const jiraName = localToJira.get(localName);
+        if (jiraName) activeSprintMap.set(jiraName, sprintMap.get(jiraName)!);
+      }
+
+      if (!activeSprintMap.size) {
+        send({ type: 'error', message: `No matching JIRA sprints found for: ${selectedSprints.join(', ')}` });
+        res.end();
+        return;
+      }
+
+      const results: Array<Record<string, unknown>> = [];
+      const sprintEntries = [...activeSprintMap.entries()];
+
+      for (let i = 0; i < sprintEntries.length; i++) {
+        const [jiraSprintName, sprintId] = sprintEntries[i];
+        send({ type: 'progress', message: `Scanning ${jiraSprintName}…`, current: i + 1, total: sprintEntries.length });
+
+        let startAt = 0;
+        const maxResults = 50;
+        while (true) {
+          const data = (await jiraAgileRequest(
+            'GET',
+            `/sprint/${sprintId}/issue?maxResults=${maxResults}&startAt=${startAt}&fields=summary,issuetype,priority,status,${FIELD_STORY_POINTS || 'customfield_10002'}`
+          )) as Record<string, any>;
+          const issues = data.issues || [];
+          if (!issues.length) break;
+
+          for (const issue of issues) {
+            const existing = docIndex.findByJiraId(issue.key);
+            if (existing) continue;
+
+            results.push({
+              key: issue.key,
+              summary: issue.fields.summary || '',
+              issuetype: issue.fields.issuetype?.name || 'Story',
+              priority: issue.fields.priority?.name || 'Medium',
+              status: issue.fields.status?.name || '',
+              storyPoints: issue.fields[FIELD_STORY_POINTS || 'customfield_10002'] || null,
+              sprintName: jiraSprintName,
+            });
+          }
+
+          if (startAt + issues.length >= (data.total || 0)) break;
+          startAt += issues.length;
+        }
+      }
+
+      send({ type: 'done', results });
+      res.end();
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/pull-sprint-preview', apiErr.message, apiErr.details || {});
+      send({ type: 'error', message: apiErr.message });
+      res.end();
+    }
+  });
+
+  // ── POST /api/jira/pull-sprint ── import selected JIRA issues as local docs ──
+  router.post('/api/jira/pull-sprint', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN)
+      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+    try {
+      const { issues = [] } = req.body as { issues: Array<{ key: string; sprintName: string }> };
+
+      // Load PI settings for sprint→PI mapping
+      const piSettingsPath = path.join(path.dirname(TYPE_CONFIG.story.dir()), '..', '.pi-settings.json');
+      let piSettings: Record<string, unknown> = {};
+      try { piSettings = JSON.parse(await fs.promises.readFile(piSettingsPath, 'utf-8')); } catch { /* no-op */ }
+      const sprintConfig = (piSettings.sprints || {}) as Record<string, Array<{ name: string }>>;
+      const sprintToPi = new Map<string, string>();
+      for (const [pi, sprints] of Object.entries(sprintConfig)) {
+        for (const s of sprints) sprintToPi.set(s.name, pi);
+      }
+
+      const results = await pMap(
+        issues,
+        async ({ key, sprintName }) => {
+          try {
+            const issue = await jiraRequest('GET', `/issue/${key}?expand=renderedFields`);
+            const { docType, content } = jiraIssueToMarkdown(issue);
+            let finalContent = content;
+
+            // Set Sprint field
+            const localSprint = sprintName;
+            finalContent = setFrontmatterField(finalContent, 'Sprint', localSprint);
+
+            // Set Fix_Version from sprint→PI mapping
+            const pi = sprintToPi.get(localSprint);
+            if (pi) finalContent = setFrontmatterField(finalContent, 'Fix_Version', pi);
+
+            // Set Team from JIRA labels
+            const labels: string[] = (issue as any).fields?.labels || [];
+            const teamLabel = labels.find((l: string) => JIRA_LABEL_TO_TEAM[l]);
+            if (teamLabel) finalContent = setFrontmatterField(finalContent, 'Team', JIRA_LABEL_TO_TEAM[teamLabel]);
+
+            // Write file
+            const dir = TYPE_CONFIG[docType as keyof typeof TYPE_CONFIG]?.dir() || TYPE_CONFIG.story.dir();
+            ensureDir(dir);
+            const slug = slugify((issue as any).fields.summary || key);
+            const filename = `${isoDate()}-${slug}.md`;
+            const filePath = path.join(dir, filename);
+            await fs.promises.writeFile(filePath, finalContent);
+
+            logInfo('jira/pull-sprint', `Pulled ${key} → ${filename}`);
+            broadcast({ type: 'doc-change', docType, filename });
+            return { key, status: 'ok', filename };
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            logWarn('jira/pull-sprint', `Failed to pull ${key}: ${msg}`);
+            return { key, status: 'error', error: msg };
+          }
+        },
+        { concurrency: JIRA_CONCURRENCY }
+      );
+
+      res.json({ results });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/pull-sprint', apiErr.message, apiErr.details || {});
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });

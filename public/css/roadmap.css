@@ -202,6 +202,27 @@
   background: var(--surface2);
 }
 
+.rm-category-legend {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-left: 8px;
+}
+.rm-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.62rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.rm-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .rm-epic-search {
   margin-left: auto;
   padding: 3px 8px;
@@ -1040,6 +1061,39 @@
   height: 1px;
   background: var(--border);
   margin: 4px 0;
+}
+
+/* Sprint/team filter inside export dialog */
+.roadmap-export-sprint-filter {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.roadmap-export-sprint-header { margin-bottom: 6px; }
+.rexp-sprint-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+.rexp-sprint-list label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rexp-sprint-list label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.rexp-sprint-btns {
+  display: flex;
+  gap: 6px;
 }
 
 /* ── Sprint Push preview modal ──────────────────────────────── */

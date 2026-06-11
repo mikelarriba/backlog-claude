@@ -29,16 +29,14 @@ const BADGE_COLOR: Record<string, string> = {
   bug: '#dc2626',
 };
 
-const EPIC_COLORS = [
-  '#3B82F6',
-  '#8B5CF6',
-  '#10B981',
-  '#14B8A6',
-  '#F59E0B',
-  '#EC4899',
-  '#06B6D4',
-  '#6366F1',
-];
+const CATEGORY_COLORS: Record<string, string> = {
+  'User Features':        '#16a34a',
+  'Platform Features':    '#0891b2',
+  'Testing Features':     '#d97706',
+  'Platform Maintenance': '#64748b',
+  'Technical Debt':       '#dc2626',
+};
+const CATEGORY_FALLBACK = '#94a3b8';
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -58,10 +56,8 @@ function stripFrontmatter(content: string): string {
   return content.replace(/^---[\s\S]*?---\n?/, '');
 }
 
-function epicColor(key: string): string {
-  let h = 0;
-  for (const c of key || '') h = ((h * 31 + c.charCodeAt(0)) >>> 0) % EPIC_COLORS.length;
-  return EPIC_COLORS[h];
+function epicColor(workCategory: string | null | undefined): string {
+  return CATEGORY_COLORS[workCategory || ''] || CATEGORY_FALLBACK;
 }
 
 function topoSortCards(docs: DocEntry[]): DocEntry[] {
@@ -587,7 +583,7 @@ function renderRoadmapTimeline(
     if (hideEmptyEpics && sprintSet.size === 0) continue;
     const isNone = key === '__none__';
     const title = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
-    const color = isNone ? '#94a3b8' : epicColor(key);
+    const color = isNone ? '#94a3b8' : epicColor(epicDoc?.workCategory);
     const meta = `${storyCount} item${storyCount !== 1 ? 's' : ''} · ${totalSP} SP`;
 
     const indices = [...sprintSet]
@@ -1052,6 +1048,8 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       const piParam = String(req.query.pi || '');
       const includesParam = String(req.query.includes || 'roadmap,titles');
       const hideEmptyEpics = req.query.hideEmpty === '1';
+      const sprintsParam = String(req.query.sprints || '');
+      const teamsParam = String(req.query.teams || '');
 
       const includes = new Set(includesParam.split(',').map((s) => s.trim()));
       const includeRoadmap = includes.has('roadmap');
@@ -1072,7 +1070,11 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       const allPiNames = Object.keys(sprintConfig);
       const visiblePis = new Set(requestedPis.length ? requestedPis : allPiNames);
 
-      // Gather sprints for visible PIs
+      // Sprint & team filters
+      const filterSprints = sprintsParam ? new Set(sprintsParam.split(',').map((s) => s.trim()).filter(Boolean)) : null;
+      const filterTeams = teamsParam ? new Set(teamsParam.split(',').map((s) => s.trim()).filter(Boolean)) : null;
+
+      // Gather sprints for visible PIs (filtered if sprint filter is active)
       const sprints: SprintEntry[] = [];
       const seenSprints = new Set<string>();
       for (const pi of allPiNames) {
@@ -1080,7 +1082,9 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
         for (const s of sprintConfig[pi] || []) {
           if (!seenSprints.has(s.name)) {
             seenSprints.add(s.name);
-            sprints.push(s);
+            if (!filterSprints || filterSprints.has(s.name)) {
+              sprints.push(s);
+            }
           }
         }
       }
@@ -1091,6 +1095,8 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
 
       const visibleLeafs = allDocs.filter(
         (d) => leafTypes.has(d.docType) && d.fixVersion && visiblePis.has(d.fixVersion)
+          && (!filterSprints || filterSprints.has(d.sprint || ''))
+          && (!filterTeams || filterTeams.has(d.team || ''))
       );
 
       const epicMap = new Map<string, EpicMapEntry>();

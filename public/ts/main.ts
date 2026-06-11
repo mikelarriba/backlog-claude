@@ -140,6 +140,8 @@ import {
   openRoadmapExportDialog,
   closeRoadmapExportDialog,
   executeRoadmapExport,
+  rexpToggleAllSprints,
+  rexpToggleAllTeams,
 } from './export.js';
 import {
   togglePiConfigSection,
@@ -171,6 +173,13 @@ import {
   startSprintPushPreview,
   confirmSprintPush,
   _sprintPushUpdateCount,
+  pullFromJiraSprints,
+  closePullSprintModal,
+  pullSprintToggleAll,
+  startPullSprintPreview,
+  pullSprintSelectAllItems,
+  _pullSprintUpdateCount,
+  confirmPullSprint,
   addDepLink,
   addParallelLink,
   removeDepLink,
@@ -284,6 +293,14 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
     e.preventDefault();
     toggleLeftPanel();
+  }
+  if (e.key === 'Escape') {
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+    const overlays = document.querySelectorAll('.dialog-overlay.show');
+    if (overlays.length) return;
+    const detail = document.getElementById('detail-view');
+    if (detail && detail.classList.contains('show')) showList();
   }
 });
 
@@ -743,6 +760,8 @@ const _globals: Record<string, unknown> = {
   openRoadmapExportDialog,
   closeRoadmapExportDialog,
   executeRoadmapExport,
+  rexpToggleAllSprints,
+  rexpToggleAllTeams,
   // piconfig.js
   togglePiConfigSection,
   addSprintRow,
@@ -770,6 +789,13 @@ const _globals: Record<string, unknown> = {
   startSprintPushPreview,
   confirmSprintPush,
   _sprintPushUpdateCount,
+  pullFromJiraSprints,
+  closePullSprintModal,
+  pullSprintToggleAll,
+  startPullSprintPreview,
+  pullSprintSelectAllItems,
+  _pullSprintUpdateCount,
+  confirmPullSprint,
   closeDepModal,
   addDepLink,
   addParallelLink,
