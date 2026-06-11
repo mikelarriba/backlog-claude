@@ -28,6 +28,26 @@
   min-width: 0;
 }
 
+.detail-close-btn {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.detail-close-btn:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
 .detail-title-input {
   font-size: 0.9rem;
   font-weight: 600;

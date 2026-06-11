@@ -124,13 +124,15 @@ export function applyEpicFocus() {
   });
 
   // Story panel: dim non-matching stories
+  const focusNone = _roadmapFocusedEpic === '__none__';
   document.querySelectorAll('.roadmap-card').forEach((card) => {
     if (!_roadmapFocusedEpic) {
       card.classList.remove('rm-dimmed');
       return;
     }
     const parent = card.dataset.parent || '';
-    card.classList.toggle('rm-dimmed', parent !== _roadmapFocusedEpic);
+    const matches = focusNone ? parent === '' : parent === _roadmapFocusedEpic;
+    card.classList.toggle('rm-dimmed', !matches);
   });
 }
 
@@ -474,6 +476,169 @@ export function getAllSprints() {
     }
   }
   return all;
+}
+
+// ── Pull from JIRA Sprints ───────────────────────────────────
+
+const JIRA_TYPE_TO_LOCAL = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Improvement: 'story', Task: 'spike', Bug: 'bug' };
+
+export function pullFromJiraSprints() {
+  const overlay = document.getElementById('pull-sprint-overlay');
+  // Reset UI state
+  document.getElementById('pull-sprint-select-step').style.display = '';
+  document.getElementById('pull-sprint-loading').style.display = 'none';
+  document.getElementById('pull-sprint-error').style.display = 'none';
+  document.getElementById('pull-sprint-empty').style.display = 'none';
+  document.getElementById('pull-sprint-results').innerHTML = '';
+  document.getElementById('pull-sprint-actions').style.display = 'none';
+
+  // Populate sprint checkboxes
+  const list = document.getElementById('pull-sprint-list');
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  let html = '';
+  for (const pi of pis) {
+    const sprints = sprintConfig[pi] || [];
+    if (!sprints.length) continue;
+    html += `<div class="sprint-push-pi-group"><strong>${escHtml(pi)}</strong></div>`;
+    for (const s of sprints) {
+      html += `<label class="sprint-push-sprint-item"><input type="checkbox" value="${escHtml(s.name)}" checked />${escHtml(s.name)}</label>`;
+    }
+  }
+  list.innerHTML = html;
+  overlay.classList.add('show');
+}
+
+export function closePullSprintModal() {
+  document.getElementById('pull-sprint-overlay').classList.remove('show');
+}
+
+export function pullSprintToggleAll(checked) {
+  document.querySelectorAll('#pull-sprint-list input[type="checkbox"]').forEach(cb => cb.checked = checked);
+}
+
+export async function startPullSprintPreview() {
+  const cbs = document.querySelectorAll('#pull-sprint-list input[type="checkbox"]:checked');
+  const selectedSprints = [...cbs].map(cb => cb.value);
+  if (!selectedSprints.length) { showJiraToast('error', 'Select at least one sprint'); return; }
+
+  document.getElementById('pull-sprint-select-step').style.display = 'none';
+  document.getElementById('pull-sprint-loading').style.display = '';
+  document.getElementById('pull-sprint-error').style.display = 'none';
+  document.getElementById('pull-sprint-empty').style.display = 'none';
+  document.getElementById('pull-sprint-results').innerHTML = '';
+  document.getElementById('pull-sprint-actions').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/jira/pull-sprint-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selectedSprints }),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let result = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const msg = JSON.parse(line.slice(6));
+        if (msg.type === 'progress') {
+          document.getElementById('pull-sprint-progress-msg').textContent = msg.message;
+        } else if (msg.type === 'error') {
+          document.getElementById('pull-sprint-loading').style.display = 'none';
+          document.getElementById('pull-sprint-error').style.display = '';
+          document.getElementById('pull-sprint-error').textContent = msg.message;
+          return;
+        } else if (msg.type === 'done') {
+          result = msg.results;
+        }
+      }
+    }
+
+    document.getElementById('pull-sprint-loading').style.display = 'none';
+
+    if (!result || !result.length) {
+      document.getElementById('pull-sprint-empty').style.display = '';
+      return;
+    }
+
+    _renderPullSprintResults(result);
+  } catch (e) {
+    document.getElementById('pull-sprint-loading').style.display = 'none';
+    document.getElementById('pull-sprint-error').style.display = '';
+    document.getElementById('pull-sprint-error').textContent = e.message;
+  }
+}
+
+function _renderPullSprintResults(results) {
+  const container = document.getElementById('pull-sprint-results');
+  let html = `<div class="sprint-push-results-header">
+    <label><input type="checkbox" checked onchange="pullSprintSelectAllItems(this.checked)" /> Select all</label>
+    <span>${results.length} new issue${results.length !== 1 ? 's' : ''} found</span>
+  </div>`;
+
+  for (const r of results) {
+    const localType = JIRA_TYPE_TO_LOCAL[r.issuetype] || 'story';
+    const typeBadge = `<span class="sprint-push-type sprint-push-type-${localType}">${escHtml(r.issuetype)}</span>`;
+    const sp = r.storyPoints ? `${r.storyPoints} SP` : '';
+    html += `<label class="sprint-push-item">
+      <input type="checkbox" checked value="${escHtml(r.key)}" data-sprint="${escHtml(r.sprintName)}" onchange="_pullSprintUpdateCount()" />
+      <div class="sprint-push-item-info">
+        <div class="sprint-push-item-title">${typeBadge} <strong>${escHtml(r.key)}</strong> ${escHtml(r.summary)}</div>
+        <div class="sprint-push-item-meta">${escHtml(r.sprintName)} ${sp ? '· ' + sp : ''}</div>
+      </div>
+    </label>`;
+  }
+  container.innerHTML = html;
+  document.getElementById('pull-sprint-actions').style.display = '';
+  _pullSprintUpdateCount();
+}
+
+export function pullSprintSelectAllItems(checked) {
+  document.querySelectorAll('#pull-sprint-results input[type="checkbox"]').forEach(cb => cb.checked = checked);
+  _pullSprintUpdateCount();
+}
+
+export function _pullSprintUpdateCount() {
+  const checked = document.querySelectorAll('#pull-sprint-results input[type="checkbox"]:checked').length;
+  const total = document.querySelectorAll('#pull-sprint-results input[type="checkbox"]').length;
+  const btn = document.getElementById('pull-sprint-confirm');
+  if (btn) btn.textContent = `Pull Selected (${checked}/${total})`;
+}
+
+export async function confirmPullSprint() {
+  const cbs = document.querySelectorAll('#pull-sprint-results input[type="checkbox"]:checked');
+  const issues = [...cbs].map(cb => ({ key: cb.value, sprintName: cb.dataset.sprint }));
+  if (!issues.length) { showJiraToast('error', 'No issues selected'); return; }
+
+  const btn = document.getElementById('pull-sprint-confirm');
+  btn.disabled = true;
+  btn.textContent = 'Pulling…';
+
+  try {
+    const res = await fetch('/api/jira/pull-sprint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ issues }),
+    });
+    const data = await res.json();
+    const ok = data.results?.filter(r => r.status === 'ok').length || 0;
+    const err = data.results?.filter(r => r.status === 'error').length || 0;
+    showJiraToast('ok', `Pulled ${ok} issue${ok !== 1 ? 's' : ''}${err ? `, ${err} failed` : ''}`);
+    closePullSprintModal();
+    loadDocs();
+  } catch (e) {
+    showJiraToast('error', 'Pull failed: ' + e.message);
+    btn.disabled = false;
+    _pullSprintUpdateCount();
+  }
 }
 
 // ── Dependency modal ─────────────────────────────────────────
