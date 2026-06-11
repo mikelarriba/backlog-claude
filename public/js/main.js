@@ -13,10 +13,10 @@ import { _renderFpCanvas, buildCanvasGraph, rebuildCanvasEdges, computeAutoLayou
 import { _showEdgePopup, _deleteCanvasLink, _changeCanvasLinkType, _restoreManageLinksState, toggleManageLinks, _closeLinkPopup, _showLinkPopup, _createCanvasLink } from './refine-edges.js';
 import { _fpCreateChild, _showCardContextMenu, _showFpCardContextMenu, _fpMoveToEpic, _showEpicContextMenu, _showEmptyCellMenu, _openCellCreateForm, _executeEmptyCellCreate, _showMultiCardContextMenu, _moveCardsToEdge, _openCanvasSplit, _executeCanvasSplit, _moveCardToEdge } from './refine-nodes.js';
 import { onCanvasSearch, openManualRefine, closeRefineView, renderFeatureMultiPanel, _toggleEpicPanel, closeRefinePanel, openRefinePanel, _removeCanvasLink, saveRpTitle, cancelRpTitleEdit, saveRpStoryPoints, saveRpPriority, toggleRpUpgrade, executeRpUpgrade, confirmRpDelete, openCreatePanel, executeRpCreate } from './refine.js';
-import { exportEpicToPdf, openRoadmapExportDialog, closeRoadmapExportDialog, executeRoadmapExport } from './export.js';
+import { exportEpicToPdf, openRoadmapExportDialog, closeRoadmapExportDialog, executeRoadmapExport, rexpToggleAllSprints, rexpToggleAllTeams } from './export.js';
 import { togglePiConfigSection, addSprintRow, removeSprintRow, selectPiConfigTab, saveSprintConfig, saveSplitThreshold, loadAllSprintConfigs } from './piconfig.js';
 import { openDistributionModal, closeDistributionModal, applyDistribution } from './distribution.js';
-import { openRoadmapView, closeRoadmapView, isRoadmapOpen, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, applyEpicFocus, pushSprintsToJira, openSprintPushModal, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, sprintPushToggleAllSprints, startSprintPushPreview, confirmSprintPush, _sprintPushUpdateCount, getAllSprints, openDepModal, addDepLink, addParallelLink, removeDepLink, closeDepModal, openSplitModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory, rmCtxSetSprint } from './roadmap.js';
+import { openRoadmapView, closeRoadmapView, isRoadmapOpen, refreshRoadmapView, toggleRoadmapPi, toggleRoadmapPanel, filterRoadmapEpics, focusEpic, applyEpicFocus, pushSprintsToJira, openSprintPushModal, closeSprintPushModal, toggleSprintPushFilter, sprintPushSelectAll, sprintPushToggleAllSprints, startSprintPushPreview, confirmSprintPush, _sprintPushUpdateCount, getAllSprints, pullFromJiraSprints, closePullSprintModal, pullSprintToggleAll, startPullSprintPreview, pullSprintSelectAllItems, _pullSprintUpdateCount, confirmPullSprint, openDepModal, addDepLink, addParallelLink, removeDepLink, closeDepModal, openSplitModal, closeSplitModal, executeSplit, handleEpicContextMenu, handleStoryContextMenu, rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory, rmCtxSetSprint } from './roadmap.js';
 import { handleRoadmapCardClick, handleRoadmapEpicClick, clearRoadmapSelection } from './roadmap-select.js';
 import { initDragDrop } from './dragdrop.js';
 
@@ -86,6 +86,16 @@ function toggleLeftPanel() {
 
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); toggleLeftPanel(); }
+  if (e.key === 'Escape') {
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+    // Close any open overlay first
+    const overlays = document.querySelectorAll('.dialog-overlay.show');
+    if (overlays.length) return; // let overlay's own handler deal with it
+    // Close detail panel if visible
+    const detail = document.getElementById('detail-view');
+    if (detail && detail.classList.contains('show')) { showList(); }
+  }
 });
 
 // ── Model / Provider settings ─────────────────────────────────
@@ -455,6 +465,8 @@ window.exportEpicToPdf         = exportEpicToPdf;
 window.openRoadmapExportDialog  = openRoadmapExportDialog;
 window.closeRoadmapExportDialog = closeRoadmapExportDialog;
 window.executeRoadmapExport     = executeRoadmapExport;
+window.rexpToggleAllSprints     = rexpToggleAllSprints;
+window.rexpToggleAllTeams       = rexpToggleAllTeams;
 
 // piconfig.js
 window.togglePiConfigSection = togglePiConfigSection;
@@ -485,6 +497,13 @@ window.sprintPushToggleAllSprints = sprintPushToggleAllSprints;
 window.startSprintPushPreview    = startSprintPushPreview;
 window.confirmSprintPush         = confirmSprintPush;
 window._sprintPushUpdateCount    = _sprintPushUpdateCount;
+window.pullFromJiraSprints       = pullFromJiraSprints;
+window.closePullSprintModal      = closePullSprintModal;
+window.pullSprintToggleAll       = pullSprintToggleAll;
+window.startPullSprintPreview    = startPullSprintPreview;
+window.pullSprintSelectAllItems  = pullSprintSelectAllItems;
+window._pullSprintUpdateCount    = _pullSprintUpdateCount;
+window.confirmPullSprint         = confirmPullSprint;
 window.closeDepModal          = closeDepModal;
 window.addDepLink             = addDepLink;
 window.addParallelLink        = addParallelLink;

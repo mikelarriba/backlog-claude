@@ -26,6 +26,30 @@
   min-width: 0;
 }
 
+.detail-close-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  font-family: inherit;
+  line-height: 1;
+  padding: 0;
+}
+.detail-close-btn:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
 .detail-title-input {
   font-size: 0.9rem;
   font-weight: 600;

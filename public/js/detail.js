@@ -8,7 +8,7 @@ import { resetStoriesSection } from './stories.js';
 import { closeQuickCreate } from './quickcreate.js';
 import { resetUpgradePanel } from './upgrade.js';
 import { isSplitMode, highlightSelectedItem } from './main.js';
-import { isRoadmapOpen } from './roadmap.js';
+import { isRoadmapOpen, refreshRoadmapView } from './roadmap.js';
 
 export function updateJiraLink(jiraId, jiraUrl) {
   const el = document.getElementById('detail-jira-link');
@@ -368,6 +368,7 @@ export async function updateDocWorkCategory(workCategory) {
     const doc = allDocs.find(d => d.filename === currentFilename && d.docType === currentDocType);
     if (doc) doc.workCategory = workCategory || null;
     applyFilters();
+    refreshRoadmapView();
   } catch (e) { console.warn('Failed to save work category:', e.message); }
 }
 

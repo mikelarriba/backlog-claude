@@ -452,7 +452,36 @@ function _renderStoryCards(childData) {
 // report in a new tab, following the same pattern as exportEpicToPdf.
 
 export function openRoadmapExportDialog() {
+  // Populate sprint checkboxes
+  const sprints = getAllSprints();
+  const sprintList = document.getElementById('rexp-sprint-list');
+  sprintList.innerHTML = sprints.map(s =>
+    `<label><input type="checkbox" value="${escHtml(s.name)}" checked />${escHtml(s.name)}</label>`
+  ).join('');
+
+  // Populate team checkboxes from docs in visible PIs
+  const leafTypes = new Set(['story', 'spike', 'bug']);
+  const teams = new Set();
+  for (const d of allDocs) {
+    if (leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion) && d.team) {
+      teams.add(d.team);
+    }
+  }
+  const sorted = [...teams].sort();
+  const teamList = document.getElementById('rexp-team-list');
+  teamList.innerHTML = sorted.map(t =>
+    `<label><input type="checkbox" value="${escHtml(t)}" checked />${escHtml(t)}</label>`
+  ).join('');
+
   document.getElementById('roadmap-export-overlay').classList.add('show');
+}
+
+export function rexpToggleAllSprints(checked) {
+  document.querySelectorAll('#rexp-sprint-list input[type="checkbox"]').forEach(cb => cb.checked = checked);
+}
+
+export function rexpToggleAllTeams(checked) {
+  document.querySelectorAll('#rexp-team-list input[type="checkbox"]').forEach(cb => cb.checked = checked);
 }
 
 export function closeRoadmapExportDialog() {
@@ -471,18 +500,31 @@ export async function executeRoadmapExport() {
     return;
   }
 
+  // Read selected sprints from the filter checkboxes
+  const selectedSprintCbs = document.querySelectorAll('#rexp-sprint-list input[type="checkbox"]:checked');
+  const selectedSprints = new Set([...selectedSprintCbs].map(cb => cb.value));
+  const filterBySprint = selectedSprints.size > 0;
+
+  // Read selected teams from the filter checkboxes
+  const selectedTeamCbs = document.querySelectorAll('#rexp-team-list input[type="checkbox"]:checked');
+  const selectedTeams = new Set([...selectedTeamCbs].map(cb => cb.value));
+  const filterByTeam = selectedTeams.size > 0;
+
   closeRoadmapExportDialog();
   showJiraToast('info', 'Preparing roadmap report...');
 
   try {
-    const sprints   = getAllSprints();
-    const piFilter  = [..._roadmapVisiblePis].join(' + ') || null;
-    const leafTypes = new Set(['story', 'spike', 'bug']);
-    const epicTypes = new Set(['epic']);
+    const allSprints = getAllSprints();
+    const sprints    = filterBySprint ? allSprints.filter(s => selectedSprints.has(s.name)) : allSprints;
+    const piFilter   = [..._roadmapVisiblePis].join(' + ') || null;
+    const leafTypes  = new Set(['story', 'spike', 'bug']);
+    const epicTypes  = new Set(['epic']);
 
-    // Visible leaf docs (same logic as renderStoryPanel)
+    // Visible leaf docs — optionally filtered by selected sprints and teams
     const visibleLeafs = allDocs.filter(d =>
       leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
+      && (!filterBySprint || selectedSprints.has(d.sprint))
+      && (!filterByTeam || selectedTeams.has(d.team))
     );
 
     // Build epic map (same logic as renderEpicPanel)
@@ -749,7 +791,7 @@ function _renderRoadmapTimeline(sprints, epicEntries, hideEmptyEpics) {
     if (hideEmptyEpics && sprintSet.size === 0) continue;
     const isNone = key === '__none__';
     const title  = epicDoc?.title || (isNone ? 'Unlinked Stories' : key);
-    const color  = isNone ? '#94a3b8' : epicColor(key);
+    const color  = isNone ? '#94a3b8' : epicColor(epicDoc?.workCategory);
     const meta   = `${storyCount} item${storyCount !== 1 ? 's' : ''} · ${totalSP} SP`;
 
     // Compute sprint span
@@ -907,10 +949,11 @@ function _renderRoadmapCharts(visibleLeafs) {
   const COLORS = ['#3B82F6','#8B5CF6','#10B981','#14B8A6','#F59E0B','#EC4899','#06B6D4','#6366F1'];
   const BAR_H = 28;
   const BAR_GAP = 8;
-  const CHART_W = 460;
   const LABEL_X = 5;
   const BAR_X = 160;
-  const BAR_MAX_W = CHART_W - BAR_X - 10;
+  const BAR_MAX_W = 220;
+  const LABEL_MARGIN = 100; // space for "999 SP (100%)" text after bar
+  const CHART_W = BAR_X + BAR_MAX_W + LABEL_MARGIN;
 
   // Aggregate by team
   const teamDist = {};

@@ -3,21 +3,22 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { pMap } from '../utils/pMap.js';
-import { sendError, parseApiError, assertDocType, assertFilename, setupSSE } from '../utils/routeHelpers.js';
+import { sendError, ensureDir, parseApiError, assertDocType, assertFilename, setupSSE } from '../utils/routeHelpers.js';
 import {
   setFrontmatterField, extractFrontmatterField, stripFrontmatter, markdownToJira,
+  isoDate, slugify,
 } from '../utils/transforms.js';
 import { parseStorySections, serializeStoryFile } from '../services/storyService.js';
-import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
+import { LOCAL_TO_JIRA_TYPE, JIRA_TO_LOCAL_TYPE } from '../services/jiraService.js';
 import { logAudit } from '../utils/auditLog.js';
-import { TEAM_TO_JIRA_LABEL, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
+import { TEAM_TO_JIRA_LABEL, ALL_TEAM_JIRA_LABELS, JIRA_LABEL_TO_TEAM } from '../config/metadata.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraPushRoutes({
   TYPE_CONFIG, FEATURES_DIR, EPICS_DIR, BUGS_DIR, JIRA_PROJECT, JIRA_LABEL, JIRA_BASE, JIRA_BOARD_ID,
   FIELD_EPIC_NAME, FIELD_EPIC_LINK, FIELD_STORY_POINTS,
   jiraRequest, jiraAgileRequest, jiraUploadAttachment, jiraIssueToMarkdown, extractJiraSummary,
-  broadcast, logInfo, logWarn, logError, docIndex,
+  findLocalFileByJiraId, broadcast, logInfo, logWarn, logError, docIndex,
 }: JiraRouteContext) {
   const router = Router();
 
@@ -814,6 +815,189 @@ export default function jiraPushRoutes({
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('POST /api/jira/push-rank', apiErr.message, apiErr.details || {});
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── POST /api/jira/pull-sprint-preview ── scan JIRA sprints for issues not in local app (SSE) ──
+  router.post('/api/jira/pull-sprint-preview', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+    if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
+
+    setupSSE(res);
+    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+
+    try {
+      const { selectedSprints = [] } = req.body as { selectedSprints: string[] };
+      if (!selectedSprints.length) {
+        send({ type: 'error', message: 'No sprints selected' });
+        res.end();
+        return;
+      }
+
+      send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
+      const sprintMap = await ensureSprintCache();
+
+      // Resolve selected sprint names to JIRA sprint IDs
+      const resolvedSprints: Array<{ name: string; id: number }> = [];
+      for (const name of selectedSprints) {
+        const id = sprintMap.get(name);
+        if (id) {
+          resolvedSprints.push({ name, id });
+        } else {
+          // Try fuzzy match
+          for (const [jiraName, jiraId] of sprintMap) {
+            if (jiraName.endsWith(name) || name.endsWith(jiraName)) {
+              resolvedSprints.push({ name: jiraName, id: jiraId });
+              break;
+            }
+          }
+        }
+      }
+
+      if (!resolvedSprints.length) {
+        send({ type: 'error', message: `No matching JIRA sprints found for: ${selectedSprints.join(', ')}` });
+        res.end();
+        return;
+      }
+
+      // Scan each sprint for issues
+      const allIssues: Array<{ key: string; summary: string; issuetype: string; priority: string; status: string; storyPoints: number | null; sprintName: string }> = [];
+      const seenKeys = new Set<string>();
+
+      for (let i = 0; i < resolvedSprints.length; i++) {
+        const { name, id } = resolvedSprints[i];
+        send({ type: 'progress', message: `Scanning "${name}" (${i + 1}/${resolvedSprints.length})…`, current: i + 1, total: resolvedSprints.length });
+
+        try {
+          let startAt = 0;
+          while (true) {
+            const data = (await jiraAgileRequest('GET',
+              `/board/${JIRA_BOARD_ID}/sprint/${id}/issue?fields=summary,issuetype,priority,status,${FIELD_STORY_POINTS}&maxResults=100&startAt=${startAt}`
+            )) as Record<string, any>;
+            const issues = data.issues || [];
+            for (const iss of issues) {
+              if (seenKeys.has(iss.key)) continue;
+              seenKeys.add(iss.key);
+              allIssues.push({
+                key: iss.key,
+                summary: iss.fields?.summary || '',
+                issuetype: iss.fields?.issuetype?.name || '',
+                priority: iss.fields?.priority?.name || '',
+                status: iss.fields?.status?.name || '',
+                storyPoints: iss.fields?.[FIELD_STORY_POINTS] ?? null,
+                sprintName: name,
+              });
+            }
+            if (issues.length < 100) break;
+            startAt += issues.length;
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          send({ type: 'progress', message: `Warning: could not scan "${name}" — ${msg}` });
+        }
+      }
+
+      send({ type: 'progress', message: `Checking ${allIssues.length} JIRA issues against local docs…`, current: resolvedSprints.length, total: resolvedSprints.length });
+
+      // Filter to issues that do NOT exist locally
+      const newIssues: typeof allIssues = [];
+      for (const iss of allIssues) {
+        const local = docIndex.findByJiraId(iss.key) || await findLocalFileByJiraId(iss.key);
+        if (!local) {
+          newIssues.push(iss);
+        }
+      }
+
+      logInfo('POST /api/jira/pull-sprint-preview', `${allIssues.length} total in JIRA, ${newIssues.length} new (not in local)`);
+      send({ type: 'result', issues: newIssues, stats: { total: allIssues.length, new: newIssues.length, existing: allIssues.length - newIssues.length } });
+      res.end();
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/pull-sprint-preview', apiErr.message, apiErr.details || {});
+      send({ type: 'error', message: apiErr.message });
+      res.end();
+    }
+  });
+
+  // ── POST /api/jira/pull-sprint ── import selected JIRA issues as local docs ──
+  router.post('/api/jira/pull-sprint', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN) return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+    try {
+      const { items = [] } = req.body as {
+        items: Array<{ key: string; sprintName: string }>;
+      };
+      if (!items.length) return sendError(res, 400, 'VALIDATION_ERROR', 'No items to pull');
+
+      // Build sprint→PI map from local PI settings so we can set Fix_Version
+      const sprintToPi = new Map<string, string>();
+      const piSettingsPath = path.join(path.dirname(FEATURES_DIR), '..', '.pi-settings.json');
+      try {
+        if (fs.existsSync(piSettingsPath)) {
+          const piData = JSON.parse(await fs.promises.readFile(piSettingsPath, 'utf-8'));
+          for (const piName of [piData.currentPi, piData.nextPi].filter(Boolean)) {
+            const sprints = piData.sprints?.[piName] || [];
+            for (const s of sprints) {
+              if (s.name) sprintToPi.set(s.name, piName);
+            }
+          }
+        }
+      } catch (e) {
+        logWarn('jira/pull-sprint', `Could not load PI settings for sprint→PI mapping: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
+      const pulled: Array<{ key: string; filename: string; docType: string }> = [];
+      const errors: Array<{ key: string; error: string }> = [];
+
+      for (const item of items) {
+        try {
+          // Fetch full issue details
+          const issue = (await jiraRequest('GET',
+            `/issue/${item.key}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`
+          )) as Record<string, any>;
+
+          let { docType, content } = jiraIssueToMarkdown(issue);
+
+          // Set sprint from the JIRA sprint name
+          content = setFrontmatterField(content, 'Sprint', item.sprintName);
+
+          // Resolve PI from sprint name and set Fix_Version
+          const piName = sprintToPi.get(item.sprintName);
+          if (piName) {
+            content = setFrontmatterField(content, 'Fix_Version', piName);
+          }
+
+          // Resolve team from JIRA labels
+          const issueLabels = (issue.fields?.labels ?? []) as string[];
+          const teamLabel = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
+          if (teamLabel) {
+            const localTeam = JIRA_LABEL_TO_TEAM[teamLabel];
+            if (localTeam) content = setFrontmatterField(content, 'Team', localTeam);
+          }
+
+          const slug = slugify(issue.fields.summary || item.key);
+          const filename = `${isoDate()}-${slug}.md`;
+
+          const destDir = TYPE_CONFIG[docType].dir();
+          ensureDir(destDir);
+          await fs.promises.writeFile(path.join(destDir, filename), content);
+          await docIndex.invalidate(docType, filename);
+
+          pulled.push({ key: item.key, filename, docType });
+          broadcast({ type: `${docType}_created`, filename, docType });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          logWarn('jira/pull-sprint', `Failed to pull ${item.key}: ${msg}`);
+          errors.push({ key: item.key, error: msg });
+        }
+      }
+
+      logInfo('POST /api/jira/pull-sprint', `Pulled ${pulled.length} issues, ${errors.length} errors`);
+      res.json({ pulled, errors });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/jira/pull-sprint', apiErr.message, apiErr.details || {});
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
