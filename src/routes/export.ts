@@ -1133,7 +1133,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
         return kb.localeCompare(ka);
       });
 
-      let contentMap: Record<string, string> = {};
+      const contentMap: Record<string, string> = {};
       if (includeDescs) {
         await Promise.all(
           visibleLeafs.map(async (d) => {

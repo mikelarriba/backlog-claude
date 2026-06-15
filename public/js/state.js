@@ -51,13 +51,13 @@ function _storeVar(name, initial) {
 // via the window global also emits domain events (docs:changed / piSettings:changed).
 Object.defineProperty(window, 'allDocs', {
     get: () => _getState().docs,
-    set: (docs) => _setDocs(docs),
+    set: (docs) => { _setDocs(docs); },
     configurable: true,
     enumerable: true,
 });
 Object.defineProperty(window, 'piSettings', {
     get: () => _getState().piSettings,
-    set: (settings) => _setPiSettings(settings),
+    set: (settings) => { _setPiSettings(settings); },
     configurable: true,
     enumerable: true,
 });
