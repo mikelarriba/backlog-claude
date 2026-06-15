@@ -57,10 +57,11 @@ export default function jiraSearchRoutes({
       const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
       const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause} ORDER BY updated DESC`;
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
+      type JiraSearchIssue = { key: string; fields: Record<string, unknown> & { summary?: string; issuetype?: { name?: string }; status?: { name?: string }; priority?: { name?: string } } };
       const rawIssues = (await jiraPagedRequest(jql, fields, {
         maxResults: 100,
         maxTotal: 500,
-      })) as Record<string, any>[];
+      })) as JiraSearchIssue[];
 
       const issues = await Promise.all(
         rawIssues.map(async (issue) => {
@@ -68,8 +69,8 @@ export default function jiraSearchRoutes({
           const existing = docIndex.findByJiraId(iss.key) || (await findLocalFileByJiraId(iss.key));
           return {
             key: iss.key,
-            summary: iss.fields.summary || '',
-            epicName: iss.fields[FIELD_EPIC_NAME] || '',
+            summary: String(iss.fields.summary || ''),
+            epicName: String(iss.fields[FIELD_EPIC_NAME] || ''),
             issuetype: iss.fields.issuetype?.name || '',
             status: iss.fields.status?.name || '',
             priority: iss.fields.priority?.name || '',
@@ -83,7 +84,7 @@ export default function jiraSearchRoutes({
       res.json({ issues, total: rawIssues.length });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('GET /api/jira/search', apiErr.message, apiErr.details || {});
+      logError('GET /api/jira/search', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -93,23 +94,22 @@ export default function jiraSearchRoutes({
     if (!process.env.JIRA_API_TOKEN)
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     try {
-      const data = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) || []) as Array<
-        Record<string, any>
-      >;
-      const versions = data.map((v: Record<string, any>) => ({
+      type JiraVersion = { id: string; name: string; released?: boolean; archived?: boolean };
+      const data = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) || []) as JiraVersion[];
+      const versions = data.map((v) => ({
         id: v.id,
         name: v.name,
         released: !!v.released,
         archived: !!v.archived,
       }));
-      versions.sort((a: Record<string, any>, b: Record<string, any>) => {
+      versions.sort((a, b) => {
         if (a.released !== b.released) return a.released ? 1 : -1;
         return a.name.localeCompare(b.name);
       });
       res.json({ versions });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('GET /api/jira/versions', apiErr.message, apiErr.details || {});
+      logError('GET /api/jira/versions', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -121,15 +121,17 @@ export default function jiraSearchRoutes({
 
     try {
       const key = req.params.key;
+      type JiraChildIssue = { key: string; fields?: { summary?: string; issuetype?: { name?: string }; status?: { name?: string } } };
+      type JiraParentIssue = { fields?: { issuetype?: { name?: string }; issuelinks?: Array<{ inwardIssue?: JiraChildIssue }>; subtasks?: JiraChildIssue[] } };
       const issue = (await jiraRequest(
         'GET',
         `/issue/${key}?fields=issuetype,issuelinks,subtasks`
-      )) as Record<string, any>;
-      const issueType = issue.fields.issuetype?.name;
+      )) as JiraParentIssue;
+      const issueType = issue.fields?.issuetype?.name;
       const children: Array<Record<string, unknown>> = [];
       const seen = new Set();
 
-      async function addChild(child: Record<string, any>) {
+      async function addChild(child: JiraChildIssue) {
         if (seen.has(child.key)) return;
         seen.add(child.key);
         const existing =
@@ -153,21 +155,21 @@ export default function jiraSearchRoutes({
           maxResults: 100,
           maxTotal: 500,
         });
-        for (const child of childIssues) await addChild(child as Record<string, any>);
+        for (const child of childIssues) await addChild(child as JiraChildIssue);
       }
 
       // New Features / Epics: check issue links (inward = contained children)
-      for (const link of issue.fields.issuelinks || []) {
+      for (const link of issue.fields?.issuelinks || []) {
         if (link.inwardIssue) await addChild(link.inwardIssue);
       }
 
       // Subtasks
-      for (const st of issue.fields.subtasks || []) await addChild(st);
+      for (const st of issue.fields?.subtasks || []) await addChild(st);
 
       res.json({ parentKey: key, parentType: issueType, children });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('GET /api/jira/children/:key', apiErr.message, apiErr.details || {});
+      logError('GET /api/jira/children/:key', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -220,12 +222,12 @@ export default function jiraSearchRoutes({
         const issue = (await jiraRequest(
           'GET',
           `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`
-        )) as Record<string, any>;
+        )) as { fields?: Record<string, unknown> };
         const { docType, content: initialContent } = jiraIssueToMarkdown(issue);
         let content = initialContent;
 
         // Resolve team from JIRA labels
-        const issueLabels = (issue.fields?.labels ?? []) as string[];
+        const issueLabels = ((issue.fields?.labels ?? []) as string[]);
         const teamLabel = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
         if (
           teamLabel &&
@@ -240,7 +242,7 @@ export default function jiraSearchRoutes({
         if (existing && overwriteKeys.includes(key)) {
           filename = existing.filename;
         } else {
-          const slug = slugify(issue.fields.summary || key);
+          const slug = slugify(String(issue.fields?.summary || key));
           filename = `${isoDate()}-${slug}.md`;
         }
 
@@ -270,7 +272,7 @@ export default function jiraSearchRoutes({
       res.json({ pulled, conflicts });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/pull', apiErr.message, apiErr.details || {});
+      logError('POST /api/jira/pull', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });

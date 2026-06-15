@@ -18,10 +18,10 @@ function fmt(prefix: string, level: string, scope: string, message: string): str
 }
 
 export interface Logger {
-  logDebug: (scope: string, message: string, meta?: Record<string, any>) => void;
-  logInfo: (scope: string, message: string, meta?: Record<string, any>) => void;
-  logWarn: (scope: string, message: string, meta?: Record<string, any>) => void;
-  logError: (scope: string, message: string, meta?: Record<string, any>) => void;
+  logDebug: (scope: string, message: string, meta?: Record<string, unknown>) => void;
+  logInfo: (scope: string, message: string, meta?: Record<string, unknown>) => void;
+  logWarn: (scope: string, message: string, meta?: Record<string, unknown>) => void;
+  logError: (scope: string, message: string, meta?: Record<string, unknown>) => void;
 }
 
 /**
@@ -29,17 +29,17 @@ export interface Logger {
  */
 export function createLogger(prefix: string): Logger {
   return {
-    logDebug: (scope: string, message: string, meta: Record<string, any> = {}) => {
+    logDebug: (scope: string, message: string, meta: Record<string, unknown> = {}) => {
       if (currentLevel() <= LEVEL_MAP.debug)
         console.debug(fmt(prefix, 'DEBUG', scope, message), meta);
     },
-    logInfo: (scope: string, message: string, meta: Record<string, any> = {}) => {
+    logInfo: (scope: string, message: string, meta: Record<string, unknown> = {}) => {
       if (currentLevel() <= LEVEL_MAP.info) console.log(fmt(prefix, 'INFO', scope, message), meta);
     },
-    logWarn: (scope: string, message: string, meta: Record<string, any> = {}) => {
+    logWarn: (scope: string, message: string, meta: Record<string, unknown> = {}) => {
       if (currentLevel() <= LEVEL_MAP.warn) console.warn(fmt(prefix, 'WARN', scope, message), meta);
     },
-    logError: (scope: string, message: string, meta: Record<string, any> = {}) => {
+    logError: (scope: string, message: string, meta: Record<string, unknown> = {}) => {
       if (currentLevel() <= LEVEL_MAP.error)
         console.error(fmt(prefix, 'ERROR', scope, message), meta);
     },

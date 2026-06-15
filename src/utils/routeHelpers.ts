@@ -5,11 +5,12 @@ import path from 'path';
 import type { Request, Response } from 'express';
 import { WORKFLOW_STATUSES } from './transforms.js';
 import { ValidationError } from './validate.js';
+import type { TypeConfig, TypeConfigEntry } from '../types.js';
 
 interface ApiError {
   code: string;
   message: string;
-  details?: any;
+  details?: unknown;
 }
 
 export function sendError(
@@ -17,7 +18,7 @@ export function sendError(
   status: number,
   code: string,
   message: string,
-  details: any = null
+  details: unknown = null
 ): Response {
   return res.status(status).json({
     error: {
@@ -33,27 +34,28 @@ export function ensureDir(dir: string): void {
 }
 
 export function parseApiError(
-  err: any,
+  err: unknown,
   fallbackCode = 'INTERNAL_ERROR',
   fallbackMessage = 'Unexpected server error'
 ): ApiError {
   if (!err) return { code: fallbackCode, message: fallbackMessage };
   if (err instanceof ValidationError) return { code: 'VALIDATION_ERROR', message: err.message };
   if (typeof err === 'string') return { code: fallbackCode, message: err };
+  const e = err as Record<string, unknown>;
   return {
-    code: err.code || fallbackCode,
-    message: err.message || fallbackMessage,
-    ...(err.details ? { details: err.details } : {}),
+    code: (typeof e.code === 'string' ? e.code : null) || fallbackCode,
+    message: (typeof e.message === 'string' ? e.message : null) || fallbackMessage,
+    ...(e.details ? { details: e.details } : {}),
   };
 }
 
-export function normalizeType(value: any): string {
+export function normalizeType(value: unknown): string {
   return String(value || '')
     .toLowerCase()
     .trim();
 }
 
-export function assertDocType(type: any, TYPE_CONFIG: Record<string, any>): string {
+export function assertDocType(type: unknown, TYPE_CONFIG: TypeConfig): string {
   const normalized = normalizeType(type);
   if (!TYPE_CONFIG[normalized]) {
     throw {
@@ -79,7 +81,7 @@ export function assertStatus(status: string): void {
 // Rejects path traversal (../../), uppercase, spaces, and any other chars.
 const SAFE_FILENAME_RE = /^[a-z0-9][a-z0-9-]*\.md$/;
 
-export function assertFilename(filename: any): string {
+export function assertFilename(filename: unknown): string {
   const cleaned = path.basename(String(filename || '').trim());
   if (!cleaned || !SAFE_FILENAME_RE.test(cleaned)) {
     throw {
@@ -90,7 +92,7 @@ export function assertFilename(filename: any): string {
   return cleaned;
 }
 
-export function assertBody(body: Record<string, any>, required: string[]): void {
+export function assertBody(body: Record<string, unknown>, required: string[]): void {
   const missing = required.filter(
     (k) => body[k] === undefined || body[k] === null || body[k] === ''
   );
@@ -111,8 +113,8 @@ export function setupSSE(res: Response): void {
 
 export function resolveDocPath(
   req: Request,
-  TYPE_CONFIG: Record<string, any>
-): { docType: string; cfg: any; filename: string; filepath: string } {
+  TYPE_CONFIG: TypeConfig
+): { docType: string; cfg: TypeConfigEntry; filename: string; filepath: string } {
   const docType = assertDocType(req.params.type, TYPE_CONFIG);
   const cfg = TYPE_CONFIG[docType];
   const filename = assertFilename(req.params.filename);

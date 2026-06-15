@@ -58,8 +58,8 @@ export async function validateJiraConfig({
       );
       return;
     }
-  } catch (err: any) {
-    logWarn('jira-validator', `JIRA /myself check failed: ${err.message} — validation skipped`);
+  } catch (err: unknown) {
+    logWarn('jira-validator', `JIRA /myself check failed: ${err instanceof Error ? err.message : String(err)} — validation skipped`);
     return;
   }
 
@@ -75,10 +75,10 @@ export async function validateJiraConfig({
       return;
     }
     fields = (await res.json()) as Array<{ id: string; name: string }>;
-  } catch (err: any) {
+  } catch (err: unknown) {
     logWarn(
       'jira-validator',
-      `JIRA /field check failed: ${err.message} — field validation skipped`
+      `JIRA /field check failed: ${err instanceof Error ? err.message : String(err)} — field validation skipped`
     );
     return;
   }
