@@ -220,10 +220,11 @@ export default function jiraSyncRoutes({
     }
   });
 
+  type JiraPreviewIssue = { key: string; fields?: Record<string, unknown> & { summary?: string; issuetype?: { name?: string }; description?: string; issuelinks?: Array<{ inwardIssue?: { key: string } }> } };
   // ── Shared helper: build preview item from a JIRA issue ──────
-  async function _buildPreviewItem(iss: Record<string, any>) {
+  async function _buildPreviewItem(iss: JiraPreviewIssue) {
     const existing = docIndex.findByJiraId(iss.key) || (await findLocalFileByJiraId(iss.key));
-    const jiraTitle = (iss.fields?.summary || '').trim();
+    const jiraTitle = String(iss.fields?.summary || '').trim();
     const jiraSP = iss.fields?.[FIELD_STORY_POINTS] ?? null;
     const jiraTypeName = iss.fields?.issuetype?.name || '';
     const localType = JIRA_TO_LOCAL_TYPE[jiraTypeName] || 'story';
@@ -281,10 +282,7 @@ export default function jiraSyncRoutes({
       if (!jiraKey) return sendError(res, 400, 'VALIDATION_ERROR', 'jiraKey is required');
 
       const fields = `summary,issuetype,status,priority,description,fixVersions,issuelinks,subtasks,${FIELD_EPIC_NAME},${FIELD_EPIC_LINK},${FIELD_STORY_POINTS}`;
-      const issue = (await jiraRequest('GET', `/issue/${jiraKey}?fields=${fields}`)) as Record<
-        string,
-        any
-      >;
+      const issue = (await jiraRequest('GET', `/issue/${jiraKey}?fields=${fields}`)) as JiraPreviewIssue;
       const items = [];
 
       items.push(await _buildPreviewItem(issue));
@@ -292,7 +290,7 @@ export default function jiraSyncRoutes({
       // ── Children ──────────────────────────────────────────────
       if (includeChildren) {
         const issueType = issue.fields?.issuetype?.name;
-        const childIssues: Array<Record<string, any>> = [];
+        const childIssues: JiraPreviewIssue[] = [];
         const seen = new Set([jiraKey]);
 
         // Epics: children via Epic Link custom field
@@ -302,7 +300,7 @@ export default function jiraSyncRoutes({
           const data = (await jiraRequest(
             'GET',
             `/search?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`
-          )) as Record<string, any>;
+          )) as { issues?: JiraPreviewIssue[] };
           for (const c of data.issues || []) {
             if (!seen.has(c.key)) {
               seen.add(c.key);
@@ -320,7 +318,7 @@ export default function jiraSyncRoutes({
               const full = (await jiraRequest(
                 'GET',
                 `/issue/${inw.key}?fields=${fields}`
-              )) as Record<string, any>;
+              )) as JiraPreviewIssue;
               childIssues.push(full);
             } catch (err) {
               logWarn('jira/sync', `could not fetch child issue ${inw.key}`, {
@@ -346,13 +344,14 @@ export default function jiraSyncRoutes({
           const jiraChildKeys = new Set(childIssues.map((c) => c.key));
 
           for (const local of localChildren) {
-            if (jiraChildKeys.has(local.jiraId) || seen.has(local.jiraId)) continue;
+            if (jiraChildKeys.has(local.jiraId!) || seen.has(local.jiraId!)) continue;
             // This local child wasn't in the open JIRA children — check if it's closed or gone
             try {
+              type JiraRemoteIssue = { fields?: { status?: { name?: string; statusCategory?: { key?: string } }; summary?: string; issuetype?: { name?: string } } };
               const remoteIssue = (await jiraRequest(
                 'GET',
                 `/issue/${local.jiraId}?fields=status,summary,issuetype`
-              )) as Record<string, any>;
+              )) as JiraRemoteIssue;
               const statusCat = remoteIssue.fields?.status?.statusCategory?.key;
               if (statusCat === 'done') {
                 items.push({
@@ -436,13 +435,14 @@ export default function jiraSyncRoutes({
 
       for (const doc of linkedDocs) {
         try {
+          type JiraCheckIssue = { fields?: Record<string, unknown> & { summary?: string; description?: string } };
           const issue = (await jiraRequest(
             'GET',
             `/issue/${doc.jiraId}?fields=${fields}`
-          )) as Record<string, any>;
-          const jiraSummary = (issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
+          )) as JiraCheckIssue;
+          const jiraSummary = String(issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
           const jiraSp = issue.fields?.[FIELD_STORY_POINTS] ?? null;
-          const jiraDesc = jiraToMarkdown(issue.fields?.description || '').trim();
+          const jiraDesc = jiraToMarkdown(String(issue.fields?.description || '')).trim();
 
           // Read local content for accurate comparison
           let localTitle = '';

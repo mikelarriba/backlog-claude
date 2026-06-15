@@ -35,8 +35,7 @@ export interface JiraServiceInstance {
   jiraRequest: (
     method: string,
     urlPath: string,
-    body?: unknown,
-    opts?: { _retryOn429?: boolean }
+    body?: unknown
   ) => Promise<unknown>;
   jiraPagedRequest: (
     jql: string,
@@ -46,8 +45,7 @@ export interface JiraServiceInstance {
   jiraAgileRequest: (
     method: string,
     urlPath: string,
-    body?: unknown,
-    opts?: { _retryOn429?: boolean }
+    body?: unknown
   ) => Promise<unknown>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
@@ -64,98 +62,78 @@ export function createJiraService({
   isoDate,
   slugify: _slugify,
 }: JiraServiceConfig): JiraServiceInstance {
+  async function _jiraFetch(
+    fullUrl: string,
+    method: string,
+    body: unknown,
+    label: string
+  ): Promise<unknown> {
+    const RETRY_DELAYS = [2_000, 4_000, 8_000];
+    const MAX_ATTEMPTS = 3;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
+      const opts: RequestInit = {
+        method,
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${JIRA_TOKEN}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+      };
+      if (body) opts.body = JSON.stringify(body);
+
+      let res: Response;
+      try {
+        res = await fetch(fullUrl, opts);
+      } catch (err: unknown) {
+        clearTimeout(timer);
+        if ((err as { name?: string }).name === 'AbortError')
+          throw new Error(`${label} request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+
+      if (res.status !== 429) {
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          const safeText = text
+            .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]')
+            .slice(0, 300);
+          throw new Error(`${label} → ${res.status}: ${safeText}`);
+        }
+        const text = await res.text();
+        return text ? JSON.parse(text) : undefined;
+      }
+
+      if (attempt === MAX_ATTEMPTS - 1)
+        throw new Error(`${label} rate limit exceeded after ${MAX_ATTEMPTS} retries`);
+
+      const retryAfterSec = Number(res.headers.get('Retry-After'));
+      const waitMs = retryAfterSec > 0 ? retryAfterSec * 1000 : RETRY_DELAYS[attempt];
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+
+    throw new Error(`${label} rate limit exceeded after ${MAX_ATTEMPTS} retries`);
+  }
+
   async function jiraRequest(
     method: string,
     urlPath: string,
-    body?: unknown,
-    { _retryOn429 = true } = {}
+    body?: unknown
   ): Promise<unknown> {
-    const url = `${JIRA_BASE}/rest/api/2${urlPath}`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
-    const opts: RequestInit = {
-      method,
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${JIRA_TOKEN}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-    };
-    if (body) opts.body = JSON.stringify(body);
-    let res: Response;
-    try {
-      res = await fetch(url, opts);
-    } catch (err: unknown) {
-      if ((err as { name?: string }).name === 'AbortError')
-        throw new Error(`JIRA request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
-      throw err;
-    } finally {
-      clearTimeout(timer);
-    }
-    // Rate-limit: wait for Retry-After and retry once
-    if (res.status === 429 && _retryOn429) {
-      const retryAfter = Number(res.headers.get('Retry-After')) || 60;
-      await new Promise((r) => setTimeout(r, retryAfter * 1000));
-      return jiraRequest(method, urlPath, body, { _retryOn429: false });
-    }
-    if (!res.ok) {
-      if (res.status === 429) throw new Error(`JIRA rate limit exceeded — try again later`);
-      const text = await res.text().catch(() => '');
-      // Scrub anything resembling a Bearer token from error output
-      const safeText = text
-        .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]')
-        .slice(0, 300);
-      throw new Error(`JIRA ${method} ${urlPath} → ${res.status}: ${safeText}`);
-    }
-    const text = await res.text();
-    return text ? JSON.parse(text) : undefined;
+    return _jiraFetch(`${JIRA_BASE}/rest/api/2${urlPath}`, method, body, `JIRA ${method} ${urlPath}`);
   }
 
   async function jiraAgileRequest(
     method: string,
     urlPath: string,
-    body?: unknown,
-    { _retryOn429 = true } = {}
+    body?: unknown
   ): Promise<unknown> {
-    const url = `${JIRA_BASE}/rest/agile/1.0${urlPath}`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
-    const opts: RequestInit = {
-      method,
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${JIRA_TOKEN}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-    };
-    if (body) opts.body = JSON.stringify(body);
-    let res: Response;
-    try {
-      res = await fetch(url, opts);
-    } catch (err: unknown) {
-      if ((err as { name?: string }).name === 'AbortError')
-        throw new Error(`JIRA Agile request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
-      throw err;
-    } finally {
-      clearTimeout(timer);
-    }
-    if (res.status === 429 && _retryOn429) {
-      const retryAfter = Number(res.headers.get('Retry-After')) || 60;
-      await new Promise((r) => setTimeout(r, retryAfter * 1000));
-      return jiraAgileRequest(method, urlPath, body, { _retryOn429: false });
-    }
-    if (!res.ok) {
-      if (res.status === 429) throw new Error(`JIRA Agile rate limit exceeded — try again later`);
-      const text = await res.text().catch(() => '');
-      const safeText = text
-        .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]')
-        .slice(0, 300);
-      throw new Error(`JIRA Agile ${method} ${urlPath} → ${res.status}: ${safeText}`);
-    }
-    const text = await res.text();
-    return text ? JSON.parse(text) : undefined;
+    return _jiraFetch(`${JIRA_BASE}/rest/agile/1.0${urlPath}`, method, body, `JIRA Agile ${method} ${urlPath}`);
   }
 
   async function jiraPagedRequest(
