@@ -1,5 +1,5 @@
 // ── ES Module entry point ────────────────────────────────────────
-import { fetchJSON, putJSON, debounce, toggleSection } from './state.js';
+import { fetchJSON, putJSON, debounce, toggleSection, store } from './state.js';
 import { on, upsertDoc, removeDoc, setPiSettings } from './store.js';
 import { loadDocs, loadPiSettings, loadJiraVersions, contextSplitItem, closeIssueSplitModal, executeSplitIssue, } from './list.js';
 import { toggleItemCollapse, collapseAll, expandAll, toggleSwimlane, updatePiVersion, setTypeFilter, setStatusFilter, setTeamFilter, setWorkCatFilter, applyFilters, handleItemClick, handleItemContextMenu, showContextMenu, closeContextMenu, contextMoveToPI, contextDeleteSelected, contextAssignField, closeBulkAssignDialog, } from './list-filters.js';
@@ -38,16 +38,18 @@ function updateSplitMode() {
     if (wide === wasOn)
         return;
     right.classList.toggle('split-mode', wide);
-    if (!wide && currentFilename) {
+    const _cf = store.get('currentFilename');
+    const _cdt = store.get('currentDocType');
+    if (!wide && _cf) {
         const listView = document.getElementById('list-view');
         if (listView)
             listView.style.display = 'none';
     }
-    else if (wide && currentFilename) {
+    else if (wide && _cf) {
         const listView = document.getElementById('list-view');
         if (listView)
             listView.style.display = '';
-        highlightSelectedItem(currentFilename, currentDocType ?? '');
+        highlightSelectedItem(_cf, _cdt ?? '');
     }
 }
 export function highlightSelectedItem(filename, docType) {
@@ -127,7 +129,7 @@ async function loadAppConfig() {
     try {
         const cfg = (await fetchJSON('/api/config'));
         if (cfg.jiraBase)
-            jiraBase = cfg.jiraBase;
+            store.set('jiraBase', cfg.jiraBase);
     }
     catch (e) {
         console.warn('Failed to load app config:', e.message);
@@ -337,66 +339,81 @@ on('docs:changed', ({ docs }) => applyFilters(docs));
 initDragDrop();
 updateSplitMode();
 const _loadDocsDebounced = debounce(loadDocs, 100);
-const evtSource = new EventSource('/api/events');
-evtSource.onmessage = (e) => {
-    try {
-        const payload = JSON.parse(e.data);
-        // Granular in-memory update when server includes the full DocEntry.
-        // Avoids a round-trip GET /api/docs for single-document operations.
-        // upsertDoc / removeDoc emit domain events that trigger subscribers.
-        if (payload.doc) {
-            upsertDoc(payload.doc);
-            return;
-        }
-        if (payload.type === 'doc_deleted' && payload.filename) {
-            removeDoc(payload.filename);
-            return;
-        }
-        if ([
-            'feature_created',
-            'epic_created',
-            'story_created',
-            'spike_created',
-            'bug_created',
-            'status_updated',
-            'title_updated',
-            'doc_deleted',
-            'batch_deleted',
-            'batch_fix_version_updated',
-            'batch_field_updated',
-            'link_updated',
-        ].includes(payload.type ?? '')) {
-            _loadDocsDebounced();
-        }
-        if (payload.type === 'pi_settings_updated') {
-            setPiSettings({ currentPi: payload.currentPi ?? null, nextPi: payload.nextPi ?? null });
-            loadAllSprintConfigs().then(() => {
-                _loadDocsDebounced();
-                refreshRoadmapView();
-            });
-        }
-        if (payload.type === 'sprint_settings_updated') {
-            loadAllSprintConfigs().then(() => {
-                _loadDocsDebounced();
-                refreshRoadmapView();
-            });
-        }
-        if (payload.type === 'batch_sprint_updated') {
+// ── SSE with exponential backoff reconnection ─────────────────
+let _sseRetryDelay = 1000;
+const SSE_MAX_DELAY = 30000;
+function _handleSSEMessage(payload) {
+    // Granular in-memory update when server includes the full DocEntry.
+    // Avoids a round-trip GET /api/docs for single-document operations.
+    // upsertDoc / removeDoc emit domain events that trigger subscribers.
+    if (payload.doc) {
+        upsertDoc(payload.doc);
+        return;
+    }
+    if (payload.type === 'doc_deleted' && payload.filename) {
+        removeDoc(payload.filename);
+        return;
+    }
+    if ([
+        'feature_created',
+        'epic_created',
+        'story_created',
+        'spike_created',
+        'bug_created',
+        'status_updated',
+        'title_updated',
+        'doc_deleted',
+        'batch_deleted',
+        'batch_fix_version_updated',
+        'batch_field_updated',
+        'link_updated',
+    ].includes(payload.type ?? '')) {
+        _loadDocsDebounced();
+    }
+    if (payload.type === 'pi_settings_updated') {
+        setPiSettings({ currentPi: payload.currentPi ?? null, nextPi: payload.nextPi ?? null });
+        loadAllSprintConfigs().then(() => {
             _loadDocsDebounced();
             refreshRoadmapView();
-        }
-        if (payload.type === 'split_threshold_updated') {
-            splitThreshold = payload.splitThreshold ?? splitThreshold;
-            const el = document.getElementById('split-threshold-input');
-            if (el)
-                el.value = String(splitThreshold);
+        });
+    }
+    if (payload.type === 'sprint_settings_updated') {
+        loadAllSprintConfigs().then(() => {
+            _loadDocsDebounced();
             refreshRoadmapView();
+        });
+    }
+    if (payload.type === 'batch_sprint_updated') {
+        _loadDocsDebounced();
+        refreshRoadmapView();
+    }
+    if (payload.type === 'split_threshold_updated') {
+        splitThreshold = payload.splitThreshold ?? splitThreshold;
+        const el = document.getElementById('split-threshold-input');
+        if (el)
+            el.value = String(splitThreshold);
+        refreshRoadmapView();
+    }
+}
+function _connectSSE() {
+    const es = new EventSource('/api/events');
+    es.onopen = () => { _sseRetryDelay = 1000; };
+    es.onmessage = (e) => {
+        try {
+            _handleSSEMessage(JSON.parse(e.data));
         }
-    }
-    catch (e) {
-        console.warn('SSE handler error:', e.message);
-    }
-};
+        catch (err) {
+            console.warn('SSE handler error:', err.message);
+        }
+    };
+    es.onerror = () => {
+        es.close();
+        const jitter = Math.random() * 500;
+        setTimeout(_connectSSE, Math.min(_sseRetryDelay + jitter, SSE_MAX_DELAY));
+        _sseRetryDelay = Math.min(_sseRetryDelay * 2, SSE_MAX_DELAY);
+    };
+}
+_connectSSE();
 const deleteOverlay = document.getElementById('delete-overlay');
 if (deleteOverlay) {
     deleteOverlay.addEventListener('click', (e) => {
@@ -609,3 +626,4 @@ const _globals = {
     loadModelSetting,
 };
 Object.assign(window, _globals);
+//# sourceMappingURL=main.js.map
