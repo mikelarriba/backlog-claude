@@ -131,7 +131,7 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
       res.json({ filename, docType: 'bug', title: translatedTitle });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/bugs/create', apiErr.message, apiErr.details || {});
+      logError('POST /api/bugs/create', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });

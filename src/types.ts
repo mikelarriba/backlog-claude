@@ -75,7 +75,7 @@ export interface JiraIssue {
     issuetype: { name: string };
     priority: { name: string };
     fixVersions: Array<{ name: string }>;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -121,7 +121,7 @@ export interface AuditEvent {
 
 export interface SSEEvent {
   type: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type BroadcastFn = (event: SSEEvent) => void;

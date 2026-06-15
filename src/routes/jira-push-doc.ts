@@ -58,8 +58,8 @@ export default function jiraPushDocRoutes({
       const data = (await jiraAgileRequest(
         'GET',
         `/board/${JIRA_BOARD_ID}/sprint?state=active,future&maxResults=${maxResults}&startAt=${startAt}`
-      )) as Record<string, any>;
-      const sprints = data.values || [];
+      )) as Record<string, unknown>;
+      const sprints = (data.values as Array<{ name?: string; id?: number }>) || [];
       for (const s of sprints) {
         if (s.name && s.id) map.set(s.name, s.id);
       }
@@ -579,8 +579,8 @@ export default function jiraPushDocRoutes({
               const issue = (await jiraRequest(
                 'GET',
                 `/issue/${jiraId}?fields=${fetchFields}`
-              )) as Record<string, any>;
-              const jiraSummary = (issue.fields?.summary || '').trim();
+              )) as { fields?: Record<string, unknown> };
+              const jiraSummary = String(issue.fields?.summary || '').trim();
               const jiraSP = issue.fields?.[FIELD_STORY_POINTS] ?? null;
 
               if (localTitle !== jiraSummary) {
@@ -625,7 +625,7 @@ export default function jiraPushDocRoutes({
                   const agileIssue = (await jiraAgileRequest(
                     'GET',
                     `/issue/${jiraId}?fields=sprint`
-                  )) as Record<string, any>;
+                  )) as { fields?: { sprint?: { name?: string } } };
                   const jiraSprintName = agileIssue?.fields?.sprint?.name || null;
                   if (localSprint !== jiraSprintName) {
                     changes.push({ field: 'sprint', from: jiraSprintName, to: localSprint });
@@ -664,7 +664,7 @@ export default function jiraPushDocRoutes({
       res.json({ items: previews });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/push-preview', apiErr.message, apiErr.details || {});
+      logError('POST /api/jira/push-preview', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -706,7 +706,7 @@ export default function jiraPushDocRoutes({
       res.json(result);
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/push/:type/:filename', apiErr.message, apiErr.details || {});
+      logError('POST /api/jira/push/:type/:filename', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
       sendError(
         res,
         ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500,

@@ -35,23 +35,23 @@ export interface JiraServiceInstance {
   jiraRequest: (
     method: string,
     urlPath: string,
-    body?: any,
+    body?: unknown,
     opts?: { _retryOn429?: boolean }
-  ) => Promise<any>;
+  ) => Promise<unknown>;
   jiraPagedRequest: (
     jql: string,
     fields: string,
     opts?: { maxResults?: number; maxTotal?: number }
-  ) => Promise<any[]>;
+  ) => Promise<unknown[]>;
   jiraAgileRequest: (
     method: string,
     urlPath: string,
-    body?: any,
+    body?: unknown,
     opts?: { _retryOn429?: boolean }
-  ) => Promise<any>;
-  jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<any>;
+  ) => Promise<unknown>;
+  jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
-  jiraIssueToMarkdown: (issue: any) => { docType: string; content: string };
+  jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };
   extractJiraSummary: (content: string) => string;
 }
 
@@ -67,9 +67,9 @@ export function createJiraService({
   async function jiraRequest(
     method: string,
     urlPath: string,
-    body?: any,
+    body?: unknown,
     { _retryOn429 = true } = {}
-  ): Promise<any> {
+  ): Promise<unknown> {
     const url = `${JIRA_BASE}/rest/api/2${urlPath}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
@@ -86,8 +86,8 @@ export function createJiraService({
     let res: Response;
     try {
       res = await fetch(url, opts);
-    } catch (err: any) {
-      if (err.name === 'AbortError')
+    } catch (err: unknown) {
+      if ((err as { name?: string }).name === 'AbortError')
         throw new Error(`JIRA request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
       throw err;
     } finally {
@@ -115,9 +115,9 @@ export function createJiraService({
   async function jiraAgileRequest(
     method: string,
     urlPath: string,
-    body?: any,
+    body?: unknown,
     { _retryOn429 = true } = {}
-  ): Promise<any> {
+  ): Promise<unknown> {
     const url = `${JIRA_BASE}/rest/agile/1.0${urlPath}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
@@ -134,8 +134,8 @@ export function createJiraService({
     let res: Response;
     try {
       res = await fetch(url, opts);
-    } catch (err: any) {
-      if (err.name === 'AbortError')
+    } catch (err: unknown) {
+      if ((err as { name?: string }).name === 'AbortError')
         throw new Error(`JIRA Agile request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
       throw err;
     } finally {
@@ -162,17 +162,17 @@ export function createJiraService({
     jql: string,
     fields: string,
     { maxResults = 100, maxTotal = 500 } = {}
-  ): Promise<any[]> {
-    const all: any[] = [];
+  ): Promise<unknown[]> {
+    const all: unknown[] = [];
     let startAt = 0;
 
     while (true) {
       const url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}`;
-      const page = await jiraRequest('GET', url);
-      const issues = page.issues || [];
+      const page = await jiraRequest('GET', url) as Record<string, unknown>;
+      const issues = (page.issues as unknown[] | undefined) || [];
       all.push(...issues);
 
-      if (all.length >= maxTotal || all.length >= (page.total || 0) || issues.length < maxResults)
+      if (all.length >= maxTotal || all.length >= ((page.total as number) || 0) || issues.length < maxResults)
         break;
       startAt += issues.length;
     }
@@ -195,8 +195,8 @@ export function createJiraService({
     return null;
   }
 
-  function jiraIssueToMarkdown(issue: any): { docType: string; content: string } {
-    const { key, fields } = issue;
+  function jiraIssueToMarkdown(issue: unknown): { docType: string; content: string } {
+    const { key, fields } = issue as { key: string; fields: Record<string, unknown> & { summary?: string; description?: string; issuetype?: { name?: string }; priority?: { name?: string }; fixVersions?: Array<{ name?: string }> } };
     const summary = (fields.summary || '').replace(/[\r\n]+/g, ' ').trim();
     const description = jiraToMarkdown(fields.description || '');
     const issueType = fields.issuetype?.name || 'Epic';
@@ -244,7 +244,7 @@ ${description || '_No description in JIRA._'}
     issueKey: string,
     filename: string,
     buffer: Buffer
-  ): Promise<any> {
+  ): Promise<unknown> {
     const url = `${JIRA_BASE}/rest/api/2/issue/${issueKey}/attachments`;
     const formData = new FormData();
     formData.append('file', new Blob([new Uint8Array(buffer)]), filename);

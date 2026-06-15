@@ -144,8 +144,8 @@ async function _fetchOllamaModels(): Promise<Array<{ id: string; name: string }>
       _ollamaModelsCache = { result: [], expiresAt: now + OLLAMA_CACHE_TTL_MS };
       return [];
     }
-    const json = (await res.json()) as any;
-    const models = (json?.models || []).map((m: any) => ({ id: m.name, name: m.name }));
+    const json = (await res.json()) as { models?: Array<{ name: string }> };
+    const models = (json?.models || []).map((m: { name: string }) => ({ id: m.name, name: m.name }));
     _ollamaModelsCache = { result: models, expiresAt: now + OLLAMA_CACHE_TTL_MS };
     return models;
   } catch {
@@ -291,7 +291,7 @@ async function _callOpenAICompatible(
     throw new Error(`OpenAI-compatible API error ${res.status}: ${errText}`);
   }
 
-  const json = (await res.json()) as any;
+  const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
   const content = json?.choices?.[0]?.message?.content ?? '';
   return normalizeOutput(content);
 }
@@ -315,7 +315,7 @@ async function _streamOpenAICompatible(
       body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: true }),
       signal: controller.signal,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timer);
     throw err;
   }
@@ -427,7 +427,7 @@ export async function callClaude(
   try {
     const provider = _providerOverride || 'claude-cli';
     const model = _modelOverride || '(default)';
-    let lastErr: any;
+    let lastErr: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         let result: string;
@@ -440,10 +440,11 @@ export async function callClaude(
         }
         logInfo('callClaude', `provider=${provider} model=${model} duration=${Date.now() - t}ms`);
         return result;
-      } catch (err: any) {
+      } catch (err: unknown) {
         lastErr = err;
+        const e = err as { isTimeout?: boolean; message?: string };
         const isUserError =
-          !err.isTimeout && NO_RETRY_PATTERNS.some((p: RegExp) => p.test(err.message));
+          !e.isTimeout && NO_RETRY_PATTERNS.some((p: RegExp) => p.test(e.message ?? ''));
         if (isUserError || attempt === maxAttempts) break;
         await new Promise((r) => setTimeout(r, 2 ** attempt * 1000));
       }
