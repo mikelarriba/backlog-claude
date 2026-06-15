@@ -1,5 +1,5 @@
 // ── ES Module entry point ────────────────────────────────────────
-import { fetchJSON, putJSON, debounce, toggleSection } from './state.js';
+import { fetchJSON, putJSON, debounce, toggleSection, store } from './state.js';
 import type { DocEntry } from './state.js';
 import { on, upsertDoc, removeDoc, setPiSettings } from './store.js';
 import {
@@ -222,13 +222,15 @@ function updateSplitMode(): void {
 
   right.classList.toggle('split-mode', wide);
 
-  if (!wide && currentFilename) {
+  const _cf = store.get('currentFilename') as string | null;
+  const _cdt = store.get('currentDocType') as string | null;
+  if (!wide && _cf) {
     const listView = document.getElementById('list-view');
     if (listView) listView.style.display = 'none';
-  } else if (wide && currentFilename) {
+  } else if (wide && _cf) {
     const listView = document.getElementById('list-view');
     if (listView) listView.style.display = '';
-    highlightSelectedItem(currentFilename, currentDocType ?? '');
+    highlightSelectedItem(_cf, _cdt ?? '');
   }
 }
 
@@ -312,7 +314,7 @@ function toggleModelSection(): void {
 async function loadAppConfig(): Promise<void> {
   try {
     const cfg = (await fetchJSON('/api/config')) as { jiraBase?: string };
-    if (cfg.jiraBase) jiraBase = cfg.jiraBase;
+    if (cfg.jiraBase) store.set('jiraBase', cfg.jiraBase);
   } catch (e) {
     console.warn('Failed to load app config:', (e as Error).message);
   }
@@ -550,56 +552,56 @@ updateSplitMode();
 
 const _loadDocsDebounced = debounce(loadDocs, 100);
 
-const evtSource = new EventSource('/api/events');
-evtSource.onmessage = (e: MessageEvent) => {
-  try {
-    const payload = JSON.parse(e.data as string) as SSEPayload;
+// ── SSE with exponential backoff reconnection ─────────────────
+let _sseRetryDelay = 1_000;
+const SSE_MAX_DELAY = 30_000;
 
-    // Granular in-memory update when server includes the full DocEntry.
-    // Avoids a round-trip GET /api/docs for single-document operations.
-    // upsertDoc / removeDoc emit domain events that trigger subscribers.
-    if (payload.doc) {
-      upsertDoc(payload.doc);
-      return;
-    }
+function _handleSSEMessage(payload: SSEPayload): void {
+  // Granular in-memory update when server includes the full DocEntry.
+  // Avoids a round-trip GET /api/docs for single-document operations.
+  // upsertDoc / removeDoc emit domain events that trigger subscribers.
+  if (payload.doc) {
+    upsertDoc(payload.doc);
+    return;
+  }
 
-    if (payload.type === 'doc_deleted' && payload.filename) {
-      removeDoc(payload.filename);
-      return;
-    }
+  if (payload.type === 'doc_deleted' && payload.filename) {
+    removeDoc(payload.filename);
+    return;
+  }
 
-    if (
-      [
-        'feature_created',
-        'epic_created',
-        'story_created',
-        'spike_created',
-        'bug_created',
-        'status_updated',
-        'title_updated',
-        'doc_deleted',
-        'batch_deleted',
-        'batch_fix_version_updated',
-        'batch_field_updated',
-        'link_updated',
-      ].includes(payload.type ?? '')
-    ) {
+  if (
+    [
+      'feature_created',
+      'epic_created',
+      'story_created',
+      'spike_created',
+      'bug_created',
+      'status_updated',
+      'title_updated',
+      'doc_deleted',
+      'batch_deleted',
+      'batch_fix_version_updated',
+      'batch_field_updated',
+      'link_updated',
+    ].includes(payload.type ?? '')
+  ) {
+    _loadDocsDebounced();
+  }
+  if (payload.type === 'pi_settings_updated') {
+    setPiSettings({ currentPi: payload.currentPi ?? null, nextPi: payload.nextPi ?? null });
+    loadAllSprintConfigs().then(() => {
       _loadDocsDebounced();
-    }
-    if (payload.type === 'pi_settings_updated') {
-      setPiSettings({ currentPi: payload.currentPi ?? null, nextPi: payload.nextPi ?? null });
-      loadAllSprintConfigs().then(() => {
-        _loadDocsDebounced();
-        refreshRoadmapView();
-      });
-    }
-    if (payload.type === 'sprint_settings_updated') {
-      loadAllSprintConfigs().then(() => {
-        _loadDocsDebounced();
-        refreshRoadmapView();
-      });
-    }
-    if (payload.type === 'batch_sprint_updated') {
+      refreshRoadmapView();
+    });
+  }
+  if (payload.type === 'sprint_settings_updated') {
+    loadAllSprintConfigs().then(() => {
+      _loadDocsDebounced();
+      refreshRoadmapView();
+    });
+  }
+  if (payload.type === 'batch_sprint_updated') {
       _loadDocsDebounced();
       refreshRoadmapView();
     }
@@ -609,10 +611,27 @@ evtSource.onmessage = (e: MessageEvent) => {
       if (el) el.value = String(splitThreshold);
       refreshRoadmapView();
     }
-  } catch (e) {
-    console.warn('SSE handler error:', (e as Error).message);
-  }
-};
+}
+
+function _connectSSE(): void {
+  const es = new EventSource('/api/events');
+  es.onopen = () => { _sseRetryDelay = 1_000; };
+  es.onmessage = (e: MessageEvent) => {
+    try {
+      _handleSSEMessage(JSON.parse(e.data as string) as SSEPayload);
+    } catch (err) {
+      console.warn('SSE handler error:', (err as Error).message);
+    }
+  };
+  es.onerror = () => {
+    es.close();
+    const jitter = Math.random() * 500;
+    setTimeout(_connectSSE, Math.min(_sseRetryDelay + jitter, SSE_MAX_DELAY));
+    _sseRetryDelay = Math.min(_sseRetryDelay * 2, SSE_MAX_DELAY);
+  };
+}
+
+_connectSSE();
 
 const deleteOverlay = document.getElementById('delete-overlay');
 if (deleteOverlay) {
