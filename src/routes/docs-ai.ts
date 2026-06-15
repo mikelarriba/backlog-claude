@@ -29,7 +29,6 @@ import {
 import { validateBody } from '../utils/validateMiddleware.js';
 import {
   GenerateDocSchema,
-  UpgradeDocSchema,
   SplitStorySchema,
   SplitEpicSchema,
 } from '../schemas/docs.js';
