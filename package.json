@@ -8,6 +8,7 @@
     "test": "tsx --test tests/unit/*.test.js tests/integration/*.test.js",
     "test:unit": "tsx --test tests/unit/*.test.js",
     "test:integration": "tsx --test tests/integration/*.test.js",
+    "test:bench": "tsx --test tests/bench/*.bench.js",
     "test:e2e": "playwright test",
     "build:frontend": "tsc --project tsconfig.frontend.json",
     "typecheck": "tsc --noEmit",
