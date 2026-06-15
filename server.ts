@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { type ErrorRequestHandler } from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -38,20 +39,6 @@ import { apiLimiter, aiLimiter, jiraLimiter } from './src/middleware/rateLimiter
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ── Load .env ────────────────────────────────────────────────────────────────
-const envPath = path.join(__dirname, '.env');
-if (fs.existsSync(envPath)) {
-  fs.readFileSync(envPath, 'utf-8')
-    .split('\n')
-    .forEach((line) => {
-      const eq = line.indexOf('=');
-      if (eq > 0) {
-        const key = line.slice(0, eq).trim();
-        const val = line.slice(eq + 1).trim();
-        if (key && process.env[key] === undefined) process.env[key] = val;
-      }
-    });
-}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
