@@ -217,10 +217,10 @@ function buildClaudeArgs(prompt: string): string[] {
   return args;
 }
 
-// callClaude (non-streaming): 3 min — generate route, one-shot rewrites
-const CALL_TIMEOUT_MS = 180_000;
-// streamClaude (streaming): 5 min — upgrade/refine routes, long COVE rewrites
-const STREAM_TIMEOUT_MS = 300_000;
+// callClaude (non-streaming): default 3 min, configurable via CLAUDE_TIMEOUT_MS
+const CALL_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS) || 180_000;
+// streamClaude (streaming): default 5 min (CLAUDE_TIMEOUT_MS * 1.67, or own env var)
+const STREAM_TIMEOUT_MS = Number(process.env.CLAUDE_STREAM_TIMEOUT_MS) || 300_000;
 
 // Strip code fences that models sometimes wrap around output.
 export function normalizeOutput(content: string): string {

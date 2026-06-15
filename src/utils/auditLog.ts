@@ -1,9 +1,13 @@
 // ── Structured audit logging ───────────────────────────────────────────────────
 // Appends NDJSON audit events to audit.log (or AUDIT_LOG_PATH env var).
-// Fire-and-forget: errors are swallowed so a broken log path never affects responses.
+// Fire-and-forget: write failures are logged as warnings so a broken log path
+// never affects responses but is still observable.
 import fs from 'fs';
 import path from 'path';
 import type { AuditEvent } from '../types.js';
+import { createLogger } from './logger.js';
+
+const { logWarn } = createLogger('[audit]');
 
 export function logAudit(event: Omit<AuditEvent, 'ts'>): void {
   const auditPath = process.env.AUDIT_LOG_PATH ?? './audit.log';
@@ -13,6 +17,6 @@ export function logAudit(event: Omit<AuditEvent, 'ts'>): void {
   const line = JSON.stringify(entry) + '\n';
 
   fs.appendFile(path.resolve(auditPath), line, (err) => {
-    if (err) console.warn('[audit] write failed:', err.message);
+    if (err) logWarn('write failed', err.message, { path: auditPath });
   });
 }

@@ -159,14 +159,12 @@ export interface JiraRouteContext extends RouteContext {
   jiraRequest: (
     method: string,
     urlPath: string,
-    body?: unknown,
-    opts?: { _retryOn429?: boolean }
+    body?: unknown
   ) => Promise<unknown>;
   jiraAgileRequest: (
     method: string,
     urlPath: string,
-    body?: unknown,
-    opts?: { _retryOn429?: boolean }
+    body?: unknown
   ) => Promise<unknown>;
   jiraPagedRequest: (
     jql: string,

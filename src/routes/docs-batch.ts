@@ -416,42 +416,47 @@ export default function docsBatchRoutes({
           }
         }
 
-        const updated: Array<{ filename: string; docType: string; sprint: string | undefined }> =
-          [];
+        type WriteItem = {
+          filepath: string;
+          content: string;
+          filename: string;
+          docType: string;
+          sprint: string | undefined;
+        };
+        const writes: WriteItem[] = [];
         const skipped: Array<{ filename: string; reason: string }> = [];
 
-        await pMap(
-          typedAssignments,
-          async (entry) => {
+        // Phase 1: validate and compute all patches in memory (no writes yet)
+        for (const entry of typedAssignments) {
+          try {
+            const docType = assertDocType(entry.docType, TYPE_CONFIG);
+            const filename = assertFilename(entry.filename);
+            const cfg = TYPE_CONFIG[docType];
+            const filepath = path.join(cfg.dir(), filename);
             try {
-              const docType = assertDocType(entry.docType, TYPE_CONFIG);
-              const filename = assertFilename(entry.filename);
-              const cfg = TYPE_CONFIG[docType];
-              const filepath = path.join(cfg.dir(), filename);
-              try {
-                await fs.promises.access(filepath);
-              } catch (err) {
-                logWarn('batch', `skipping ${filename}: file not found`, {
-                  error: err instanceof Error ? err.message : String(err),
-                });
-                skipped.push({ filename, reason: 'not found' });
-                return;
-              }
-
-              const adjustedSprint = sprintMap.get(filename) || entry.sprint;
-              const content = await fs.promises.readFile(filepath, 'utf-8');
-              const patched = setFrontmatterField(content, 'Sprint', adjustedSprint || 'TBD');
-              await fs.promises.writeFile(filepath, patched);
-              updated.push({ filename, docType, sprint: adjustedSprint });
-            } catch (entryErr) {
-              skipped.push({
-                filename: entry.filename,
-                reason: entryErr instanceof Error ? entryErr.message : 'invalid',
+              await fs.promises.access(filepath);
+            } catch (err) {
+              logWarn('batch', `skipping ${filename}: file not found`, {
+                error: err instanceof Error ? err.message : String(err),
               });
+              skipped.push({ filename, reason: 'not found' });
+              continue;
             }
-          },
-          { concurrency: BATCH_CONCURRENCY }
-        );
+            const adjustedSprint = sprintMap.get(filename) || entry.sprint;
+            const content = await fs.promises.readFile(filepath, 'utf-8');
+            const patched = setFrontmatterField(content, 'Sprint', adjustedSprint || 'TBD');
+            writes.push({ filepath, content: patched, filename, docType, sprint: adjustedSprint });
+          } catch (entryErr) {
+            skipped.push({
+              filename: entry.filename,
+              reason: entryErr instanceof Error ? entryErr.message : 'invalid',
+            });
+          }
+        }
+
+        // Phase 2: flush all writes atomically — only after all transformations succeeded
+        await Promise.all(writes.map(({ filepath, content }) => fs.promises.writeFile(filepath, content)));
+        const updated = writes.map(({ filename, docType, sprint }) => ({ filename, docType, sprint }));
 
         if (updated.length) {
           await docIndex.invalidateAll();
