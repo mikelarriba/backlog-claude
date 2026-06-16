@@ -88,19 +88,53 @@ function toggleLeftPanel() {
         /* no-op */
     }
 }
-// ── Settings view ─────────────────────────────────────────────
-function openSettingsView() {
+// ── Sidebar navigation ────────────────────────────────────────
+function navigateTo(viewName) {
+    // Update active state in sidebar
+    document.querySelectorAll('.sidebar-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.view === viewName);
+    });
+    // Hide all views
     const lv = document.getElementById('list-view');
     if (lv) lv.style.display = 'none';
-    document.getElementById('refine-view')?.classList.remove('show');
-    document.getElementById('detail-view')?.classList.remove('show');
     document.getElementById('roadmap-view')?.classList.remove('show');
-    document.getElementById('settings-view')?.classList.add('show');
+    document.getElementById('settings-view')?.classList.remove('show');
+    document.getElementById('skills-view')?.classList.remove('show');
+    document.getElementById('documentation-view')?.classList.remove('show');
+    document.getElementById('bugs-view')?.classList.remove('show');
+    document.getElementById('suggestions-view')?.classList.remove('show');
+    // Show the requested view
+    switch (viewName) {
+        case 'backlog':
+            if (lv) lv.style.display = '';
+            break;
+        case 'roadmap':
+            document.getElementById('roadmap-view')?.classList.add('show');
+            refreshRoadmapView();
+            break;
+        case 'settings':
+            document.getElementById('settings-view')?.classList.add('show');
+            break;
+        case 'skills':
+            document.getElementById('skills-view')?.classList.add('show');
+            break;
+        case 'documentation':
+            document.getElementById('documentation-view')?.classList.add('show');
+            break;
+        case 'bugs':
+            document.getElementById('bugs-view')?.classList.add('show');
+            break;
+        case 'suggestions':
+            document.getElementById('suggestions-view')?.classList.add('show');
+            break;
+    }
+}
+// ── Settings view ─────────────────────────────────────────────
+function openSettingsView() {
+    navigateTo('settings');
 }
 function closeSettingsView() {
-    document.getElementById('settings-view')?.classList.remove('show');
-    const lv = document.getElementById('list-view');
-    if (lv) lv.style.display = '';
+    navigateTo('backlog');
 }
 // ── FAB (Floating Action Button) ──────────────────────────────
 function openFab() {
@@ -666,6 +700,7 @@ const _globals = {
     loadModelSetting,
     openSettingsView,
     closeSettingsView,
+    navigateTo,
     openFab,
     closeFab,
     toggleFab,
