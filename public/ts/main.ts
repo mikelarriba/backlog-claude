@@ -276,6 +276,22 @@ function toggleLeftPanel(): void {
   }
 }
 
+// ── Settings view ─────────────────────────────────────────────
+function openSettingsView(): void {
+  const lv = document.getElementById('list-view');
+  if (lv) lv.style.display = 'none';
+  document.getElementById('refine-view')?.classList.remove('show');
+  document.getElementById('detail-view')?.classList.remove('show');
+  document.getElementById('roadmap-view')?.classList.remove('show');
+  document.getElementById('settings-view')?.classList.add('show');
+}
+
+function closeSettingsView(): void {
+  document.getElementById('settings-view')?.classList.remove('show');
+  const lv = document.getElementById('list-view');
+  if (lv) lv.style.display = '';
+}
+
 (function _restoreLeftPanel() {
   try {
     if (localStorage.getItem('leftPanelCollapsed') === '1') {
@@ -843,6 +859,8 @@ const _globals: Record<string, unknown> = {
   loadAppConfig,
   loadMetadata,
   loadModelSetting,
+  openSettingsView,
+  closeSettingsView,
 };
 
 Object.assign(window, _globals);

@@ -216,3 +216,55 @@
     gap: 4px;
   }
 }
+
+/* ── Settings View ───────────────────────────────────────────── */
+#settings-view {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+}
+#settings-view.show {
+  display: flex;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.settings-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.settings-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 600px;
+}
+
+.btn-settings-nav {
+  margin-top: 8px;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  width: 100%;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: left;
+  transition: color 0.12s, background 0.12s;
+}
+.btn-settings-nav:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
