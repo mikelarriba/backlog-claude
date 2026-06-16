@@ -129,6 +129,11 @@
 }
 
 /* ── Placeholder view empty state ────────────────────────────── */
+.placeholder-view .icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
 .placeholder-view {
   display: none;
   flex-direction: column;
