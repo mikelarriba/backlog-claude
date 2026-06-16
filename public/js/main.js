@@ -72,17 +72,14 @@ window.addEventListener('resize', debounce(() => {
     _lastInnerWidth = window.innerWidth;
     updateSplitMode();
 }, 150));
-// ── Left panel collapse toggle ────────────────────────────────
+// ── Sidebar collapse toggle (Ctrl+B) ─────────────────────────
 function toggleLeftPanel() {
     const app = document.getElementById('app-root');
-    const btn = document.getElementById('left-toggle-btn');
     if (!app)
         return;
     const collapsed = app.classList.toggle('left-collapsed');
-    if (btn)
-        btn.textContent = collapsed ? '»' : '«';
     try {
-        localStorage.setItem('leftPanelCollapsed', collapsed ? '1' : '0');
+        localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
     }
     catch {
         /* no-op */
@@ -156,14 +153,12 @@ function toggleFab() {
 }
 (function _restoreLeftPanel() {
     try {
-        if (localStorage.getItem('leftPanelCollapsed') === '1') {
+        const collapsed = localStorage.getItem('sidebarCollapsed') === '1' ||
+            localStorage.getItem('leftPanelCollapsed') === '1';
+        if (collapsed) {
             const app = document.getElementById('app-root');
-            const btn = document.getElementById('left-toggle-btn');
-            if (app) {
+            if (app)
                 app.classList.add('left-collapsed');
-                if (btn)
-                    btn.textContent = '»';
-            }
         }
     }
     catch {

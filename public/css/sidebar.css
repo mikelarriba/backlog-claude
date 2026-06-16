@@ -84,6 +84,50 @@
   opacity: 1;
 }
 
+/* ── Responsive: mobile bottom tab bar ──────────────────────── */
+@media (max-width: 820px) {
+  .left.sidebar {
+    flex-direction: row;
+    height: 56px;
+    width: 100%;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    padding: 0 8px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--surface);
+  }
+  .sidebar-top, .sidebar-bottom {
+    flex-direction: row;
+    gap: 0;
+  }
+  .sidebar-bottom {
+    margin-left: auto;
+  }
+  .sidebar-theme {
+    display: none;
+  }
+  .sidebar-item {
+    width: 44px;
+    height: 44px;
+  }
+  .sidebar-item.active::before {
+    top: 0;
+    left: 8px;
+    right: 8px;
+    bottom: auto;
+    width: auto;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+  }
+  .sidebar-item::after {
+    display: none;
+  }
+}
+
 /* ── Placeholder view empty state ────────────────────────────── */
 .placeholder-view {
   display: none;
