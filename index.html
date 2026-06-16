@@ -136,136 +136,7 @@
 
         <div class="status" id="status"></div>
 
-        <!-- JIRA Import -->
-        <div class="collapsible jira-section">
-          <div class="collapsible-header" onclick="toggleJiraSection()">
-            <span class="collapsible-title">🔗 Import from JIRA</span>
-            <span class="collapsible-chevron" id="jira-chevron">▶</span>
-          </div>
-          <div class="collapsible-body" id="jira-section-body">
-            <div class="collapsible-inner">
-              <div class="jira-search-row">
-                <div class="field">
-                  <label for="jira-type">Type</label>
-                  <select id="jira-type">
-                    <option value="all">All Types</option>
-                    <option value="feature">New Feature</option>
-                    <option value="epic">Epic</option>
-                    <option value="story">Story</option>
-                    <option value="spike">Task / Spike</option>
-                    <option value="bug">Bug</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="jira-text">Keywords</label>
-                  <input
-                    id="jira-text"
-                    type="text"
-                    placeholder="Search text…"
-                    onkeydown="if (event.key === 'Enter') searchJira();"
-                  />
-                </div>
-              </div>
-              <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">
-                Search JIRA
-              </button>
-              <div class="jira-results" id="jira-results"></div>
-              <button
-                class="btn-jira-download hidden"
-                id="jira-download-btn"
-                onclick="downloadSelected()"
-              >
-                ⬇ Download Selected
-              </button>
-              <div class="jira-status" id="jira-status"></div>
-              <div class="jira-key-import">
-                <label for="jira-key-input">Import by key</label>
-                <div class="jira-key-row">
-                  <input
-                    id="jira-key-input"
-                    type="text"
-                    placeholder="e.g. EAMDM-9969, EAMDM-1234"
-                    onkeydown="if (event.key === 'Enter') pullByKey();"
-                  />
-                  <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Model Settings -->
-        <div class="collapsible model-section">
-          <div class="collapsible-header" onclick="toggleModelSection()">
-            <span class="collapsible-title">⚙ AI Model</span>
-            <span class="collapsible-chevron" id="model-chevron">▶</span>
-          </div>
-          <div class="collapsible-body model-body" id="model-section-body">
-            <div class="collapsible-inner">
-              <div class="field">
-                <label for="provider-select">Provider</label>
-                <div class="provider-select-row">
-                  <select id="provider-select" onchange="onProviderChange(this.value)"></select>
-                  <button
-                    id="provider-refresh-btn"
-                    class="provider-refresh-btn"
-                    onclick="refreshProviders()"
-                    title="Refresh providers (re-detect Ollama)"
-                    aria-label="Refresh providers"
-                  >
-                    ↺
-                  </button>
-                </div>
-              </div>
-              <div class="field">
-                <label for="model-select">Model</label>
-                <select id="model-select" onchange="updateModelSetting(this.value)"></select>
-              </div>
-              <div class="model-status" id="model-status"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PI Sprint Configuration -->
-        <div class="collapsible pi-config-section">
-          <div class="collapsible-header" onclick="togglePiConfigSection()">
-            <span class="collapsible-title">📊 PI Sprint Config</span>
-            <span class="collapsible-chevron" id="pi-config-chevron">▶</span>
-          </div>
-          <div class="collapsible-body" id="pi-config-body">
-            <div class="collapsible-inner">
-              <div class="pi-config-tabs" id="pi-config-tabs"></div>
-              <div class="pi-config-sprints" id="pi-config-sprints"></div>
-              <button class="btn-pi-add-sprint" onclick="addSprintRow()">+ Add Sprint</button>
-              <button class="btn-pi-save" id="pi-config-save-btn" onclick="saveSprintConfig()">
-                Save Configuration
-              </button>
-              <button
-                class="btn-pi-distribute"
-                id="pi-config-distribute-btn"
-                onclick="openDistributionModal(_piConfigActivePi)"
-              >
-                Distribute Stories
-              </button>
-              <div class="pi-config-split-row">
-                <label class="pi-config-split-label" for="split-threshold-input"
-                  >Split cards ≥</label
-                >
-                <input
-                  class="pi-config-split-input"
-                  id="split-threshold-input"
-                  type="number"
-                  min="1"
-                  max="99"
-                  value="8"
-                  onchange="saveSplitThreshold(this.value)"
-                />
-                <span class="pi-config-split-unit">SP</span>
-              </div>
-              <div class="pi-config-status" id="pi-config-status"></div>
-            </div>
-          </div>
-        </div>
+        <button class="btn-settings-nav" onclick="openSettingsView()">⚙ Settings</button>
         <button
           class="left-toggle-btn"
           id="left-toggle-btn"
@@ -737,6 +608,146 @@
           <div class="refine-body">
             <div id="refine-canvas"></div>
             <div class="refine-panel" id="refine-panel"></div>
+          </div>
+        </div>
+
+        <!-- Settings View -->
+        <div id="settings-view">
+          <div class="settings-header">
+            <button class="btn-ghost" onclick="closeSettingsView()">← Back</button>
+            <span class="settings-title">⚙ Settings</span>
+          </div>
+          <div class="settings-body">
+            <!-- JIRA Import -->
+            <div class="collapsible jira-section">
+              <div class="collapsible-header" onclick="toggleJiraSection()">
+                <span class="collapsible-title">🔗 Import from JIRA</span>
+                <span class="collapsible-chevron" id="jira-chevron">▶</span>
+              </div>
+              <div class="collapsible-body" id="jira-section-body">
+                <div class="collapsible-inner">
+                  <div class="jira-search-row">
+                    <div class="field">
+                      <label for="jira-type">Type</label>
+                      <select id="jira-type">
+                        <option value="all">All Types</option>
+                        <option value="feature">New Feature</option>
+                        <option value="epic">Epic</option>
+                        <option value="story">Story</option>
+                        <option value="spike">Task / Spike</option>
+                        <option value="bug">Bug</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="jira-text">Keywords</label>
+                      <input
+                        id="jira-text"
+                        type="text"
+                        placeholder="Search text…"
+                        onkeydown="if (event.key === 'Enter') searchJira();"
+                      />
+                    </div>
+                  </div>
+                  <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">
+                    Search JIRA
+                  </button>
+                  <div class="jira-results" id="jira-results"></div>
+                  <button
+                    class="btn-jira-download hidden"
+                    id="jira-download-btn"
+                    onclick="downloadSelected()"
+                  >
+                    ⬇ Download Selected
+                  </button>
+                  <div class="jira-status" id="jira-status"></div>
+                  <div class="jira-key-import">
+                    <label for="jira-key-input">Import by key</label>
+                    <div class="jira-key-row">
+                      <input
+                        id="jira-key-input"
+                        type="text"
+                        placeholder="e.g. EAMDM-9969, EAMDM-1234"
+                        onkeydown="if (event.key === 'Enter') pullByKey();"
+                      />
+                      <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Model Settings -->
+            <div class="collapsible model-section">
+              <div class="collapsible-header" onclick="toggleModelSection()">
+                <span class="collapsible-title">⚙ AI Model</span>
+                <span class="collapsible-chevron" id="model-chevron">▶</span>
+              </div>
+              <div class="collapsible-body model-body" id="model-section-body">
+                <div class="collapsible-inner">
+                  <div class="field">
+                    <label for="provider-select">Provider</label>
+                    <div class="provider-select-row">
+                      <select id="provider-select" onchange="onProviderChange(this.value)"></select>
+                      <button
+                        id="provider-refresh-btn"
+                        class="provider-refresh-btn"
+                        onclick="refreshProviders()"
+                        title="Refresh providers (re-detect Ollama)"
+                        aria-label="Refresh providers"
+                      >
+                        ↺
+                      </button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="model-select">Model</label>
+                    <select id="model-select" onchange="updateModelSetting(this.value)"></select>
+                  </div>
+                  <div class="model-status" id="model-status"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PI Sprint Configuration -->
+            <div class="collapsible pi-config-section">
+              <div class="collapsible-header" onclick="togglePiConfigSection()">
+                <span class="collapsible-title">📊 PI Sprint Config</span>
+                <span class="collapsible-chevron" id="pi-config-chevron">▶</span>
+              </div>
+              <div class="collapsible-body" id="pi-config-body">
+                <div class="collapsible-inner">
+                  <div class="pi-config-tabs" id="pi-config-tabs"></div>
+                  <div class="pi-config-sprints" id="pi-config-sprints"></div>
+                  <button class="btn-pi-add-sprint" onclick="addSprintRow()">+ Add Sprint</button>
+                  <button class="btn-pi-save" id="pi-config-save-btn" onclick="saveSprintConfig()">
+                    Save Configuration
+                  </button>
+                  <button
+                    class="btn-pi-distribute"
+                    id="pi-config-distribute-btn"
+                    onclick="openDistributionModal(_piConfigActivePi)"
+                  >
+                    Distribute Stories
+                  </button>
+                  <div class="pi-config-split-row">
+                    <label class="pi-config-split-label" for="split-threshold-input"
+                      >Split cards ≥</label
+                    >
+                    <input
+                      class="pi-config-split-input"
+                      id="split-threshold-input"
+                      type="number"
+                      min="1"
+                      max="99"
+                      value="8"
+                      onchange="saveSplitThreshold(this.value)"
+                    />
+                    <span class="pi-config-split-unit">SP</span>
+                  </div>
+                  <div class="pi-config-status" id="pi-config-status"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
