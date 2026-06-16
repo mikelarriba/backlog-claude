@@ -102,6 +102,24 @@ function closeSettingsView() {
     const lv = document.getElementById('list-view');
     if (lv) lv.style.display = '';
 }
+// ── FAB (Floating Action Button) ──────────────────────────────
+function openFab() {
+    document.getElementById('fab-panel')?.classList.add('open');
+    document.getElementById('fab-btn')?.classList.add('open');
+}
+function closeFab() {
+    document.getElementById('fab-panel')?.classList.remove('open');
+    document.getElementById('fab-btn')?.classList.remove('open');
+}
+function toggleFab() {
+    const panel = document.getElementById('fab-panel');
+    if (panel?.classList.contains('open')) {
+        closeFab();
+    }
+    else {
+        openFab();
+    }
+}
 (function _restoreLeftPanel() {
     try {
         if (localStorage.getItem('leftPanelCollapsed') === '1') {
@@ -130,6 +148,8 @@ document.addEventListener('keydown', (e) => {
         const overlays = document.querySelectorAll('.dialog-overlay.show');
         if (overlays.length)
             return;
+        const fabPanel = document.getElementById('fab-panel');
+        if (fabPanel?.classList.contains('open')) { closeFab(); return; }
         const detail = document.getElementById('detail-view');
         if (detail && detail.classList.contains('show'))
             showList();
@@ -442,6 +462,12 @@ if (splitOverlay) {
             closeSplitModal();
     });
 }
+document.addEventListener('click', (e) => {
+    const fabContainer = document.getElementById('fab-container');
+    if (fabContainer && !fabContainer.contains(e.target)) {
+        closeFab();
+    }
+});
 // ── Expose functions for HTML onclick attributes ──────────────
 // Using Object.assign to attach all handler functions to window without
 // requiring verbose Window interface augmentation.
@@ -640,6 +666,9 @@ const _globals = {
     loadModelSetting,
     openSettingsView,
     closeSettingsView,
+    openFab,
+    closeFab,
+    toggleFab,
 };
 Object.assign(window, _globals);
 //# sourceMappingURL=main.js.map
