@@ -292,6 +292,26 @@ function closeSettingsView(): void {
   if (lv) lv.style.display = '';
 }
 
+// ── FAB (Floating Action Button) ──────────────────────────────
+function openFab(): void {
+  document.getElementById('fab-panel')?.classList.add('open');
+  document.getElementById('fab-btn')?.classList.add('open');
+}
+
+function closeFab(): void {
+  document.getElementById('fab-panel')?.classList.remove('open');
+  document.getElementById('fab-btn')?.classList.remove('open');
+}
+
+function toggleFab(): void {
+  const panel = document.getElementById('fab-panel');
+  if (panel?.classList.contains('open')) {
+    closeFab();
+  } else {
+    openFab();
+  }
+}
+
 (function _restoreLeftPanel() {
   try {
     if (localStorage.getItem('leftPanelCollapsed') === '1') {
@@ -317,6 +337,8 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
     const overlays = document.querySelectorAll('.dialog-overlay.show');
     if (overlays.length) return;
+    const fabPanel = document.getElementById('fab-panel');
+    if (fabPanel?.classList.contains('open')) { closeFab(); return; }
     const detail = document.getElementById('detail-view');
     if (detail && detail.classList.contains('show')) showList();
   }
@@ -663,6 +685,13 @@ if (splitOverlay) {
   });
 }
 
+document.addEventListener('click', (e: MouseEvent) => {
+  const fabContainer = document.getElementById('fab-container');
+  if (fabContainer && !fabContainer.contains(e.target as Node)) {
+    closeFab();
+  }
+});
+
 // ── Expose functions for HTML onclick attributes ──────────────
 // Using Object.assign to attach all handler functions to window without
 // requiring verbose Window interface augmentation.
@@ -861,6 +890,9 @@ const _globals: Record<string, unknown> = {
   loadModelSetting,
   openSettingsView,
   closeSettingsView,
+  openFab,
+  closeFab,
+  toggleFab,
 };
 
 Object.assign(window, _globals);
