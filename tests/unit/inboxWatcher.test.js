@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 let tmpDir, inboxDir, epicsDir;
+const watchers = [];
 
 before(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inbox-test-'));
@@ -18,6 +19,7 @@ before(() => {
 });
 
 after(() => {
+  watchers.forEach((w) => w.close());
   fs.rmSync(tmpDir, { recursive: true, force: true });
   delete process.env.INBOX_MAX_RETRIES;
   delete process.env.AUDIT_LOG_PATH;
@@ -58,7 +60,7 @@ describe('inboxWatcher retry', () => {
 
     // Dynamic import after env vars are set
     const { watchInbox } = await import('../../src/services/inboxWatcher.js');
-    watchInbox(opts);
+    watchers.push(watchInbox(opts));
 
     // Wait for async processing
     await wait(500);
@@ -80,7 +82,7 @@ describe('inboxWatcher retry', () => {
     });
 
     const { watchInbox } = await import('../../src/services/inboxWatcher.js');
-    watchInbox(opts);
+    watchers.push(watchInbox(opts));
 
     // Wait for retries (2 retries × 2s backoff + processing time)
     await wait(6000);
