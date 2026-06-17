@@ -5,8 +5,46 @@
 
 .pi-config-tabs {
   display: flex;
-  gap: 4px;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 10px;
+}
+
+.pi-config-version-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pi-config-version-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+.pi-config-version-select {
+  flex: 1;
+  font-size: 0.78rem;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.pi-config-version-select:focus {
+  border-color: var(--accent);
+}
+
+.pi-config-tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
 }
 
 .pi-config-tab {

@@ -13,27 +13,78 @@ export function togglePiConfigSection() {
 
 export function renderPiConfigTabs() {
   const tabs = document.getElementById('pi-config-tabs');
+
+  // Build version options from jiraVersions (same data used in swimlane selects)
+  const versionOptions = (jiraVersions || [])
+    .map(
+      (v) =>
+        `<option value="${escHtml(v.name)}">${escHtml(v.name)}${v.released ? ' (released)' : ''}</option>`
+    )
+    .join('');
+
+  const currentSelected = piSettings.currentPi || '';
+  const nextSelected = piSettings.nextPi || '';
+
+  tabs.innerHTML = `
+    <div class="pi-config-version-row">
+      <label class="pi-config-version-label">Current PI</label>
+      <select class="pi-config-version-select" onchange="_updatePiFromConfig('currentPi', this.value)">
+        <option value="">— Select version —</option>
+        ${versionOptions.replace(
+          `value="${escHtml(currentSelected)}"`,
+          `value="${escHtml(currentSelected)}" selected`
+        )}
+      </select>
+    </div>
+    <div class="pi-config-version-row">
+      <label class="pi-config-version-label">Next PI</label>
+      <select class="pi-config-version-select" onchange="_updatePiFromConfig('nextPi', this.value)">
+        <option value="">— Select version —</option>
+        ${versionOptions.replace(
+          `value="${escHtml(nextSelected)}"`,
+          `value="${escHtml(nextSelected)}" selected`
+        )}
+      </select>
+    </div>
+    <div class="pi-config-tab-bar">${_renderPiTabButtons()}</div>`;
+
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  if (pis.length && !_piConfigActivePi) selectPiConfigTab(pis[0]);
+}
+
+function _renderPiTabButtons() {
   const pis = [];
   if (piSettings.currentPi)
     pis.push({ key: 'currentPi', label: 'Current PI', name: piSettings.currentPi });
   if (piSettings.nextPi) pis.push({ key: 'nextPi', label: 'Next PI', name: piSettings.nextPi });
-
-  if (!pis.length) {
-    tabs.innerHTML =
-      '<div class="pi-config-empty">Set PI versions in swimlane headers first.</div>';
-    document.getElementById('pi-config-sprints').innerHTML = '';
-    return;
-  }
-
-  tabs.innerHTML = pis
+  if (!pis.length) return '';
+  return pis
     .map(
       (p) =>
         `<button class="pi-config-tab${_piConfigActivePi === p.name ? ' active' : ''}"
              onclick="selectPiConfigTab('${escHtml(p.name)}')">${escHtml(p.label)}<span class="pi-config-tab-name">${escHtml(p.name)}</span></button>`
     )
     .join('');
+}
 
-  if (!_piConfigActivePi) selectPiConfigTab(pis[0].name);
+export async function _updatePiFromConfig(sectionKey, versionName) {
+  const update = { ...piSettings };
+  if (sectionKey === 'currentPi') update.currentPi = versionName || null;
+  if (sectionKey === 'nextPi') update.nextPi = versionName || null;
+  try {
+    await putJSON('/api/settings/pi', update);
+    piSettings = update;
+    renderPiConfigTabs();
+    await loadAllSprintConfigs();
+    // If active tab is no longer valid, switch to the first available PI
+    const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+    if (pis.length && !pis.includes(_piConfigActivePi)) {
+      selectPiConfigTab(pis[0]);
+    }
+    refreshRoadmapView();
+  } catch (e) {
+    setPiConfigStatus('error', 'Failed to update PI: ' + e.message);
+  }
 }
 
 export async function selectPiConfigTab(piName) {
