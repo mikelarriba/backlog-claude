@@ -150,6 +150,8 @@ import {
   saveSprintConfig,
   saveSplitThreshold,
   loadAllSprintConfigs,
+  renderPiConfigTabs,
+  _updatePiFromConfig,
 } from './piconfig.js';
 import {
   openDistributionModal,
@@ -270,23 +272,31 @@ function navigateTo(viewName) {
     // Hide all views
     const lv = document.getElementById('list-view');
     if (lv) lv.style.display = 'none';
+    document.getElementById('detail-view')?.classList.remove('show');
+    document.getElementById('refine-view')?.classList.remove('show');
     document.getElementById('roadmap-view')?.classList.remove('show');
     document.getElementById('settings-view')?.classList.remove('show');
     document.getElementById('skills-view')?.classList.remove('show');
     document.getElementById('documentation-view')?.classList.remove('show');
     document.getElementById('bugs-view')?.classList.remove('show');
     document.getElementById('suggestions-view')?.classList.remove('show');
+    // Clean up roadmap-mode when leaving roadmap
+    const right = document.querySelector('.right');
+    if (viewName !== 'roadmap') {
+        right?.classList.remove('roadmap-mode');
+        right?.classList.remove('has-selection');
+    }
     // Show the requested view
     switch (viewName) {
         case 'backlog':
             if (lv) lv.style.display = '';
             break;
         case 'roadmap':
-            document.getElementById('roadmap-view')?.classList.add('show');
-            refreshRoadmapView();
+            openRoadmapView();
             break;
         case 'settings':
             document.getElementById('settings-view')?.classList.add('show');
+            renderPiConfigTabs();
             break;
         case 'skills':
             document.getElementById('skills-view')?.classList.add('show');
@@ -797,6 +807,7 @@ const _globals = {
   selectPiConfigTab,
   saveSprintConfig,
   saveSplitThreshold,
+  _updatePiFromConfig,
   // distribution.js
   openDistributionModal,
   closeDistributionModal,

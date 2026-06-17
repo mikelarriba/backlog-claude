@@ -1,7 +1,7 @@
 /* ── App Layout ──────────────────────────────────────────────── */
 .app {
   display: grid;
-  grid-template-columns: 64px 1fr;
+  grid-template-columns: 160px 1fr;
   grid-template-rows: 100vh;
   height: 100vh;
   overflow: hidden;
@@ -122,10 +122,17 @@
 
 /* ── Responsive breakpoints ──────────────────────────────────── */
 
-/* Medium screens (≤ 1100px): keep sidebar same width */
+/* Medium screens (≤ 1100px): narrower sidebar */
 @media (max-width: 1100px) {
   .app {
     grid-template-columns: 64px 1fr;
+  }
+  .sidebar-item {
+    width: 48px;
+    height: 48px;
+  }
+  .sidebar-label {
+    display: none;
   }
 }
 
