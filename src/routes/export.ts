@@ -30,11 +30,11 @@ const BADGE_COLOR: Record<string, string> = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  'User Features':        '#16a34a',
-  'Platform Features':    '#0891b2',
-  'Testing Features':     '#d97706',
+  'User Features': '#16a34a',
+  'Platform Features': '#0891b2',
+  'Testing Features': '#d97706',
   'Platform Maintenance': '#64748b',
-  'Technical Debt':       '#dc2626',
+  'Technical Debt': '#dc2626',
 };
 const CATEGORY_FALLBACK = '#94a3b8';
 
@@ -1071,8 +1071,22 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       const visiblePis = new Set(requestedPis.length ? requestedPis : allPiNames);
 
       // Sprint & team filters
-      const filterSprints = sprintsParam ? new Set(sprintsParam.split(',').map((s) => s.trim()).filter(Boolean)) : null;
-      const filterTeams = teamsParam ? new Set(teamsParam.split(',').map((s) => s.trim()).filter(Boolean)) : null;
+      const filterSprints = sprintsParam
+        ? new Set(
+            sprintsParam
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          )
+        : null;
+      const filterTeams = teamsParam
+        ? new Set(
+            teamsParam
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          )
+        : null;
 
       // Gather sprints for visible PIs (filtered if sprint filter is active)
       const sprints: SprintEntry[] = [];
@@ -1094,9 +1108,12 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       const epicTypes = new Set(['epic']);
 
       const visibleLeafs = allDocs.filter(
-        (d) => leafTypes.has(d.docType) && d.fixVersion && visiblePis.has(d.fixVersion)
-          && (!filterSprints || filterSprints.has(d.sprint || ''))
-          && (!filterTeams || filterTeams.has(d.team || ''))
+        (d) =>
+          leafTypes.has(d.docType) &&
+          d.fixVersion &&
+          visiblePis.has(d.fixVersion) &&
+          (!filterSprints || filterSprints.has(d.sprint || '')) &&
+          (!filterTeams || filterTeams.has(d.team || ''))
       );
 
       const epicMap = new Map<string, EpicMapEntry>();

@@ -24,7 +24,9 @@ describe('POST /api/docs/draft — write permission denied', { skip: IS_ROOT }, 
     try {
       const epicsDir = path.join(docsRoot, 'epics');
       if (fs.existsSync(epicsDir)) fs.chmodSync(epicsDir, 0o755);
-    } catch { /* best effort */ }
+    } catch {
+      /* best effort */
+    }
     await stop();
   });
 
@@ -63,8 +65,14 @@ describe('apply-distribution — atomic write guarantees', () => {
 
   test('apply-distribution with valid assignments updates all files atomically', async () => {
     // Create two stories
-    const { data: s1 } = await api('POST', '/api/docs/draft', { title: 'Sprint Story A', type: 'story' });
-    const { data: s2 } = await api('POST', '/api/docs/draft', { title: 'Sprint Story B', type: 'story' });
+    const { data: s1 } = await api('POST', '/api/docs/draft', {
+      title: 'Sprint Story A',
+      type: 'story',
+    });
+    const { data: s2 } = await api('POST', '/api/docs/draft', {
+      title: 'Sprint Story B',
+      type: 'story',
+    });
 
     const { status, data } = await api('POST', '/api/docs/apply-distribution', {
       assignments: [
@@ -90,9 +98,7 @@ describe('apply-distribution — atomic write guarantees', () => {
   test('apply-distribution with unknown filename skips it and returns 200', async () => {
     // Unknown files are skipped (not a 404) — the route records them in data.skipped
     const { status, data } = await api('POST', '/api/docs/apply-distribution', {
-      assignments: [
-        { filename: 'nonexistent-story.md', docType: 'story', sprint: 'Sprint 1' },
-      ],
+      assignments: [{ filename: 'nonexistent-story.md', docType: 'story', sprint: 'Sprint 1' }],
     });
     assert.equal(status, 200, `Expected 200 with skipped entry, got ${status}`);
     assert.ok(Array.isArray(data.skipped), 'should have a skipped array');
@@ -111,9 +117,7 @@ describe('apply-distribution — atomic write guarantees', () => {
   test('apply-distribution with invalid docType skips it and returns 200', async () => {
     // Invalid docType is caught inside the per-entry try-catch and added to skipped
     const { status, data } = await api('POST', '/api/docs/apply-distribution', {
-      assignments: [
-        { filename: 'some-story.md', docType: 'invalid-type', sprint: 'Sprint 1' },
-      ],
+      assignments: [{ filename: 'some-story.md', docType: 'invalid-type', sprint: 'Sprint 1' }],
     });
     assert.equal(status, 200, `Expected 200 with skipped entry, got ${status}`);
     assert.ok(Array.isArray(data.skipped), 'should have a skipped array');

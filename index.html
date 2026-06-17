@@ -389,7 +389,9 @@
             <!-- Row 1: back + title + JIRA badge + SP -->
             <div class="detail-row-1">
               <button class="btn-ghost" onclick="showList()">← Back</button>
-              <button class="detail-close-btn" onclick="showList()" title="Close panel (Esc)">&times;</button>
+              <button class="detail-close-btn" onclick="showList()" title="Close panel (Esc)">
+                &times;
+              </button>
               <input
                 class="detail-title-input"
                 id="detail-title-input"
@@ -795,11 +797,22 @@
                   >0</span
                 >
                 <div class="rm-category-legend" onclick="event.stopPropagation()">
-                  <span class="rm-legend-item"><span class="rm-legend-dot" style="background:#16a34a"></span>User</span>
-                  <span class="rm-legend-item"><span class="rm-legend-dot" style="background:#0891b2"></span>Platform</span>
-                  <span class="rm-legend-item"><span class="rm-legend-dot" style="background:#d97706"></span>Testing</span>
-                  <span class="rm-legend-item"><span class="rm-legend-dot" style="background:#64748b"></span>Maintenance</span>
-                  <span class="rm-legend-item"><span class="rm-legend-dot" style="background:#dc2626"></span>Debt</span>
+                  <span class="rm-legend-item"
+                    ><span class="rm-legend-dot" style="background: #16a34a"></span>User</span
+                  >
+                  <span class="rm-legend-item"
+                    ><span class="rm-legend-dot" style="background: #0891b2"></span>Platform</span
+                  >
+                  <span class="rm-legend-item"
+                    ><span class="rm-legend-dot" style="background: #d97706"></span>Testing</span
+                  >
+                  <span class="rm-legend-item"
+                    ><span class="rm-legend-dot" style="background: #64748b"></span
+                    >Maintenance</span
+                  >
+                  <span class="rm-legend-item"
+                    ><span class="rm-legend-dot" style="background: #dc2626"></span>Debt</span
+                  >
                 </div>
                 <input
                   type="text"
@@ -1123,7 +1136,11 @@
     </div>
 
     <!-- Pull from JIRA Sprint modal -->
-    <div class="dialog-overlay" id="pull-sprint-overlay" onclick="if(event.target===this)closePullSprintModal()">
+    <div
+      class="dialog-overlay"
+      id="pull-sprint-overlay"
+      onclick="if (event.target === this) closePullSprintModal();"
+    >
       <div class="dialog sprint-push-dialog">
         <div class="sprint-push-header">
           <h3>Pull from JIRA</h3>
@@ -1134,20 +1151,32 @@
           <div class="sprint-push-sprint-list" id="pull-sprint-list"></div>
           <div class="sprint-push-select-btns">
             <button class="btn-ghost btn-xs" onclick="pullSprintToggleAll(true)">Select all</button>
-            <button class="btn-ghost btn-xs" onclick="pullSprintToggleAll(false)">Select none</button>
+            <button class="btn-ghost btn-xs" onclick="pullSprintToggleAll(false)">
+              Select none
+            </button>
           </div>
-          <button class="btn-primary" id="pull-sprint-preview-btn" onclick="startPullSprintPreview()">Scan Selected Sprints</button>
+          <button
+            class="btn-primary"
+            id="pull-sprint-preview-btn"
+            onclick="startPullSprintPreview()"
+          >
+            Scan Selected Sprints
+          </button>
         </div>
-        <div class="sprint-push-loading" id="pull-sprint-loading" style="display:none">
+        <div class="sprint-push-loading" id="pull-sprint-loading" style="display: none">
           <div class="sprint-push-spinner"></div>
           <span id="pull-sprint-progress-msg">Scanning JIRA sprints…</span>
         </div>
-        <div class="sprint-push-error" id="pull-sprint-error" style="display:none"></div>
-        <div class="sprint-push-empty" id="pull-sprint-empty" style="display:none">All issues in the selected sprints already exist locally.</div>
+        <div class="sprint-push-error" id="pull-sprint-error" style="display: none"></div>
+        <div class="sprint-push-empty" id="pull-sprint-empty" style="display: none">
+          All issues in the selected sprints already exist locally.
+        </div>
         <div class="sprint-push-list" id="pull-sprint-results"></div>
-        <div class="dialog-actions" id="pull-sprint-actions" style="display:none">
+        <div class="dialog-actions" id="pull-sprint-actions" style="display: none">
           <button class="btn-secondary" onclick="closePullSprintModal()">Cancel</button>
-          <button class="btn-primary" id="pull-sprint-confirm" onclick="confirmPullSprint()">Pull Selected (0)</button>
+          <button class="btn-primary" id="pull-sprint-confirm" onclick="confirmPullSprint()">
+            Pull Selected (0)
+          </button>
         </div>
       </div>
     </div>
@@ -1215,23 +1244,37 @@
           <div class="roadmap-export-sprint-filter">
             <div class="roadmap-export-sprint-header">
               <div class="roadmap-export-option-title">Sprint Filter</div>
-              <div class="roadmap-export-option-desc">Only include issues assigned to the selected sprints. Uncheck all to include everything.</div>
+              <div class="roadmap-export-option-desc">
+                Only include issues assigned to the selected sprints. Uncheck all to include
+                everything.
+              </div>
             </div>
             <div class="rexp-sprint-list" id="rexp-sprint-list"></div>
             <div class="rexp-sprint-btns">
-              <button class="btn-ghost btn-xs" onclick="rexpToggleAllSprints(true)">Select all</button>
-              <button class="btn-ghost btn-xs" onclick="rexpToggleAllSprints(false)">Select none</button>
+              <button class="btn-ghost btn-xs" onclick="rexpToggleAllSprints(true)">
+                Select all
+              </button>
+              <button class="btn-ghost btn-xs" onclick="rexpToggleAllSprints(false)">
+                Select none
+              </button>
             </div>
           </div>
           <div class="roadmap-export-sprint-filter">
             <div class="roadmap-export-sprint-header">
               <div class="roadmap-export-option-title">Team Filter</div>
-              <div class="roadmap-export-option-desc">Only include issues assigned to the selected teams. Uncheck all to include everything.</div>
+              <div class="roadmap-export-option-desc">
+                Only include issues assigned to the selected teams. Uncheck all to include
+                everything.
+              </div>
             </div>
             <div class="rexp-sprint-list" id="rexp-team-list"></div>
             <div class="rexp-sprint-btns">
-              <button class="btn-ghost btn-xs" onclick="rexpToggleAllTeams(true)">Select all</button>
-              <button class="btn-ghost btn-xs" onclick="rexpToggleAllTeams(false)">Select none</button>
+              <button class="btn-ghost btn-xs" onclick="rexpToggleAllTeams(true)">
+                Select all
+              </button>
+              <button class="btn-ghost btn-xs" onclick="rexpToggleAllTeams(false)">
+                Select none
+              </button>
             </div>
           </div>
         </div>

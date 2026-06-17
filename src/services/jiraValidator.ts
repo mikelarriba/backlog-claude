@@ -59,7 +59,10 @@ export async function validateJiraConfig({
       return;
     }
   } catch (err: unknown) {
-    logWarn('jira-validator', `JIRA /myself check failed: ${err instanceof Error ? err.message : String(err)} — validation skipped`);
+    logWarn(
+      'jira-validator',
+      `JIRA /myself check failed: ${err instanceof Error ? err.message : String(err)} — validation skipped`
+    );
     return;
   }
 

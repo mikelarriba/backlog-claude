@@ -44,7 +44,9 @@ after(() => {
 
 describe('jiraRequest — HTTP 4xx errors', () => {
   const origFetch = global.fetch;
-  after(() => { global.fetch = origFetch; });
+  after(() => {
+    global.fetch = origFetch;
+  });
 
   test('throws on 401 Unauthorized', async () => {
     global.fetch = async () => ({
@@ -53,10 +55,7 @@ describe('jiraRequest — HTTP 4xx errors', () => {
       headers: { get: () => null },
       text: async () => 'Unauthorized',
     });
-    await assert.rejects(
-      () => jiraService.jiraRequest('GET', '/issue/TEST-1'),
-      /401/
-    );
+    await assert.rejects(() => jiraService.jiraRequest('GET', '/issue/TEST-1'), /401/);
   });
 
   test('throws on 403 Forbidden', async () => {
@@ -66,10 +65,7 @@ describe('jiraRequest — HTTP 4xx errors', () => {
       headers: { get: () => null },
       text: async () => 'Forbidden',
     });
-    await assert.rejects(
-      () => jiraService.jiraRequest('GET', '/issue/TEST-1'),
-      /403/
-    );
+    await assert.rejects(() => jiraService.jiraRequest('GET', '/issue/TEST-1'), /403/);
   });
 
   test('throws on 404 Not Found', async () => {
@@ -79,10 +75,7 @@ describe('jiraRequest — HTTP 4xx errors', () => {
       headers: { get: () => null },
       text: async () => 'Not Found',
     });
-    await assert.rejects(
-      () => jiraService.jiraRequest('GET', '/issue/MISSING-1'),
-      /404/
-    );
+    await assert.rejects(() => jiraService.jiraRequest('GET', '/issue/MISSING-1'), /404/);
   });
 
   test('redacts Bearer token from 4xx error messages', async () => {
@@ -106,7 +99,9 @@ describe('jiraRequest — HTTP 4xx errors', () => {
 
 describe('jiraRequest — HTTP 5xx errors', () => {
   const origFetch = global.fetch;
-  after(() => { global.fetch = origFetch; });
+  after(() => {
+    global.fetch = origFetch;
+  });
 
   test('throws on 500 Internal Server Error', async () => {
     global.fetch = async () => ({
@@ -115,10 +110,7 @@ describe('jiraRequest — HTTP 5xx errors', () => {
       headers: { get: () => null },
       text: async () => 'Internal Server Error',
     });
-    await assert.rejects(
-      () => jiraService.jiraRequest('GET', '/issue/TEST-1'),
-      /500/
-    );
+    await assert.rejects(() => jiraService.jiraRequest('GET', '/issue/TEST-1'), /500/);
   });
 
   test('throws on 503 Service Unavailable', async () => {
@@ -128,10 +120,7 @@ describe('jiraRequest — HTTP 5xx errors', () => {
       headers: { get: () => null },
       text: async () => 'Service Unavailable',
     });
-    await assert.rejects(
-      () => jiraService.jiraRequest('POST', '/issue'),
-      /503/
-    );
+    await assert.rejects(() => jiraService.jiraRequest('POST', '/issue'), /503/);
   });
 
   test('truncates long 5xx error body to 300 chars', async () => {
@@ -156,13 +145,18 @@ describe('jiraRequest — HTTP 5xx errors', () => {
 
 describe('jiraRequest — HTTP 429 retry logic', () => {
   const origFetch = global.fetch;
-  after(() => { global.fetch = origFetch; });
+  after(() => {
+    global.fetch = origFetch;
+  });
 
   test('retries on 429 and succeeds on second attempt', async () => {
     let callCount = 0;
     // Override setTimeout to avoid actual waiting
     const origSetTimeout = global.setTimeout;
-    global.setTimeout = (fn) => { fn(); return 0; };
+    global.setTimeout = (fn) => {
+      fn();
+      return 0;
+    };
 
     global.fetch = async () => {
       callCount++;
@@ -190,7 +184,10 @@ describe('jiraRequest — HTTP 429 retry logic', () => {
   test('throws after 3 consecutive 429s', async () => {
     let callCount = 0;
     const origSetTimeout = global.setTimeout;
-    global.setTimeout = (fn) => { fn(); return 0; };
+    global.setTimeout = (fn) => {
+      fn();
+      return 0;
+    };
 
     global.fetch = async () => {
       callCount++;
@@ -288,7 +285,9 @@ describe('jiraRequest — HTTP 429 retry logic', () => {
 
 describe('jiraRequest — successful responses', () => {
   const origFetch = global.fetch;
-  after(() => { global.fetch = origFetch; });
+  after(() => {
+    global.fetch = origFetch;
+  });
 
   test('returns parsed JSON on 200 OK', async () => {
     global.fetch = async () => ({

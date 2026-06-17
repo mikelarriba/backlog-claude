@@ -41,10 +41,7 @@ describe('docIndex benchmark — 500 docs', () => {
 
     // Write 200 epics
     for (let i = 1; i <= 200; i++) {
-      writeFrontmatter(
-        TYPE_CONFIG.epic.dir(),
-        `2026-01-${String(i).padStart(3, '0')}-epic.md`
-      );
+      writeFrontmatter(TYPE_CONFIG.epic.dir(), `2026-01-${String(i).padStart(3, '0')}-epic.md`);
     }
     // Write 200 stories linked to epics
     for (let i = 1; i <= 200; i++) {

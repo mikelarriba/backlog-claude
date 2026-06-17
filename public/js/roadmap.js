@@ -480,7 +480,14 @@ export function getAllSprints() {
 
 // ── Pull from JIRA Sprints ───────────────────────────────────
 
-const JIRA_TYPE_TO_LOCAL = { 'New Feature': 'feature', Epic: 'epic', Story: 'story', Improvement: 'story', Task: 'spike', Bug: 'bug' };
+const JIRA_TYPE_TO_LOCAL = {
+  'New Feature': 'feature',
+  Epic: 'epic',
+  Story: 'story',
+  Improvement: 'story',
+  Task: 'spike',
+  Bug: 'bug',
+};
 
 export function pullFromJiraSprints() {
   const overlay = document.getElementById('pull-sprint-overlay');
@@ -513,13 +520,18 @@ export function closePullSprintModal() {
 }
 
 export function pullSprintToggleAll(checked) {
-  document.querySelectorAll('#pull-sprint-list input[type="checkbox"]').forEach(cb => cb.checked = checked);
+  document
+    .querySelectorAll('#pull-sprint-list input[type="checkbox"]')
+    .forEach((cb) => (cb.checked = checked));
 }
 
 export async function startPullSprintPreview() {
   const cbs = document.querySelectorAll('#pull-sprint-list input[type="checkbox"]:checked');
-  const selectedSprints = [...cbs].map(cb => cb.value);
-  if (!selectedSprints.length) { showJiraToast('error', 'Select at least one sprint'); return; }
+  const selectedSprints = [...cbs].map((cb) => cb.value);
+  if (!selectedSprints.length) {
+    showJiraToast('error', 'Select at least one sprint');
+    return;
+  }
 
   document.getElementById('pull-sprint-select-step').style.display = 'none';
   document.getElementById('pull-sprint-loading').style.display = '';
@@ -602,12 +614,16 @@ function _renderPullSprintResults(results) {
 }
 
 export function pullSprintSelectAllItems(checked) {
-  document.querySelectorAll('#pull-sprint-results input[type="checkbox"]').forEach(cb => cb.checked = checked);
+  document
+    .querySelectorAll('#pull-sprint-results input[type="checkbox"]')
+    .forEach((cb) => (cb.checked = checked));
   _pullSprintUpdateCount();
 }
 
 export function _pullSprintUpdateCount() {
-  const checked = document.querySelectorAll('#pull-sprint-results input[type="checkbox"]:checked').length;
+  const checked = document.querySelectorAll(
+    '#pull-sprint-results input[type="checkbox"]:checked'
+  ).length;
   const total = document.querySelectorAll('#pull-sprint-results input[type="checkbox"]').length;
   const btn = document.getElementById('pull-sprint-confirm');
   if (btn) btn.textContent = `Pull Selected (${checked}/${total})`;
@@ -615,8 +631,11 @@ export function _pullSprintUpdateCount() {
 
 export async function confirmPullSprint() {
   const cbs = document.querySelectorAll('#pull-sprint-results input[type="checkbox"]:checked');
-  const issues = [...cbs].map(cb => ({ key: cb.value, sprintName: cb.dataset.sprint }));
-  if (!issues.length) { showJiraToast('error', 'No issues selected'); return; }
+  const issues = [...cbs].map((cb) => ({ key: cb.value, sprintName: cb.dataset.sprint }));
+  if (!issues.length) {
+    showJiraToast('error', 'No issues selected');
+    return;
+  }
 
   const btn = document.getElementById('pull-sprint-confirm');
   btn.disabled = true;
@@ -629,8 +648,8 @@ export async function confirmPullSprint() {
       body: JSON.stringify({ issues }),
     });
     const data = await res.json();
-    const ok = data.results?.filter(r => r.status === 'ok').length || 0;
-    const err = data.results?.filter(r => r.status === 'error').length || 0;
+    const ok = data.results?.filter((r) => r.status === 'ok').length || 0;
+    const err = data.results?.filter((r) => r.status === 'error').length || 0;
     showJiraToast('ok', `Pulled ${ok} issue${ok !== 1 ? 's' : ''}${err ? `, ${err} failed` : ''}`);
     closePullSprintModal();
     loadDocs();

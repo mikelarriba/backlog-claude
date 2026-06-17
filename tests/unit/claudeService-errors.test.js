@@ -52,10 +52,7 @@ describe('callClaude — GitHub Models API errors', () => {
       text: async () => 'Internal Server Error',
     });
 
-    await assert.rejects(
-      () => callClaude('/tmp', 'test prompt', { maxAttempts: 1 }),
-      /500/
-    );
+    await assert.rejects(() => callClaude('/tmp', 'test prompt', { maxAttempts: 1 }), /500/);
   });
 
   test('empty choices array returns empty string (not rejected)', async () => {
@@ -95,10 +92,7 @@ describe('streamClaude — GitHub Models API errors', () => {
       text: async () => 'Unauthorized',
     });
 
-    await assert.rejects(
-      () => streamClaude('/tmp', 'test prompt', () => {}),
-      /401/
-    );
+    await assert.rejects(() => streamClaude('/tmp', 'test prompt', () => {}), /401/);
   });
 
   test('rejects on HTTP 500 from streaming endpoint', async () => {
@@ -108,19 +102,17 @@ describe('streamClaude — GitHub Models API errors', () => {
       text: async () => 'Internal Server Error',
     });
 
-    await assert.rejects(
-      () => streamClaude('/tmp', 'test prompt', () => {}),
-      /500/
-    );
+    await assert.rejects(() => streamClaude('/tmp', 'test prompt', () => {}), /500/);
   });
 
   test('calls onChunk with streamed content on success', async () => {
     // Build a minimal SSE ReadableStream
-    const sseLines = [
-      'data: {"choices":[{"delta":{"content":"Hello"}}]}',
-      'data: {"choices":[{"delta":{"content":" world"}}]}',
-      'data: [DONE]',
-    ].join('\n') + '\n';
+    const sseLines =
+      [
+        'data: {"choices":[{"delta":{"content":"Hello"}}]}',
+        'data: {"choices":[{"delta":{"content":" world"}}]}',
+        'data: [DONE]',
+      ].join('\n') + '\n';
 
     global.fetch = async () => ({
       ok: true,
@@ -166,10 +158,7 @@ describe('callClaude — semaphore releases on error', () => {
       text: async () => 'Service Unavailable',
     });
 
-    await assert.rejects(
-      () => callClaude('/tmp', 'failing prompt', { maxAttempts: 1 }),
-      /503/
-    );
+    await assert.rejects(() => callClaude('/tmp', 'failing prompt', { maxAttempts: 1 }), /503/);
 
     // Second call should succeed (semaphore must have been released)
     global.fetch = async () => ({

@@ -32,21 +32,13 @@ interface JiraServiceConfig {
 }
 
 export interface JiraServiceInstance {
-  jiraRequest: (
-    method: string,
-    urlPath: string,
-    body?: unknown
-  ) => Promise<unknown>;
+  jiraRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>;
   jiraPagedRequest: (
     jql: string,
     fields: string,
     opts?: { maxResults?: number; maxTotal?: number }
   ) => Promise<unknown[]>;
-  jiraAgileRequest: (
-    method: string,
-    urlPath: string,
-    body?: unknown
-  ) => Promise<unknown>;
+  jiraAgileRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
   jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };
@@ -120,12 +112,13 @@ export function createJiraService({
     throw new Error(`${label} rate limit exceeded after ${MAX_ATTEMPTS} retries`);
   }
 
-  async function jiraRequest(
-    method: string,
-    urlPath: string,
-    body?: unknown
-  ): Promise<unknown> {
-    return _jiraFetch(`${JIRA_BASE}/rest/api/2${urlPath}`, method, body, `JIRA ${method} ${urlPath}`);
+  async function jiraRequest(method: string, urlPath: string, body?: unknown): Promise<unknown> {
+    return _jiraFetch(
+      `${JIRA_BASE}/rest/api/2${urlPath}`,
+      method,
+      body,
+      `JIRA ${method} ${urlPath}`
+    );
   }
 
   async function jiraAgileRequest(
@@ -133,7 +126,12 @@ export function createJiraService({
     urlPath: string,
     body?: unknown
   ): Promise<unknown> {
-    return _jiraFetch(`${JIRA_BASE}/rest/agile/1.0${urlPath}`, method, body, `JIRA Agile ${method} ${urlPath}`);
+    return _jiraFetch(
+      `${JIRA_BASE}/rest/agile/1.0${urlPath}`,
+      method,
+      body,
+      `JIRA Agile ${method} ${urlPath}`
+    );
   }
 
   async function jiraPagedRequest(
@@ -146,11 +144,15 @@ export function createJiraService({
 
     while (true) {
       const url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}`;
-      const page = await jiraRequest('GET', url) as Record<string, unknown>;
+      const page = (await jiraRequest('GET', url)) as Record<string, unknown>;
       const issues = (page.issues as unknown[] | undefined) || [];
       all.push(...issues);
 
-      if (all.length >= maxTotal || all.length >= ((page.total as number) || 0) || issues.length < maxResults)
+      if (
+        all.length >= maxTotal ||
+        all.length >= ((page.total as number) || 0) ||
+        issues.length < maxResults
+      )
         break;
       startAt += issues.length;
     }
@@ -174,7 +176,16 @@ export function createJiraService({
   }
 
   function jiraIssueToMarkdown(issue: unknown): { docType: string; content: string } {
-    const { key, fields } = issue as { key: string; fields: Record<string, unknown> & { summary?: string; description?: string; issuetype?: { name?: string }; priority?: { name?: string }; fixVersions?: Array<{ name?: string }> } };
+    const { key, fields } = issue as {
+      key: string;
+      fields: Record<string, unknown> & {
+        summary?: string;
+        description?: string;
+        issuetype?: { name?: string };
+        priority?: { name?: string };
+        fixVersions?: Array<{ name?: string }>;
+      };
+    };
     const summary = (fields.summary || '').replace(/[\r\n]+/g, ' ').trim();
     const description = jiraToMarkdown(fields.description || '');
     const issueType = fields.issuetype?.name || 'Epic';

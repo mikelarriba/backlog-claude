@@ -57,11 +57,11 @@ export function topoSortCards(docs) {
 
 // Category-based colours for epic cards
 const _CATEGORY_COLORS = {
-  'User Features':        '#16a34a',
-  'Platform Features':    '#0891b2',
-  'Testing Features':     '#d97706',
+  'User Features': '#16a34a',
+  'Platform Features': '#0891b2',
+  'Testing Features': '#d97706',
   'Platform Maintenance': '#64748b',
-  'Technical Debt':       '#dc2626',
+  'Technical Debt': '#dc2626',
 };
 const _CATEGORY_FALLBACK = '#94a3b8';
 export function epicColor(workCategory) {

@@ -208,8 +208,10 @@ if ('serviceWorker' in navigator) {
 const SPLIT_MIN_WIDTH = 1280;
 
 export function isSplitMode(): boolean {
-  return (document.querySelector('.right') as HTMLElement | null)
-    ?.classList.contains('split-mode') ?? false;
+  return (
+    (document.querySelector('.right') as HTMLElement | null)?.classList.contains('split-mode') ??
+    false
+  );
 }
 
 function updateSplitMode(): void {
@@ -298,7 +300,11 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
   }
   if (e.key === 'Escape') {
     const active = document.activeElement;
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+    if (
+      active &&
+      (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
+    )
+      return;
     const overlays = document.querySelectorAll('.dialog-overlay.show');
     if (overlays.length) return;
     const detail = document.getElementById('detail-view');
@@ -505,8 +511,7 @@ async function _saveModelSetting(provider: string, model: string): Promise<void>
     await putJSON('/api/settings/model', { provider: provider || null, model: model || null });
     if (statusEl) {
       statusEl.className = 'model-status show success';
-      const pName =
-        (_availableProviders.find((p) => p.id === provider) || { name: provider }).name;
+      const pName = (_availableProviders.find((p) => p.id === provider) || { name: provider }).name;
       statusEl.textContent = model ? `Using ${pName} / ${model}` : `Using ${pName} default`;
       setTimeout(() => {
         statusEl.className = 'model-status';
@@ -602,20 +607,22 @@ function _handleSSEMessage(payload: SSEPayload): void {
     });
   }
   if (payload.type === 'batch_sprint_updated') {
-      _loadDocsDebounced();
-      refreshRoadmapView();
-    }
-    if (payload.type === 'split_threshold_updated') {
-      splitThreshold = payload.splitThreshold ?? splitThreshold;
-      const el = document.getElementById('split-threshold-input') as HTMLInputElement | null;
-      if (el) el.value = String(splitThreshold);
-      refreshRoadmapView();
-    }
+    _loadDocsDebounced();
+    refreshRoadmapView();
+  }
+  if (payload.type === 'split_threshold_updated') {
+    splitThreshold = payload.splitThreshold ?? splitThreshold;
+    const el = document.getElementById('split-threshold-input') as HTMLInputElement | null;
+    if (el) el.value = String(splitThreshold);
+    refreshRoadmapView();
+  }
 }
 
 function _connectSSE(): void {
   const es = new EventSource('/api/events');
-  es.onopen = () => { _sseRetryDelay = 1_000; };
+  es.onopen = () => {
+    _sseRetryDelay = 1_000;
+  };
   es.onmessage = (e: MessageEvent) => {
     try {
       _handleSSEMessage(JSON.parse(e.data as string) as SSEPayload);

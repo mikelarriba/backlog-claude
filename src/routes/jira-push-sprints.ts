@@ -181,7 +181,8 @@ export default function jiraPushSprintsRoutes({
               'GET',
               `/board/${JIRA_BOARD_ID}/sprint/${sprintId}/issue?fields=summary&maxResults=100&startAt=${startAt}`
             )) as Record<string, unknown>;
-            const issues = (data.issues as Array<{ key: string; fields?: { summary?: string } }>) || [];
+            const issues =
+              (data.issues as Array<{ key: string; fields?: { summary?: string } }>) || [];
             for (const iss of issues) {
               if (!jiraSprintMap.has(iss.key)) {
                 jiraSprintMap.set(iss.key, {
@@ -322,7 +323,11 @@ export default function jiraPushSprintsRoutes({
       res.end();
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/push-sprints-preview', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/push-sprints-preview',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       send({ type: 'error', message: apiErr.message });
       res.end();
     }
@@ -409,7 +414,11 @@ export default function jiraPushSprintsRoutes({
       res.json({ results });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/push-sprints', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/push-sprints',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -438,7 +447,10 @@ export default function jiraPushSprintsRoutes({
       }
 
       if (!activeSprintMap.size) {
-        send({ type: 'error', message: `No matching JIRA sprints found for: ${selectedSprints.join(', ')}` });
+        send({
+          type: 'error',
+          message: `No matching JIRA sprints found for: ${selectedSprints.join(', ')}`,
+        });
         res.end();
         return;
       }
@@ -448,7 +460,12 @@ export default function jiraPushSprintsRoutes({
 
       for (let i = 0; i < sprintEntries.length; i++) {
         const [jiraSprintName, sprintId] = sprintEntries[i];
-        send({ type: 'progress', message: `Scanning ${jiraSprintName}…`, current: i + 1, total: sprintEntries.length });
+        send({
+          type: 'progress',
+          message: `Scanning ${jiraSprintName}…`,
+          current: i + 1,
+          total: sprintEntries.length,
+        });
 
         let startAt = 0;
         const maxResults = 50;
@@ -457,7 +474,15 @@ export default function jiraPushSprintsRoutes({
             'GET',
             `/sprint/${sprintId}/issue?maxResults=${maxResults}&startAt=${startAt}&fields=summary,issuetype,priority,status,${FIELD_STORY_POINTS || 'customfield_10002'}`
           )) as Record<string, unknown>;
-          type JiraIssueItem = { key: string; fields: Record<string, unknown> & { summary?: string; issuetype?: { name?: string }; priority?: { name?: string }; status?: { name?: string } } };
+          type JiraIssueItem = {
+            key: string;
+            fields: Record<string, unknown> & {
+              summary?: string;
+              issuetype?: { name?: string };
+              priority?: { name?: string };
+              status?: { name?: string };
+            };
+          };
           const issues = (data.issues as JiraIssueItem[]) || [];
           if (!issues.length) break;
 
@@ -485,7 +510,11 @@ export default function jiraPushSprintsRoutes({
       res.end();
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/pull-sprint-preview', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/pull-sprint-preview',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       send({ type: 'error', message: apiErr.message });
       res.end();
     }
@@ -500,9 +529,17 @@ export default function jiraPushSprintsRoutes({
       const { issues = [] } = req.body as { issues: Array<{ key: string; sprintName: string }> };
 
       // Load PI settings for sprint→PI mapping
-      const piSettingsPath = path.join(path.dirname(TYPE_CONFIG.story.dir()), '..', '.pi-settings.json');
+      const piSettingsPath = path.join(
+        path.dirname(TYPE_CONFIG.story.dir()),
+        '..',
+        '.pi-settings.json'
+      );
       let piSettings: Record<string, unknown> = {};
-      try { piSettings = JSON.parse(await fs.promises.readFile(piSettingsPath, 'utf-8')); } catch { /* no-op */ }
+      try {
+        piSettings = JSON.parse(await fs.promises.readFile(piSettingsPath, 'utf-8'));
+      } catch {
+        /* no-op */
+      }
       const sprintConfig = (piSettings.sprints || {}) as Record<string, Array<{ name: string }>>;
       const sprintToPi = new Map<string, string>();
       for (const [pi, sprints] of Object.entries(sprintConfig)) {
@@ -529,10 +566,16 @@ export default function jiraPushSprintsRoutes({
             const issueFields = (issue as { fields?: Record<string, unknown> }).fields ?? {};
             const labels: string[] = (issueFields.labels as string[]) || [];
             const teamLabel = labels.find((l: string) => JIRA_LABEL_TO_TEAM[l]);
-            if (teamLabel) finalContent = setFrontmatterField(finalContent, 'Team', JIRA_LABEL_TO_TEAM[teamLabel]);
+            if (teamLabel)
+              finalContent = setFrontmatterField(
+                finalContent,
+                'Team',
+                JIRA_LABEL_TO_TEAM[teamLabel]
+              );
 
             // Write file
-            const dir = TYPE_CONFIG[docType as keyof typeof TYPE_CONFIG]?.dir() || TYPE_CONFIG.story.dir();
+            const dir =
+              TYPE_CONFIG[docType as keyof typeof TYPE_CONFIG]?.dir() || TYPE_CONFIG.story.dir();
             ensureDir(dir);
             const slug = slugify(String(issueFields.summary || key));
             const filename = `${isoDate()}-${slug}.md`;
@@ -554,7 +597,11 @@ export default function jiraPushSprintsRoutes({
       res.json({ results });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/pull-sprint', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/pull-sprint',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });

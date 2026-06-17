@@ -89,7 +89,9 @@ describe('GET /api/export/doc — HTML structure', () => {
 
   test('returns valid HTML for a story export', async () => {
     const { filename } = await createDoc('story', 'A Story For Export');
-    const { status, html } = await fetchHtml(`/api/export/doc/story/${encodeURIComponent(filename)}`);
+    const { status, html } = await fetchHtml(
+      `/api/export/doc/story/${encodeURIComponent(filename)}`
+    );
     assert.equal(status, 200);
     assert.ok(html.includes('<!DOCTYPE html>'));
   });

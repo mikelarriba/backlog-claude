@@ -27,7 +27,11 @@ export default function jiraPushRankRoutes({ jiraRequest, logInfo, logError }: J
       res.json({ success: true, key, beforeKey: beforeKey || null, afterKey: afterKey || null });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/push-rank', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/push-rank',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });

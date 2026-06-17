@@ -156,16 +156,8 @@ export interface JiraRouteContext extends RouteContext {
   FIELD_EPIC_NAME: string;
   FIELD_EPIC_LINK: string;
   FIELD_STORY_POINTS: string;
-  jiraRequest: (
-    method: string,
-    urlPath: string,
-    body?: unknown
-  ) => Promise<unknown>;
-  jiraAgileRequest: (
-    method: string,
-    urlPath: string,
-    body?: unknown
-  ) => Promise<unknown>;
+  jiraRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>;
+  jiraAgileRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>;
   jiraPagedRequest: (
     jql: string,
     fields: string,

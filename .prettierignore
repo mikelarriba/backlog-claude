@@ -4,3 +4,4 @@ public/js/vendor/
 package-lock.json
 *.min.js
 openapi.yaml
+.claude/worktrees/

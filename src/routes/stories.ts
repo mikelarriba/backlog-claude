@@ -123,7 +123,11 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
       res.end();
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/stories/:filename/upgrade-story', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/stories/:filename/upgrade-story',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       send({
         error: {
           code: apiErr.code,
@@ -230,7 +234,11 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
       res.end();
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/epic/:filename/stories', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/epic/:filename/stories',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       send({
         error: {
           code: apiErr.code,

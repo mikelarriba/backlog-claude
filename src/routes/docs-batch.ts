@@ -455,8 +455,14 @@ export default function docsBatchRoutes({
         }
 
         // Phase 2: flush all writes atomically — only after all transformations succeeded
-        await Promise.all(writes.map(({ filepath, content }) => fs.promises.writeFile(filepath, content)));
-        const updated = writes.map(({ filename, docType, sprint }) => ({ filename, docType, sprint }));
+        await Promise.all(
+          writes.map(({ filepath, content }) => fs.promises.writeFile(filepath, content))
+        );
+        const updated = writes.map(({ filename, docType, sprint }) => ({
+          filename,
+          docType,
+          sprint,
+        }));
 
         if (updated.length) {
           await docIndex.invalidateAll();

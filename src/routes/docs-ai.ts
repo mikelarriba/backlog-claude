@@ -27,11 +27,7 @@ import {
   extractFrontmatterField,
 } from '../utils/transforms.js';
 import { validateBody } from '../utils/validateMiddleware.js';
-import {
-  GenerateDocSchema,
-  SplitStorySchema,
-  SplitEpicSchema,
-} from '../schemas/docs.js';
+import { GenerateDocSchema, SplitStorySchema, SplitEpicSchema } from '../schemas/docs.js';
 import type { RouteContext } from '../types.js';
 
 export default function docsAiRoutes({
@@ -148,7 +144,11 @@ ${idea.trim()}
       res.json({ success: true, filename, docType: normalizedType });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/generate', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/generate',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(
         res,
         apiErr.code === 'VALIDATION_ERROR' || apiErr.code === 'INVALID_TYPE' ? 400 : 500,
@@ -213,7 +213,11 @@ ${idea.trim()}
       res.end();
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/doc/:type/:filename/upgrade', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/doc/:type/:filename/upgrade',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       send({
         error: {
           code: apiErr.code,
@@ -328,7 +332,11 @@ ${idea.trim()}
       res.end();
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/docs/split-story', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/docs/split-story',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       send({
         error: {
           code: apiErr.code,
@@ -536,7 +544,11 @@ ${idea}
       });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/split-epic', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/split-epic',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(
         res,
         apiErr.code === 'VALIDATION_ERROR' || apiErr.code === 'NOT_FOUND' ? 400 : 500,

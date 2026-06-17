@@ -1069,7 +1069,9 @@
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.roadmap-export-sprint-header { margin-bottom: 6px; }
+.roadmap-export-sprint-header {
+  margin-bottom: 6px;
+}
 .rexp-sprint-list {
   display: flex;
   flex-wrap: wrap;
@@ -1085,7 +1087,7 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.rexp-sprint-list label input[type="checkbox"] {
+.rexp-sprint-list label input[type='checkbox'] {
   width: 14px;
   height: 14px;
   accent-color: var(--accent);

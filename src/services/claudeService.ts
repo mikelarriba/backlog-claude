@@ -145,7 +145,10 @@ async function _fetchOllamaModels(): Promise<Array<{ id: string; name: string }>
       return [];
     }
     const json = (await res.json()) as { models?: Array<{ name: string }> };
-    const models = (json?.models || []).map((m: { name: string }) => ({ id: m.name, name: m.name }));
+    const models = (json?.models || []).map((m: { name: string }) => ({
+      id: m.name,
+      name: m.name,
+    }));
     _ollamaModelsCache = { result: models, expiresAt: now + OLLAMA_CACHE_TTL_MS };
     return models;
   } catch {

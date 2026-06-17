@@ -68,14 +68,23 @@ export default function jiraSyncRoutes({
       if (!jiraId || jiraId === 'TBD')
         return sendError(res, 400, 'NO_JIRA_ID', 'Document has no JIRA_ID');
 
-      type JiraSyncIssue = { fields?: Record<string, unknown> & { status?: { name?: string }; labels?: string[]; summary?: string; description?: string } };
+      type JiraSyncIssue = {
+        fields?: Record<string, unknown> & {
+          status?: { name?: string };
+          labels?: string[];
+          summary?: string;
+          description?: string;
+        };
+      };
       const issue = (await jiraRequest(
         'GET',
         `/issue/${jiraId}?fields=status,labels,${FIELD_STORY_POINTS},summary,description`
       )) as JiraSyncIssue;
       const jiraStatus = issue.fields?.status?.name || null;
       const jiraSp = issue.fields?.[FIELD_STORY_POINTS] ?? null;
-      const jiraSummary = String(issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
+      const jiraSummary = String(issue.fields?.summary || '')
+        .replace(/[\r\n]+/g, ' ')
+        .trim();
       const jiraDesc = jiraToMarkdown(String(issue.fields?.description || '')).trim();
 
       // Resolve team from JIRA labels
@@ -130,7 +139,11 @@ export default function jiraSyncRoutes({
       res.json({ success: true, jiraStatus, storyPoints: jiraSp });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/sync-status', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/sync-status',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(
         res,
         ['INVALID_TYPE', 'INVALID_FILENAME', 'NO_JIRA_ID'].includes(apiErr.code) ? 400 : 500,
@@ -198,7 +211,9 @@ export default function jiraSyncRoutes({
       if (existingComments) merged = merged.trimEnd() + existingComments[0];
 
       // Override Team if JIRA team label changed
-      const issLabels = (((issue as { fields?: Record<string, unknown> }).fields?.labels) as string[] | undefined) ?? [];
+      const issLabels =
+        ((issue as { fields?: Record<string, unknown> }).fields?.labels as string[] | undefined) ??
+        [];
       const issTeamLbl = issLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
       if (issTeamLbl) {
         const jiraTeam = JIRA_LABEL_TO_TEAM[issTeamLbl];
@@ -215,12 +230,24 @@ export default function jiraSyncRoutes({
       res.json({ key: jiraKey, filename, docType });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/update-from-jira', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/update-from-jira',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
 
-  type JiraPreviewIssue = { key: string; fields?: Record<string, unknown> & { summary?: string; issuetype?: { name?: string }; description?: string; issuelinks?: Array<{ inwardIssue?: { key: string } }> } };
+  type JiraPreviewIssue = {
+    key: string;
+    fields?: Record<string, unknown> & {
+      summary?: string;
+      issuetype?: { name?: string };
+      description?: string;
+      issuelinks?: Array<{ inwardIssue?: { key: string } }>;
+    };
+  };
   // ── Shared helper: build preview item from a JIRA issue ──────
   async function _buildPreviewItem(iss: JiraPreviewIssue) {
     const existing = docIndex.findByJiraId(iss.key) || (await findLocalFileByJiraId(iss.key));
@@ -282,7 +309,10 @@ export default function jiraSyncRoutes({
       if (!jiraKey) return sendError(res, 400, 'VALIDATION_ERROR', 'jiraKey is required');
 
       const fields = `summary,issuetype,status,priority,description,fixVersions,issuelinks,subtasks,${FIELD_EPIC_NAME},${FIELD_EPIC_LINK},${FIELD_STORY_POINTS}`;
-      const issue = (await jiraRequest('GET', `/issue/${jiraKey}?fields=${fields}`)) as JiraPreviewIssue;
+      const issue = (await jiraRequest(
+        'GET',
+        `/issue/${jiraKey}?fields=${fields}`
+      )) as JiraPreviewIssue;
       const items = [];
 
       items.push(await _buildPreviewItem(issue));
@@ -347,7 +377,13 @@ export default function jiraSyncRoutes({
             if (jiraChildKeys.has(local.jiraId!) || seen.has(local.jiraId!)) continue;
             // This local child wasn't in the open JIRA children — check if it's closed or gone
             try {
-              type JiraRemoteIssue = { fields?: { status?: { name?: string; statusCategory?: { key?: string } }; summary?: string; issuetype?: { name?: string } } };
+              type JiraRemoteIssue = {
+                fields?: {
+                  status?: { name?: string; statusCategory?: { key?: string } };
+                  summary?: string;
+                  issuetype?: { name?: string };
+                };
+              };
               const remoteIssue = (await jiraRequest(
                 'GET',
                 `/issue/${local.jiraId}?fields=status,summary,issuetype`
@@ -394,7 +430,11 @@ export default function jiraSyncRoutes({
       res.json({ items });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/pull-preview', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/pull-preview',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -435,12 +475,16 @@ export default function jiraSyncRoutes({
 
       for (const doc of linkedDocs) {
         try {
-          type JiraCheckIssue = { fields?: Record<string, unknown> & { summary?: string; description?: string } };
+          type JiraCheckIssue = {
+            fields?: Record<string, unknown> & { summary?: string; description?: string };
+          };
           const issue = (await jiraRequest(
             'GET',
             `/issue/${doc.jiraId}?fields=${fields}`
           )) as JiraCheckIssue;
-          const jiraSummary = String(issue.fields?.summary || '').replace(/[\r\n]+/g, ' ').trim();
+          const jiraSummary = String(issue.fields?.summary || '')
+            .replace(/[\r\n]+/g, ' ')
+            .trim();
           const jiraSp = issue.fields?.[FIELD_STORY_POINTS] ?? null;
           const jiraDesc = jiraToMarkdown(String(issue.fields?.description || '')).trim();
 
@@ -514,7 +558,11 @@ export default function jiraSyncRoutes({
       res.json({ changed, skipped, errors, total: linkedDocs.length });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/check-all', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/check-all',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });

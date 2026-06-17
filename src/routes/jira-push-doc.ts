@@ -664,7 +664,11 @@ export default function jiraPushDocRoutes({
       res.json({ items: previews });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/push-preview', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/push-preview',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -706,7 +710,11 @@ export default function jiraPushDocRoutes({
       res.json(result);
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/push/:type/:filename', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/push/:type/:filename',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(
         res,
         ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500,

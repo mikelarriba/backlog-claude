@@ -17,33 +17,47 @@ export function openRoadmapExportDialog() {
   // Populate sprint checkboxes
   const sprints = getAllSprints();
   const sprintList = document.getElementById('rexp-sprint-list');
-  sprintList.innerHTML = sprints.map(s =>
-    `<label><input type="checkbox" value="${escHtml(s.name)}" checked />${escHtml(s.name)}</label>`
-  ).join('');
+  sprintList.innerHTML = sprints
+    .map(
+      (s) =>
+        `<label><input type="checkbox" value="${escHtml(s.name)}" checked />${escHtml(s.name)}</label>`
+    )
+    .join('');
 
   // Populate team checkboxes from docs in visible PIs
   const leafTypes = new Set(['story', 'spike', 'bug']);
   const teams = new Set();
   for (const d of allDocs) {
-    if (leafTypes.has(d.docType) && d.fixVersion && window._roadmapVisiblePis?.has(d.fixVersion) && d.team) {
+    if (
+      leafTypes.has(d.docType) &&
+      d.fixVersion &&
+      window._roadmapVisiblePis?.has(d.fixVersion) &&
+      d.team
+    ) {
       teams.add(d.team);
     }
   }
   const sorted = [...teams].sort();
   const teamList = document.getElementById('rexp-team-list');
-  teamList.innerHTML = sorted.map(t =>
-    `<label><input type="checkbox" value="${escHtml(t)}" checked />${escHtml(t)}</label>`
-  ).join('');
+  teamList.innerHTML = sorted
+    .map(
+      (t) => `<label><input type="checkbox" value="${escHtml(t)}" checked />${escHtml(t)}</label>`
+    )
+    .join('');
 
   document.getElementById('roadmap-export-overlay').classList.add('show');
 }
 
 export function rexpToggleAllSprints(checked) {
-  document.querySelectorAll('#rexp-sprint-list input[type="checkbox"]').forEach(cb => cb.checked = checked);
+  document
+    .querySelectorAll('#rexp-sprint-list input[type="checkbox"]')
+    .forEach((cb) => (cb.checked = checked));
 }
 
 export function rexpToggleAllTeams(checked) {
-  document.querySelectorAll('#rexp-team-list input[type="checkbox"]').forEach(cb => cb.checked = checked);
+  document
+    .querySelectorAll('#rexp-team-list input[type="checkbox"]')
+    .forEach((cb) => (cb.checked = checked));
 }
 
 export function closeRoadmapExportDialog() {
@@ -70,12 +84,16 @@ export async function executeRoadmapExport() {
   }
 
   // Read selected sprints from filter checkboxes
-  const selectedSprintCbs = document.querySelectorAll('#rexp-sprint-list input[type="checkbox"]:checked');
-  const selectedSprints = [...selectedSprintCbs].map(cb => cb.value);
+  const selectedSprintCbs = document.querySelectorAll(
+    '#rexp-sprint-list input[type="checkbox"]:checked'
+  );
+  const selectedSprints = [...selectedSprintCbs].map((cb) => cb.value);
 
   // Read selected teams from filter checkboxes
-  const selectedTeamCbs = document.querySelectorAll('#rexp-team-list input[type="checkbox"]:checked');
-  const selectedTeams = [...selectedTeamCbs].map(cb => cb.value);
+  const selectedTeamCbs = document.querySelectorAll(
+    '#rexp-team-list input[type="checkbox"]:checked'
+  );
+  const selectedTeams = [...selectedTeamCbs].map((cb) => cb.value);
 
   closeRoadmapExportDialog();
 

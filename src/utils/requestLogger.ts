@@ -6,7 +6,13 @@ import { createLogger } from './logger.js';
 const { logInfo } = createLogger('[http]');
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
-declare global { namespace Express { interface Request { correlationId: string; } } }
+declare global {
+  namespace Express {
+    interface Request {
+      correlationId: string;
+    }
+  }
+}
 
 export function requestLogger(): RequestHandler {
   return (req, res, next) => {

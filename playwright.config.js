@@ -15,7 +15,7 @@ fs.mkdirSync(E2E_INBOX_DIR, { recursive: true });
 export default defineConfig({
   testDir: './tests/e2e',
   webServer: {
-    command: 'node server.js',
+    command: 'tsx server.ts',
     port: 3000,
     reuseExistingServer: !process.env.CI,
     env: {

@@ -112,14 +112,18 @@ function _storeVar(name: string, initial: unknown): void {
 // via the window global also emits domain events (docs:changed / piSettings:changed).
 Object.defineProperty(window, 'allDocs', {
   get: () => _getState().docs,
-  set: (docs: DocEntry[]) => { _setDocs(docs); },
+  set: (docs: DocEntry[]) => {
+    _setDocs(docs);
+  },
   configurable: true,
   enumerable: true,
 });
 
 Object.defineProperty(window, 'piSettings', {
   get: () => _getState().piSettings,
-  set: (settings: PISettings) => { _setPiSettings(settings); },
+  set: (settings: PISettings) => {
+    _setPiSettings(settings);
+  },
   configurable: true,
   enumerable: true,
 });
@@ -144,7 +148,11 @@ _storeVar('_metaTeams', [] as string[]);
 _storeVar('_metaWorkCategories', [] as string[]);
 // List-level state (moved here from list.js so all state is centralised)
 _storeVar('jiraVersions', [] as string[]);
-_storeVar('_swimlanesCollapsed', { currentPi: false, nextPi: false, backlog: false } as SwimlaneCollapsed);
+_storeVar('_swimlanesCollapsed', {
+  currentPi: false,
+  nextPi: false,
+  backlog: false,
+} as SwimlaneCollapsed);
 _storeVar('_collapsedItems', new Set<string>());
 // Piconfig-level state referenced from HTML onclick
 _storeVar('_piConfigActivePi', null);
@@ -348,7 +356,10 @@ export function toggleSection(bodyId: string, chevronId: string, rotateDeg = 90)
 }
 
 // ── Debounce utility ──────────────────────────────────────────────────────────
-export function debounce(fn: (...args: unknown[]) => void, ms: number): (...args: unknown[]) => void {
+export function debounce(
+  fn: (...args: unknown[]) => void,
+  ms: number
+): (...args: unknown[]) => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return function (...args: unknown[]) {
     clearTimeout(timer);

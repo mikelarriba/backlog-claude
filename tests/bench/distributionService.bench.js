@@ -41,8 +41,10 @@ describe('distributionService benchmark', () => {
     const result = proposeDistribution(stories, sprints, new Map());
     const elapsed = performance.now() - start;
 
-    assert.ok(elapsed < THRESHOLD_MS,
-      `proposeDistribution took ${elapsed.toFixed(1)}ms — expected < ${THRESHOLD_MS}ms`);
+    assert.ok(
+      elapsed < THRESHOLD_MS,
+      `proposeDistribution took ${elapsed.toFixed(1)}ms — expected < ${THRESHOLD_MS}ms`
+    );
     assert.ok(result.sprints.length === 10, 'should return all sprints');
     console.log(`  200 stories × 10 sprints: ${elapsed.toFixed(1)}ms`);
   });
@@ -55,8 +57,10 @@ describe('distributionService benchmark', () => {
     proposeDistribution(stories, sprints, new Map());
     const elapsed = performance.now() - start;
 
-    assert.ok(elapsed < 2000,
-      `proposeDistribution took ${elapsed.toFixed(1)}ms — expected < 2000ms`);
+    assert.ok(
+      elapsed < 2000,
+      `proposeDistribution took ${elapsed.toFixed(1)}ms — expected < 2000ms`
+    );
     console.log(`  500 stories × 20 sprints: ${elapsed.toFixed(1)}ms`);
   });
 
@@ -76,23 +80,22 @@ describe('distributionService benchmark', () => {
     proposeDistribution(stories, sprints, new Map());
     const elapsed = performance.now() - start;
 
-    assert.ok(elapsed < 1000,
-      `Dependency chain distribution took ${elapsed.toFixed(1)}ms — expected < 1000ms`);
+    assert.ok(
+      elapsed < 1000,
+      `Dependency chain distribution took ${elapsed.toFixed(1)}ms — expected < 1000ms`
+    );
     console.log(`  100 chained stories × 15 sprints: ${elapsed.toFixed(1)}ms`);
   });
 
   test('all sprint capacities are respected (no sprint exceeds capacity)', () => {
-    const stories = Array.from({ length: 100 }, () =>
-      makeStory({ storyPoints: 3 })
-    );
+    const stories = Array.from({ length: 100 }, () => makeStory({ storyPoints: 3 }));
     const sprints = makeSprints(5, 20);
 
     const result = proposeDistribution(stories, sprints, new Map());
 
     for (const sprint of result.sprints) {
       const total = sprint.assigned.reduce((sum, d) => sum + (d.storyPoints || 0), 0);
-      assert.ok(total <= 20,
-        `Sprint "${sprint.name}" has ${total} points but capacity is 20`);
+      assert.ok(total <= 20, `Sprint "${sprint.name}" has ${total} points but capacity is 20`);
     }
   });
 });

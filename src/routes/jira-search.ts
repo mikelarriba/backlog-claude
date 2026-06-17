@@ -57,7 +57,15 @@ export default function jiraSearchRoutes({
       const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
       const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause} ORDER BY updated DESC`;
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
-      type JiraSearchIssue = { key: string; fields: Record<string, unknown> & { summary?: string; issuetype?: { name?: string }; status?: { name?: string }; priority?: { name?: string } } };
+      type JiraSearchIssue = {
+        key: string;
+        fields: Record<string, unknown> & {
+          summary?: string;
+          issuetype?: { name?: string };
+          status?: { name?: string };
+          priority?: { name?: string };
+        };
+      };
       const rawIssues = (await jiraPagedRequest(jql, fields, {
         maxResults: 100,
         maxTotal: 500,
@@ -84,7 +92,11 @@ export default function jiraSearchRoutes({
       res.json({ issues, total: rawIssues.length });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('GET /api/jira/search', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'GET /api/jira/search',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -95,7 +107,8 @@ export default function jiraSearchRoutes({
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     try {
       type JiraVersion = { id: string; name: string; released?: boolean; archived?: boolean };
-      const data = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) || []) as JiraVersion[];
+      const data = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) ||
+        []) as JiraVersion[];
       const versions = data.map((v) => ({
         id: v.id,
         name: v.name,
@@ -109,7 +122,11 @@ export default function jiraSearchRoutes({
       res.json({ versions });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('GET /api/jira/versions', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'GET /api/jira/versions',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -121,8 +138,17 @@ export default function jiraSearchRoutes({
 
     try {
       const key = req.params.key;
-      type JiraChildIssue = { key: string; fields?: { summary?: string; issuetype?: { name?: string }; status?: { name?: string } } };
-      type JiraParentIssue = { fields?: { issuetype?: { name?: string }; issuelinks?: Array<{ inwardIssue?: JiraChildIssue }>; subtasks?: JiraChildIssue[] } };
+      type JiraChildIssue = {
+        key: string;
+        fields?: { summary?: string; issuetype?: { name?: string }; status?: { name?: string } };
+      };
+      type JiraParentIssue = {
+        fields?: {
+          issuetype?: { name?: string };
+          issuelinks?: Array<{ inwardIssue?: JiraChildIssue }>;
+          subtasks?: JiraChildIssue[];
+        };
+      };
       const issue = (await jiraRequest(
         'GET',
         `/issue/${key}?fields=issuetype,issuelinks,subtasks`
@@ -169,7 +195,11 @@ export default function jiraSearchRoutes({
       res.json({ parentKey: key, parentType: issueType, children });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('GET /api/jira/children/:key', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'GET /api/jira/children/:key',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
@@ -227,7 +257,7 @@ export default function jiraSearchRoutes({
         let content = initialContent;
 
         // Resolve team from JIRA labels
-        const issueLabels = ((issue.fields?.labels ?? []) as string[]);
+        const issueLabels = (issue.fields?.labels ?? []) as string[];
         const teamLabel = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
         if (
           teamLabel &&
@@ -272,7 +302,11 @@ export default function jiraSearchRoutes({
       res.json({ pulled, conflicts });
     } catch (err) {
       const apiErr = parseApiError(err);
-      logError('POST /api/jira/pull', apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+      logError(
+        'POST /api/jira/pull',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
