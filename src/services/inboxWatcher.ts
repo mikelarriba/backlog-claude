@@ -30,7 +30,7 @@ export function watchInbox({
   broadcast,
   logInfo,
   logError,
-}: InboxWatcherOptions): void {
+}: InboxWatcherOptions): { close(): void } {
   ensureDir(INBOX_DIR);
   const allDocDirs = DOC_DIRS || [EPICS_DIR];
   const _isClaimed = isClaimedByApi || (() => false);
@@ -48,7 +48,7 @@ export function watchInbox({
     }
   })();
 
-  fs.watch(INBOX_DIR, (event, filename) => {
+  const watcher = fs.watch(INBOX_DIR, (event, filename) => {
     if (event !== 'rename' || !filename || !isInboxFile(filename)) return;
     setTimeout(() => {
       const exists = fs.existsSync(path.join(INBOX_DIR, filename));
@@ -121,6 +121,8 @@ export function watchInbox({
       );
     }
   }
+
+  return { close: () => watcher.close() };
 }
 
 function isInboxFile(file: string): boolean {

@@ -5,8 +5,8 @@ import { createLogger } from './logger.js';
 
 const { logInfo } = createLogger('[http]');
 
-// eslint-disable-next-line @typescript-eslint/no-namespace
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       correlationId: string;
