@@ -89,9 +89,13 @@ test.describe('List view — search', () => {
 
   test('search with no match shows empty state or empty list', async ({ page }) => {
     await page.goto('/');
+    // Wait for docs to load before searching
+    await expect(
+      page.locator('#epic-list .list-item, #epic-list .doc-card, #epic-list [data-doctype]').first()
+    ).toBeVisible({ timeout: 8000 });
     await page.locator('#search').fill('zzz-no-match-xyz-9999');
-    // The list should be empty or show an empty state
+    // After debounce, the list should be empty
     const items = page.locator('#epic-list [data-doctype]');
-    await expect(items).toHaveCount(0, { timeout: 3000 });
+    await expect(items).toHaveCount(0, { timeout: 5000 });
   });
 });

@@ -40,6 +40,9 @@ export function watchInbox({
   const shouldSkip = (filename: string): boolean =>
     _isClaimed(filename) || allDocDirs.some((dir) => fs.existsSync(path.join(dir, filename)));
 
+  // Guard against concurrent processInboxFile calls for the same file
+  const inFlight = new Set<string>();
+
   // Process existing inbox files sequentially to avoid spawning many claude subprocesses at once
   (async () => {
     const files = (await fs.promises.readdir(INBOX_DIR)).filter(isInboxFile);
@@ -59,66 +62,72 @@ export function watchInbox({
   logInfo('watchInbox', 'Watching /inbox for new files');
 
   async function processInboxFile(filename: string): Promise<void> {
-    logInfo('watchInbox', `New inbox file: ${filename}`);
-    const t = Date.now();
-    const inboxPath = path.join(INBOX_DIR, filename);
-    const errorsDir = path.join(INBOX_DIR, 'errors');
-    let lastError = '';
-    const delays = [2000, 4000, 8000];
+    if (inFlight.has(filename)) return;
+    inFlight.add(filename);
+    try {
+      logInfo('watchInbox', `New inbox file: ${filename}`);
+      const t = Date.now();
+      const inboxPath = path.join(INBOX_DIR, filename);
+      const errorsDir = path.join(INBOX_DIR, 'errors');
+      let lastError = '';
+      const delays = [2000, 4000, 8000];
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const inboxContent = await fs.promises.readFile(inboxPath, 'utf-8');
-        const epicTemplate = loadCommand('create-epics');
-        const epicPrompt = epicTemplate
-          ? epicTemplate.replace('$ARGUMENTS', `File: ${filename}\n\n${inboxContent}`)
-          : `Generate a complete Epic using the COVE Framework. Output ONLY the markdown content.\n\nFile: ${filename}\n\n${inboxContent}`;
-        const epicContent = await callClaude(epicPrompt);
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const inboxContent = await fs.promises.readFile(inboxPath, 'utf-8');
+          const epicTemplate = loadCommand('create-epics');
+          const epicPrompt = epicTemplate
+            ? epicTemplate.replace('$ARGUMENTS', `File: ${filename}\n\n${inboxContent}`)
+            : `Generate a complete Epic using the COVE Framework. Output ONLY the markdown content.\n\nFile: ${filename}\n\n${inboxContent}`;
+          const epicContent = await callClaude(epicPrompt);
 
-        ensureDir(EPICS_DIR);
-        await fs.promises.writeFile(path.join(EPICS_DIR, filename), epicContent);
-        broadcast({ type: 'epic_created', filename });
-        logAudit({ op: 'create', docType: 'epic', filename, source: 'inbox' });
-        logInfo(
-          'watchInbox',
-          `Inbox processed ${filename} → epics/${filename} in ${Date.now() - t}ms`
-        );
-        return;
-      } catch (err: unknown) {
-        lastError = err instanceof Error ? err.message : String(err);
-        logError(
-          'watchInbox',
-          `Attempt ${attempt}/${maxRetries} failed for ${filename}: ${lastError}`
-        );
-        if (attempt < maxRetries) {
-          await new Promise((r) => setTimeout(r, delays[attempt - 1] ?? 8000));
+          ensureDir(EPICS_DIR);
+          await fs.promises.writeFile(path.join(EPICS_DIR, filename), epicContent);
+          broadcast({ type: 'epic_created', filename });
+          logAudit({ op: 'create', docType: 'epic', filename, source: 'inbox' });
+          logInfo(
+            'watchInbox',
+            `Inbox processed ${filename} → epics/${filename} in ${Date.now() - t}ms`
+          );
+          return;
+        } catch (err: unknown) {
+          lastError = err instanceof Error ? err.message : String(err);
+          logError(
+            'watchInbox',
+            `Attempt ${attempt}/${maxRetries} failed for ${filename}: ${lastError}`
+          );
+          if (attempt < maxRetries) {
+            await new Promise((r) => setTimeout(r, delays[attempt - 1] ?? 8000));
+          }
         }
       }
-    }
 
-    // All retries exhausted — move to errors dir
-    try {
-      ensureDir(errorsDir);
-      await fs.promises.rename(inboxPath, path.join(errorsDir, filename));
-      const errorMeta = {
-        attempts: maxRetries,
-        lastError,
-        timestamp: new Date().toISOString(),
-      };
-      await fs.promises.writeFile(
-        path.join(errorsDir, `${filename}.error.json`),
-        JSON.stringify(errorMeta, null, 2)
-      );
-      broadcast({ type: 'inbox-error', filename, error: lastError });
-      logError(
-        'watchInbox',
-        `Moved ${filename} to inbox/errors after ${maxRetries} failed attempts`
-      );
-    } catch (moveErr: unknown) {
-      logError(
-        'watchInbox',
-        `Failed to move ${filename} to errors dir: ${moveErr instanceof Error ? moveErr.message : String(moveErr)}`
-      );
+      // All retries exhausted — move to errors dir
+      try {
+        ensureDir(errorsDir);
+        await fs.promises.rename(inboxPath, path.join(errorsDir, filename));
+        const errorMeta = {
+          attempts: maxRetries,
+          lastError,
+          timestamp: new Date().toISOString(),
+        };
+        await fs.promises.writeFile(
+          path.join(errorsDir, `${filename}.error.json`),
+          JSON.stringify(errorMeta, null, 2)
+        );
+        broadcast({ type: 'inbox-error', filename, error: lastError });
+        logError(
+          'watchInbox',
+          `Moved ${filename} to inbox/errors after ${maxRetries} failed attempts`
+        );
+      } catch (moveErr: unknown) {
+        logError(
+          'watchInbox',
+          `Failed to move ${filename} to errors dir: ${moveErr instanceof Error ? moveErr.message : String(moveErr)}`
+        );
+      }
+    } finally {
+      inFlight.delete(filename);
     }
   }
 

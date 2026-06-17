@@ -38,8 +38,16 @@ export function clearDocsDir() {
  * Write a fixture .md file into the E2E docs directory.
  * Returns the filename and title.
  */
+const TYPE_DIRS = {
+  feature: 'features',
+  epic: 'epics',
+  story: 'stories',
+  spike: 'spikes',
+  bug: 'bugs',
+};
+
 export function createFixtureDoc(type, overrides = {}) {
-  const dir = path.join(E2E_DOCS_ROOT, `${type}s`);
+  const dir = path.join(E2E_DOCS_ROOT, TYPE_DIRS[type] || `${type}s`);
   fs.mkdirSync(dir, { recursive: true });
 
   const date = new Date().toISOString().slice(0, 10);

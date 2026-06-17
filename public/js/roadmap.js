@@ -4,10 +4,16 @@ import { renderRoadmapBoard } from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
 import { loadDocs } from './list.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
+import { on } from './store.js';
 
 // _roadmapVisiblePis is in state.js as a _storeVar global
 let _roadmapPanelState = { epics: true, stories: true }; // expanded/collapsed
 let _roadmapFocusedEpic = null; // filename of clicked feature (focus mode)
+
+// Re-render PI filter when piSettings arrives (may load after roadmap opens)
+on('piSettings:changed', () => {
+  if (isRoadmapOpen()) populateRoadmapPiFilter();
+});
 
 // ── Open / Close ─────────────────────────────────────────────
 export function openRoadmapView() {
