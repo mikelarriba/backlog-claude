@@ -1,13 +1,13 @@
 /* ── App Layout ──────────────────────────────────────────────── */
 .app {
   display: grid;
-  grid-template-columns: 370px 1fr;
+  grid-template-columns: 64px 1fr;
   grid-template-rows: 100vh;
   height: 100vh;
   overflow: hidden;
 }
 
-/* ── Left Panel ─────────────────────────────────────────────── */
+/* ── Left Panel (now sidebar) ────────────────────────────────── */
 .left {
   background: var(--surface);
   border-right: 1px solid var(--border);
@@ -15,82 +15,24 @@
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px 22px;
+  padding: 0;
   transition:
     background 0.2s,
     border-color 0.2s,
-    width 0.25s ease,
-    padding 0.25s ease;
+    width 0.25s ease;
   min-width: 0;
 }
 
-/* ── Left Panel collapsed state ──────────────────────────────── */
+/* ── Sidebar collapsed state ──────────────────────────────────── */
 .app.left-collapsed {
   grid-template-columns: 0 1fr;
 }
 .app.left-collapsed .left {
-  padding: 0;
+  width: 0;
   overflow: hidden;
   border-right: none;
 }
-.app.left-collapsed .left > * {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
-}
-.app.left-collapsed .left-toggle-btn {
-  opacity: 1;
-  pointer-events: auto;
-}
 
-/* ── Left panel toggle button ────────────────────────────────── */
-.left-toggle-btn {
-  margin-top: auto;
-  padding: 8px 0;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--border);
-  width: 100%;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 13px;
-  letter-spacing: 1px;
-  transition:
-    color 0.12s,
-    background 0.12s;
-}
-.left-toggle-btn:hover {
-  color: var(--text);
-  background: var(--surface2);
-}
-
-/* When collapsed: bottom-left button to reopen */
-.app.left-collapsed .left-toggle-btn {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  z-index: 200;
-  width: 36px;
-  padding: 8px 0;
-  margin: 0;
-  background: var(--surface);
-  border: none;
-  border-top: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  border-radius: 0;
-  font-size: 13px;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-}
-.app.left-collapsed .left-toggle-btn:hover {
-  color: var(--text);
-  background: var(--surface2);
-}
-@media (max-width: 820px) {
-  .left-toggle-btn {
-    display: none;
-  }
-}
 
 /* ── Logo / App header ───────────────────────────────────────── */
 .app-header {
@@ -125,11 +67,6 @@
   letter-spacing: -0.01em;
 }
 
-.subtitle {
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin-bottom: 26px;
-}
 
 /* ── Theme toggle ────────────────────────────────────────────── */
 .theme-toggle {
@@ -185,27 +122,25 @@
 
 /* ── Responsive breakpoints ──────────────────────────────────── */
 
-/* Medium screens (≤ 1100px): narrow left panel */
+/* Medium screens (≤ 1100px): keep sidebar same width */
 @media (max-width: 1100px) {
   .app {
-    grid-template-columns: 300px 1fr;
-  }
-  .left {
-    padding: 18px 16px;
+    grid-template-columns: 64px 1fr;
   }
 }
 
-/* Small screens (≤ 820px): collapse left panel, full-width right */
+/* Small screens (≤ 820px): sidebar becomes bottom tab bar */
 @media (max-width: 820px) {
   .app {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: 1fr auto;
   }
   .left {
-    display: none; /* hide generation form — backlog list is primary UI */
+    order: 2;
   }
   .right {
-    height: 100vh;
+    height: calc(100vh - 56px);
+    order: 1;
   }
 }
 
@@ -215,4 +150,56 @@
     flex-wrap: wrap;
     gap: 4px;
   }
+}
+
+/* ── Settings View ───────────────────────────────────────────── */
+#settings-view {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+}
+#settings-view.show {
+  display: flex;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.settings-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.settings-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 600px;
+}
+
+.btn-settings-nav {
+  margin-top: 8px;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  width: 100%;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: left;
+  transition: color 0.12s, background 0.12s;
+}
+.btn-settings-nav:hover {
+  color: var(--text);
+  background: var(--surface2);
 }
