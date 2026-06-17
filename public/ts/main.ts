@@ -264,29 +264,101 @@ window.addEventListener(
   }, 150)
 );
 
-// ── Left panel collapse toggle ────────────────────────────────
+// ── Sidebar collapse toggle (Ctrl+B) ─────────────────────────
 function toggleLeftPanel(): void {
   const app = document.getElementById('app-root');
-  const btn = document.getElementById('left-toggle-btn');
   if (!app) return;
   const collapsed = app.classList.toggle('left-collapsed');
-  if (btn) btn.textContent = collapsed ? '»' : '«';
   try {
-    localStorage.setItem('leftPanelCollapsed', collapsed ? '1' : '0');
+    localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
   } catch {
     /* no-op */
   }
 }
 
+// ── Sidebar navigation ────────────────────────────────────────
+type ViewName = 'backlog' | 'roadmap' | 'settings' | 'skills' | 'documentation' | 'bugs' | 'suggestions';
+
+function navigateTo(viewName: ViewName): void {
+  // Update active state in sidebar
+  document.querySelectorAll<HTMLElement>('.sidebar-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === viewName);
+  });
+
+  // Hide all views
+  const lv = document.getElementById('list-view');
+  if (lv) lv.style.display = 'none';
+  document.getElementById('roadmap-view')?.classList.remove('show');
+  document.getElementById('settings-view')?.classList.remove('show');
+  document.getElementById('skills-view')?.classList.remove('show');
+  document.getElementById('documentation-view')?.classList.remove('show');
+  document.getElementById('bugs-view')?.classList.remove('show');
+  document.getElementById('suggestions-view')?.classList.remove('show');
+
+  // Show the requested view
+  switch (viewName) {
+    case 'backlog':
+      if (lv) lv.style.display = '';
+      break;
+    case 'roadmap':
+      document.getElementById('roadmap-view')?.classList.add('show');
+      refreshRoadmapView();
+      break;
+    case 'settings':
+      document.getElementById('settings-view')?.classList.add('show');
+      break;
+    case 'skills':
+      document.getElementById('skills-view')?.classList.add('show');
+      break;
+    case 'documentation':
+      document.getElementById('documentation-view')?.classList.add('show');
+      break;
+    case 'bugs':
+      document.getElementById('bugs-view')?.classList.add('show');
+      break;
+    case 'suggestions':
+      document.getElementById('suggestions-view')?.classList.add('show');
+      break;
+  }
+}
+
+// ── Settings view ─────────────────────────────────────────────
+function openSettingsView(): void {
+  navigateTo('settings');
+}
+
+function closeSettingsView(): void {
+  navigateTo('backlog');
+}
+
+// ── FAB (Floating Action Button) ──────────────────────────────
+function openFab(): void {
+  document.getElementById('fab-panel')?.classList.add('open');
+  document.getElementById('fab-btn')?.classList.add('open');
+}
+
+function closeFab(): void {
+  document.getElementById('fab-panel')?.classList.remove('open');
+  document.getElementById('fab-btn')?.classList.remove('open');
+}
+
+function toggleFab(): void {
+  const panel = document.getElementById('fab-panel');
+  if (panel?.classList.contains('open')) {
+    closeFab();
+  } else {
+    openFab();
+  }
+}
+
 (function _restoreLeftPanel() {
   try {
-    if (localStorage.getItem('leftPanelCollapsed') === '1') {
+    const collapsed =
+      localStorage.getItem('sidebarCollapsed') === '1' ||
+      localStorage.getItem('leftPanelCollapsed') === '1';
+    if (collapsed) {
       const app = document.getElementById('app-root');
-      const btn = document.getElementById('left-toggle-btn');
-      if (app) {
-        app.classList.add('left-collapsed');
-        if (btn) btn.textContent = '»';
-      }
+      if (app) app.classList.add('left-collapsed');
     }
   } catch {
     /* no-op */
@@ -307,6 +379,8 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
       return;
     const overlays = document.querySelectorAll('.dialog-overlay.show');
     if (overlays.length) return;
+    const fabPanel = document.getElementById('fab-panel');
+    if (fabPanel?.classList.contains('open')) { closeFab(); return; }
     const detail = document.getElementById('detail-view');
     if (detail && detail.classList.contains('show')) showList();
   }
@@ -654,6 +728,13 @@ if (splitOverlay) {
   });
 }
 
+document.addEventListener('click', (e: MouseEvent) => {
+  const fabContainer = document.getElementById('fab-container');
+  if (fabContainer && !fabContainer.contains(e.target as Node)) {
+    closeFab();
+  }
+});
+
 // ── Expose functions for HTML onclick attributes ──────────────
 // Using Object.assign to attach all handler functions to window without
 // requiring verbose Window interface augmentation.
@@ -850,6 +931,12 @@ const _globals: Record<string, unknown> = {
   loadAppConfig,
   loadMetadata,
   loadModelSetting,
+  openSettingsView,
+  closeSettingsView,
+  navigateTo,
+  openFab,
+  closeFab,
+  toggleFab,
 };
 
 Object.assign(window, _globals);

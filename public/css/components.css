@@ -240,7 +240,7 @@ button:active:not(:disabled) {
 /* ── Push toast ──────────────────────────────────────────────── */
 #jira-push-toast {
   position: fixed;
-  bottom: 24px;
+  bottom: 88px;
   right: 24px;
   padding: 10px 16px;
   border-radius: 8px;

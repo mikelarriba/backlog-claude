@@ -32,249 +32,51 @@
     <link rel="stylesheet" href="/public/css/refine.css" />
     <link rel="stylesheet" href="/public/css/split.css" />
     <link rel="stylesheet" href="/public/css/swimlanes.css" />
+    <link rel="stylesheet" href="/public/css/fab.css" />
+    <link rel="stylesheet" href="/public/css/sidebar.css" />
   </head>
   <body>
     <div class="app" id="app-root">
-      <!-- ── Left Panel: Form ──────────────────────────────────────── -->
-      <div class="left">
-        <div class="app-header">
-          <div class="logo">
-            <div class="logo-icon">⚡</div>
-            <h1>MIDAS Backlog</h1>
-          </div>
-          <div class="theme-toggle" role="group" aria-label="Theme">
-            <button
-              class="theme-btn"
-              data-theme="light"
-              onclick="setTheme('light')"
-              title="Light mode"
-            >
-              ☀
-            </button>
-            <button
-              class="theme-btn"
-              data-theme="system"
-              onclick="setTheme('system')"
-              title="System default"
-            >
-              ◑
-            </button>
-            <button
-              class="theme-btn"
-              data-theme="dark"
-              onclick="setTheme('dark')"
-              title="Dark mode"
-            >
-              ☾
-            </button>
-          </div>
-        </div>
-        <p class="subtitle">Turn a rough idea into a polished Epic.</p>
-
-        <div class="field">
-          <label for="doc-title">Title <span class="field-required">*</span></label>
-          <input id="doc-title" type="text" placeholder="e.g. Self-Service Auth" />
-        </div>
-
-        <div class="field">
-          <label for="idea"
-            >Notes / Idea <span class="field-optional">(optional for drafts)</span></label
-          >
-          <textarea
-            id="idea"
-            placeholder="e.g. Users should be able to reset their password via email without contacting support..."
-          ></textarea>
-        </div>
-
-        <div class="meta-row">
-          <div class="field">
-            <label for="doc-type">Type</label>
-            <select id="doc-type">
-              <option value="feature">New Feature</option>
-              <option value="epic">Epic</option>
-              <option value="story">Story</option>
-              <option value="spike">Spike</option>
-              <option value="bug">Bug</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="priority">Priority</label>
-            <select id="priority">
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-              <option value="Low">Low</option>
-              <option value="Critical">Critical</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="meta-row">
-          <div class="field">
-            <label for="team">Team</label>
-            <select id="team">
-              <option value="">— Select —</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="work-category">Work Category</label>
-            <select id="work-category">
-              <option value="">— Select —</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="actions">
-          <button class="btn-secondary" onclick="clearForm()">Clear</button>
-          <button class="btn-draft" id="draft-btn" onclick="saveDraft()">Save Draft</button>
-          <button class="btn-primary" id="generate-btn" onclick="generateDoc()">
-            <span id="btn-label">✨ Generate</span>
+      <!-- ── Sidebar Navigation ──────────────────────────────────── -->
+      <nav class="left sidebar" id="sidebar">
+        <div class="sidebar-top">
+          <button class="sidebar-item active" data-view="backlog" onclick="navigateTo('backlog')" title="Backlog">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span class="sidebar-label">Backlog</span>
+          </button>
+          <button class="sidebar-item" data-view="roadmap" onclick="navigateTo('roadmap')" title="Roadmap">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span class="sidebar-label">Roadmap</span>
+          </button>
+          <button class="sidebar-item" data-view="skills" onclick="navigateTo('skills')" title="Skills">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span class="sidebar-label">Skills</span>
+          </button>
+          <button class="sidebar-item" data-view="documentation" onclick="navigateTo('documentation')" title="Documentation">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span class="sidebar-label">Docs</span>
+          </button>
+          <button class="sidebar-item" data-view="bugs" onclick="navigateTo('bugs')" title="Bugs">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <span class="sidebar-label">Bugs</span>
           </button>
         </div>
-        <button class="btn-bug-create" onclick="openBugModal()">
-          <span class="bug-icon">&#128027;</span> Create Bug Report
-        </button>
-
-        <div class="status" id="status"></div>
-
-        <!-- JIRA Import -->
-        <div class="collapsible jira-section">
-          <div class="collapsible-header" onclick="toggleJiraSection()">
-            <span class="collapsible-title">🔗 Import from JIRA</span>
-            <span class="collapsible-chevron" id="jira-chevron">▶</span>
-          </div>
-          <div class="collapsible-body" id="jira-section-body">
-            <div class="collapsible-inner">
-              <div class="jira-search-row">
-                <div class="field">
-                  <label for="jira-type">Type</label>
-                  <select id="jira-type">
-                    <option value="all">All Types</option>
-                    <option value="feature">New Feature</option>
-                    <option value="epic">Epic</option>
-                    <option value="story">Story</option>
-                    <option value="spike">Task / Spike</option>
-                    <option value="bug">Bug</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="jira-text">Keywords</label>
-                  <input
-                    id="jira-text"
-                    type="text"
-                    placeholder="Search text…"
-                    onkeydown="if (event.key === 'Enter') searchJira();"
-                  />
-                </div>
-              </div>
-              <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">
-                Search JIRA
-              </button>
-              <div class="jira-results" id="jira-results"></div>
-              <button
-                class="btn-jira-download hidden"
-                id="jira-download-btn"
-                onclick="downloadSelected()"
-              >
-                ⬇ Download Selected
-              </button>
-              <div class="jira-status" id="jira-status"></div>
-              <div class="jira-key-import">
-                <label for="jira-key-input">Import by key</label>
-                <div class="jira-key-row">
-                  <input
-                    id="jira-key-input"
-                    type="text"
-                    placeholder="e.g. EAMDM-9969, EAMDM-1234"
-                    onkeydown="if (event.key === 'Enter') pullByKey();"
-                  />
-                  <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
-                </div>
-              </div>
-            </div>
+        <div class="sidebar-bottom">
+          <button class="sidebar-item" data-view="suggestions" onclick="navigateTo('suggestions')" title="Suggestions">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span class="sidebar-label">Suggest</span>
+          </button>
+          <button class="sidebar-item" data-view="settings" onclick="navigateTo('settings')" title="Settings">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span class="sidebar-label">Settings</span>
+          </button>
+          <div class="sidebar-theme">
+            <button class="theme-btn" data-theme="light" onclick="setTheme('light')" title="Light mode">☀</button>
+            <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="System default">◑</button>
+            <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')" title="Dark mode">☾</button>
           </div>
         </div>
-
-        <!-- Model Settings -->
-        <div class="collapsible model-section">
-          <div class="collapsible-header" onclick="toggleModelSection()">
-            <span class="collapsible-title">⚙ AI Model</span>
-            <span class="collapsible-chevron" id="model-chevron">▶</span>
-          </div>
-          <div class="collapsible-body model-body" id="model-section-body">
-            <div class="collapsible-inner">
-              <div class="field">
-                <label for="provider-select">Provider</label>
-                <div class="provider-select-row">
-                  <select id="provider-select" onchange="onProviderChange(this.value)"></select>
-                  <button
-                    id="provider-refresh-btn"
-                    class="provider-refresh-btn"
-                    onclick="refreshProviders()"
-                    title="Refresh providers (re-detect Ollama)"
-                    aria-label="Refresh providers"
-                  >
-                    ↺
-                  </button>
-                </div>
-              </div>
-              <div class="field">
-                <label for="model-select">Model</label>
-                <select id="model-select" onchange="updateModelSetting(this.value)"></select>
-              </div>
-              <div class="model-status" id="model-status"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PI Sprint Configuration -->
-        <div class="collapsible pi-config-section">
-          <div class="collapsible-header" onclick="togglePiConfigSection()">
-            <span class="collapsible-title">📊 PI Sprint Config</span>
-            <span class="collapsible-chevron" id="pi-config-chevron">▶</span>
-          </div>
-          <div class="collapsible-body" id="pi-config-body">
-            <div class="collapsible-inner">
-              <div class="pi-config-tabs" id="pi-config-tabs"></div>
-              <div class="pi-config-sprints" id="pi-config-sprints"></div>
-              <button class="btn-pi-add-sprint" onclick="addSprintRow()">+ Add Sprint</button>
-              <button class="btn-pi-save" id="pi-config-save-btn" onclick="saveSprintConfig()">
-                Save Configuration
-              </button>
-              <button
-                class="btn-pi-distribute"
-                id="pi-config-distribute-btn"
-                onclick="openDistributionModal(_piConfigActivePi)"
-              >
-                Distribute Stories
-              </button>
-              <div class="pi-config-split-row">
-                <label class="pi-config-split-label" for="split-threshold-input"
-                  >Split cards ≥</label
-                >
-                <input
-                  class="pi-config-split-input"
-                  id="split-threshold-input"
-                  type="number"
-                  min="1"
-                  max="99"
-                  value="8"
-                  onchange="saveSplitThreshold(this.value)"
-                />
-                <span class="pi-config-split-unit">SP</span>
-              </div>
-              <div class="pi-config-status" id="pi-config-status"></div>
-            </div>
-          </div>
-        </div>
-        <button
-          class="left-toggle-btn"
-          id="left-toggle-btn"
-          onclick="toggleLeftPanel()"
-          title="Toggle panel (Ctrl+B)"
-        >
-          «
-        </button>
-      </div>
+      </nav>
 
       <!-- ── Right Panel ───────────────────────────────────────────── -->
       <div class="right">
@@ -282,7 +84,7 @@
         <div id="list-view">
           <div class="list-header">
             <div class="list-header-top">
-              <span class="list-title">Your Issues</span>
+              <span class="list-title">Backlog</span>
               <span class="epic-count" id="epic-count">0</span>
               <div class="list-header-actions">
                 <button class="btn-toolbar" onclick="collapseAll()" title="Collapse all">
@@ -298,9 +100,6 @@
                   title="Check all JIRA-linked issues for changes"
                 >
                   ↕ Check JIRA
-                </button>
-                <button class="btn-toolbar btn-toolbar-roadmap" onclick="openRoadmapView()">
-                  Roadmap
                 </button>
               </div>
             </div>
@@ -742,6 +541,146 @@
           </div>
         </div>
 
+        <!-- Settings View -->
+        <div id="settings-view">
+          <div class="settings-header">
+            <button class="btn-ghost" onclick="closeSettingsView()">← Back</button>
+            <span class="settings-title">⚙ Settings</span>
+          </div>
+          <div class="settings-body">
+            <!-- JIRA Import -->
+            <div class="collapsible jira-section">
+              <div class="collapsible-header" onclick="toggleJiraSection()">
+                <span class="collapsible-title">🔗 Import from JIRA</span>
+                <span class="collapsible-chevron" id="jira-chevron">▶</span>
+              </div>
+              <div class="collapsible-body" id="jira-section-body">
+                <div class="collapsible-inner">
+                  <div class="jira-search-row">
+                    <div class="field">
+                      <label for="jira-type">Type</label>
+                      <select id="jira-type">
+                        <option value="all">All Types</option>
+                        <option value="feature">New Feature</option>
+                        <option value="epic">Epic</option>
+                        <option value="story">Story</option>
+                        <option value="spike">Task / Spike</option>
+                        <option value="bug">Bug</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="jira-text">Keywords</label>
+                      <input
+                        id="jira-text"
+                        type="text"
+                        placeholder="Search text…"
+                        onkeydown="if (event.key === 'Enter') searchJira();"
+                      />
+                    </div>
+                  </div>
+                  <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">
+                    Search JIRA
+                  </button>
+                  <div class="jira-results" id="jira-results"></div>
+                  <button
+                    class="btn-jira-download hidden"
+                    id="jira-download-btn"
+                    onclick="downloadSelected()"
+                  >
+                    ⬇ Download Selected
+                  </button>
+                  <div class="jira-status" id="jira-status"></div>
+                  <div class="jira-key-import">
+                    <label for="jira-key-input">Import by key</label>
+                    <div class="jira-key-row">
+                      <input
+                        id="jira-key-input"
+                        type="text"
+                        placeholder="e.g. EAMDM-9969, EAMDM-1234"
+                        onkeydown="if (event.key === 'Enter') pullByKey();"
+                      />
+                      <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Model Settings -->
+            <div class="collapsible model-section">
+              <div class="collapsible-header" onclick="toggleModelSection()">
+                <span class="collapsible-title">⚙ AI Model</span>
+                <span class="collapsible-chevron" id="model-chevron">▶</span>
+              </div>
+              <div class="collapsible-body model-body" id="model-section-body">
+                <div class="collapsible-inner">
+                  <div class="field">
+                    <label for="provider-select">Provider</label>
+                    <div class="provider-select-row">
+                      <select id="provider-select" onchange="onProviderChange(this.value)"></select>
+                      <button
+                        id="provider-refresh-btn"
+                        class="provider-refresh-btn"
+                        onclick="refreshProviders()"
+                        title="Refresh providers (re-detect Ollama)"
+                        aria-label="Refresh providers"
+                      >
+                        ↺
+                      </button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="model-select">Model</label>
+                    <select id="model-select" onchange="updateModelSetting(this.value)"></select>
+                  </div>
+                  <div class="model-status" id="model-status"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PI Sprint Configuration -->
+            <div class="collapsible pi-config-section">
+              <div class="collapsible-header" onclick="togglePiConfigSection()">
+                <span class="collapsible-title">📊 PI Sprint Config</span>
+                <span class="collapsible-chevron" id="pi-config-chevron">▶</span>
+              </div>
+              <div class="collapsible-body" id="pi-config-body">
+                <div class="collapsible-inner">
+                  <div class="pi-config-tabs" id="pi-config-tabs"></div>
+                  <div class="pi-config-sprints" id="pi-config-sprints"></div>
+                  <button class="btn-pi-add-sprint" onclick="addSprintRow()">+ Add Sprint</button>
+                  <button class="btn-pi-save" id="pi-config-save-btn" onclick="saveSprintConfig()">
+                    Save Configuration
+                  </button>
+                  <button
+                    class="btn-pi-distribute"
+                    id="pi-config-distribute-btn"
+                    onclick="openDistributionModal(_piConfigActivePi)"
+                  >
+                    Distribute Stories
+                  </button>
+                  <div class="pi-config-split-row">
+                    <label class="pi-config-split-label" for="split-threshold-input"
+                      >Split cards ≥</label
+                    >
+                    <input
+                      class="pi-config-split-input"
+                      id="split-threshold-input"
+                      type="number"
+                      min="1"
+                      max="99"
+                      value="8"
+                      onchange="saveSplitThreshold(this.value)"
+                    />
+                    <span class="pi-config-split-unit">SP</span>
+                  </div>
+                  <div class="pi-config-status" id="pi-config-status"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- PI Roadmap View: sprint board with draggable cards -->
         <div id="roadmap-view">
           <div class="roadmap-header">
@@ -834,6 +773,95 @@
               <div class="rm-panel-body" id="rm-body-stories"></div>
             </div>
           </div>
+        </div>
+
+        <!-- Placeholder views for future sections -->
+        <div id="skills-view" class="placeholder-view">
+          <div class="icon">👥</div>
+          <h2>Skills Matrix</h2>
+          <p>Team skills tracking coming soon.</p>
+        </div>
+        <div id="documentation-view" class="placeholder-view">
+          <div class="icon">📄</div>
+          <h2>Documentation</h2>
+          <p>Product and technical docs coming soon.</p>
+        </div>
+        <div id="bugs-view" class="placeholder-view">
+          <div class="icon">🐛</div>
+          <h2>Bug Tracker</h2>
+          <p>Dedicated bug management coming soon.</p>
+        </div>
+        <div id="suggestions-view" class="placeholder-view">
+          <div class="icon">💬</div>
+          <h2>Suggestions</h2>
+          <p>GitHub issue suggestions coming soon.</p>
+        </div>
+
+        <!-- FAB: floating action button for quick-create -->
+        <div id="fab-container">
+          <div id="fab-panel">
+            <div class="fab-panel-header">
+              <span class="fab-panel-title">＋ Create Issue</span>
+              <button class="btn-ghost btn-xs" onclick="closeFab()">&times;</button>
+            </div>
+            <div class="field">
+              <label for="doc-title">Title <span class="field-required">*</span></label>
+              <input id="doc-title" type="text" placeholder="e.g. Self-Service Auth" />
+            </div>
+            <div class="field">
+              <label for="idea">Notes / Idea <span class="field-optional">(optional for drafts)</span></label>
+              <textarea id="idea" placeholder="e.g. Users should be able to reset their password via email without contacting support..."></textarea>
+            </div>
+            <div class="meta-row">
+              <div class="field">
+                <label for="doc-type">Type</label>
+                <select id="doc-type">
+                  <option value="feature">New Feature</option>
+                  <option value="epic">Epic</option>
+                  <option value="story">Story</option>
+                  <option value="spike">Spike</option>
+                  <option value="bug">Bug</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="priority">Priority</label>
+                <select id="priority">
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                  <option value="Low">Low</option>
+                  <option value="Critical">Critical</option>
+                </select>
+              </div>
+            </div>
+            <div class="meta-row">
+              <div class="field">
+                <label for="team">Team</label>
+                <select id="team">
+                  <option value="">— Select —</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="work-category">Work Category</label>
+                <select id="work-category">
+                  <option value="">— Select —</option>
+                </select>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" onclick="clearForm()">Clear</button>
+              <button class="btn-draft" id="draft-btn" onclick="saveDraft()">Save Draft</button>
+              <button class="btn-primary" id="generate-btn" onclick="generateDoc()">
+                <span id="btn-label">✨ Generate</span>
+              </button>
+            </div>
+            <button class="btn-bug-create" onclick="openBugModal()">
+              <span class="bug-icon">&#128027;</span> Create Bug Report
+            </button>
+            <div class="status" id="status"></div>
+          </div>
+          <button id="fab-btn" class="fab-btn" onclick="toggleFab()" title="Create new issue">
+            <span id="fab-icon">＋</span>
+          </button>
         </div>
       </div>
     </div>
