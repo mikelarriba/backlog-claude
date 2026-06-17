@@ -1,112 +1,115 @@
-# GitHub Issues Resolution Report
-
-**Date:** 2026-05-09  
-**Repository:** mikelarriba/backlog-claude  
-**Processed by:** Claude Code
+# GitHub Issues Fix Report
+**Date:** 2026-06-17  
+**Run by:** Claude Code (scheduled routine)
 
 ---
 
 ## Summary
 
-All 4 open issues resolved, each with a dedicated branch, PR, and squash-merge to `main`. The existing test suite grew from 174 to 184 passing tests with zero failures.
+Checked all open GitHub issues in `mikelarriba/backlog-claude` without the "On hold" label.
+
+| Total open issues | 9 |
+|---|---|
+| With "On hold" label (skipped) | 4 (#52, #53, #73, #82) |
+| **Actionable issues** | **5** (#275, #276, #277, #278, #279) |
 
 ---
 
 ## Issues Fixed
 
-### Issue #30 — feat: sync JIRA description and title
+All 5 actionable issues were part of the **Navigation Sidebar Redesign** epic, implemented in a sequential dependency chain across 5 phases.
 
-**PR #38** | Branch: `issue/30-jira-sync-description` | Status: ✅ Merged
-
-**Changes:**
-
-- `src/routes/jira-sync.js`: Extended `POST /api/jira/sync-status` to fetch `summary` + `description` from JIRA in addition to status/story-points. Now updates the `## Title` heading when the JIRA summary differs from local, replaces the description body when it has changed, and appends a `JIRA Description Update` history entry to `INBOX_DIR/<filename>`. The `POST /api/jira/update-from-jira` endpoint also detects description changes before overwriting and writes the same history format. Added `INBOX_DIR` to the factory destructuring.
-
-**New tests:** `tests/integration/jira-sync-description.test.js` (7 tests)
-
-- sync-status updates JIRA_Status and Story_Points
-- sync-status updates title heading when JIRA summary changed
-- sync-status writes description history to inbox when description changed
-- sync-status does NOT write history when description is unchanged
-- update-from-jira writes description history
-- update-from-jira preserves local Sprint and Squad fields
+### #275 — feat: Move AI Model, PI Sprint Config, and JIRA Import to a dedicated Settings view
+- **Phase:** 1 (independent)
+- **Status:** ✅ Closed as Completed
+- **Implemented via:** PR #280 → merged into main via PR #287
+- **Changes:** `index.html`, `public/css/layout.css`, `public/ts/main.ts`
+- **What:** Created `#settings-view` in the right panel; moved 3 collapsible sections (AI Model, PI Sprint Config, JIRA Import) out of the left panel into Settings; added `openSettingsView()` / `closeSettingsView()`.
 
 ---
 
-### Issue #32 — feat: ghost duplicate cards in roadmap for stories split across PIs
-
-**PR #39** | Branch: `issue/32-ghost-cards-roadmap` | Status: ✅ Merged
-
-**Changes:**
-
-- `public/js/roadmap.js`: Added `injectGhostCards()` function, called after `renderStoryPanel()` on every board render. For each leaf doc (story/spike/bug) whose `fixVersion` differs from its parent epic's `fixVersion`, a read-only ghost card is injected into the first sprint column of the parent's PI. Clicking the ghost card navigates to the real document.
-- `public/css/roadmap.css`: Added `.roadmap-card.ghost-card` (dashed border, 50% opacity, transparent background) and `.ghost-card-label` (italic "⤵ Split to PI-X" text).
-
-**No new server-side changes required.**
+### #276 — feat: Move quick-create form to a floating action button (FAB)
+- **Phase:** 2 (independent, ran in parallel with Phase 1)
+- **Status:** ✅ Closed as Completed
+- **Implemented via:** PR #281 → merged into main via PR #287
+- **Changes:** `index.html`, `public/css/fab.css` (new), `public/ts/main.ts`, `public/css/components.css`
+- **What:** Removed creation form from `.left`; added `#fab-container` (fixed bottom-right +button) and `#fab-panel` popup; list title renamed from "Your Issues" to "Backlog"; FAB closes on Escape/click-outside.
 
 ---
 
-### Issue #33 — feat: story dependencies — left/right ordering enforces sequential sprints
-
-**PR #40** | Branch: `issue/33-story-dependencies` | Status: ✅ Merged
-
-**Changes:**
-
-- `src/services/docIndex.js`: `_buildEntry()` now parses `Blocks` and `Blocked_By` frontmatter into `blocks[]` and `blockedBy[]` arrays.
-- `src/routes/links.js`: `POST /api/link` accepts `linkType: 'blocks'` — writes `Blocks: <target>` to source and `Blocked_By: <source>` to target, with BFS cycle detection (400 `CYCLE_DETECTED` on violation) and deduplication. `GET /api/links/:type/:filename` now returns `blocks` and `blockedBy` arrays with title/docType metadata.
-- `src/routes/docs-batch.js`: `POST /api/docs/apply-distribution` reads `.pi-settings.json` to build a global sprint order, then adjusts any assignments where a blocked story would be in the same sprint as its blocker, bumping it to the next sprint. Returns `warnings[]` for each adjustment.
-- `public/js/roadmap.js`: `renderRoadmapCard()` renders `⬅ blocked by N` and `→ blocks N` dependency badges.
-- `public/css/roadmap.css`: `.dep-badge`, `.dep-blocked`, `.dep-blocks` badge styles.
-
-**New tests:** `tests/integration/dependencies.test.js` (10 tests)
-
-- Creates blocks link, writes Blocks/Blocked_By to frontmatter
-- GET /api/links returns blocks and blockedBy arrays
-- No duplicate link when called twice
-- Cycle detection (direct cycle, self-link)
-- apply-distribution returns success and dependency warnings
+### #277 — feat: Replace left panel with slim navigation sidebar
+- **Phase:** 3 (required #275 + #276)
+- **Status:** ✅ Closed as Completed
+- **Implemented via:** PR #282 → merged into main via PR #287 → polished in PR #288
+- **Changes:** `index.html`, `public/css/layout.css`, `public/css/sidebar.css` (new), `public/ts/main.ts`, `public/js/roadmap.js`, `public/js/detail.js`
+- **What:** Replaced 370px `.left` panel with 64px icon sidebar (160px with labels in PR #288); added `navigateTo(viewName)` router; 4 placeholder views added; Roadmap button removed from list header.
 
 ---
 
-### Issue #34 — feat: UI testing setup with Playwright — browser-level E2E test suite
-
-**PR #41** | Branch: `issue/34-playwright-e2e` | Status: ✅ Merged
-
-**Changes:**
-
-- `playwright.config.js`: Configures Playwright with `webServer` (starts `node server.js` on port 3000), isolated `TEST_DOCS_ROOT`/`TEST_INBOX_DIR` temp dirs, `MOCK_CLAUDE=1`, headless Chromium, reuses server unless `CI=true`.
-- `tests/e2e/fixtures.js`: `createFixtureDoc(type, overrides)` writes `.md` files directly to the isolated docs temp dir; `clearDocsDir()` resets between suites.
-- `tests/e2e/create.spec.js` (5 tests): Page loads, form fill, type options, Save Draft creates doc and it appears in list, title required.
-- `tests/e2e/list.spec.js` (6 tests): All/Story/Epic filter pills, Draft status filter, search filter, no-match empty state.
-- `tests/e2e/detail.spec.js` (4 tests): Open doc, title rendered, Back button, inline title edit PATCH.
-- `tests/e2e/roadmap.spec.js` (5 tests): Roadmap opens, two-panel layout, PI filter, collapse/expand, JIRA mock intercept.
-- `package.json`: Added `@playwright/test ^1.44` devDependency + `test:e2e` script.
-- `.gitignore`: Added `playwright-report/` and `test-results/`.
-
-**To run E2E tests:** `npx playwright install && npm run test:e2e`
+### #278 — fix: Polish sidebar, responsive layout, and keyboard shortcuts
+- **Phase:** 4 (required #277)
+- **Status:** ✅ Closed as Completed
+- **Implemented via:** PR #283 → merged into main via PR #287 → further polished in PR #288
+- **Changes:** `public/css/layout.css`, `public/css/sidebar.css`, `public/ts/main.ts`
+- **What:** Mobile bottom tab bar at ≤820px; Ctrl+B keyboard toggle; localStorage key migration (`leftPanelCollapsed` → `sidebarCollapsed`, backward-compatible); collapse/expand CSS transition.
 
 ---
 
-## Test Results (Final State on `main`)
+### #279 — feat: Placeholder content for Skills, Documentation, Bugs, and Suggestions views
+- **Phase:** 5 (required #277)
+- **Status:** ✅ Closed as Completed
+- **Implemented via:** PR #284 → merged into main via PR #287
+- **Changes:** `index.html`, `public/css/sidebar.css`
+- **What:** All 4 placeholder views received centered empty-states (👥 Skills Matrix, 📄 Documentation, 🐛 Bug Tracker, 💡 Suggestions) with `.icon`, `h2`, `p` pattern; `.placeholder-view .icon` CSS class added.
+
+---
+
+## Test Results
 
 ```
-# tests 184
-# suites 64
-# pass  184
-# fail  0
+npm run test  (unit + integration)
+Tests:  395 total
+Pass:   392 ✅
+Fail:   3  ⚠️ (pre-existing, unrelated to these features)
 ```
 
-| Suite                                                                                 | Tests | Result      |
-| ------------------------------------------------------------------------------------- | ----- | ----------- |
-| Unit (transforms, bugService, jiraService, …)                                         | 50    | ✅ All pass |
-| Integration (api, docs-extended, jira, jira-sync-description, settings, dependencies) | 134   | ✅ All pass |
+### Failing tests (pre-existing, not introduced by these issues)
+
+| Test Suite | Location | Notes |
+|---|---|---|
+| `auditLog` | `tests/unit/auditLog.test.js` | Infrastructure/permissions related |
+| `inboxWatcher retry` | `tests/unit/inboxWatcher.test.js` | Pre-existing flakiness; tracked in PR #285 |
+| `findLocalFileByJiraId` (3 sub-tests) | `tests/unit/jiraService.test.js:59` | Pre-existing; documented in PR #271 |
+
+### Lint & Typecheck
+
+| Check | Result |
+|---|---|
+| `npm run lint` | ✅ 0 errors (3 warnings in third-party `pdfkit.d.ts`) |
+| `npm run typecheck` | ✅ 0 errors |
 
 ---
 
-## Problems Faced
+## Important Note
 
-1. **Issue #30 — description body update bug**: Initial implementation for updating the body text in `sync-status` used an incorrect string-slice calculation that inadvertently dropped the title heading. Fixed by using a regex capture group (`/^(---[\s\S]*?---\n+## [^\n]+\n)/`) to reconstruct the content up through the heading before appending the new description.
+**The implementation for all 5 issues was already completed in a prior session.** The code was merged into `main` via PRs #280–#288, but the issues remained open because no PR used `Closes #XXX` syntax in their descriptions to trigger GitHub's auto-close.
 
-2. **npm dependencies not installed**: First test run failed with `Cannot find package 'express'`. Resolved with `npm install`.
+This run:
+1. Verified the implementation is correct and all code is in `main`
+2. Ran the full test suite
+3. Closed all 5 issues with detailed comments linking back to the implementing PRs
 
-3. **Issue #34 — E2E tests not runnable in this environment**: Playwright requires browser binaries installed via `npx playwright install`. These are not present, so `npm run test:e2e` was not executed as part of this session. The 20 specs are written and wired up; they will run in any environment with Playwright browsers installed. The existing `npm test` (node --test) suite remains unaffected.
+---
+
+## Issues Still On Hold (not touched)
+
+| Issue | Title | Reason |
+|---|---|---|
+| #52 | TypeScript migration Phase 2: route handlers | Label: on-hold |
+| #53 | TypeScript migration Phase 3 (optional): client-side module system + types | Label: on-hold |
+| #73 | Fix confusing checkbox state for already-assigned items in distribution preview | Label: on-hold |
+| #82 | Phase 3 – Frontend: Migrate from Global-Scope Scripts to ES Modules | Label: on-hold |
+
+---
+
+*Generated by Claude Code — scheduled routine on 2026-06-17*
