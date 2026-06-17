@@ -31,7 +31,7 @@ export async function startTestApp() {
   // Each test file runs in its own process (node --test), so the module cache is
   // always fresh when this is called for the first time in a file.
   const serverPath = path.resolve(__dirname, '../../server.ts');
-  const { app } = await import(serverPath);
+  const { app } = await import(serverPath + '?t=' + Date.now());
 
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));

@@ -1,11 +1,11 @@
 // ── E2E: Detail view — open doc, edit title, change status ───────────────────
 import { test, expect } from '@playwright/test';
-import { clearDocsDir, createFixtureDoc } from './fixtures.js';
+import { clearDocsDir, createFixtureDoc, rebuildServerIndex } from './fixtures.js';
 
 let _epicFilename;
 let epicTitle;
 
-test.beforeAll(() => {
+test.beforeAll(async () => {
   clearDocsDir();
   const epic = createFixtureDoc('epic', {
     title: 'Detail View Test Epic',
@@ -14,6 +14,7 @@ test.beforeAll(() => {
   });
   _epicFilename = epic.filename;
   epicTitle = epic.title;
+  await rebuildServerIndex();
 });
 
 test.describe('Detail view — opening a document', () => {

@@ -29,7 +29,9 @@
   padding: 0 12px;
   color: var(--text-muted);
   position: relative;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
   flex-shrink: 0;
 }
 .sidebar-item svg {
@@ -114,7 +116,8 @@
     z-index: 100;
     background: var(--surface);
   }
-  .sidebar-top, .sidebar-bottom {
+  .sidebar-top,
+  .sidebar-bottom {
     flex-direction: row;
     gap: 0;
   }

@@ -9,6 +9,19 @@ import os from 'os';
 
 export const E2E_DOCS_ROOT = path.join(os.tmpdir(), 'backlog-e2e-docs');
 
+/**
+ * Tell the running E2E server to rebuild its in-memory doc index from disk.
+ * Call this after clearDocsDir() + createFixtureDoc() so the server picks up
+ * fixture files that were written directly to the filesystem.
+ */
+export async function rebuildServerIndex() {
+  const res = await fetch('http://localhost:3000/api/docs/rebuild-index', { method: 'POST' });
+  if (!res.ok) throw new Error(`rebuild-index failed: ${res.status}`);
+  const data = await res.json();
+  if (!data.count) console.warn('[fixtures] rebuild-index returned 0 docs');
+  return data;
+}
+
 export function clearDocsDir() {
   for (const sub of ['features', 'epics', 'stories', 'spikes', 'bugs']) {
     const dir = path.join(E2E_DOCS_ROOT, sub);
