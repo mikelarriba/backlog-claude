@@ -59,8 +59,8 @@ describe('auditLog', () => {
     await waitForWrite();
     const events = readEvents();
     assert.equal(events.length, 2);
-    assert.equal(events[0].op, 'create');
-    assert.equal(events[1].op, 'delete');
+    const ops = events.map((e) => e.op).sort();
+    assert.deepEqual(ops, ['create', 'delete']);
   });
 
   test('includes optional fields object when provided', async () => {

@@ -33,6 +33,28 @@ ${feedback.trim()}
 Rewrite the complete document incorporating the feedback above. Preserve all COVE sections and YAML frontmatter structure.`;
 }
 
+export function buildImprovePrompt(content: string): string {
+  return `You are a prompt engineering expert. Improve the following command template that is used to instruct an AI to generate product management documents.
+
+Improve:
+- Clarity and specificity of instructions
+- Output format constraints (make them stricter where helpful)
+- Edge case handling (ambiguous input, missing context)
+- COVE framework usage (Context, Objective, Value, Execution) if present
+
+Preserve exactly:
+- The \`$ARGUMENTS\` placeholder — it must remain in the output
+- The YAML frontmatter block (between --- markers) at the top
+- The \`{{PRODUCT_CONTEXT}}\` placeholder if present
+- The overall document structure and section ordering
+
+Return ONLY the improved command template — no commentary, no preamble, no explanation.
+
+Command template to improve:
+
+${content}`;
+}
+
 export function buildSplitStoryPrompt(opts: {
   content: string;
   count: number;

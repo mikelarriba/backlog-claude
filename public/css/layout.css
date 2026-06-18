@@ -169,6 +169,18 @@
   display: flex;
 }
 
+/* ── Skills View ────────────────────────────────────────────── */
+#skills-view {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+}
+#skills-view.show {
+  display: flex;
+}
+
 .settings-header {
   display: flex;
   align-items: center;

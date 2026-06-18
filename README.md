@@ -220,7 +220,8 @@ backlog-claude/
 │   │   │                          # POST|DELETE /api/link  (hierarchy + blocks deps)
 │   │   ├── bugs.js                # POST /api/bugs/create, GET /api/bugs/attachments
 │   │   ├── stories.js             # POST /api/stories/generate
-│   │   └── settings.js            # GET|PUT /api/settings/*, GET /api/config
+│   │   ├── settings.js            # GET|PUT /api/settings/*, GET /api/config
+│   │   └── skills.js              # GET|PUT|DELETE /api/skills, product context
 │   │
 │   ├── services/
 │   │   ├── docIndex.js            # In-memory Map<filename, metadata>; O(1) lookups;
@@ -314,8 +315,11 @@ backlog-claude/
 │       └── attachments/           # <slug>/ dirs — uploaded to JIRA on bug push
 │
 ├── inbox/                         # Drop raw idea files here for auto-processing
-├── .claude/commands/              # Claude CLI skill prompts (create-epics.md, …)
-├── CLAUDE.md                      # PO Agent persona + MIDAS product context
+├── .claude/commands.example/       # Generic command templates (tracked)
+├── .claude/commands/               # Custom command overrides (gitignored)
+├── .product-context.example.md    # Product context template (tracked)
+├── .product-context.md            # Custom product context (gitignored)
+├── CLAUDE.md                      # PO Agent persona + product context
 ├── manifest.json                  # PWA manifest
 └── sw.js                          # Service worker (offline cache)
 ```
@@ -436,6 +440,91 @@ Invalidation strategy:
 - **Batch write** (batch-delete, batch-fix-version, rerank, apply-distribution): `docIndex.invalidateAll()` — full rebuild
 
 Each index entry contains: `filename`, `docType`, `title`, `date`, `status`, `fixVersion`, `jiraId`, `jiraUrl`, `storyPoints`, `sprint`, `rank`, `priority`, `parentFilename`, `parentType`, `blocks[]`, `blockedBy[]`, `hasDescription`.
+
+---
+
+## Customizing Skills (command templates)
+
+This tool ships with 7 generic command templates in `.claude/commands.example/`. Each template uses the COVE Framework and is product-agnostic — ready for any Product Owner to customize for their own product.
+
+### The template pattern
+
+```
+.claude/commands.example/*.md   ← generic templates (tracked in git)
+.claude/commands/*.md           ← your customized versions (gitignored)
+```
+
+When the app loads a command, it checks `.claude/commands/` first, then falls back to `.claude/commands.example/`. This is the same pattern as `.env.example` → `.env`.
+
+### Product Context
+
+Instead of editing all 7 templates individually, configure your product details once in **Product Context**:
+
+1. Open the **Skills** view from the sidebar
+2. Expand the **Product Context** section
+3. Fill in your product name, data model, personas, tech stack, and delivery framework
+4. Click **Save**
+
+All templates reference `{{PRODUCT_CONTEXT}}`, which is replaced at runtime with your saved context. The example template (`.product-context.example.md`) provides a guided structure.
+
+For file-based setup: copy `.product-context.example.md` to `.product-context.md` and edit it directly.
+
+### Editing commands via the UI
+
+1. Open **Skills** from the sidebar
+2. Expand any command card to see its full template
+3. Edit the textarea content
+4. Click **Save** — the file is written to `.claude/commands/{name}.md`
+5. Badge changes from "Template" to "Custom"
+6. Click **Reset to Template** to revert to the example version
+
+### Editing commands via files
+
+For advanced users or version control:
+
+```bash
+# Copy a template to customize it
+cp .claude/commands.example/create-epics.md .claude/commands/create-epics.md
+
+# Edit directly
+vim .claude/commands/create-epics.md
+```
+
+### AI Improve
+
+Each command editor includes an **AI Improve** button that sends the current template to the configured AI provider with a meta-prompt asking for prompt engineering improvements. The improved version replaces the textarea (unsaved) so you can review before saving.
+
+### Template structure
+
+Every command template must include:
+
+- **YAML frontmatter** — `name` and `description` fields between `---` markers
+- **`$ARGUMENTS`** — placeholder where user input (title + description) is injected
+- **`{{PRODUCT_CONTEXT}}`** — placeholder for shared product context (optional but recommended)
+- **COVE sections** — Context, Objective, Value, Execution
+
+### Migration for existing installations
+
+If you already have custom commands tracked by git, untrack them:
+
+```bash
+git rm --cached .claude/commands/*.md
+```
+
+The `.gitignore` already excludes `.claude/commands/` and `.product-context.md`.
+
+### Skills API
+
+| Method   | Path                            | Description                      |
+| :------- | :------------------------------ | :------------------------------- |
+| `GET`    | `/api/skills`                   | List all 7 commands with content |
+| `GET`    | `/api/skills/:name`             | Single command details           |
+| `PUT`    | `/api/skills/:name`             | Save custom command              |
+| `DELETE` | `/api/skills/:name`             | Reset to example template        |
+| `PUT`    | `/api/skills/:name/improve`     | AI-improve a command template    |
+| `GET`    | `/api/settings/product-context` | Get product context              |
+| `PUT`    | `/api/settings/product-context` | Save product context             |
+| `DELETE` | `/api/settings/product-context` | Reset product context to example |
 
 ---
 
