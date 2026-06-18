@@ -85,16 +85,13 @@ function statusAtDate(issue: Record<string, unknown>, targetDate: Date): string 
   const currentCat =
     ((currentStatusObj?.statusCategory as Record<string, unknown>)?.key as string) ?? 'new';
 
-  const changelog = issue.changelog as
-    | { histories?: Array<Record<string, unknown>> }
-    | undefined;
+  const changelog = issue.changelog as { histories?: Array<Record<string, unknown>> } | undefined;
   if (!changelog?.histories?.length) {
     return statusCatToLabel(currentCat, resolutionDate, targetDate);
   }
 
   const sorted = [...changelog.histories].sort(
-    (a, b) =>
-      new Date(a.created as string).getTime() - new Date(b.created as string).getTime()
+    (a, b) => new Date(a.created as string).getTime() - new Date(b.created as string).getTime()
   );
 
   let curCat = 'new';
@@ -123,7 +120,14 @@ function buildTimeSeries(bugs: unknown[]): WeekPoint[] {
     d.setDate(d.getDate() - i * 7);
     d.setHours(23, 59, 59, 999);
 
-    const pt: WeekPoint = { week: weekLabel(d), Open: 0, 'In Progress': 0, Resolved: 0, Closed: 0, projected: false };
+    const pt: WeekPoint = {
+      week: weekLabel(d),
+      Open: 0,
+      'In Progress': 0,
+      Resolved: 0,
+      Closed: 0,
+      projected: false,
+    };
     for (const bug of bugs) {
       const s = statusAtDate(bug as Record<string, unknown>, d);
       if (s === '__not_yet__') continue;
@@ -160,8 +164,7 @@ function buildStats(bugs: unknown[]): BugStats {
   for (const bug of bugs) {
     const fields = (bug as Record<string, unknown>).fields as Record<string, unknown>;
     const statusObj = fields.status as Record<string, unknown>;
-    const cat =
-      ((statusObj?.statusCategory as Record<string, unknown>)?.key as string) ?? 'new';
+    const cat = ((statusObj?.statusCategory as Record<string, unknown>)?.key as string) ?? 'new';
     const resolutionDate = fields.resolutiondate as string | null;
     const label = statusCatToLabel(cat, resolutionDate);
 
@@ -188,8 +191,7 @@ function buildBugItems(bugs: unknown[]): BugItem[] {
     const b = bug as Record<string, unknown>;
     const fields = b.fields as Record<string, unknown>;
     const statusObj = fields.status as Record<string, unknown>;
-    const cat =
-      ((statusObj?.statusCategory as Record<string, unknown>)?.key as string) ?? 'new';
+    const cat = ((statusObj?.statusCategory as Record<string, unknown>)?.key as string) ?? 'new';
     const resolutionDate = fields.resolutiondate as string | null;
     const assigneeObj = fields.assignee as Record<string, unknown> | null;
     return {
@@ -254,61 +256,59 @@ export default function bugsDashboardRoutes({
   });
 
   // POST /api/bugs/dashboard/analyze
-  router.post(
-    '/api/bugs/dashboard/analyze',
-    validateBody(BugAnalyzeSchema),
-    async (req, res) => {
+  router.post('/api/bugs/dashboard/analyze', validateBody(BugAnalyzeSchema), async (req, res) => {
+    try {
+      if (!process.env.JIRA_API_TOKEN)
+        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+      const { bugKeys } = req.body as { bugKeys: string[] };
+      const cachedBugs = _cache?.data?.bugs ?? [];
+      const selected = cachedBugs.filter((b) => bugKeys.includes(b.key));
+
+      if (selected.length === 0)
+        return sendError(
+          res,
+          400,
+          'NO_BUGS_FOUND',
+          'None of the specified bug keys were found. Load the dashboard first.'
+        );
+
+      const bugDetails = selected
+        .map(
+          (b) =>
+            `- ${b.key}: ${b.summary} [${b.status}] Priority: ${b.priority}` +
+            (b.assignee ? ` Assignee: ${b.assignee}` : '') +
+            (b.resolutionDate ? ` (Resolved: ${b.resolutionDate.slice(0, 10)})` : '')
+        )
+        .join('\n');
+
+      const prompt = `You are a software development analyst. Analyze these ${selected.length} selected bugs and provide actionable insights:\n\n${bugDetails}\n\nPlease provide:\n1. Prioritization: Rank bugs by severity/impact and explain the ordering\n2. Fix Strategy: Which bugs can be batched or fixed together? Common root causes?\n3. Recommendations: Specific next steps for the top 3 most critical bugs\n4. Patterns: Any concerning trends or patterns you notice?\n\nBe concise and actionable.`;
+
+      setupSSE(res);
+      const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+
+      await streamClaude(prompt, (chunk: string) => {
+        send({ text: chunk });
+      });
+
+      send({ done: true });
+      res.end();
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/bugs/dashboard/analyze', apiErr.message);
+      if (!res.headersSent) {
+        return sendError(res, 500, apiErr.code, apiErr.message);
+      }
       try {
-        if (!process.env.JIRA_API_TOKEN)
-          return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-
-        const { bugKeys } = req.body as { bugKeys: string[] };
-        const cachedBugs = _cache?.data?.bugs ?? [];
-        const selected = cachedBugs.filter((b) => bugKeys.includes(b.key));
-
-        if (selected.length === 0)
-          return sendError(
-            res,
-            400,
-            'NO_BUGS_FOUND',
-            'None of the specified bug keys were found. Load the dashboard first.'
-          );
-
-        const bugDetails = selected
-          .map(
-            (b) =>
-              `- ${b.key}: ${b.summary} [${b.status}] Priority: ${b.priority}` +
-              (b.assignee ? ` Assignee: ${b.assignee}` : '') +
-              (b.resolutionDate ? ` (Resolved: ${b.resolutionDate.slice(0, 10)})` : '')
-          )
-          .join('\n');
-
-        const prompt = `You are a software development analyst. Analyze these ${selected.length} selected bugs and provide actionable insights:\n\n${bugDetails}\n\nPlease provide:\n1. Prioritization: Rank bugs by severity/impact and explain the ordering\n2. Fix Strategy: Which bugs can be batched or fixed together? Common root causes?\n3. Recommendations: Specific next steps for the top 3 most critical bugs\n4. Patterns: Any concerning trends or patterns you notice?\n\nBe concise and actionable.`;
-
-        setupSSE(res);
-        const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
-
-        await streamClaude(prompt, (chunk: string) => {
-          send({ text: chunk });
-        });
-
-        send({ done: true });
+        res.write(
+          `data: ${JSON.stringify({ error: { code: apiErr.code, message: apiErr.message } })}\n\n`
+        );
         res.end();
-      } catch (err) {
-        const apiErr = parseApiError(err);
-        logError('POST /api/bugs/dashboard/analyze', apiErr.message);
-        if (!res.headersSent) {
-          return sendError(res, 500, apiErr.code, apiErr.message);
-        }
-        try {
-          res.write(`data: ${JSON.stringify({ error: { code: apiErr.code, message: apiErr.message } })}\n\n`);
-          res.end();
-        } catch {
-          /* response already closed */
-        }
+      } catch {
+        /* response already closed */
       }
     }
-  );
+  });
 
   return router;
 }

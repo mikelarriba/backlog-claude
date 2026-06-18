@@ -1,13 +1,5 @@
 // ── JIRA selection modal ─────────────────────────────────────
-import {
-  fetchJSON,
-  postJSON,
-  escHtml,
-  showJiraToast,
-  setJiraStatus,
-  toggleSection,
-  TYPE_LABEL,
-} from './state.js';
+import { fetchJSON, postJSON, escHtml, showJiraToast, setJiraStatus, TYPE_LABEL } from './state.js';
 import { openDoc, updateJiraStatus } from './detail.js';
 import { loadDocs } from './list.js';
 
@@ -733,10 +725,6 @@ export async function checkAllJira() {
 }
 
 // ── JIRA Import ───────────────────────────────────────────────
-export function toggleJiraSection() {
-  toggleSection('jira-section-body', 'jira-chevron');
-}
-
 export async function searchJira() {
   const type = document.getElementById('jira-type').value;
   const text = document.getElementById('jira-text').value.trim();

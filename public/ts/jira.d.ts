@@ -7,7 +7,6 @@ export function syncPreviewConfirm(): void;
 export function pullFromJira(): void;
 export function pushToJira(filename: string, docType: string): void;
 export function checkAllJira(): void;
-export function toggleJiraSection(id: string): void;
 export function searchJira(): void;
 export function downloadSelected(): void;
 export function pullByKey(key: string): void;

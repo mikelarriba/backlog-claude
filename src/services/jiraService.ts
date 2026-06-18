@@ -137,7 +137,11 @@ export function createJiraService({
   async function jiraPagedRequest(
     jql: string,
     fields: string,
-    { maxResults = 100, maxTotal = 500, expand }: { maxResults?: number; maxTotal?: number; expand?: string } = {}
+    {
+      maxResults = 100,
+      maxTotal = 500,
+      expand,
+    }: { maxResults?: number; maxTotal?: number; expand?: string } = {}
   ): Promise<unknown[]> {
     const all: unknown[] = [];
     let startAt = 0;

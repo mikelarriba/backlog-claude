@@ -193,15 +193,30 @@
   color: #6b7280;
 }
 
-[data-theme='light'] .bugs-status-open { color: #b91c1c; }
-[data-theme='light'] .bugs-status-in-progress { color: #b45309; }
-[data-theme='light'] .bugs-status-resolved { color: #047857; }
+[data-theme='light'] .bugs-status-open {
+  color: #b91c1c;
+}
+[data-theme='light'] .bugs-status-in-progress {
+  color: #b45309;
+}
+[data-theme='light'] .bugs-status-resolved {
+  color: #047857;
+}
 
 /* Priority colors */
-.bugs-priority-critical { color: #dc2626; font-weight: 600; }
-.bugs-priority-high { color: #f59e0b; }
-.bugs-priority-medium { color: var(--text-muted); }
-.bugs-priority-low { color: var(--text-muted); }
+.bugs-priority-critical {
+  color: #dc2626;
+  font-weight: 600;
+}
+.bugs-priority-high {
+  color: #f59e0b;
+}
+.bugs-priority-medium {
+  color: var(--text-muted);
+}
+.bugs-priority-low {
+  color: var(--text-muted);
+}
 
 /* AI Analysis panel */
 .bugs-analysis-panel {

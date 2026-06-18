@@ -55,10 +55,7 @@ export function renderBugsStats(stats) {
   set('bugs-stat-total', stats.total ?? 0);
   set('bugs-stat-open', stats.open ?? 0);
   set('bugs-stat-resolved30d', stats.resolved30d ?? 0);
-  set(
-    'bugs-stat-avg',
-    stats.avgResolutionDays != null ? `${stats.avgResolutionDays}d` : '—'
-  );
+  set('bugs-stat-avg', stats.avgResolutionDays != null ? `${stats.avgResolutionDays}d` : '—');
 }
 
 export function renderBugsChart(timeSeries) {

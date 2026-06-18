@@ -79,7 +79,6 @@ import {
   pullFromJira,
   pushToJira,
   checkAllJira,
-  toggleJiraSection,
   searchJira,
   downloadSelected,
   pullByKey,
@@ -393,6 +392,15 @@ function toggleFab(): void {
   } else {
     openFab();
   }
+}
+
+function switchFabTab(tabName: string): void {
+  document.querySelectorAll('.fab-tab').forEach((btn) => {
+    (btn as HTMLElement).classList.toggle('active', (btn as HTMLElement).dataset.tab === tabName);
+  });
+  document.querySelectorAll('.fab-tab-content').forEach((div) => {
+    (div as HTMLElement).classList.toggle('active', div.id === `fab-tab-${tabName}`);
+  });
 }
 
 (function _restoreLeftPanel() {
@@ -863,7 +871,6 @@ const _globals: Record<string, unknown> = {
   syncPreviewCancel,
   syncPreviewConfirm,
   checkAllJira,
-  toggleJiraSection,
   searchJira,
   downloadSelected,
   pullByKey,
@@ -1002,6 +1009,7 @@ const _globals: Record<string, unknown> = {
   openFab,
   closeFab,
   toggleFab,
+  switchFabTab,
   // bugs-dashboard.js
   loadBugsDashboard,
   refreshBugsDashboard,

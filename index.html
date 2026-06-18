@@ -699,64 +699,6 @@
             <span class="settings-title">⚙ Settings</span>
           </div>
           <div class="settings-body">
-            <!-- JIRA Import -->
-            <div class="collapsible jira-section">
-              <div class="collapsible-header" onclick="toggleJiraSection()">
-                <span class="collapsible-title">🔗 Import from JIRA</span>
-                <span class="collapsible-chevron" id="jira-chevron">▶</span>
-              </div>
-              <div class="collapsible-body" id="jira-section-body">
-                <div class="collapsible-inner">
-                  <div class="jira-search-row">
-                    <div class="field">
-                      <label for="jira-type">Type</label>
-                      <select id="jira-type">
-                        <option value="all">All Types</option>
-                        <option value="feature">New Feature</option>
-                        <option value="epic">Epic</option>
-                        <option value="story">Story</option>
-                        <option value="spike">Task / Spike</option>
-                        <option value="bug">Bug</option>
-                      </select>
-                    </div>
-                    <div class="field">
-                      <label for="jira-text">Keywords</label>
-                      <input
-                        id="jira-text"
-                        type="text"
-                        placeholder="Search text…"
-                        onkeydown="if (event.key === 'Enter') searchJira();"
-                      />
-                    </div>
-                  </div>
-                  <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">
-                    Search JIRA
-                  </button>
-                  <div class="jira-results" id="jira-results"></div>
-                  <button
-                    class="btn-jira-download hidden"
-                    id="jira-download-btn"
-                    onclick="downloadSelected()"
-                  >
-                    ⬇ Download Selected
-                  </button>
-                  <div class="jira-status" id="jira-status"></div>
-                  <div class="jira-key-import">
-                    <label for="jira-key-input">Import by key</label>
-                    <div class="jira-key-row">
-                      <input
-                        id="jira-key-input"
-                        type="text"
-                        placeholder="e.g. EAMDM-9969, EAMDM-1234"
-                        onkeydown="if (event.key === 'Enter') pullByKey();"
-                      />
-                      <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <!-- Model Settings -->
             <div class="collapsible model-section">
               <div class="collapsible-header" onclick="toggleModelSection()">
@@ -943,13 +885,15 @@
         </div>
         <div id="bugs-view" class="view-panel">
           <div class="bugs-dash-header">
-            <div style="display:flex;align-items:center;gap:12px">
+            <div style="display: flex; align-items: center; gap: 12px">
               <button class="btn-ghost" onclick="navigateTo('backlog')">← Back</button>
               <span class="bugs-dash-title">🐛 Bug Dashboard</span>
             </div>
             <div class="bugs-dash-actions">
               <span class="bugs-dash-meta" id="bugs-cached-at"></span>
-              <button class="btn-secondary" id="bugs-refresh-btn" onclick="refreshBugsDashboard()">↻ Refresh</button>
+              <button class="btn-secondary" id="bugs-refresh-btn" onclick="refreshBugsDashboard()">
+                ↻ Refresh
+              </button>
             </div>
           </div>
           <div class="bugs-dash-body">
@@ -1000,7 +944,7 @@
             <!-- Bug table -->
             <div id="bugs-table-wrap"></div>
             <!-- AI Analysis panel -->
-            <div class="bugs-analysis-panel" id="bugs-analysis-panel" style="display:none">
+            <div class="bugs-analysis-panel" id="bugs-analysis-panel" style="display: none">
               <div class="bugs-analysis-header">
                 <span>✨ AI Analysis</span>
                 <button class="btn-ghost btn-xs" onclick="closeBugsAnalysis()">&times;</button>
@@ -1015,74 +959,144 @@
           <p>GitHub issue suggestions coming soon.</p>
         </div>
 
-        <!-- FAB: floating action button for quick-create -->
+        <!-- FAB: floating action button for quick-create / import -->
         <div id="fab-container">
           <div id="fab-panel">
             <div class="fab-panel-header">
-              <span class="fab-panel-title">＋ Create Issue</span>
+              <span class="fab-panel-title">＋ Issue</span>
               <button class="btn-ghost btn-xs" onclick="closeFab()">&times;</button>
             </div>
-            <div class="field">
-              <label for="doc-title">Title <span class="field-required">*</span></label>
-              <input id="doc-title" type="text" placeholder="e.g. Self-Service Auth" />
-            </div>
-            <div class="field">
-              <label for="idea"
-                >Notes / Idea <span class="field-optional">(optional for drafts)</span></label
+            <div class="fab-tab-bar">
+              <button
+                class="fab-tab active"
+                id="fab-tab-create-btn"
+                data-tab="create"
+                onclick="switchFabTab('create')"
               >
-              <textarea
-                id="idea"
-                placeholder="e.g. Users should be able to reset their password via email without contacting support..."
-              ></textarea>
-            </div>
-            <div class="meta-row">
-              <div class="field">
-                <label for="doc-type">Type</label>
-                <select id="doc-type">
-                  <option value="feature">New Feature</option>
-                  <option value="epic">Epic</option>
-                  <option value="story">Story</option>
-                  <option value="spike">Spike</option>
-                  <option value="bug">Bug</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="priority">Priority</label>
-                <select id="priority">
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Low">Low</option>
-                  <option value="Critical">Critical</option>
-                </select>
-              </div>
-            </div>
-            <div class="meta-row">
-              <div class="field">
-                <label for="team">Team</label>
-                <select id="team">
-                  <option value="">— Select —</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="work-category">Work Category</label>
-                <select id="work-category">
-                  <option value="">— Select —</option>
-                </select>
-              </div>
-            </div>
-            <div class="actions">
-              <button class="btn-secondary" onclick="clearForm()">Clear</button>
-              <button class="btn-draft" id="draft-btn" onclick="saveDraft()">Save Draft</button>
-              <button class="btn-primary" id="generate-btn" onclick="generateDoc()">
-                <span id="btn-label">✨ Generate</span>
+                Create
+              </button>
+              <button
+                class="fab-tab"
+                id="fab-tab-import-btn"
+                data-tab="import"
+                onclick="switchFabTab('import')"
+              >
+                Import
               </button>
             </div>
-            <button class="btn-bug-create" onclick="openBugModal()">
-              <span class="bug-icon">&#128027;</span> Create Bug Report
-            </button>
-            <div class="status" id="status"></div>
+            <!-- Create tab -->
+            <div class="fab-tab-content active" id="fab-tab-create">
+              <div class="field">
+                <label for="doc-title">Title <span class="field-required">*</span></label>
+                <input id="doc-title" type="text" placeholder="e.g. Self-Service Auth" />
+              </div>
+              <div class="field">
+                <label for="idea"
+                  >Notes / Idea <span class="field-optional">(optional for drafts)</span></label
+                >
+                <textarea
+                  id="idea"
+                  placeholder="e.g. Users should be able to reset their password via email without contacting support..."
+                ></textarea>
+              </div>
+              <div class="meta-row">
+                <div class="field">
+                  <label for="doc-type">Type</label>
+                  <select id="doc-type">
+                    <option value="feature">New Feature</option>
+                    <option value="epic">Epic</option>
+                    <option value="story">Story</option>
+                    <option value="spike">Spike</option>
+                    <option value="bug">Bug</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="priority">Priority</label>
+                  <select id="priority">
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Low">Low</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+              <div class="meta-row">
+                <div class="field">
+                  <label for="team">Team</label>
+                  <select id="team">
+                    <option value="">— Select —</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="work-category">Work Category</label>
+                  <select id="work-category">
+                    <option value="">— Select —</option>
+                  </select>
+                </div>
+              </div>
+              <div class="actions">
+                <button class="btn-secondary" onclick="clearForm()">Clear</button>
+                <button class="btn-draft" id="draft-btn" onclick="saveDraft()">Save Draft</button>
+                <button class="btn-primary" id="generate-btn" onclick="generateDoc()">
+                  <span id="btn-label">✨ Generate</span>
+                </button>
+              </div>
+              <button class="btn-bug-create" onclick="openBugModal()">
+                <span class="bug-icon">&#128027;</span> Create Bug Report
+              </button>
+              <div class="status" id="status"></div>
+            </div>
+            <!-- Import tab -->
+            <div class="fab-tab-content" id="fab-tab-import">
+              <div class="jira-search-row">
+                <div class="field">
+                  <label for="jira-type">Type</label>
+                  <select id="jira-type">
+                    <option value="all">All Types</option>
+                    <option value="feature">New Feature</option>
+                    <option value="epic">Epic</option>
+                    <option value="story">Story</option>
+                    <option value="spike">Task / Spike</option>
+                    <option value="bug">Bug</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="jira-text">Keywords</label>
+                  <input
+                    id="jira-text"
+                    type="text"
+                    placeholder="Search text…"
+                    onkeydown="if (event.key === 'Enter') searchJira();"
+                  />
+                </div>
+              </div>
+              <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">
+                Search JIRA
+              </button>
+              <div class="jira-results" id="jira-results"></div>
+              <button
+                class="btn-jira-download hidden"
+                id="jira-download-btn"
+                onclick="downloadSelected()"
+              >
+                ⬇ Download Selected
+              </button>
+              <div class="jira-status" id="jira-status"></div>
+              <div class="jira-key-import">
+                <label for="jira-key-input">Import by key</label>
+                <div class="jira-key-row">
+                  <input
+                    id="jira-key-input"
+                    type="text"
+                    placeholder="e.g. EAMDM-9969, EAMDM-1234"
+                    onkeydown="if (event.key === 'Enter') pullByKey();"
+                  />
+                  <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
+                </div>
+              </div>
+            </div>
           </div>
-          <button id="fab-btn" class="fab-btn" onclick="toggleFab()" title="Create new issue">
+          <button id="fab-btn" class="fab-btn" onclick="toggleFab()" title="Create or import issue">
             <span id="fab-icon">＋</span>
           </button>
         </div>

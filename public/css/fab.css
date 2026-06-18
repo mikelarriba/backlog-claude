@@ -63,3 +63,41 @@
   font-size: 0.95rem;
   font-weight: 600;
 }
+
+/* ── FAB Tab bar ──────────────────────────────────────────────── */
+.fab-tab-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.fab-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.fab-tab:hover {
+  color: var(--text, #111);
+}
+.fab-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.fab-tab-content {
+  display: none;
+}
+.fab-tab-content.active {
+  display: block;
+}
