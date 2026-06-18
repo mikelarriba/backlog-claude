@@ -14,7 +14,7 @@ test.beforeAll(async () => {
   await fetch('http://localhost:3000/api/settings/pi', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ currentPi: 'PI-2026.1', nextPi: null }),
+    body: JSON.stringify({ currentPi: 'PI-2026.1' }),
   });
   await rebuildServerIndex();
 });
@@ -40,7 +40,8 @@ test.describe('Roadmap — open and layout', () => {
   test('roadmap has a PI filter dropdown', async ({ page }) => {
     await page.goto('/');
     await page.locator('.sidebar-item[data-view="roadmap"], button:has-text("Roadmap")').click();
-    await expect(page.locator('#roadmap-pi-filter')).toBeVisible({ timeout: 5000 });
+    // Wait for PI filter checkboxes to render (requires piSettings to load)
+    await expect(page.locator('#roadmap-pi-filter label').first()).toBeVisible({ timeout: 8000 });
   });
 });
 
@@ -81,18 +82,18 @@ test.describe('Roadmap — panel collapse', () => {
 });
 
 test.describe('Roadmap — PI filter', () => {
-  test('selecting a PI from the filter dropdown re-renders the board', async ({ page }) => {
+  test('toggling a PI checkbox re-renders the board', async ({ page }) => {
     await page.goto('/');
     await page.locator('.sidebar-item[data-view="roadmap"], button:has-text("Roadmap")').click();
-    await expect(page.locator('#roadmap-pi-filter')).toBeVisible({ timeout: 5000 });
+    // Wait for PI filter checkboxes to render
+    await expect(page.locator('#roadmap-pi-filter label').first()).toBeVisible({ timeout: 8000 });
 
-    // Select any available option
-    const options = await page.locator('#roadmap-pi-filter option').allTextContents();
-    if (options.length > 1) {
-      await page.locator('#roadmap-pi-filter').selectOption({ index: 1 });
-      // Board should still be visible after filter change
-      await expect(page.locator('#rm-body-stories')).toBeVisible({ timeout: 3000 });
-    }
+    // Toggle the first PI checkbox off then on
+    const checkbox = page.locator('#roadmap-pi-filter input[type="checkbox"]').first();
+    await checkbox.uncheck();
+    await expect(page.locator('#rm-body-stories')).toBeVisible({ timeout: 3000 });
+    await checkbox.check();
+    await expect(page.locator('#rm-body-stories')).toBeVisible({ timeout: 3000 });
   });
 });
 
