@@ -211,6 +211,15 @@ import {
   handleSkillSSE,
 } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
+import {
+  loadBugsDashboard,
+  refreshBugsDashboard,
+  filterBugsTable,
+  analyzeBugs,
+  closeBugsAnalysis,
+  bugToggleKey,
+  bugToggleAll,
+} from './bugs-dashboard.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
@@ -322,6 +331,7 @@ function navigateTo(viewName) {
       break;
     case 'bugs':
       document.getElementById('bugs-view')?.classList.add('show');
+      loadBugsDashboard();
       break;
     case 'suggestions':
       document.getElementById('suggestions-view')?.classList.add('show');
@@ -901,6 +911,14 @@ const _globals = {
   openFab,
   closeFab,
   toggleFab,
+  // bugs-dashboard.js
+  loadBugsDashboard,
+  refreshBugsDashboard,
+  filterBugsTable,
+  analyzeBugs,
+  closeBugsAnalysis,
+  bugToggleKey,
+  bugToggleAll,
 };
 Object.assign(window, _globals);
 //# sourceMappingURL=main.js.map
