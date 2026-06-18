@@ -733,10 +733,6 @@ export async function checkAllJira() {
 }
 
 // ── JIRA Import ───────────────────────────────────────────────
-export function toggleJiraSection() {
-  toggleSection('jira-section-body', 'jira-chevron');
-}
-
 export async function searchJira() {
   const type = document.getElementById('jira-type').value;
   const text = document.getElementById('jira-text').value.trim();

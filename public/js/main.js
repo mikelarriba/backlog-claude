@@ -78,7 +78,6 @@ import {
   pullFromJira,
   pushToJira,
   checkAllJira,
-  toggleJiraSection,
   searchJira,
   downloadSelected,
   pullByKey,
@@ -361,6 +360,14 @@ function toggleFab() {
   } else {
     openFab();
   }
+}
+function switchFabTab(tabName) {
+  document.querySelectorAll('.fab-tab').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.fab-tab-content').forEach((div) => {
+    div.classList.toggle('active', div.id === `fab-tab-${tabName}`);
+  });
 }
 (function _restoreLeftPanel() {
   try {
@@ -772,7 +779,6 @@ const _globals = {
   syncPreviewCancel,
   syncPreviewConfirm,
   checkAllJira,
-  toggleJiraSection,
   searchJira,
   downloadSelected,
   pullByKey,
@@ -911,6 +917,7 @@ const _globals = {
   openFab,
   closeFab,
   toggleFab,
+  switchFabTab,
   // bugs-dashboard.js
   loadBugsDashboard,
   refreshBugsDashboard,
