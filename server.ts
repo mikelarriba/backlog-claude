@@ -35,6 +35,7 @@ import bugRoutes from './src/routes/bugs.js';
 import canvasRoutes from './src/routes/canvas.js';
 import skillsRoutes from './src/routes/skills.js';
 import exportRoutes from './src/routes/export.js';
+import bugsDashboardRoutes from './src/routes/bugs-dashboard.js';
 import { apiLimiter, aiLimiter, jiraLimiter } from './src/middleware/rateLimiter.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -305,6 +306,7 @@ app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex
 app.use(canvasRoutes({ rootDir: __dirname, logInfo }));
 app.use(skillsRoutes({ rootDir: __dirname, broadcast, callClaude, logInfo }));
 app.use(exportRoutes({ rootDir: __dirname, TYPE_CONFIG, docIndex }));
+app.use(bugsDashboardRoutes(jiraShared));
 
 // ── Centralised ValidationError handler ─────────────────────────────────────
 // Catches ValidationError instances thrown and forwarded via next(err).

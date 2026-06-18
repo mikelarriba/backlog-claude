@@ -79,7 +79,6 @@ import {
   pullFromJira,
   pushToJira,
   checkAllJira,
-  toggleJiraSection,
   searchJira,
   downloadSelected,
   pullByKey,
@@ -212,6 +211,15 @@ import {
   handleSkillSSE,
 } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
+import {
+  loadBugsDashboard,
+  refreshBugsDashboard,
+  filterBugsTable,
+  analyzeBugs,
+  closeBugsAnalysis,
+  bugToggleKey,
+  bugToggleAll,
+} from './bugs-dashboard.js';
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -349,6 +357,7 @@ function navigateTo(viewName: ViewName): void {
       break;
     case 'bugs':
       document.getElementById('bugs-view')?.classList.add('show');
+      loadBugsDashboard();
       break;
     case 'suggestions':
       document.getElementById('suggestions-view')?.classList.add('show');
@@ -383,6 +392,15 @@ function toggleFab(): void {
   } else {
     openFab();
   }
+}
+
+function switchFabTab(tabName: string): void {
+  document.querySelectorAll('.fab-tab').forEach((btn) => {
+    (btn as HTMLElement).classList.toggle('active', (btn as HTMLElement).dataset.tab === tabName);
+  });
+  document.querySelectorAll('.fab-tab-content').forEach((div) => {
+    (div as HTMLElement).classList.toggle('active', div.id === `fab-tab-${tabName}`);
+  });
 }
 
 (function _restoreLeftPanel() {
@@ -853,7 +871,6 @@ const _globals: Record<string, unknown> = {
   syncPreviewCancel,
   syncPreviewConfirm,
   checkAllJira,
-  toggleJiraSection,
   searchJira,
   downloadSelected,
   pullByKey,
@@ -992,6 +1009,15 @@ const _globals: Record<string, unknown> = {
   openFab,
   closeFab,
   toggleFab,
+  switchFabTab,
+  // bugs-dashboard.js
+  loadBugsDashboard,
+  refreshBugsDashboard,
+  filterBugsTable,
+  analyzeBugs,
+  closeBugsAnalysis,
+  bugToggleKey,
+  bugToggleAll,
 };
 
 Object.assign(window, _globals);

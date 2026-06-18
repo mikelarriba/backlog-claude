@@ -36,7 +36,7 @@ export interface JiraServiceInstance {
   jiraPagedRequest: (
     jql: string,
     fields: string,
-    opts?: { maxResults?: number; maxTotal?: number }
+    opts?: { maxResults?: number; maxTotal?: number; expand?: string }
   ) => Promise<unknown[]>;
   jiraAgileRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
@@ -137,13 +137,14 @@ export function createJiraService({
   async function jiraPagedRequest(
     jql: string,
     fields: string,
-    { maxResults = 100, maxTotal = 500 } = {}
+    { maxResults = 100, maxTotal = 500, expand }: { maxResults?: number; maxTotal?: number; expand?: string } = {}
   ): Promise<unknown[]> {
     const all: unknown[] = [];
     let startAt = 0;
 
     while (true) {
-      const url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}`;
+      let url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}`;
+      if (expand) url += `&expand=${encodeURIComponent(expand)}`;
       const page = (await jiraRequest('GET', url)) as Record<string, unknown>;
       const issues = (page.issues as unknown[] | undefined) || [];
       all.push(...issues);

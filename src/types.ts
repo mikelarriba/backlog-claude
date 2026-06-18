@@ -161,7 +161,7 @@ export interface JiraRouteContext extends RouteContext {
   jiraPagedRequest: (
     jql: string,
     fields: string,
-    opts?: { maxResults?: number; maxTotal?: number }
+    opts?: { maxResults?: number; maxTotal?: number; expand?: string }
   ) => Promise<unknown[]>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
