@@ -30,6 +30,7 @@
       integrity="sha384-8RA8Ah4c9upJmKfg5nH01OgjZoQ3mRX+ngrKYWXQYj2dHYxFqYz8POSlii33f0wB"
       crossorigin="anonymous"
     ></script>
+    <link rel="stylesheet" href="/public/css/bugs-dashboard.css" />
     <link rel="stylesheet" href="/public/css/refine.css" />
     <link rel="stylesheet" href="/public/css/split.css" />
     <link rel="stylesheet" href="/public/css/swimlanes.css" />
@@ -940,10 +941,73 @@
           <h2>Documentation</h2>
           <p>Product and technical docs coming soon.</p>
         </div>
-        <div id="bugs-view" class="placeholder-view">
-          <div class="icon">🐛</div>
-          <h2>Bug Tracker</h2>
-          <p>Dedicated bug management coming soon.</p>
+        <div id="bugs-view" class="view-panel">
+          <div class="bugs-dash-header">
+            <div style="display:flex;align-items:center;gap:12px">
+              <button class="btn-ghost" onclick="navigateTo('backlog')">← Back</button>
+              <span class="bugs-dash-title">🐛 Bug Dashboard</span>
+            </div>
+            <div class="bugs-dash-actions">
+              <span class="bugs-dash-meta" id="bugs-cached-at"></span>
+              <button class="btn-secondary" id="bugs-refresh-btn" onclick="refreshBugsDashboard()">↻ Refresh</button>
+            </div>
+          </div>
+          <div class="bugs-dash-body">
+            <!-- Stats row -->
+            <div class="bugs-stats-row">
+              <div class="bugs-stat-card">
+                <div class="bugs-stat-value" id="bugs-stat-total">—</div>
+                <div class="bugs-stat-label">Total Bugs</div>
+              </div>
+              <div class="bugs-stat-card">
+                <div class="bugs-stat-value" id="bugs-stat-open">—</div>
+                <div class="bugs-stat-label">Open</div>
+              </div>
+              <div class="bugs-stat-card">
+                <div class="bugs-stat-value" id="bugs-stat-resolved30d">—</div>
+                <div class="bugs-stat-label">Resolved 30d</div>
+              </div>
+              <div class="bugs-stat-card">
+                <div class="bugs-stat-value" id="bugs-stat-avg">—</div>
+                <div class="bugs-stat-label">Avg Resolution</div>
+              </div>
+            </div>
+            <!-- Chart -->
+            <div class="bugs-chart-wrap" id="bugs-chart-wrap">
+              <canvas id="bugs-chart"></canvas>
+            </div>
+            <!-- Filter bar -->
+            <div class="bugs-filter-bar">
+              <select id="bugs-filter-priority" onchange="filterBugsTable()">
+                <option value="all">All Priorities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+              <select id="bugs-filter-status" onchange="filterBugsTable()">
+                <option value="all">All Statuses</option>
+                <option value="open">Open</option>
+                <option value="in progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+              <span class="bugs-selection-count" id="bugs-selection-count"></span>
+              <button class="btn-primary" id="bugs-analyze-btn" onclick="analyzeBugs()" disabled>
+                ✨ AI Analyze
+              </button>
+            </div>
+            <!-- Bug table -->
+            <div id="bugs-table-wrap"></div>
+            <!-- AI Analysis panel -->
+            <div class="bugs-analysis-panel" id="bugs-analysis-panel" style="display:none">
+              <div class="bugs-analysis-header">
+                <span>✨ AI Analysis</span>
+                <button class="btn-ghost btn-xs" onclick="closeBugsAnalysis()">&times;</button>
+              </div>
+              <div class="bugs-analysis-body" id="bugs-analysis-body"></div>
+            </div>
+          </div>
         </div>
         <div id="suggestions-view" class="placeholder-view">
           <div class="icon">💬</div>
@@ -1515,6 +1579,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Chart.js (vendored locally) -->
+    <script src="/public/js/vendor/chart.umd.min.js"></script>
 
     <!-- ── ES Module entry point (theme.js and marked.umd.js stay as regular scripts) ── -->
     <script type="module" src="/public/js/main.js"></script>
