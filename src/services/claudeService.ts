@@ -40,13 +40,69 @@ const _semaphore = new Semaphore(
   Number.isFinite(_concurrency) && _concurrency > 0 ? _concurrency : 3
 );
 
+/**
+ * Resolve the path to a command file, checking custom dir first then example dir.
+ * Returns the path and source, or null if neither exists.
+ */
+function resolveCommandPath(
+  rootDir: string,
+  name: string
+): { path: string; source: 'custom' | 'example' } | null {
+  const customPath = path.join(rootDir, '.claude', 'commands', `${name}.md`);
+  if (fs.existsSync(customPath)) return { path: customPath, source: 'custom' };
+  const examplePath = path.join(rootDir, '.claude', 'commands.example', `${name}.md`);
+  if (fs.existsSync(examplePath)) return { path: examplePath, source: 'example' };
+  return null;
+}
+
+/**
+ * Load the product context from .product-context.md (custom) or
+ * .product-context.example.md (fallback). Returns the file content.
+ */
+export function loadProductContext(rootDir: string): {
+  content: string;
+  source: 'custom' | 'example';
+} {
+  const customPath = path.join(rootDir, '.product-context.md');
+  if (fs.existsSync(customPath)) {
+    return { content: fs.readFileSync(customPath, 'utf-8'), source: 'custom' };
+  }
+  const examplePath = path.join(rootDir, '.product-context.example.md');
+  if (fs.existsSync(examplePath)) {
+    return { content: fs.readFileSync(examplePath, 'utf-8'), source: 'example' };
+  }
+  return { content: '', source: 'example' };
+}
+
 export function loadCommand(rootDir: string, name: string): string | null {
-  const commandPath = path.join(rootDir, '.claude', 'commands', `${name}.md`);
-  if (!fs.existsSync(commandPath)) return null;
-  return fs
-    .readFileSync(commandPath, 'utf-8')
+  const resolved = resolveCommandPath(rootDir, name);
+  if (!resolved) return null;
+  let content = fs
+    .readFileSync(resolved.path, 'utf-8')
     .replace(/^---[\s\S]*?---\n?/, '')
     .trim();
+  // Inject product context into {{PRODUCT_CONTEXT}} placeholder
+  if (content.includes('{{PRODUCT_CONTEXT}}')) {
+    const ctx = loadProductContext(rootDir);
+    content = content.replace('{{PRODUCT_CONTEXT}}', ctx.content);
+  }
+  return content;
+}
+
+/**
+ * Load the full raw content of a command (including YAML frontmatter) plus its source.
+ * Used by the Skills UI to display and edit commands.
+ */
+export function loadCommandRaw(
+  rootDir: string,
+  name: string
+): { content: string; source: 'custom' | 'example' } | null {
+  const resolved = resolveCommandPath(rootDir, name);
+  if (!resolved) return null;
+  return {
+    content: fs.readFileSync(resolved.path, 'utf-8'),
+    source: resolved.source,
+  };
 }
 
 const MOCK_RESPONSE = `---

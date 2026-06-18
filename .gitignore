@@ -8,5 +8,7 @@ docs/
 .pi-settings.json
 .model-settings.json
 .canvas-layout.json
+.product-context.md
+.claude/commands/
 playwright-report/
 test-results/

@@ -200,6 +200,16 @@ import {
   handleRoadmapEpicClick,
   clearRoadmapSelection,
 } from './roadmap-select.js';
+import {
+  loadSkillsView,
+  toggleSkillCard,
+  saveSkill,
+  resetSkill,
+  improveSkill,
+  saveProductContext,
+  resetProductContext,
+  handleSkillSSE,
+} from './skills.js';
 import { initDragDrop } from './dragdrop.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -281,6 +291,10 @@ function navigateTo(viewName) {
   document.getElementById('documentation-view')?.classList.remove('show');
   document.getElementById('bugs-view')?.classList.remove('show');
   document.getElementById('suggestions-view')?.classList.remove('show');
+  // Hide FAB when not in backlog
+  const fabContainer = document.getElementById('fab-container');
+  if (fabContainer) fabContainer.style.display = viewName === 'backlog' ? '' : 'none';
+
   // Clean up roadmap-mode when leaving roadmap
   const right = document.querySelector('.right');
   if (viewName !== 'roadmap') {
@@ -301,6 +315,7 @@ function navigateTo(viewName) {
       break;
     case 'skills':
       document.getElementById('skills-view')?.classList.add('show');
+      loadSkillsView();
       break;
     case 'documentation':
       document.getElementById('documentation-view')?.classList.add('show');
@@ -627,6 +642,14 @@ function _handleSSEMessage(payload) {
     if (el) el.value = String(splitThreshold);
     refreshRoadmapView();
   }
+  if (
+    payload.type === 'skill_updated' ||
+    payload.type === 'skill_reset' ||
+    payload.type === 'product_context_updated' ||
+    payload.type === 'product_context_reset'
+  ) {
+    handleSkillSSE(payload);
+  }
 }
 function _connectSSE() {
   const es = new EventSource('/api/events');
@@ -852,6 +875,14 @@ const _globals = {
   handleRoadmapCardClick,
   handleRoadmapEpicClick,
   clearRoadmapSelection,
+  // skills.js
+  loadSkillsView,
+  toggleSkillCard,
+  saveSkill,
+  resetSkill,
+  improveSkill,
+  saveProductContext,
+  resetProductContext,
   // main.js local functions
   toggleLeftPanel,
   toggleModelSection,

@@ -7,6 +7,9 @@ import path from 'node:path';
 import {
   callClaude,
   streamClaude,
+  loadCommand,
+  loadCommandRaw,
+  loadProductContext,
   setModelOverride,
   getModelOverride,
   setProviderOverride,
@@ -397,5 +400,138 @@ describe('streamClaude — mock mode with Ollama provider override', () => {
     await streamClaude('/tmp', 'test prompt', (chunk) => chunks.push(chunk));
     assert.equal(chunks.length, 1);
     assert.match(chunks[0], /Mock Epic Title/);
+  });
+});
+
+// ── loadCommand / loadCommandRaw — fallback logic ────────────────────────────
+describe('loadCommand fallback', () => {
+  let tmpDir;
+
+  before(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cmd-fallback-'));
+  });
+  after(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('returns null when neither custom nor example exists', () => {
+    assert.equal(loadCommand(tmpDir, 'nonexistent'), null);
+  });
+
+  test('falls back to example when custom does not exist', () => {
+    const exDir = path.join(tmpDir, '.claude', 'commands.example');
+    fs.mkdirSync(exDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(exDir, 'test-cmd.md'),
+      '---\nname: test-cmd\n---\nExample body $ARGUMENTS'
+    );
+    const result = loadCommand(tmpDir, 'test-cmd');
+    assert.ok(result);
+    assert.match(result, /Example body/);
+    assert.doesNotMatch(result, /^---/); // frontmatter should be stripped
+  });
+
+  test('prefers custom over example', () => {
+    const customDir = path.join(tmpDir, '.claude', 'commands');
+    fs.mkdirSync(customDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(customDir, 'test-cmd.md'),
+      '---\nname: test-cmd\n---\nCustom body $ARGUMENTS'
+    );
+    const result = loadCommand(tmpDir, 'test-cmd');
+    assert.ok(result);
+    assert.match(result, /Custom body/);
+  });
+});
+
+describe('loadCommandRaw fallback', () => {
+  let tmpDir;
+
+  before(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raw-fallback-'));
+  });
+  after(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('returns null when neither custom nor example exists', () => {
+    assert.equal(loadCommandRaw(tmpDir, 'nonexistent'), null);
+  });
+
+  test('falls back to example with source "example"', () => {
+    const exDir = path.join(tmpDir, '.claude', 'commands.example');
+    fs.mkdirSync(exDir, { recursive: true });
+    fs.writeFileSync(path.join(exDir, 'raw-test.md'), '---\nname: raw-test\n---\nExample body');
+    const result = loadCommandRaw(tmpDir, 'raw-test');
+    assert.ok(result);
+    assert.equal(result.source, 'example');
+    assert.match(result.content, /^---/); // frontmatter should be included
+    assert.match(result.content, /Example body/);
+  });
+
+  test('returns custom with source "custom" when it exists', () => {
+    const customDir = path.join(tmpDir, '.claude', 'commands');
+    fs.mkdirSync(customDir, { recursive: true });
+    fs.writeFileSync(path.join(customDir, 'raw-test.md'), '---\nname: raw-test\n---\nCustom body');
+    const result = loadCommandRaw(tmpDir, 'raw-test');
+    assert.ok(result);
+    assert.equal(result.source, 'custom');
+    assert.match(result.content, /Custom body/);
+  });
+});
+
+describe('loadProductContext', () => {
+  let tmpDir;
+
+  before(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'product-ctx-'));
+  });
+  after(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('returns empty content with source "example" when neither file exists', () => {
+    const result = loadProductContext(tmpDir);
+    assert.equal(result.content, '');
+    assert.equal(result.source, 'example');
+  });
+
+  test('falls back to example file', () => {
+    fs.writeFileSync(path.join(tmpDir, '.product-context.example.md'), '# Example Context');
+    const result = loadProductContext(tmpDir);
+    assert.equal(result.content, '# Example Context');
+    assert.equal(result.source, 'example');
+  });
+
+  test('prefers custom over example', () => {
+    fs.writeFileSync(path.join(tmpDir, '.product-context.md'), '# Custom Context');
+    const result = loadProductContext(tmpDir);
+    assert.equal(result.content, '# Custom Context');
+    assert.equal(result.source, 'custom');
+  });
+});
+
+describe('loadCommand with {{PRODUCT_CONTEXT}} injection', () => {
+  let tmpDir;
+
+  before(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctx-inject-'));
+    const exDir = path.join(tmpDir, '.claude', 'commands.example');
+    fs.mkdirSync(exDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(exDir, 'test-inject.md'),
+      '---\nname: test\n---\n## Context\n\n{{PRODUCT_CONTEXT}}\n\n$ARGUMENTS'
+    );
+    fs.writeFileSync(path.join(tmpDir, '.product-context.md'), 'My Product Details');
+  });
+  after(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('replaces {{PRODUCT_CONTEXT}} with product context content', () => {
+    const result = loadCommand(tmpDir, 'test-inject');
+    assert.ok(result);
+    assert.ok(result.includes('My Product Details'));
+    assert.ok(!result.includes('{{PRODUCT_CONTEXT}}'));
   });
 });

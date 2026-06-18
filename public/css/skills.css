@@ -1,0 +1,207 @@
+/* ── Skills view ───────────────────────────────────────────────────────────── */
+.skills-body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skills-section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin: 8px 0 2px;
+}
+
+/* ── Per-skill collapsible ────────────────────────────────────────────────── */
+.skill-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.skill-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.skill-header:hover {
+  background: var(--bg-hover);
+}
+
+.skill-chevron {
+  font-size: 0.65rem;
+  transition: transform 0.2s ease;
+  color: var(--text-secondary);
+}
+
+.skill-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.skill-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.skill-badge.template {
+  background: rgba(0, 150, 214, 0.12);
+  color: var(--accent);
+}
+
+.skill-badge.custom {
+  background: rgba(40, 167, 69, 0.12);
+  color: #28a745;
+}
+
+/* ── Collapsible body ─────────────────────────────────────────────────────── */
+.skill-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.skill-body.open {
+  max-height: min(1200px, 70vh);
+  overflow-y: auto;
+}
+
+.skill-inner {
+  padding: 0 12px 12px;
+}
+
+.skill-desc {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+/* ── Textarea ─────────────────────────────────────────────────────────────── */
+.skill-textarea {
+  width: 100%;
+  min-height: 300px;
+  max-height: 600px;
+  resize: vertical;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-main);
+  color: var(--text-primary);
+  box-sizing: border-box;
+  tab-size: 2;
+}
+
+.skill-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 150, 214, 0.15);
+}
+
+/* ── Action buttons ───────────────────────────────────────────────────────── */
+.skill-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn-skill-save {
+  padding: 5px 16px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-skill-save:hover {
+  opacity: 0.88;
+}
+
+.btn-skill-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-skill-improve {
+  padding: 5px 16px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border: 1px solid rgba(0, 150, 214, 0.3);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-skill-improve:hover {
+  background: rgba(0, 150, 214, 0.08);
+}
+
+.btn-skill-improve:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-skill-reset {
+  padding: 5px 16px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 6px;
+  background: transparent;
+  color: #dc3545;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-skill-reset:hover {
+  background: rgba(220, 53, 69, 0.08);
+}
+
+/* ── Status feedback ──────────────────────────────────────────────────────── */
+.skill-status {
+  display: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  margin-left: auto;
+}
+
+.skill-status.show {
+  display: inline-block;
+}
+
+.skill-status.success {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success-text);
+}
+
+.skill-status.error {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  color: var(--error-text);
+}
