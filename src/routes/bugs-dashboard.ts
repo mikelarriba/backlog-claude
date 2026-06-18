@@ -105,7 +105,7 @@ function statusAtDate(issue: Record<string, unknown>, targetDate: Date): string 
     const items = h.items as Array<Record<string, unknown>>;
     const sc = items.find((i) => i.field === 'status');
     if (sc) {
-      curCat = catFromStatusName(sc.toString as string);
+      curCat = catFromStatusName(sc['toString'] as string);
       if (curCat === 'done') curResDate = (h.created as string).slice(0, 10);
       else curResDate = null;
     }
@@ -283,17 +283,7 @@ export default function bugsDashboardRoutes({
           )
           .join('\n');
 
-        const prompt = `You are a software development analyst. Analyze these ${selected.length} selected bugs and provide actionable insights:
-
-${bugDetails}
-
-Please provide:
-1. Prioritization: Rank bugs by severity/impact and explain the ordering
-2. Fix Strategy: Which bugs can be batched or fixed together? Common root causes?
-3. Recommendations: Specific next steps for the top 3 most critical bugs
-4. Patterns: Any concerning trends or patterns you notice?
-
-Be concise and actionable.`;
+        const prompt = `You are a software development analyst. Analyze these ${selected.length} selected bugs and provide actionable insights:\n\n${bugDetails}\n\nPlease provide:\n1. Prioritization: Rank bugs by severity/impact and explain the ordering\n2. Fix Strategy: Which bugs can be batched or fixed together? Common root causes?\n3. Recommendations: Specific next steps for the top 3 most critical bugs\n4. Patterns: Any concerning trends or patterns you notice?\n\nBe concise and actionable.`;
 
         setupSSE(res);
         const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);

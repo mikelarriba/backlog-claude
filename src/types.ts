@@ -1,11 +1,11 @@
-// ── Shared TypeScript type definitions ────────────────────────────────────────
+// ── Shared TypeScript type definitions ────────────────────────────────────────────
 
 import type { Logger } from './utils/logger.js';
 
 // Re-export frontend-shared types not defined below (PISettings, SprintConfig, etc.)
 export type { PISettings, SprintConfig, SwimlaneCollapsed, PanelState } from './shared/types.js';
 
-// ── Document types ──────────────────────────────────────────────────────────
+// ── Document types ─────────────────────────────────────────────────
 
 export type DocType = 'feature' | 'epic' | 'story' | 'spike' | 'bug';
 
@@ -21,7 +21,7 @@ export interface TypeConfigEntry {
 
 export type TypeConfig = Record<string, TypeConfigEntry>;
 
-// ── Doc index entry ─────────────────────────────────────────────────────────
+// ── Doc index entry ─────────────────────────────────────────────────
 
 export interface DocEntry {
   filename: string;
@@ -57,7 +57,7 @@ export interface DocIndexInstance {
   findByJiraId: (jiraId: string) => { docType: string; filename: string } | null;
 }
 
-// ── Sprint distribution ─────────────────────────────────────────────────────
+// ── Sprint distribution ─────────────────────────────────────────────────
 
 export interface SprintSlot {
   name: string;
@@ -65,7 +65,7 @@ export interface SprintSlot {
   used: number;
 }
 
-// ── JIRA ────────────────────────────────────────────────────────────────────
+// ── JIRA ───────────────────────────────────────────────────────────────────
 
 export interface JiraIssue {
   key: string;
@@ -79,7 +79,7 @@ export interface JiraIssue {
   };
 }
 
-// ── Attachments & email parsing ─────────────────────────────────────────────
+// ── Attachments & email parsing ───────────────────────────────────────────────
 
 export interface ProcessedAttachment {
   filename: string;
@@ -103,7 +103,7 @@ export interface ParsedMsg {
   attachmentImages: Array<{ filename: string; buffer: Buffer }>;
 }
 
-// ── Audit log ───────────────────────────────────────────────────────────────
+// ── Audit log ──────────────────────────────────────────────────────────────────
 
 export type AuditOp = 'create' | 'update' | 'delete' | 'jira-push' | 'jira-sync';
 export type AuditSource = 'api' | 'inbox' | 'jira-sync';
@@ -117,7 +117,7 @@ export interface AuditEvent {
   source: AuditSource;
 }
 
-// ── SSE events ──────────────────────────────────────────────────────────────
+// ── SSE events ──────────────────────────────────────────────────────────────────
 
 export interface SSEEvent {
   type: string;
@@ -126,7 +126,7 @@ export interface SSEEvent {
 
 export type BroadcastFn = (event: SSEEvent) => void;
 
-// ── Route context shapes ─────────────────────────────────────────────────────
+// ── Route context shapes ─────────────────────────────────────────────────────────────
 
 export interface RouteContext {
   rootDir: string;
@@ -161,7 +161,7 @@ export interface JiraRouteContext extends RouteContext {
   jiraPagedRequest: (
     jql: string,
     fields: string,
-    opts?: { maxResults?: number; maxTotal?: number }
+    opts?: { maxResults?: number; maxTotal?: number; expand?: string }
   ) => Promise<unknown[]>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
@@ -169,7 +169,7 @@ export interface JiraRouteContext extends RouteContext {
   extractJiraSummary: (content: string) => string;
 }
 
-// ── Settings route context ───────────────────────────────────────────────────
+// ── Settings route context ──────────────────────────────────────────────────────────────
 
 export interface SettingsRouteContext {
   rootDir: string;
@@ -178,7 +178,7 @@ export interface SettingsRouteContext {
   jiraBase: string;
 }
 
-// ── Bug route context ────────────────────────────────────────────────────────
+// ── Bug route context ─────────────────────────────────────────────────────────────────
 
 export interface BugRouteContext {
   BUGS_DIR: string;
@@ -189,18 +189,11 @@ export interface BugRouteContext {
   docIndex: DocIndexInstance;
 }
 
-// ── Skills route context ─────────────────────────────────────────────────────
+// ── Skills route context ──────────────────────────────────────────────────────────────
 
 export interface SkillsRouteContext {
   rootDir: string;
   broadcast: BroadcastFn;
   callClaude: (prompt: string) => Promise<string>;
-  logInfo: Logger['logInfo'];
-}
-
-// ── Canvas route context ─────────────────────────────────────────────────────
-
-export interface CanvasRouteContext {
-  rootDir: string;
   logInfo: Logger['logInfo'];
 }

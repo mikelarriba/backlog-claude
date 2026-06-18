@@ -35,6 +35,7 @@ import bugRoutes from './src/routes/bugs.js';
 import canvasRoutes from './src/routes/canvas.js';
 import skillsRoutes from './src/routes/skills.js';
 import exportRoutes from './src/routes/export.js';
+import bugsDashboardRoutes from './src/routes/bugs-dashboard.js';
 import { apiLimiter, aiLimiter, jiraLimiter } from './src/middleware/rateLimiter.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -45,21 +46,20 @@ const PORT = process.env.PORT || 3000;
 
 const { logInfo, logWarn, logError } = createLogger('[midas-backlog]');
 
-// ── Folder paths ─────────────────────────────────────────────────────────────
+// ── Folder paths ───────────────────────────────────────────────────────────────────
 const DOCS_ROOT = process.env.TEST_DOCS_ROOT || path.join(__dirname, 'docs');
 const INBOX_DIR = process.env.TEST_INBOX_DIR || path.join(__dirname, 'inbox');
 
 const _apiInFlight = new Set<string>();
 
 const TYPE_CONFIG = createTypeConfig(DOCS_ROOT);
-// Convenience aliases — derived from TYPE_CONFIG to stay in sync
 const FEATURES_DIR = TYPE_CONFIG.feature.dir();
 const EPICS_DIR = TYPE_CONFIG.epic.dir();
 const STORIES_DIR = TYPE_CONFIG.story.dir();
 const SPIKES_DIR = TYPE_CONFIG.spike.dir();
 const BUGS_DIR = TYPE_CONFIG.bug.dir();
 
-// ── JIRA config ──────────────────────────────────────────────────────────────
+// ── JIRA config ───────────────────────────────────────────────────────────────────
 const JIRA_BASE = (process.env.JIRA_BASE_URL || 'https://devstack.vwgroup.com/jira').replace(
   /\/$/,
   ''
@@ -67,7 +67,6 @@ const JIRA_BASE = (process.env.JIRA_BASE_URL || 'https://devstack.vwgroup.com/ji
 const JIRA_TOKEN = process.env.JIRA_API_TOKEN || '';
 const JIRA_PROJECT = process.env.JIRA_PROJECT || 'EAMDM';
 const JIRA_LABEL = process.env.JIRA_LABEL || 'MIDAS_Development';
-// Custom field IDs vary per JIRA instance — override via environment variables
 const FIELD_EPIC_NAME = process.env.JIRA_FIELD_EPIC_NAME || 'customfield_10002';
 const FIELD_EPIC_LINK = process.env.JIRA_FIELD_EPIC_LINK || 'customfield_10000';
 const FIELD_STORY_POINTS = process.env.JIRA_FIELD_STORY_POINTS || 'customfield_10006';
@@ -94,16 +93,11 @@ const {
 const docIndex = createDocIndex({ TYPE_CONFIG });
 await docIndex.build();
 
-// ── Security headers ─────────────────────────────────────────────────────────
+// ── Security headers ───────────────────────────────────────────────────────────────────
 app.use((_req, res, next) => {
-  // Prevent MIME-type sniffing
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Block framing (clickjacking)
   res.setHeader('X-Frame-Options', 'DENY');
-  // Limit referrer information on cross-origin requests
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // CSP: scripts/styles from same origin only; marked is now vendored locally
-  // 'unsafe-inline' is required because index.html uses inline event handlers
   res.setHeader(
     'Content-Security-Policy',
     [
@@ -121,24 +115,22 @@ app.use((_req, res, next) => {
   next();
 });
 
-// ── Middleware & SSE ─────────────────────────────────────────────────────────
+// ── Middleware & SSE ──────────────────────────────────────────────────────────────────
 app.use(requestLogger());
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
-// Cache-Control: no-store for all /api/* responses
 app.use('/api', (_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
 });
 
-// ── Rate limiting ─────────────────────────────────────────────────────────────
+// ── Rate limiting ───────────────────────────────────────────────────────────────────
 app.use('/api/', apiLimiter);
 app.use('/api/generate', aiLimiter);
 app.use('/api/upgrade', aiLimiter);
 app.use('/api/jira/push', jiraLimiter);
 
-// JS and CSS: 5-minute browser cache with ETag revalidation
 app.use(
   '/public/js',
   express.static(path.join(__dirname, 'public/js'), {
@@ -160,7 +152,6 @@ app.use(
   })
 );
 
-// index.html: never cache (it references versioned assets)
 app.get('/', (_req, res, next) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   next();
@@ -170,12 +161,8 @@ app.get('/index.html', (_req, res, next) => {
   next();
 });
 
-// Remaining static assets (manifest.json, sw.js, etc.)
 app.use(express.static(__dirname));
 
-// ── API versioning ── /api/v1/* is an alias for /api/* ───────────────────────
-// Rewrite /api/v1/... → /api/... so all route modules work unchanged.
-// Clients can migrate to /api/v1/ at their own pace; both paths are supported.
 app.use((req, _res, next) => {
   if (req.url.startsWith('/api/v1/')) {
     req.url = '/api' + req.url.slice('/api/v1'.length);
@@ -186,12 +173,10 @@ app.use((req, _res, next) => {
 const { handleEvents, broadcast } = createEventService();
 app.get('/api/events', handleEvents);
 
-// ── Config endpoints ─────────────────────────────────────────────────────────
 app.get('/api/config/metadata', (_req, res) => {
   res.json({ teams: TEAMS, workCategories: WORK_CATEGORIES });
 });
 
-// ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
@@ -201,14 +186,12 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// ── OpenAPI spec & Swagger UI ─────────────────────────────────────────────────
 app.get('/swagger/openapi.yaml', (_req, res) => {
   res.setHeader('Content-Type', 'application/yaml; charset=utf-8');
   res.sendFile(path.join(__dirname, 'openapi.yaml'));
 });
 
 app.get('/swagger', (_req, res) => {
-  // Relax CSP for this single route to allow Swagger UI CDN assets
   res.setHeader(
     'Content-Security-Policy',
     [
@@ -251,7 +234,7 @@ const callClaude = (prompt: string): Promise<string> => callClaudeService(__dirn
 const streamClaude = (prompt: string, onChunk: (chunk: string) => void): Promise<void> =>
   streamClaudeService(__dirname, prompt, onChunk);
 
-// ── Mount route modules ──────────────────────────────────────────────────────
+// ── Mount route modules ──────────────────────────────────────────────────────────────────
 const shared = {
   rootDir: __dirname,
   TYPE_CONFIG,
@@ -305,9 +288,9 @@ app.use(bugRoutes({ BUGS_DIR, broadcast, callClaude, logInfo, logError, docIndex
 app.use(canvasRoutes({ rootDir: __dirname, logInfo }));
 app.use(skillsRoutes({ rootDir: __dirname, broadcast, callClaude, logInfo }));
 app.use(exportRoutes({ rootDir: __dirname, TYPE_CONFIG, docIndex }));
+app.use(bugsDashboardRoutes(jiraShared));
 
-// ── Centralised ValidationError handler ─────────────────────────────────────
-// Catches ValidationError instances thrown and forwarded via next(err).
+// ── Centralised ValidationError handler ───────────────────────────────────────────────
 const validationErrorHandler: ErrorRequestHandler = (err, _req, res, next) => {
   if (err instanceof ValidationError) {
     res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
@@ -317,7 +300,7 @@ const validationErrorHandler: ErrorRequestHandler = (err, _req, res, next) => {
 };
 app.use(validationErrorHandler);
 
-// ── Startup ──────────────────────────────────────────────────────────────────
+// ── Startup ────────────────────────────────────────────────────────────────────────
 function validateStartupConfig() {
   const checks = [
     { key: 'JIRA_BASE_URL', ok: !!JIRA_BASE, level: 'warn', message: 'JIRA base URL is not set' },
