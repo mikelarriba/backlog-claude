@@ -1,9 +1,10 @@
 // ── E2E: Create — draft form creates a new document ──────────────────────────
 import { test, expect } from '@playwright/test';
-import { clearDocsDir } from './fixtures.js';
+import { clearDocsDir, rebuildServerIndex } from './fixtures.js';
 
-test.beforeAll(() => {
+test.beforeAll(async () => {
   clearDocsDir();
+  await rebuildServerIndex();
 });
 
 test.describe('Create — Save Draft form', () => {
@@ -14,6 +15,7 @@ test.describe('Create — Save Draft form', () => {
 
   test('can fill the title field', async ({ page }) => {
     await page.goto('/');
+    await page.locator('#fab-btn').click();
     await page.locator('#doc-title').fill('My E2E Draft Epic');
     await expect(page.locator('#doc-title')).toHaveValue('My E2E Draft Epic');
   });
@@ -30,6 +32,7 @@ test.describe('Create — Save Draft form', () => {
 
   test('saving a draft with title creates the document', async ({ page }) => {
     await page.goto('/');
+    await page.locator('#fab-btn').click();
     await page.locator('#doc-title').fill('Playwright Draft Story');
     await page.locator('#doc-type').selectOption('story');
     await page.locator('#draft-btn').click();
@@ -40,6 +43,7 @@ test.describe('Create — Save Draft form', () => {
 
   test('created document appears in the list', async ({ page }) => {
     await page.goto('/');
+    await page.locator('#fab-btn').click();
     await page.locator('#doc-title').fill('List Visible Draft');
     await page.locator('#doc-type').selectOption('epic');
     await page.locator('#draft-btn').click();
@@ -51,6 +55,7 @@ test.describe('Create — Save Draft form', () => {
 
   test('requires a title to save a draft', async ({ page }) => {
     await page.goto('/');
+    await page.locator('#fab-btn').click();
     // Leave title empty
     await page.locator('#doc-type').selectOption('story');
     await page.locator('#draft-btn').click();

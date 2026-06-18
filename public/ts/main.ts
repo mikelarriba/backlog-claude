@@ -21,6 +21,7 @@ import {
   setTeamFilter,
   setWorkCatFilter,
   applyFilters,
+  applyFiltersDebounced,
   handleItemClick,
   handleItemContextMenu,
   showContextMenu,
@@ -279,11 +280,18 @@ function toggleLeftPanel(): void {
 }
 
 // ── Sidebar navigation ────────────────────────────────────────
-type ViewName = 'backlog' | 'roadmap' | 'settings' | 'skills' | 'documentation' | 'bugs' | 'suggestions';
+type ViewName =
+  | 'backlog'
+  | 'roadmap'
+  | 'settings'
+  | 'skills'
+  | 'documentation'
+  | 'bugs'
+  | 'suggestions';
 
 function navigateTo(viewName: ViewName): void {
   // Update active state in sidebar
-  document.querySelectorAll<HTMLElement>('.sidebar-item').forEach(el => {
+  document.querySelectorAll<HTMLElement>('.sidebar-item').forEach((el) => {
     el.classList.toggle('active', el.dataset.view === viewName);
   });
 
@@ -391,7 +399,10 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     const overlays = document.querySelectorAll('.dialog-overlay.show');
     if (overlays.length) return;
     const fabPanel = document.getElementById('fab-panel');
-    if (fabPanel?.classList.contains('open')) { closeFab(); return; }
+    if (fabPanel?.classList.contains('open')) {
+      closeFab();
+      return;
+    }
     const detail = document.getElementById('detail-view');
     if (detail && detail.classList.contains('show')) showList();
   }
@@ -760,6 +771,7 @@ const _globals: Record<string, unknown> = {
   setStatusFilter,
   setTeamFilter,
   setWorkCatFilter,
+  applyFiltersDebounced,
   handleItemClick,
   handleItemContextMenu,
   showContextMenu,

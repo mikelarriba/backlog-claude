@@ -347,5 +347,13 @@ ${notesLine}`;
     }
   });
 
+  // ── POST /api/docs/rebuild-index (test-only) ─────────────────────────────
+  if (process.env.MOCK_CLAUDE) {
+    router.post('/api/docs/rebuild-index', async (_req, res) => {
+      await docIndex.invalidateAll();
+      res.json({ success: true, count: docIndex.getAll().length });
+    });
+  }
+
   return router;
 }

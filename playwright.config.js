@@ -27,6 +27,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
+    viewport: { width: 1024, height: 768 },
   },
+  workers: 1,
   timeout: 30000,
 });

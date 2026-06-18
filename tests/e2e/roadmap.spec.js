@@ -1,8 +1,8 @@
 // ── E2E: Roadmap — two-panel layout, PI filter, panel collapse ───────────────
 import { test, expect } from '@playwright/test';
-import { clearDocsDir, createFixtureDoc } from './fixtures.js';
+import { clearDocsDir, createFixtureDoc, rebuildServerIndex } from './fixtures.js';
 
-test.beforeAll(() => {
+test.beforeAll(async () => {
   clearDocsDir();
   createFixtureDoc('epic', { title: 'Roadmap Epic Alpha', fixVersion: 'PI-2026.1' });
   createFixtureDoc('story', {
@@ -10,18 +10,25 @@ test.beforeAll(() => {
     fixVersion: 'PI-2026.1',
     sprint: 'Sprint 1',
   });
+  // Seed PI settings so the roadmap filter has checkboxes to render
+  await fetch('http://localhost:3000/api/settings/pi', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPi: 'PI-2026.1' }),
+  });
+  await rebuildServerIndex();
 });
 
 test.describe('Roadmap — open and layout', () => {
   test('Roadmap button opens the roadmap view', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();
+    await page.locator('.sidebar-item[data-view="roadmap"], button:has-text("Roadmap")').click();
     await expect(page.locator('#roadmap-view')).toBeVisible({ timeout: 5000 });
   });
 
   test('roadmap view has two panel sections (epics + stories)', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();
+    await page.locator('.sidebar-item[data-view="roadmap"], button:has-text("Roadmap")').click();
     await expect(page.locator('#rm-body-epics,   [id^="rm-body-epics"]')).toBeVisible({
       timeout: 5000,
     });
@@ -32,15 +39,16 @@ test.describe('Roadmap — open and layout', () => {
 
   test('roadmap has a PI filter dropdown', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();
-    await expect(page.locator('#roadmap-pi-filter')).toBeVisible({ timeout: 5000 });
+    await page.locator('.sidebar-item[data-view="roadmap"], button:has-text("Roadmap")').click();
+    // Wait for PI filter checkboxes to render (requires piSettings to load)
+    await expect(page.locator('#roadmap-pi-filter label').first()).toBeVisible({ timeout: 8000 });
   });
 });
 
 test.describe('Roadmap — panel collapse', () => {
   test('clicking Epics panel header toggles collapse', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();
+    await page.locator('.sidebar-item[data-view="roadmap"], button:has-text("Roadmap")').click();
     await expect(page.locator('#rm-body-epics')).toBeVisible({ timeout: 5000 });
 
     // Find the epics panel toggle button/header
@@ -60,7 +68,7 @@ test.describe('Roadmap — panel collapse', () => {
 
   test('clicking Stories panel header toggles collapse', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();
+    await page.locator('.sidebar-item[data-view="roadmap"], button:has-text("Roadmap")').click();
     await expect(page.locator('#rm-body-stories')).toBeVisible({ timeout: 5000 });
 
     const storiesHeader = page
@@ -74,18 +82,18 @@ test.describe('Roadmap — panel collapse', () => {
 });
 
 test.describe('Roadmap — PI filter', () => {
-  test('selecting a PI from the filter dropdown re-renders the board', async ({ page }) => {
+  test('toggling a PI checkbox re-renders the board', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();
-    await expect(page.locator('#roadmap-pi-filter')).toBeVisible({ timeout: 5000 });
+    await page.locator('.sidebar-item[data-view="roadmap"], button:has-text("Roadmap")').click();
+    // Wait for PI filter checkboxes to render
+    await expect(page.locator('#roadmap-pi-filter label').first()).toBeVisible({ timeout: 8000 });
 
-    // Select any available option
-    const options = await page.locator('#roadmap-pi-filter option').allTextContents();
-    if (options.length > 1) {
-      await page.locator('#roadmap-pi-filter').selectOption({ index: 1 });
-      // Board should still be visible after filter change
-      await expect(page.locator('#rm-body-stories')).toBeVisible({ timeout: 3000 });
-    }
+    // Toggle the first PI checkbox off then on
+    const checkbox = page.locator('#roadmap-pi-filter input[type="checkbox"]').first();
+    await checkbox.uncheck();
+    await expect(page.locator('#rm-body-stories')).toBeVisible({ timeout: 3000 });
+    await checkbox.check();
+    await expect(page.locator('#rm-body-stories')).toBeVisible({ timeout: 3000 });
   });
 });
 
@@ -100,7 +108,7 @@ test.describe('Roadmap — JIRA mock intercept', () => {
     );
 
     await page.goto('/');
-    await page.locator('.btn-toolbar-roadmap, button:has-text("Roadmap")').click();
+    await page.locator('.sidebar-item[data-view="roadmap"], button:has-text("Roadmap")').click();
     await expect(page.locator('#roadmap-view')).toBeVisible({ timeout: 5000 });
   });
 });

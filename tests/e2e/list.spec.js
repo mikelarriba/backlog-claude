@@ -1,8 +1,8 @@
 // ── E2E: List view — filter pills, type filter, status filter ────────────────
 import { test, expect } from '@playwright/test';
-import { clearDocsDir, createFixtureDoc } from './fixtures.js';
+import { clearDocsDir, createFixtureDoc, rebuildServerIndex } from './fixtures.js';
 
-test.beforeAll(() => {
+test.beforeAll(async () => {
   clearDocsDir();
   // Create a known set of fixture documents for filtering
   createFixtureDoc('story', { title: 'Filter Story Alpha', status: 'Draft' });
@@ -10,6 +10,7 @@ test.beforeAll(() => {
   createFixtureDoc('epic', { title: 'Filter Epic One', status: 'Draft' });
   createFixtureDoc('epic', { title: 'Filter Epic Two', status: 'Created in JIRA' });
   createFixtureDoc('spike', { title: 'Filter Spike One', status: 'Draft' });
+  await rebuildServerIndex();
 });
 
 test.describe('List view — type filter pills', () => {
@@ -76,6 +77,10 @@ test.describe('List view — status filter', () => {
 test.describe('List view — search', () => {
   test('search input filters the list by title', async ({ page }) => {
     await page.goto('/');
+    // Wait for docs to load before searching
+    await expect(
+      page.locator('#epic-list .list-item, #epic-list .doc-card, #epic-list [data-doctype]').first()
+    ).toBeVisible({ timeout: 8000 });
     await page.locator('#search').fill('Filter Epic One');
 
     // After typing, only matching docs should be shown
@@ -84,9 +89,13 @@ test.describe('List view — search', () => {
 
   test('search with no match shows empty state or empty list', async ({ page }) => {
     await page.goto('/');
+    // Wait for docs to load before searching
+    await expect(
+      page.locator('#epic-list .list-item, #epic-list .doc-card, #epic-list [data-doctype]').first()
+    ).toBeVisible({ timeout: 8000 });
     await page.locator('#search').fill('zzz-no-match-xyz-9999');
-    // The list should be empty or show an empty state
+    // After debounce, the list should be empty
     const items = page.locator('#epic-list [data-doctype]');
-    await expect(items).toHaveCount(0, { timeout: 3000 });
+    await expect(items).toHaveCount(0, { timeout: 5000 });
   });
 });

@@ -20,6 +20,7 @@ import {
   setTeamFilter,
   setWorkCatFilter,
   applyFilters,
+  applyFiltersDebounced,
   handleItemClick,
   handleItemContextMenu,
   showContextMenu,
@@ -265,77 +266,76 @@ function toggleLeftPanel() {
 }
 // ── Sidebar navigation ────────────────────────────────────────
 function navigateTo(viewName) {
-    // Update active state in sidebar
-    document.querySelectorAll('.sidebar-item').forEach(el => {
-        el.classList.toggle('active', el.dataset.view === viewName);
-    });
-    // Hide all views
-    const lv = document.getElementById('list-view');
-    if (lv) lv.style.display = 'none';
-    document.getElementById('detail-view')?.classList.remove('show');
-    document.getElementById('refine-view')?.classList.remove('show');
-    document.getElementById('roadmap-view')?.classList.remove('show');
-    document.getElementById('settings-view')?.classList.remove('show');
-    document.getElementById('skills-view')?.classList.remove('show');
-    document.getElementById('documentation-view')?.classList.remove('show');
-    document.getElementById('bugs-view')?.classList.remove('show');
-    document.getElementById('suggestions-view')?.classList.remove('show');
-    // Clean up roadmap-mode when leaving roadmap
-    const right = document.querySelector('.right');
-    if (viewName !== 'roadmap') {
-        right?.classList.remove('roadmap-mode');
-        right?.classList.remove('has-selection');
-    }
-    // Show the requested view
-    switch (viewName) {
-        case 'backlog':
-            if (lv) lv.style.display = '';
-            break;
-        case 'roadmap':
-            openRoadmapView();
-            break;
-        case 'settings':
-            document.getElementById('settings-view')?.classList.add('show');
-            renderPiConfigTabs();
-            break;
-        case 'skills':
-            document.getElementById('skills-view')?.classList.add('show');
-            break;
-        case 'documentation':
-            document.getElementById('documentation-view')?.classList.add('show');
-            break;
-        case 'bugs':
-            document.getElementById('bugs-view')?.classList.add('show');
-            break;
-        case 'suggestions':
-            document.getElementById('suggestions-view')?.classList.add('show');
-            break;
-    }
+  // Update active state in sidebar
+  document.querySelectorAll('.sidebar-item').forEach((el) => {
+    el.classList.toggle('active', el.dataset.view === viewName);
+  });
+  // Hide all views
+  const lv = document.getElementById('list-view');
+  if (lv) lv.style.display = 'none';
+  document.getElementById('detail-view')?.classList.remove('show');
+  document.getElementById('refine-view')?.classList.remove('show');
+  document.getElementById('roadmap-view')?.classList.remove('show');
+  document.getElementById('settings-view')?.classList.remove('show');
+  document.getElementById('skills-view')?.classList.remove('show');
+  document.getElementById('documentation-view')?.classList.remove('show');
+  document.getElementById('bugs-view')?.classList.remove('show');
+  document.getElementById('suggestions-view')?.classList.remove('show');
+  // Clean up roadmap-mode when leaving roadmap
+  const right = document.querySelector('.right');
+  if (viewName !== 'roadmap') {
+    right?.classList.remove('roadmap-mode');
+    right?.classList.remove('has-selection');
+  }
+  // Show the requested view
+  switch (viewName) {
+    case 'backlog':
+      if (lv) lv.style.display = '';
+      break;
+    case 'roadmap':
+      openRoadmapView();
+      break;
+    case 'settings':
+      document.getElementById('settings-view')?.classList.add('show');
+      renderPiConfigTabs();
+      break;
+    case 'skills':
+      document.getElementById('skills-view')?.classList.add('show');
+      break;
+    case 'documentation':
+      document.getElementById('documentation-view')?.classList.add('show');
+      break;
+    case 'bugs':
+      document.getElementById('bugs-view')?.classList.add('show');
+      break;
+    case 'suggestions':
+      document.getElementById('suggestions-view')?.classList.add('show');
+      break;
+  }
 }
 // ── Settings view ─────────────────────────────────────────────
 function openSettingsView() {
-    navigateTo('settings');
+  navigateTo('settings');
 }
 function closeSettingsView() {
-    navigateTo('backlog');
+  navigateTo('backlog');
 }
 // ── FAB (Floating Action Button) ──────────────────────────────
 function openFab() {
-    document.getElementById('fab-panel')?.classList.add('open');
-    document.getElementById('fab-btn')?.classList.add('open');
+  document.getElementById('fab-panel')?.classList.add('open');
+  document.getElementById('fab-btn')?.classList.add('open');
 }
 function closeFab() {
-    document.getElementById('fab-panel')?.classList.remove('open');
-    document.getElementById('fab-btn')?.classList.remove('open');
+  document.getElementById('fab-panel')?.classList.remove('open');
+  document.getElementById('fab-btn')?.classList.remove('open');
 }
 function toggleFab() {
-    const panel = document.getElementById('fab-panel');
-    if (panel?.classList.contains('open')) {
-        closeFab();
-    }
-    else {
-        openFab();
-    }
+  const panel = document.getElementById('fab-panel');
+  if (panel?.classList.contains('open')) {
+    closeFab();
+  } else {
+    openFab();
+  }
 }
 (function _restoreLeftPanel() {
   try {
@@ -661,10 +661,10 @@ if (splitOverlay) {
   });
 }
 document.addEventListener('click', (e) => {
-    const fabContainer = document.getElementById('fab-container');
-    if (fabContainer && !fabContainer.contains(e.target)) {
-        closeFab();
-    }
+  const fabContainer = document.getElementById('fab-container');
+  if (fabContainer && !fabContainer.contains(e.target)) {
+    closeFab();
+  }
 });
 // ── Expose functions for HTML onclick attributes ──────────────
 // Using Object.assign to attach all handler functions to window without
@@ -680,6 +680,7 @@ const _globals = {
   setStatusFilter,
   setTeamFilter,
   setWorkCatFilter,
+  applyFiltersDebounced,
   handleItemClick,
   handleItemContextMenu,
   showContextMenu,

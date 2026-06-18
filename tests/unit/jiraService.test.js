@@ -69,22 +69,22 @@ describe('findLocalFileByJiraId', () => {
     );
   });
 
-  test('finds epic by JIRA_ID', () => {
-    const result = jiraService.findLocalFileByJiraId('EAMDM-100');
+  test('finds epic by JIRA_ID', async () => {
+    const result = await jiraService.findLocalFileByJiraId('EAMDM-100');
     assert.ok(result);
     assert.equal(result.docType, 'epic');
     assert.equal(result.filename, 'test-epic.md');
   });
 
-  test('finds story by JIRA_ID', () => {
-    const result = jiraService.findLocalFileByJiraId('EAMDM-200');
+  test('finds story by JIRA_ID', async () => {
+    const result = await jiraService.findLocalFileByJiraId('EAMDM-200');
     assert.ok(result);
     assert.equal(result.docType, 'story');
     assert.equal(result.filename, 'test-story.md');
   });
 
-  test('returns null for unknown JIRA_ID', () => {
-    const result = jiraService.findLocalFileByJiraId('EAMDM-999');
+  test('returns null for unknown JIRA_ID', async () => {
+    const result = await jiraService.findLocalFileByJiraId('EAMDM-999');
     assert.equal(result, null);
   });
 });
