@@ -1,5 +1,5 @@
 // ── Bug Dashboard ────────────────────────────────────────────────────────────
-import { fetchJSON, streamSSE } from './state.js';
+import { streamSSE } from './state.js';
 
 let _chart = null;
 let _allBugs = [];
@@ -9,7 +9,14 @@ let _selectedKeys = new Set();
 export async function loadBugsDashboard(force = false) {
   const refreshBtn = document.getElementById('bugs-refresh-btn');
   const cachedAtEl = document.getElementById('bugs-cached-at');
+  const loadingEl = document.getElementById('bugs-loading');
+  const loadingMsg = document.getElementById('bugs-loading-message');
+  const loadingBar = document.getElementById('bugs-loading-bar');
+  const errorBanner = document.getElementById('bugs-error-banner');
 
+  // Show loading, hide error
+  if (loadingEl) loadingEl.style.display = '';
+  if (errorBanner) errorBanner.style.display = 'none';
   if (refreshBtn) {
     refreshBtn.disabled = true;
     refreshBtn.textContent = '↻ Loading…';
@@ -17,7 +24,47 @@ export async function loadBugsDashboard(force = false) {
 
   try {
     const url = force ? '/api/bugs/dashboard?force=true' : '/api/bugs/dashboard';
-    const data = await fetchJSON(url);
+    const res = await fetch(url);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let data = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let parsed;
+        try {
+          parsed = JSON.parse(line.slice(6));
+        } catch {
+          continue;
+        }
+
+        if (parsed.type === 'progress') {
+          if (loadingMsg) loadingMsg.textContent = parsed.message || 'Loading…';
+          if (loadingBar && parsed.total && parsed.fetched != null) {
+            const pct = Math.round((parsed.fetched / parsed.total) * 100);
+            loadingBar.style.width = `${pct}%`;
+          }
+        } else if (parsed.type === 'complete') {
+          data = parsed.data;
+        } else if (parsed.type === 'error') {
+          throw new DashboardError(parsed.message, parsed.code);
+        }
+      }
+    }
+
+    if (!data) throw new DashboardError('No data received from server', 'EMPTY_RESPONSE');
+
+    // Hide loading
+    if (loadingEl) loadingEl.style.display = 'none';
+
     _allBugs = data.bugs || [];
     _selectedKeys.clear();
     filterBugsTable();
@@ -31,14 +78,14 @@ export async function loadBugsDashboard(force = false) {
     }
   } catch (err) {
     console.error('Failed to load bugs dashboard:', err);
-    const wrap = document.getElementById('bugs-chart-wrap');
-    if (wrap)
-      wrap.innerHTML = `<p class="bugs-error">Failed to load bug data: ${err.message || err}</p>`;
+    if (loadingEl) loadingEl.style.display = 'none';
+    _showError(err);
   } finally {
     if (refreshBtn) {
       refreshBtn.disabled = false;
       refreshBtn.textContent = '↻ Refresh';
     }
+    if (loadingBar) loadingBar.style.width = '0%';
   }
 }
 
@@ -134,7 +181,7 @@ export function renderBugsTable(bugs) {
   if (!wrap) return;
 
   if (!bugs || bugs.length === 0) {
-    wrap.innerHTML = '<p class="bugs-error">No bugs found.</p>';
+    wrap.innerHTML = '<p class="bugs-empty">No bugs match the current filters.</p>';
     _updateAnalyzeButton();
     return;
   }
@@ -246,6 +293,41 @@ export function closeBugsAnalysis() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+class DashboardError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.code = code;
+  }
+}
+
+function _showError(err) {
+  const banner = document.getElementById('bugs-error-banner');
+  const titleEl = document.getElementById('bugs-error-title');
+  const detailEl = document.getElementById('bugs-error-detail');
+  if (!banner) return;
+
+  const code = err.code || '';
+  let title = 'Failed to load bug data';
+  let detail = err.message || String(err);
+
+  if (code === 'JIRA_NOT_CONFIGURED') {
+    title = 'JIRA not configured';
+  } else if (detail.includes('timed out')) {
+    title = 'JIRA request timed out';
+  } else if (detail.includes('401') || detail.includes('403')) {
+    title = 'JIRA authentication failed';
+  } else if (detail.includes('404')) {
+    title = 'JIRA project not found';
+  } else if (detail.includes('Failed to fetch') || detail.includes('NetworkError')) {
+    title = 'Network error';
+    detail = 'Could not reach the server. Check your connection and try again.';
+  }
+
+  if (titleEl) titleEl.textContent = title;
+  if (detailEl) detailEl.textContent = detail;
+  banner.style.display = '';
+}
 
 function _statusClass(status) {
   const s = (status || '').toLowerCase().replace(/\s+/g, '-');
