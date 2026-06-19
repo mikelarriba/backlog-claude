@@ -5,6 +5,7 @@ let _chart = null;
 let _allBugs = [];
 let _filteredBugs = [];
 let _selectedKeys = new Set();
+let _includeClosed = false;
 
 export async function loadBugsDashboard(force = false) {
   const refreshBtn = document.getElementById('bugs-refresh-btn');
@@ -23,7 +24,11 @@ export async function loadBugsDashboard(force = false) {
   }
 
   try {
-    const url = force ? '/api/bugs/dashboard?force=true' : '/api/bugs/dashboard';
+    const params = new URLSearchParams();
+    if (force) params.set('force', 'true');
+    if (_includeClosed) params.set('includeClosed', 'true');
+    const qs = params.toString();
+    const url = `/api/bugs/dashboard${qs ? `?${qs}` : ''}`;
     const res = await fetch(url);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -290,6 +295,11 @@ export async function analyzeBugs() {
 export function closeBugsAnalysis() {
   const panel = document.getElementById('bugs-analysis-panel');
   if (panel) panel.style.display = 'none';
+}
+
+export function toggleClosedBugs(checked) {
+  _includeClosed = checked;
+  loadBugsDashboard(true);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
