@@ -107,7 +107,7 @@ export function renderBugsStats(stats) {
 
 export function renderBugsChart(timeSeries) {
   const canvas = document.getElementById('bugs-chart');
-  if (!canvas || typeof window.Chart === 'undefined') return;
+  if (!canvas || typeof window.Chart === 'undefined' || !timeSeries?.length) return;
 
   if (_chart) {
     _chart.destroy();

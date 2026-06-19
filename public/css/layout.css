@@ -181,6 +181,18 @@
   display: flex;
 }
 
+/* ── Bugs View ─────────────────────────────────────────────── */
+#bugs-view {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+}
+#bugs-view.show {
+  display: flex;
+}
+
 .settings-header {
   display: flex;
   align-items: center;
