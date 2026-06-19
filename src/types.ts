@@ -189,6 +189,13 @@ export interface BugRouteContext {
   docIndex: DocIndexInstance;
 }
 
+// ── Canvas route context ─────────────────────────────────────────────────────
+
+export interface CanvasRouteContext {
+  rootDir: string;
+  logInfo: Logger['logInfo'];
+}
+
 // ── Skills route context ──────────────────────────────────────────────────────────────
 
 export interface SkillsRouteContext {

@@ -885,13 +885,15 @@
         </div>
         <div id="bugs-view" class="view-panel">
           <div class="bugs-dash-header">
-            <div style="display:flex;align-items:center;gap:12px">
+            <div style="display: flex; align-items: center; gap: 12px">
               <button class="btn-ghost" onclick="navigateTo('backlog')">← Back</button>
               <span class="bugs-dash-title">🐛 Bug Dashboard</span>
             </div>
             <div class="bugs-dash-actions">
               <span class="bugs-dash-meta" id="bugs-cached-at"></span>
-              <button class="btn-secondary" id="bugs-refresh-btn" onclick="refreshBugsDashboard()">↻ Refresh</button>
+              <button class="btn-secondary" id="bugs-refresh-btn" onclick="refreshBugsDashboard()">
+                ↻ Refresh
+              </button>
             </div>
           </div>
           <div class="bugs-dash-body">
@@ -942,7 +944,7 @@
             <!-- Bug table -->
             <div id="bugs-table-wrap"></div>
             <!-- AI Analysis panel -->
-            <div class="bugs-analysis-panel" id="bugs-analysis-panel" style="display:none">
+            <div class="bugs-analysis-panel" id="bugs-analysis-panel" style="display: none">
               <div class="bugs-analysis-header">
                 <span>✨ AI Analysis</span>
                 <button class="btn-ghost btn-xs" onclick="closeBugsAnalysis()">&times;</button>
@@ -965,8 +967,22 @@
               <button class="btn-ghost btn-xs" onclick="closeFab()">&times;</button>
             </div>
             <div class="fab-tab-bar">
-              <button class="fab-tab active" id="fab-tab-create-btn" data-tab="create" onclick="switchFabTab('create')">Create</button>
-              <button class="fab-tab" id="fab-tab-import-btn" data-tab="import" onclick="switchFabTab('import')">Import</button>
+              <button
+                class="fab-tab active"
+                id="fab-tab-create-btn"
+                data-tab="create"
+                onclick="switchFabTab('create')"
+              >
+                Create
+              </button>
+              <button
+                class="fab-tab"
+                id="fab-tab-import-btn"
+                data-tab="import"
+                onclick="switchFabTab('import')"
+              >
+                Import
+              </button>
             </div>
             <!-- Create tab -->
             <div class="fab-tab-content active" id="fab-tab-create">

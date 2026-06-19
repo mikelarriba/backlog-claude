@@ -1,13 +1,5 @@
 // ── JIRA selection modal ─────────────────────────────────────
-import {
-  fetchJSON,
-  postJSON,
-  escHtml,
-  showJiraToast,
-  setJiraStatus,
-  toggleSection,
-  TYPE_LABEL,
-} from './state.js';
+import { fetchJSON, postJSON, escHtml, showJiraToast, setJiraStatus, TYPE_LABEL } from './state.js';
 import { openDoc, updateJiraStatus } from './detail.js';
 import { loadDocs } from './list.js';
 

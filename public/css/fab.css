@@ -82,7 +82,9 @@
   color: var(--text-muted, #6b7280);
   cursor: pointer;
   margin-bottom: -1px;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 .fab-tab:hover {
   color: var(--text, #111);
