@@ -209,49 +209,112 @@ function buildBugItems(bugs: unknown[]): BugItem[] {
 export default function bugsDashboardRoutes({
   JIRA_PROJECT,
   JIRA_LABEL,
-  jiraPagedRequest,
+  jiraRequest,
   streamClaude,
   logInfo,
   logError,
 }: JiraRouteContext) {
   const router = Router();
 
-  // GET /api/bugs/dashboard
-  router.get('/api/bugs/dashboard', async (req, res) => {
-    try {
-      if (!process.env.JIRA_API_TOKEN)
-        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+  // GET /api/bugs/dashboard — SSE streaming with progress events
+  router.get('/api/bugs/dashboard', async (_req, res) => {
+    setupSSE(res);
+    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-      const force = req.query.force === 'true';
+    try {
+      if (!process.env.JIRA_API_TOKEN) {
+        send({
+          type: 'error',
+          code: 'JIRA_NOT_CONFIGURED',
+          message:
+            'JIRA API token not configured. Set the JIRA_API_TOKEN environment variable to connect to JIRA.',
+        });
+        return res.end();
+      }
+
+      const force = _req.query.force === 'true';
       const now = Date.now();
 
+      // Check cache
       if (!force && _cache && now - _cache.fetchedAt < CACHE_TTL_MS) {
-        return res.json(_cache.data);
+        send({ type: 'progress', stage: 'cache', message: 'Using cached data…' });
+        send({ type: 'complete', data: _cache.data });
+        return res.end();
       }
+
+      // Paginated fetch with progress
+      send({ type: 'progress', stage: 'connecting', message: 'Connecting to JIRA…' });
 
       const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND issuetype = "Bug" ORDER BY created ASC`;
       const fields = 'summary,status,priority,created,resolutiondate,fixVersions,labels,assignee';
+      const maxResults = 100;
+      const maxTotal = 1000;
+      const allBugs: unknown[] = [];
+      let startAt = 0;
+      let jiraTotal: number | null = null;
+      let pageNum = 0;
 
       logInfo('bugs-dashboard', 'Fetching bugs from JIRA…');
-      const bugs = await jiraPagedRequest(jql, fields, {
-        maxResults: 100,
-        maxTotal: 1000,
-        expand: 'changelog',
+
+      while (true) {
+        pageNum++;
+        const progressMsg = jiraTotal
+          ? `Fetching bugs from JIRA… ${allBugs.length}/${jiraTotal} (page ${pageNum})`
+          : `Fetching bugs from JIRA… (page ${pageNum})`;
+        send({
+          type: 'progress',
+          stage: 'fetching',
+          message: progressMsg,
+          fetched: allBugs.length,
+          total: jiraTotal,
+        });
+
+        let url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}&expand=changelog`;
+        const page = (await jiraRequest('GET', url)) as Record<string, unknown>;
+        const issues = (page.issues as unknown[] | undefined) || [];
+        allBugs.push(...issues);
+
+        if (jiraTotal === null) jiraTotal = (page.total as number) || 0;
+
+        if (
+          allBugs.length >= maxTotal ||
+          allBugs.length >= (jiraTotal || 0) ||
+          issues.length < maxResults
+        )
+          break;
+        startAt += issues.length;
+      }
+
+      const fetchedBugs = allBugs.slice(0, maxTotal);
+      logInfo('bugs-dashboard', `Fetched ${fetchedBugs.length} bugs from JIRA`);
+
+      send({
+        type: 'progress',
+        stage: 'processing',
+        message: `Processing ${fetchedBugs.length} bugs…`,
+        fetched: fetchedBugs.length,
+        total: fetchedBugs.length,
       });
 
-      const timeSeries = buildTimeSeries(bugs);
-      const stats = buildStats(bugs);
-      const bugItems = buildBugItems(bugs);
+      const timeSeries = buildTimeSeries(fetchedBugs);
+      const stats = buildStats(fetchedBugs);
+      const bugItems = buildBugItems(fetchedBugs);
       const cachedAt = new Date().toISOString();
 
       const data: DashboardData = { timeSeries, bugs: bugItems, stats, cachedAt };
       _cache = { data, fetchedAt: now };
 
-      res.json(data);
+      send({ type: 'complete', data });
+      res.end();
     } catch (err) {
       const apiErr = parseApiError(err);
       logError('GET /api/bugs/dashboard', apiErr.message);
-      return sendError(res, 500, apiErr.code, apiErr.message);
+      try {
+        send({ type: 'error', code: apiErr.code, message: apiErr.message });
+        res.end();
+      } catch {
+        /* response already closed */
+      }
     }
   });
 

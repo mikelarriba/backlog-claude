@@ -897,6 +897,27 @@
             </div>
           </div>
           <div class="bugs-dash-body">
+            <!-- Loading overlay -->
+            <div class="bugs-loading" id="bugs-loading" style="display: none">
+              <div class="bugs-loading-inner">
+                <div class="bugs-loading-spinner"></div>
+                <div class="bugs-loading-message" id="bugs-loading-message">
+                  Connecting to JIRA…
+                </div>
+                <div class="bugs-loading-bar-wrap">
+                  <div class="bugs-loading-bar" id="bugs-loading-bar"></div>
+                </div>
+              </div>
+            </div>
+            <!-- Error banner -->
+            <div class="bugs-error-banner" id="bugs-error-banner" style="display: none">
+              <div class="bugs-error-icon">⚠</div>
+              <div class="bugs-error-content">
+                <div class="bugs-error-title" id="bugs-error-title">Failed to load bugs</div>
+                <div class="bugs-error-detail" id="bugs-error-detail"></div>
+              </div>
+              <button class="btn-secondary" onclick="refreshBugsDashboard()">Retry</button>
+            </div>
             <!-- Stats row -->
             <div class="bugs-stats-row">
               <div class="bugs-stat-card">
