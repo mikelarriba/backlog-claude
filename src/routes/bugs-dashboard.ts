@@ -273,7 +273,7 @@ export default function bugsDashboardRoutes({
           total: jiraTotal,
         });
 
-        let url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}&expand=changelog`;
+        const url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}&expand=changelog`;
         const page = (await jiraRequest('GET', url)) as Record<string, unknown>;
         const issues = (page.issues as unknown[] | undefined) || [];
         allBugs.push(...issues);
