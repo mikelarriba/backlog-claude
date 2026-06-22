@@ -1,6 +1,7 @@
-// ── Levelled logger ───────────────────────────────────────────────────────────
-// Reads LOG_LEVEL at call time so tests can set process.env.LOG_LEVEL before
-// importing and still change it mid-run. Levels: debug < info < warn < error.
+// ── Structured JSON logger ─────────────────────────────────────────────────────
+// Each log line is a valid JSON object: { ts, level, msg, prefix, scope, ...meta }.
+// Reads LOG_LEVEL at call time so tests can change process.env.LOG_LEVEL mid-run.
+// Levels: debug < info < warn < error.
 //
 // Usage:
 //   import { createLogger } from './logger.js';
@@ -13,8 +14,23 @@ function currentLevel(): number {
   return LEVEL_MAP[raw] ?? LEVEL_MAP.info;
 }
 
-function fmt(prefix: string, level: string, scope: string, message: string): string {
-  return `${prefix} ${new Date().toISOString()} [${level}] [${scope}] ${message}`;
+function emit(
+  level: string,
+  consoleFn: (...args: unknown[]) => void,
+  prefix: string,
+  scope: string,
+  msg: string,
+  meta?: Record<string, unknown>
+): void {
+  const entry: Record<string, unknown> = {
+    ts: new Date().toISOString(),
+    level,
+    msg,
+    prefix,
+    scope,
+    ...meta,
+  };
+  consoleFn(JSON.stringify(entry));
 }
 
 export interface Logger {
@@ -24,24 +40,22 @@ export interface Logger {
   logError: (scope: string, message: string, meta?: Record<string, unknown>) => void;
 }
 
-/**
- * Create a set of levelled log functions bound to an application prefix.
- */
 export function createLogger(prefix: string): Logger {
   return {
-    logDebug: (scope: string, message: string, meta: Record<string, unknown> = {}) => {
+    logDebug: (scope, message, meta) => {
       if (currentLevel() <= LEVEL_MAP.debug)
-        console.debug(fmt(prefix, 'DEBUG', scope, message), meta);
+        emit('debug', console.debug, prefix, scope, message, meta);
     },
-    logInfo: (scope: string, message: string, meta: Record<string, unknown> = {}) => {
-      if (currentLevel() <= LEVEL_MAP.info) console.log(fmt(prefix, 'INFO', scope, message), meta);
+    logInfo: (scope, message, meta) => {
+      if (currentLevel() <= LEVEL_MAP.info) emit('info', console.log, prefix, scope, message, meta);
     },
-    logWarn: (scope: string, message: string, meta: Record<string, unknown> = {}) => {
-      if (currentLevel() <= LEVEL_MAP.warn) console.warn(fmt(prefix, 'WARN', scope, message), meta);
+    logWarn: (scope, message, meta) => {
+      if (currentLevel() <= LEVEL_MAP.warn)
+        emit('warn', console.warn, prefix, scope, message, meta);
     },
-    logError: (scope: string, message: string, meta: Record<string, unknown> = {}) => {
+    logError: (scope, message, meta) => {
       if (currentLevel() <= LEVEL_MAP.error)
-        console.error(fmt(prefix, 'ERROR', scope, message), meta);
+        emit('error', console.error, prefix, scope, message, meta);
     },
   };
 }

@@ -81,17 +81,18 @@ describe('createLogger — level filtering', () => {
     );
   });
 
-  test('log output includes scope and message', () => {
+  test('log output is valid JSON with required fields', () => {
     process.env.LOG_LEVEL = 'info';
     calls.length = 0;
     const { logInfo } = createLogger('[myapp]');
     logInfo('my-scope', 'hello world');
     assert.equal(calls.length, 1);
-    const [msg] = calls[0].args;
-    assert.match(msg, /\[myapp\]/);
-    assert.match(msg, /\[INFO\]/);
-    assert.match(msg, /\[my-scope\]/);
-    assert.match(msg, /hello world/);
+    const parsed = JSON.parse(calls[0].args[0]);
+    assert.equal(parsed.prefix, '[myapp]');
+    assert.equal(parsed.level, 'info');
+    assert.equal(parsed.scope, 'my-scope');
+    assert.equal(parsed.msg, 'hello world');
+    assert.ok(typeof parsed.ts === 'string', 'ts should be an ISO string');
   });
 });
 
