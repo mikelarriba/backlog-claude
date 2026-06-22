@@ -38,6 +38,7 @@ import skillsRoutes from './src/routes/skills.js';
 import exportRoutes from './src/routes/export.js';
 import bugsDashboardRoutes from './src/routes/bugs-dashboard.js';
 import { apiLimiter, aiLimiter, jiraLimiter } from './src/middleware/rateLimiter.js';
+import { buildOpenApiSpec } from './src/config/openapi.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -183,6 +184,27 @@ app.get('/api/health', (_req, res) => {
     version: process.env.npm_package_version ?? 'unknown',
   });
 });
+
+const _openApiSpec = buildOpenApiSpec();
+const _swaggerUiPath = path.join(__dirname, 'node_modules', 'swagger-ui-dist');
+
+app.get('/api-docs/swagger-initializer.js', (_req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.send(
+    `window.onload = function() {
+  window.ui = SwaggerUIBundle({
+    url: '/api-docs/openapi.json',
+    dom_id: '#swagger-ui',
+    presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+    layout: 'BaseLayout',
+    deepLinking: true,
+  });
+};`
+  );
+});
+
+app.get('/api-docs/openapi.json', (_req, res) => res.json(_openApiSpec));
+app.use('/api-docs', express.static(_swaggerUiPath));
 
 app.get('/swagger/openapi.yaml', (_req, res) => {
   res.setHeader('Content-Type', 'application/yaml; charset=utf-8');
