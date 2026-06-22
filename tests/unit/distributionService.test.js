@@ -64,7 +64,7 @@ describe('proposeDistribution — single sprint', () => {
     const docs = [makeDoc({ storyPoints: 0, hasEstimate: false })];
     const result = proposeDistribution(docs, [{ name: 'S1', capacity: 10 }], EMPTY_EPIC_MAP);
     assert.equal(result.overflow.length, 1);
-    assert.ok(result.warnings.some((w) => w.includes('no story point estimate')));
+    assert.ok(result.warnings.some((w) => w.message.includes('no story point estimate')));
   });
 });
 
@@ -139,7 +139,7 @@ describe('proposeDistribution — parallel co-location', () => {
       { name: 'S2', capacity: 10 },
     ];
     const result = proposeDistribution([a, b], sprints, EMPTY_EPIC_MAP);
-    assert.ok(result.warnings.some((w) => w.includes('could not be co-located')));
+    assert.ok(result.warnings.some((w) => w.message.includes('could not be co-located')));
   });
 });
 
@@ -156,7 +156,7 @@ describe('proposeDistribution — over-capacity sprints', () => {
       makeDoc({ filename: 'b.md', storyPoints: 8 }),
     ];
     const result = proposeDistribution(docs, [{ name: 'S1', capacity: 10 }], EMPTY_EPIC_MAP);
-    assert.ok(result.warnings.some((w) => w.includes('exceed total sprint capacity')));
+    assert.ok(result.warnings.some((w) => w.message.includes('exceed total sprint capacity')));
   });
 });
 
