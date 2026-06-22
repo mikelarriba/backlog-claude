@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { jiraToMarkdown } from '../utils/transforms.js';
 import type { TypeConfig } from '../types.js';
+import { config } from '../config/env.js';
 
 export const LOCAL_TO_JIRA_TYPE: Record<string, string> = {
   feature: 'New Feature',
@@ -19,7 +20,7 @@ export const JIRA_TO_LOCAL_TYPE: Record<string, string> = {
   Bug: 'bug',
 };
 
-const JIRA_TIMEOUT_MS = Number(process.env.JIRA_TIMEOUT_MS) || 30_000;
+const JIRA_TIMEOUT_MS = config.JIRA_TIMEOUT_MS;
 
 interface JiraServiceConfig {
   JIRA_BASE: string;

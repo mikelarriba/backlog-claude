@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import { createLogger } from '../utils/logger.js';
+import { config } from '../config/env.js';
 
 const { logDebug, logInfo } = createLogger('[claudeService]');
 
@@ -35,7 +36,7 @@ class Semaphore {
   }
 }
 
-const _concurrency = parseInt(process.env.CLAUDE_CONCURRENCY || '3', 10);
+const _concurrency = config.CLAUDE_CONCURRENCY;
 const _semaphore = new Semaphore(
   Number.isFinite(_concurrency) && _concurrency > 0 ? _concurrency : 3
 );
@@ -157,7 +158,7 @@ export function getProviderOverride(): string | null {
 
 // ── Ollama local provider ──────────────────────────────────────────────────────
 function _getOllamaBaseUrl(): string {
-  return process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  return config.OLLAMA_BASE_URL;
 }
 
 const OLLAMA_CACHE_TTL_MS = 30_000;
@@ -277,9 +278,9 @@ function buildClaudeArgs(prompt: string): string[] {
 }
 
 // callClaude (non-streaming): default 3 min, configurable via CLAUDE_TIMEOUT_MS
-const CALL_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS) || 180_000;
+const CALL_TIMEOUT_MS = config.CLAUDE_TIMEOUT_MS;
 // streamClaude (streaming): default 5 min (CLAUDE_TIMEOUT_MS * 1.67, or own env var)
-const STREAM_TIMEOUT_MS = Number(process.env.CLAUDE_STREAM_TIMEOUT_MS) || 300_000;
+const STREAM_TIMEOUT_MS = config.CLAUDE_STREAM_TIMEOUT_MS;
 
 // Strip code fences that models sometimes wrap around output.
 export function normalizeOutput(content: string): string {
