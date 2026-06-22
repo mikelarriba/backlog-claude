@@ -218,6 +218,7 @@ import {
   closeBugsAnalysis,
   bugToggleKey,
   bugToggleAll,
+  toggleClosedBugs,
 } from './bugs-dashboard.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -926,6 +927,7 @@ const _globals = {
   closeBugsAnalysis,
   bugToggleKey,
   bugToggleAll,
+  toggleClosedBugs,
 };
 Object.assign(window, _globals);
 //# sourceMappingURL=main.js.map

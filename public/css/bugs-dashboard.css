@@ -96,6 +96,16 @@
   cursor: pointer;
 }
 
+.bugs-toggle-closed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .bugs-selection-count {
   font-size: 0.82rem;
   color: var(--text-muted);

@@ -957,6 +957,14 @@
                 <option value="resolved">Resolved</option>
                 <option value="closed">Closed</option>
               </select>
+              <label class="bugs-toggle-closed">
+                <input
+                  type="checkbox"
+                  id="bugs-include-closed"
+                  onchange="toggleClosedBugs(this.checked)"
+                />
+                Include closed
+              </label>
               <span class="bugs-selection-count" id="bugs-selection-count"></span>
               <button class="btn-primary" id="bugs-analyze-btn" onclick="analyzeBugs()" disabled>
                 ✨ AI Analyze

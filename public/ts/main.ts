@@ -219,6 +219,7 @@ import {
   closeBugsAnalysis,
   bugToggleKey,
   bugToggleAll,
+  toggleClosedBugs,
 } from './bugs-dashboard.js';
 
 if ('serviceWorker' in navigator) {
@@ -1018,6 +1019,7 @@ const _globals: Record<string, unknown> = {
   closeBugsAnalysis,
   bugToggleKey,
   bugToggleAll,
+  toggleClosedBugs,
 };
 
 Object.assign(window, _globals);

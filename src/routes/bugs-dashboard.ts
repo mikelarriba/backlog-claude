@@ -44,7 +44,8 @@ interface DashboardCache {
 }
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
-let _cache: DashboardCache | null = null;
+let _cacheOpen: DashboardCache | null = null;
+let _cacheAll: DashboardCache | null = null;
 
 function weekLabel(date: Date): string {
   const month = date.toLocaleString('en-US', { month: 'short' });
@@ -233,19 +234,22 @@ export default function bugsDashboardRoutes({
       }
 
       const force = _req.query.force === 'true';
+      const includeClosed = _req.query.includeClosed === 'true';
       const now = Date.now();
 
-      // Check cache
-      if (!force && _cache && now - _cache.fetchedAt < CACHE_TTL_MS) {
+      // Check cache (separate caches for open-only vs all bugs)
+      const cache = includeClosed ? _cacheAll : _cacheOpen;
+      if (!force && cache && now - cache.fetchedAt < CACHE_TTL_MS) {
         send({ type: 'progress', stage: 'cache', message: 'Using cached data…' });
-        send({ type: 'complete', data: _cache.data });
+        send({ type: 'complete', data: cache.data });
         return res.end();
       }
 
       // Paginated fetch with progress
       send({ type: 'progress', stage: 'connecting', message: 'Connecting to JIRA…' });
 
-      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND issuetype = "Bug" ORDER BY created ASC`;
+      const closedFilter = includeClosed ? '' : ' AND statusCategory != Done';
+      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND issuetype = "Bug"${closedFilter} ORDER BY created ASC`;
       const fields = 'summary,status,priority,created,resolutiondate,fixVersions,labels,assignee';
       const maxResults = 100;
       const maxTotal = 1000;
@@ -269,7 +273,7 @@ export default function bugsDashboardRoutes({
           total: jiraTotal,
         });
 
-        let url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}&expand=changelog`;
+        const url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}&fields=${encodeURIComponent(fields)}&expand=changelog`;
         const page = (await jiraRequest('GET', url)) as Record<string, unknown>;
         const issues = (page.issues as unknown[] | undefined) || [];
         allBugs.push(...issues);
@@ -302,7 +306,8 @@ export default function bugsDashboardRoutes({
       const cachedAt = new Date().toISOString();
 
       const data: DashboardData = { timeSeries, bugs: bugItems, stats, cachedAt };
-      _cache = { data, fetchedAt: now };
+      if (includeClosed) _cacheAll = { data, fetchedAt: now };
+      else _cacheOpen = { data, fetchedAt: now };
 
       send({ type: 'complete', data });
       res.end();
@@ -325,7 +330,10 @@ export default function bugsDashboardRoutes({
         return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
       const { bugKeys } = req.body as { bugKeys: string[] };
-      const cachedBugs = _cache?.data?.bugs ?? [];
+      const cachedBugs = [
+        ...(_cacheOpen?.data?.bugs ?? []),
+        ...(_cacheAll?.data?.bugs ?? []),
+      ].filter((b, i, arr) => arr.findIndex((x) => x.key === b.key) === i);
       const selected = cachedBugs.filter((b) => bugKeys.includes(b.key));
 
       if (selected.length === 0)
