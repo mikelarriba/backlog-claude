@@ -26,7 +26,7 @@ describe('POST /api/jira/check-all — no token configured', () => {
   test('returns 503 when JIRA_API_TOKEN is not set', async () => {
     const { status, data } = await api('POST', '/api/jira/check-all');
     assert.equal(status, 503);
-    assert.equal(data.error.code, 'JIRA_NOT_CONFIGURED');
+    assert.equal(data.code, 'JIRA_NOT_CONFIGURED');
   });
 });
 

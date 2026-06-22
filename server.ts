@@ -12,7 +12,7 @@ import { createEventService } from './src/services/eventService.js';
 import { createJiraService } from './src/services/jiraService.js';
 import { watchInbox } from './src/services/inboxWatcher.js';
 import { isoDate, slugify } from './src/utils/transforms.js';
-import { ensureDir } from './src/utils/routeHelpers.js';
+import { ensureDir, sendError } from './src/utils/routeHelpers.js';
 import { ValidationError } from './src/utils/validate.js';
 import { createLogger } from './src/utils/logger.js';
 import { requestLogger } from './src/utils/requestLogger.js';
@@ -291,7 +291,7 @@ app.use(bugsDashboardRoutes(jiraShared));
 // ── Centralised ValidationError handler ───────────────────────────────────────────────
 const validationErrorHandler: ErrorRequestHandler = (err, _req, res, next) => {
   if (err instanceof ValidationError) {
-    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+    sendError(res, 400, 'VALIDATION_ERROR', err.message);
     return;
   }
   next(err);

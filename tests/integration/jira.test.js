@@ -44,7 +44,7 @@ describe('JIRA push — no token configured', () => {
       `/api/jira/push/epic/${encodeURIComponent(epicFilename)}`
     );
     assert.equal(status, 503);
-    assert.equal(data.error.code, 'JIRA_NOT_CONFIGURED');
+    assert.equal(data.code, 'JIRA_NOT_CONFIGURED');
   });
 });
 
@@ -306,7 +306,7 @@ Test.
       `/api/jira/sync-status/epic/${encodeURIComponent(doc.filename)}`
     );
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'NO_JIRA_ID');
+    assert.equal(data.code, 'NO_JIRA_ID');
   });
 
   test('writes JIRA_Status and Story_Points to frontmatter', async () => {

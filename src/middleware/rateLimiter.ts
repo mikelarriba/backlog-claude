@@ -22,7 +22,7 @@ export const aiLimiter = rateLimit({
   max: aiMax,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: { code: 'RATE_LIMITED', message: 'Too many AI requests, please wait.' } },
+  message: { error: 'Too many AI requests, please wait.', code: 'RATE_LIMITED' },
   skip: skipInTest,
 });
 

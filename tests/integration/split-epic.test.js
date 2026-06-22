@@ -26,13 +26,13 @@ describe('POST /api/split-epic — validation', () => {
   test('returns 400 when epicFilename is missing', async () => {
     const { status, data } = await api('POST', '/api/split-epic', { description: 'test' });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('returns 400 when description is missing', async () => {
     const { status, data } = await api('POST', '/api/split-epic', { epicFilename: 'test.md' });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('returns 404 when epic file does not exist', async () => {

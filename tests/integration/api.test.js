@@ -74,13 +74,13 @@ describe('POST /api/generate', () => {
   test('returns 400 when idea is missing', async () => {
     const { status, data } = await api('POST', '/api/generate', { type: 'epic' });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('returns 400 for an invalid doc type', async () => {
     const { status, data } = await api('POST', '/api/generate', { idea: 'Test', type: 'bogus' });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'INVALID_TYPE');
+    assert.equal(data.code, 'INVALID_TYPE');
   });
 
   test('creates an epic and returns filename + docType', async () => {
@@ -143,7 +143,7 @@ describe('GET /api/doc/:type/:filename', () => {
   test('returns 404 for a non-existent doc', async () => {
     const { status, data } = await api('GET', '/api/doc/epic/does-not-exist.md');
     assert.equal(status, 404);
-    assert.equal(data.error.code, 'NOT_FOUND');
+    assert.equal(data.code, 'NOT_FOUND');
   });
 
   test('returns 400 for an invalid type', async () => {
@@ -186,7 +186,7 @@ describe('PATCH /api/doc/:type/:filename — update status', () => {
       status: 'WrongStatus',
     });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'INVALID_STATUS');
+    assert.equal(data.code, 'INVALID_STATUS');
   });
 
   test('returns 404 when doc does not exist', async () => {
@@ -295,7 +295,7 @@ describe('POST /api/link', () => {
   test('returns 400 for missing fields', async () => {
     const { status, data } = await api('POST', '/api/link', { sourceType: 'story' });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('returns 400 for invalid link direction', async () => {
@@ -306,7 +306,7 @@ describe('POST /api/link', () => {
       targetFilename: storyFilename,
     });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'INVALID_LINK');
+    assert.equal(data.code, 'INVALID_LINK');
   });
 
   test('returns 404 when source document does not exist', async () => {
@@ -331,7 +331,7 @@ describe('POST /api/link', () => {
       targetFilename: 'nonexistent-epic.md',
     });
     assert.equal(status, 404);
-    assert.equal(data.error.code, 'NOT_FOUND');
+    assert.equal(data.code, 'NOT_FOUND');
   });
 });
 
@@ -569,7 +569,7 @@ describe('POST /api/link — target document validation', () => {
       targetFilename: 'nonexistent-target.md',
     });
     assert.equal(status, 404);
-    assert.equal(data.error.code, 'NOT_FOUND');
+    assert.equal(data.code, 'NOT_FOUND');
   });
 });
 
@@ -625,7 +625,7 @@ describe('PATCH /api/doc/:type/:filename — storyPoints validation', () => {
       storyPoints: -5,
     });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('accepts storyPoints of 0', async () => {
@@ -649,7 +649,7 @@ describe('POST /api/docs/apply-distribution — entry validation', () => {
       assignments: [{ docType: 'story', filename: 'some-story.md' }],
     });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('returns 400 when sprint is not a string', async () => {
@@ -657,7 +657,7 @@ describe('POST /api/docs/apply-distribution — entry validation', () => {
       assignments: [{ docType: 'story', filename: 'some-story.md', sprint: 42 }],
     });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('applies valid assignments successfully', async () => {
