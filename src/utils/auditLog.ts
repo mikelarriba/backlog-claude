@@ -10,6 +10,7 @@ import { createLogger } from './logger.js';
 const { logWarn } = createLogger('[audit]');
 
 export function logAudit(event: Omit<AuditEvent, 'ts'>): void {
+  // Read at call time so tests that change AUDIT_LOG_PATH mid-run are respected.
   const auditPath = process.env.AUDIT_LOG_PATH ?? './audit.log';
   if (!auditPath || auditPath === 'none') return;
 

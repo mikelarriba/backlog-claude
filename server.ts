@@ -18,6 +18,7 @@ import { createLogger } from './src/utils/logger.js';
 import { requestLogger } from './src/utils/requestLogger.js';
 import { createTypeConfig } from './src/config/docTypes.js';
 import { TEAMS, WORK_CATEGORIES } from './src/config/metadata.js';
+import { config } from './src/config/env.js';
 import { createDocIndex } from './src/services/docIndex.js';
 import { validateJiraConfig } from './src/services/jiraValidator.js';
 import docsCrudRoutes from './src/routes/docs-crud.js';
@@ -42,7 +43,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.PORT;
 
 const { logInfo, logWarn, logError } = createLogger('[midas-backlog]');
 
@@ -60,17 +61,14 @@ const SPIKES_DIR = TYPE_CONFIG.spike.dir();
 const BUGS_DIR = TYPE_CONFIG.bug.dir();
 
 // ── JIRA config ───────────────────────────────────────────────────────────────────
-const JIRA_BASE = (process.env.JIRA_BASE_URL || 'https://devstack.vwgroup.com/jira').replace(
-  /\/$/,
-  ''
-);
-const JIRA_TOKEN = process.env.JIRA_API_TOKEN || '';
-const JIRA_PROJECT = process.env.JIRA_PROJECT || 'EAMDM';
-const JIRA_LABEL = process.env.JIRA_LABEL || 'MIDAS_Development';
-const FIELD_EPIC_NAME = process.env.JIRA_FIELD_EPIC_NAME || 'customfield_10002';
-const FIELD_EPIC_LINK = process.env.JIRA_FIELD_EPIC_LINK || 'customfield_10000';
-const FIELD_STORY_POINTS = process.env.JIRA_FIELD_STORY_POINTS || 'customfield_10006';
-const JIRA_BOARD_ID = process.env.JIRA_BOARD_ID || '';
+const JIRA_BASE = config.JIRA_BASE_URL.replace(/\/$/, '');
+const JIRA_TOKEN = config.JIRA_API_TOKEN;
+const JIRA_PROJECT = config.JIRA_PROJECT;
+const JIRA_LABEL = config.JIRA_LABEL;
+const FIELD_EPIC_NAME = config.JIRA_FIELD_EPIC_NAME;
+const FIELD_EPIC_LINK = config.JIRA_FIELD_EPIC_LINK;
+const FIELD_STORY_POINTS = config.JIRA_FIELD_STORY_POINTS;
+const JIRA_BOARD_ID = config.JIRA_BOARD_ID;
 
 const {
   jiraRequest,

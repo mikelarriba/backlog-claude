@@ -1,10 +1,12 @@
 import rateLimit from 'express-rate-limit';
+import { config } from '../config/env.js';
 
-const apiMax = Number(process.env.RATE_LIMIT_API) || 300;
-const aiMax = Number(process.env.RATE_LIMIT_AI) || 20;
-const jiraMax = Number(process.env.RATE_LIMIT_JIRA) || 60;
+const apiMax = config.RATE_LIMIT_API;
+const aiMax = config.RATE_LIMIT_AI;
+const jiraMax = config.RATE_LIMIT_JIRA;
 
-// Skip rate limiting entirely in test environments (MOCK_CLAUDE=1)
+// Skip rate limiting in test environments — read MOCK_CLAUDE dynamically so
+// test setup that sets it in before() hooks is picked up at request time.
 const skipInTest = () => !!process.env.MOCK_CLAUDE;
 
 export const apiLimiter = rateLimit({

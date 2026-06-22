@@ -3,8 +3,7 @@ import path from 'path';
 import type { BroadcastFn } from '../types.js';
 import type { Logger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLog.js';
-
-const DEFAULT_MAX_RETRIES = 3;
+import { config } from '../config/env.js';
 
 interface InboxWatcherOptions {
   INBOX_DIR: string;
@@ -34,7 +33,7 @@ export function watchInbox({
   ensureDir(INBOX_DIR);
   const allDocDirs = DOC_DIRS || [EPICS_DIR];
   const _isClaimed = isClaimedByApi || (() => false);
-  const maxRetries = Number(process.env.INBOX_MAX_RETRIES) || DEFAULT_MAX_RETRIES;
+  const maxRetries = config.INBOX_MAX_RETRIES;
 
   // Skip if already saved to any doc dir OR if the API is currently generating it
   const shouldSkip = (filename: string): boolean =>
