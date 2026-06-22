@@ -82,7 +82,7 @@ describe('POST /api/docs/batch-delete', () => {
   test('returns 400 when docs array is empty', async () => {
     const { status, data } = await api('POST', '/api/docs/batch-delete', { docs: [] });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('deletes multiple documents in one request', async () => {
@@ -142,13 +142,13 @@ describe('POST /api/docs/distribute', () => {
   test('returns 400 when piName is missing', async () => {
     const { status, data } = await api('POST', '/api/docs/distribute', {});
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('returns 400 when no sprint config exists for the PI', async () => {
     const { status, data } = await api('POST', '/api/docs/distribute', { piName: 'NonExistentPI' });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'NO_SPRINTS');
+    assert.equal(data.code, 'NO_SPRINTS');
   });
 
   test('returns sprint buckets for a configured PI', async () => {
@@ -170,7 +170,7 @@ describe('POST /api/docs/split-story', () => {
     // Pre-SSE validation returns plain JSON
     const { status, data } = await api('POST', '/api/docs/split-story', {});
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('returns 400 when targetCount is not a number', async () => {
@@ -184,7 +184,7 @@ describe('POST /api/docs/split-story', () => {
       targetCount: 'abc',
     });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('returns 404 when source file does not exist', async () => {
@@ -194,7 +194,7 @@ describe('POST /api/docs/split-story', () => {
       targetCount: 2,
     });
     assert.equal(status, 404);
-    assert.equal(data.error.code, 'NOT_FOUND');
+    assert.equal(data.code, 'NOT_FOUND');
   });
 
   test('streams SSE events for an existing story (mock returns error event)', async () => {
@@ -239,7 +239,7 @@ describe('POST /api/doc/:type/:filename/upgrade', () => {
       feedback: 'Improve the objective section',
     });
     assert.equal(status, 404);
-    assert.equal(data.error.code, 'NOT_FOUND');
+    assert.equal(data.code, 'NOT_FOUND');
   });
 
   test('streams upgraded content and sends done:true (mock Claude)', async () => {

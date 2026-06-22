@@ -43,7 +43,7 @@ describe('/api/v1/ — versioned endpoint alias', () => {
   test('POST /api/v1/generate accepts and handles missing idea (same 400)', async () => {
     const { status, data } = await api('POST', '/api/v1/generate', { type: 'epic' });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'VALIDATION_ERROR');
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 
   test('/api/ and /api/v1/ paths share state (doc created via v1 appears in /api/docs)', async () => {

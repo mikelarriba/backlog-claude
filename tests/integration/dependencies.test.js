@@ -121,7 +121,7 @@ describe('POST /api/link — cycle detection', () => {
       linkType: 'blocks',
     });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'CYCLE_DETECTED');
+    assert.equal(data.code, 'CYCLE_DETECTED');
   });
 
   test('rejects a self-link', async () => {
@@ -133,7 +133,7 @@ describe('POST /api/link — cycle detection', () => {
       linkType: 'blocks',
     });
     assert.equal(status, 400);
-    assert.equal(data.error.code, 'INVALID_LINK');
+    assert.equal(data.code, 'INVALID_LINK');
   });
 });
 

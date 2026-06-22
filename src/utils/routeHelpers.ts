@@ -6,38 +6,34 @@ import type { Request, Response } from 'express';
 import { WORKFLOW_STATUSES } from './transforms.js';
 import { ValidationError } from './validate.js';
 import type { TypeConfig, TypeConfigEntry } from '../types.js';
-
-interface ApiError {
-  code: string;
-  message: string;
-  details?: unknown;
-}
+import type { ApiError } from '../types/errors.js';
 
 export function sendError(
   res: Response,
   status: number,
   code: string,
   message: string,
-  details: unknown = null
+  details: unknown = undefined
 ): Response {
-  return res.status(status).json({
-    error: {
-      code,
-      message,
-      ...(details ? { details } : {}),
-    },
-  });
+  const body: ApiError = { error: message, code, ...(details !== undefined ? { details } : {}) };
+  return res.status(status).json(body);
 }
 
 export function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+interface ParsedError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
 export function parseApiError(
   err: unknown,
   fallbackCode = 'INTERNAL_ERROR',
   fallbackMessage = 'Unexpected server error'
-): ApiError {
+): ParsedError {
   if (!err) return { code: fallbackCode, message: fallbackMessage };
   if (err instanceof ValidationError) return { code: 'VALIDATION_ERROR', message: err.message };
   if (typeof err === 'string') return { code: fallbackCode, message: err };

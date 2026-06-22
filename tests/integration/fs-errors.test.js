@@ -37,7 +37,7 @@ describe('GET /api/doc — file deleted from disk after indexing', () => {
       `/api/doc/epic/${encodeURIComponent(filename)}`
     );
     assert.equal(gs, 404);
-    assert.equal(gd.error.code, 'NOT_FOUND');
+    assert.equal(gd.code, 'NOT_FOUND');
   });
 
   test('server remains healthy after a missing-file 404', async () => {
@@ -63,7 +63,7 @@ describe('PATCH /api/doc — file deleted between index lookup and write', () =>
       status: 'Archived',
     });
     assert.equal(status, 404);
-    assert.equal(data.error.code, 'NOT_FOUND');
+    assert.equal(data.code, 'NOT_FOUND');
   });
 });
 
@@ -71,6 +71,6 @@ describe('DELETE /api/doc — file already absent', () => {
   test('returns 404 when trying to delete a non-existent file', async () => {
     const { status, data } = await api('DELETE', '/api/doc/epic/2099-01-01-ghost-epic.md');
     assert.equal(status, 404);
-    assert.equal(data.error.code, 'NOT_FOUND');
+    assert.equal(data.code, 'NOT_FOUND');
   });
 });

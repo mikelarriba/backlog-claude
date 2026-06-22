@@ -3,6 +3,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import type { CanvasRouteContext } from '../types.js';
+import { sendError } from '../utils/routeHelpers.js';
 
 export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
   const router = Router();
@@ -38,9 +39,7 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
     const epicFilename = decodeURIComponent(req.params.epicFilename);
     const { positions } = req.body;
     if (!positions || typeof positions !== 'object') {
-      return res
-        .status(400)
-        .json({ error: { code: 'VALIDATION_ERROR', message: 'positions object is required' } });
+      return sendError(res, 400, 'VALIDATION_ERROR', 'positions object is required');
     }
 
     // Validate all positions have non-negative integer col/row
@@ -53,12 +52,12 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
         !Number.isInteger(pos.row) ||
         (pos.row as number) < 0
       ) {
-        return res.status(400).json({
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: `Position for "${fn}" must have non-negative integer col and row`,
-          },
-        });
+        return sendError(
+          res,
+          400,
+          'VALIDATION_ERROR',
+          `Position for "${fn}" must have non-negative integer col and row`
+        );
       }
     }
 
