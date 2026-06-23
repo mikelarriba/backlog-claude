@@ -1,5 +1,6 @@
 node_modules/
 dist/
+docs/
 public/js/vendor/
 package-lock.json
 *.min.js
