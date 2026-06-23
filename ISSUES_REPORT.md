@@ -87,6 +87,26 @@ All 4 open issues resolved, each with a dedicated branch, PR, and squash-merge t
 
 ---
 
+### Issue #52 — TypeScript migration Phase 2: route handlers
+
+**PR #322** | Branch: `fix/issue-52-ts-route-handlers` | Status: ✅ Merged
+
+**Verification (2026-06-23):**
+
+All acceptance criteria were already satisfied — the TypeScript migration for route handlers was completed in a prior session as part of the broader codebase evolution:
+
+- All 16 route files under `src/routes/` are `.ts` with full type annotations.
+- `server.ts` was already the entry point.
+- `src/types.ts` defines `RouteContext`, `JiraRouteContext`, `BugRouteContext`, `SettingsRouteContext`, `CanvasRouteContext`, and `SkillsRouteContext`.
+- `npm run typecheck` (`tsc --noEmit`) passes with zero errors.
+- `npm test` — 461/461 tests pass (suite has grown from 184 to 461 since the issue was filed).
+- No `any` on public API boundaries; internal helpers use narrowly scoped casts only.
+- Defensive `if (!x) return sendError(400, ...)` guards replaced by Zod schema middleware (`validateBody`) in all POST endpoints.
+
+No code changes were required for this issue; this commit closes it by documenting its completion.
+
+---
+
 ## Test Results (Final State on `main`)
 
 ```
