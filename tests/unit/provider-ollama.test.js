@@ -1,5 +1,5 @@
 // ── Unit tests: src/services/providers/ollama.ts ─────────────────────────────
-import { test, describe, before, after, beforeEach } from 'node:test';
+import { test, describe, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   checkOllamaHealth,
