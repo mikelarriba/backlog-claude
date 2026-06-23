@@ -63,7 +63,7 @@ describe('greedyFill — basic capacity fill', () => {
 
 describe('greedyFill — dependency ordering', () => {
   test('blocked doc goes to later sprint than its blocker', () => {
-    const blocker = makeDoc('blocker.md', { storyPoints: 3 });
+    const _blocker = makeDoc('blocker.md', { storyPoints: 3 });
     const blocked = makeDoc('blocked.md', { storyPoints: 3, blockedBy: ['blocker.md'] });
     const buckets = [makeBucket('S1', 0, 10), makeBucket('S2', 1, 10)];
     const placementMap = new Map([['blocker.md', 'S1']]);
