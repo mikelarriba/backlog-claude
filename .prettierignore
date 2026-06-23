@@ -6,3 +6,15 @@ package-lock.json
 *.min.js
 openapi.yaml
 .claude/worktrees/
+.claude/commands/
+.env
+audit.log
+CLAUDE.md
+inbox/
+.DS_Store
+.pi-settings.json
+.model-settings.json
+.canvas-layout.json
+.product-context.md
+playwright-report/
+test-results/

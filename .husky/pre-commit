@@ -1,3 +1,2 @@
-npx prettier --check .
+npx lint-staged
 npm run typecheck
-npm test
