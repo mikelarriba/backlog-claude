@@ -8,6 +8,7 @@ export function setStatusFilter(status: string): void;
 export function setTeamFilter(team: string): void;
 export function setWorkCatFilter(cat: string): void;
 export function applyFilters(docs: unknown): void;
+export declare const applyFiltersDebounced: (docs: unknown) => void;
 export function handleItemClick(e: MouseEvent, filename: string, docType: string): void;
 export function handleItemContextMenu(e: MouseEvent, filename: string, docType: string): void;
 export function showContextMenu(e: MouseEvent): void;
