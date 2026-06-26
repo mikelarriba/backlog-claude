@@ -22,14 +22,21 @@ export function slugify(text: string): string {
 
 export const WORKFLOW_STATUSES: string[] = ['Draft', 'Created in JIRA', 'Archived'];
 
+const COVE_SECTIONS = /^(Context|Objective|Value|Execution|Acceptance Criteria|Out of Scope)$/;
+
 export function extractTitle(content: string): string | null {
   // Template placeholder headings ("## Epic Title", "## Story Title", etc.) -> grab the next non-empty line
   // Check ## before # — documents use ## for the title; # may appear inside JIRA descriptions
-  const m =
-    content.match(/^## \w[\w ]* Title\s*\n+(.+)/m) ||
-    content.match(/^## (.+)/m) ||
-    content.match(/^# (.+)/m);
-  return m ? m[1].trim() : null;
+  const templateTitle = content.match(/^## \w[\w ]* Title\s*\n+(.+)/m);
+  if (templateTitle) return templateTitle[1].trim();
+  // Find first ## heading that is NOT a COVE section heading
+  const headings = content.matchAll(/^## (.+)/gm);
+  for (const m of headings) {
+    const heading = m[1].trim();
+    if (!COVE_SECTIONS.test(heading)) return heading;
+  }
+  const h1 = content.match(/^# (.+)/m);
+  return h1 ? h1[1].trim() : null;
 }
 
 export function extractWorkflowStatus(content: string): string {
