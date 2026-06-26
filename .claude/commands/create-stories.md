@@ -57,6 +57,10 @@ Created: [today's date]
 
 Then the story body (raw markdown, no code fences, no additional commentary):
 
+## Story Title
+
+A clear, action-oriented title (e.g. "Enable Bulk Export of Test Files via API")
+
 ## Context
 
 Why is this story needed now? What problem does it solve?

@@ -222,13 +222,19 @@ ${description || '_No description in JIRA._'}
     return { docType, content };
   }
 
+  const COVE_HEADINGS = /^(Context|Objective|Value|Execution|Acceptance Criteria|Out of Scope)$/;
+
   function extractJiraSummary(content: string): string {
     const storyHeader = content.match(/^## Story \d+:\s*(.+?)(?:\s*<!--.*?-->)?\s*$/m);
     if (storyHeader) return storyHeader[1].trim();
     const namedSection = content.match(/^## \w[\w ]* Title\s*\n+(.+)/m);
     if (namedSection) return namedSection[1].trim();
-    const h2 = content.match(/^## (.+)/m);
-    if (h2) return h2[1].replace(/<!--.*?-->/g, '').trim();
+    // Find first ## heading that is NOT a COVE section heading
+    const headings = content.matchAll(/^## (.+)/gm);
+    for (const m of headings) {
+      const heading = m[1].replace(/<!--.*?-->/g, '').trim();
+      if (!COVE_HEADINGS.test(heading)) return heading;
+    }
     const h1 = content.match(/^# (.+)/m);
     if (h1) return h1[1].trim();
     return 'Untitled';
