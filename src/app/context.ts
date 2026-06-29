@@ -6,7 +6,7 @@ import {
   streamClaude as streamClaudeService,
 } from '../services/claudeService.js';
 import { createEventService } from '../services/eventService.js';
-import { createJiraService } from '../services/jiraService.js';
+import { createJiraService, type JiraServiceInstance } from '../services/jiraService.js';
 import { createDocIndex } from '../services/docIndex.js';
 import { validateJiraConfig } from '../services/jiraValidator.js';
 import { watchInbox } from '../services/inboxWatcher.js';
@@ -15,6 +15,7 @@ import { config } from '../config/env.js';
 import { isoDate, slugify } from '../utils/transforms.js';
 import { createLogger } from '../utils/logger.js';
 import { ensureDir } from '../utils/routeHelpers.js';
+import { createCircuitBreaker, type CircuitBreaker } from '../utils/circuitBreaker.js';
 import type { RouteContext, JiraRouteContext } from '../types.js';
 import type { Request, Response } from 'express';
 
@@ -30,6 +31,7 @@ export interface AppContext {
   FIELD_EPIC_NAME: string;
   FIELD_EPIC_LINK: string;
   FIELD_STORY_POINTS: string;
+  jiraCircuit: CircuitBreaker;
   logInfo: ReturnType<typeof createLogger>['logInfo'];
   logWarn: ReturnType<typeof createLogger>['logWarn'];
   logError: ReturnType<typeof createLogger>['logError'];
@@ -52,15 +54,7 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
   const FIELD_STORY_POINTS = config.JIRA_FIELD_STORY_POINTS;
   const JIRA_BOARD_ID = config.JIRA_BOARD_ID;
 
-  const {
-    jiraRequest,
-    jiraAgileRequest,
-    jiraPagedRequest,
-    jiraUploadAttachment,
-    findLocalFileByJiraId,
-    jiraIssueToMarkdown,
-    extractJiraSummary,
-  } = createJiraService({
+  const rawJira: JiraServiceInstance = createJiraService({
     JIRA_BASE,
     JIRA_TOKEN,
     FIELD_EPIC_NAME,
@@ -70,10 +64,28 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
     slugify,
   });
 
+  const jiraCircuit = createCircuitBreaker({
+    failureThreshold: config.JIRA_CIRCUIT_FAILURE_THRESHOLD,
+    resetTimeoutMs: config.JIRA_CIRCUIT_RESET_TIMEOUT_MS,
+  });
+
+  const jiraRequest: JiraServiceInstance['jiraRequest'] = (m, p, b) =>
+    jiraCircuit.execute(() => rawJira.jiraRequest(m, p, b));
+  const jiraAgileRequest: JiraServiceInstance['jiraAgileRequest'] = (m, p, b) =>
+    jiraCircuit.execute(() => rawJira.jiraAgileRequest(m, p, b));
+  const jiraPagedRequest: JiraServiceInstance['jiraPagedRequest'] = (jql, fields, opts) =>
+    jiraCircuit.execute(() => rawJira.jiraPagedRequest(jql, fields, opts));
+  const jiraUploadAttachment: JiraServiceInstance['jiraUploadAttachment'] = (key, name, buf) =>
+    jiraCircuit.execute(() => rawJira.jiraUploadAttachment(key, name, buf));
+  const { findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } = rawJira;
+
   const { handleEvents, broadcast } = createEventService();
 
   const docIndex = createDocIndex({ TYPE_CONFIG });
-  await docIndex.build();
+  docIndex.build().catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    logError('docIndex', `Background build failed: ${msg}`);
+  });
 
   const _apiInFlight = new Set<string>();
 
@@ -189,6 +201,7 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
     logInfo,
     logWarn,
     logError,
+    jiraCircuit,
     runStartup,
   };
 }
