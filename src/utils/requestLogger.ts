@@ -16,13 +16,14 @@ declare global {
 
 export function requestLogger(): RequestHandler {
   return (req, res, next) => {
-    const reqId = randomUUID().slice(0, 8);
+    const incoming = req.headers['x-request-id'];
+    const reqId = typeof incoming === 'string' && incoming.length > 0 ? incoming : randomUUID();
     req.reqId = reqId;
-    res.setHeader('X-Request-Id', reqId);
+    res.setHeader('X-Request-ID', reqId);
     const start = Date.now();
     res.on('finish', () => {
       logInfo('request', `${req.method} ${req.path}`, {
-        reqId,
+        requestId: reqId,
         method: req.method,
         path: req.path,
         statusCode: res.statusCode,

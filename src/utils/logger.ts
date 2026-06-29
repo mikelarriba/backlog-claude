@@ -38,24 +38,32 @@ export interface Logger {
   logInfo: (scope: string, message: string, meta?: Record<string, unknown>) => void;
   logWarn: (scope: string, message: string, meta?: Record<string, unknown>) => void;
   logError: (scope: string, message: string, meta?: Record<string, unknown>) => void;
+  withRequestId: (id: string) => Logger;
 }
 
-export function createLogger(prefix: string): Logger {
-  return {
+export function createLogger(prefix: string, baseMeta?: Record<string, unknown>): Logger {
+  function merge(meta?: Record<string, unknown>): Record<string, unknown> | undefined {
+    if (!baseMeta && !meta) return undefined;
+    return { ...baseMeta, ...meta };
+  }
+  const logger: Logger = {
     logDebug: (scope, message, meta) => {
       if (currentLevel() <= LEVEL_MAP.debug)
-        emit('debug', console.debug, prefix, scope, message, meta);
+        emit('debug', console.debug, prefix, scope, message, merge(meta));
     },
     logInfo: (scope, message, meta) => {
-      if (currentLevel() <= LEVEL_MAP.info) emit('info', console.log, prefix, scope, message, meta);
+      if (currentLevel() <= LEVEL_MAP.info)
+        emit('info', console.log, prefix, scope, message, merge(meta));
     },
     logWarn: (scope, message, meta) => {
       if (currentLevel() <= LEVEL_MAP.warn)
-        emit('warn', console.warn, prefix, scope, message, meta);
+        emit('warn', console.warn, prefix, scope, message, merge(meta));
     },
     logError: (scope, message, meta) => {
       if (currentLevel() <= LEVEL_MAP.error)
-        emit('error', console.error, prefix, scope, message, meta);
+        emit('error', console.error, prefix, scope, message, merge(meta));
     },
+    withRequestId: (id: string) => createLogger(prefix, { ...baseMeta, requestId: id }),
   };
+  return logger;
 }
