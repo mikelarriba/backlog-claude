@@ -3,7 +3,18 @@ import { streamSSE } from './state.js';
 import { loadDocs } from './list.js';
 import { loadHierarchy } from './detail.js';
 import { buildCanvasGraph } from './refine-canvas.js';
-export function resetStoriesSection() {
+
+interface StoryFile {
+  title: string;
+}
+
+interface StoriesProgressPayload {
+  current: number;
+  total: number;
+  title: string;
+}
+
+export function resetStoriesSection(): void {
   const wrap = document.getElementById('stories-stream-wrap');
   if (wrap) wrap.classList.add('hidden');
   const stream = document.getElementById('stories-stream');
@@ -13,16 +24,19 @@ export function resetStoriesSection() {
   const bar = document.getElementById('stories-progress');
   if (bar) bar.classList.add('hidden');
 }
+
 // ── Generate / Regenerate Stories ─────────────────────────────
-export async function generateStories() {
+export async function generateStories(): Promise<void> {
   if (!currentFilename) return;
-  const btn = document.getElementById('stories-btn');
-  const wrap = document.getElementById('stories-stream-wrap');
-  const stream = document.getElementById('stories-stream');
-  const spinner = document.getElementById('stories-spinner');
-  const bar = document.getElementById('stories-progress');
-  const barFill = document.getElementById('stories-progress-fill');
-  const barText = document.getElementById('stories-progress-text');
+
+  const btn = document.getElementById('stories-btn') as HTMLButtonElement;
+  const wrap = document.getElementById('stories-stream-wrap') as HTMLElement;
+  const stream = document.getElementById('stories-stream') as HTMLElement;
+  const spinner = document.getElementById('stories-spinner') as HTMLElement;
+  const bar = document.getElementById('stories-progress') as HTMLElement | null;
+  const barFill = document.getElementById('stories-progress-fill') as HTMLElement | null;
+  const barText = document.getElementById('stories-progress-text') as HTMLElement | null;
+
   btn.disabled = true;
   btn.textContent = '⏳ Generating…';
   stream.textContent = '';
@@ -30,8 +44,9 @@ export async function generateStories() {
   spinner.classList.remove('hidden');
   if (bar) bar.classList.add('hidden');
   wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
   try {
-    let donePayload = null;
+    let donePayload: Record<string, unknown> | null = null;
     await streamSSE(
       `/api/epic/${encodeURIComponent(currentFilename)}/stories`,
       {},
@@ -43,7 +58,7 @@ export async function generateStories() {
           donePayload = payload;
         },
         onProgress: (progress) => {
-          const p = progress;
+          const p = progress as unknown as StoriesProgressPayload;
           spinner.classList.add('hidden');
           stream.textContent = '';
           if (bar) {
@@ -56,9 +71,11 @@ export async function generateStories() {
         },
       }
     );
+
     spinner.classList.add('hidden');
     stream.textContent = '';
-    const files = donePayload?.['files'];
+
+    const files = donePayload?.['files'] as StoryFile[] | undefined;
     if (files?.length) {
       const count = files.length;
       if (bar) bar.classList.add('hidden');
@@ -66,14 +83,17 @@ export async function generateStories() {
         `✅ Created ${count} stor${count === 1 ? 'y' : 'ies'}:\n` +
         files.map((f) => `• ${f.title}`).join('\n');
       wrap.classList.remove('hidden');
+
       await loadDocs();
       loadHierarchy(currentFilename, currentDocType ?? '');
+
       if (typeof _canvasEpicFilename !== 'undefined' && _canvasEpicFilename === currentFilename) {
         await buildCanvasGraph(_canvasEpicFilename, _canvasDocType ?? '');
       }
     } else {
       wrap.classList.add('hidden');
     }
+
     btn.disabled = false;
     btn.textContent = 'AI Story Generation';
   } catch (e) {
@@ -84,4 +104,3 @@ export async function generateStories() {
     btn.textContent = 'AI Story Generation';
   }
 }
-//# sourceMappingURL=stories.js.map

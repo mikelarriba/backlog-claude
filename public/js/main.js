@@ -283,7 +283,6 @@ function toggleLeftPanel() {
     /* no-op */
   }
 }
-// ── Sidebar navigation ────────────────────────────────────────
 function navigateTo(viewName) {
   // Update active state in sidebar
   document.querySelectorAll('.sidebar-item').forEach((el) => {
@@ -303,7 +302,6 @@ function navigateTo(viewName) {
   // Hide FAB when not in backlog
   const fabContainer = document.getElementById('fab-container');
   if (fabContainer) fabContainer.style.display = viewName === 'backlog' ? '' : 'none';
-
   // Clean up roadmap-mode when leaving roadmap
   const right = document.querySelector('.right');
   if (viewName !== 'roadmap') {
