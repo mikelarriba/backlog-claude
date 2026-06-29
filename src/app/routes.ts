@@ -1,6 +1,5 @@
 // ── Route registration ──────────────────────────────────────────────────────────
 import path from 'path';
-import fs from 'fs';
 import express, { type Express, type ErrorRequestHandler } from 'express';
 import { buildOpenApiSpec } from '../config/openapi.js';
 import { sendError } from '../utils/routeHelpers.js';
@@ -22,6 +21,7 @@ import canvasRoutes from '../routes/canvas.js';
 import skillsRoutes from '../routes/skills.js';
 import exportRoutes from '../routes/export.js';
 import bugsDashboardRoutes from '../routes/bugs-dashboard.js';
+import { healthHandler } from '../routes/health.js';
 import type { AppContext } from './context.js';
 
 export function registerRoutes(app: Express, ctx: AppContext, rootDir: string): void {
@@ -33,14 +33,7 @@ export function registerRoutes(app: Express, ctx: AppContext, rootDir: string): 
     res.json({ teams: TEAMS, workCategories: WORK_CATEGORIES });
   });
 
-  app.get('/api/health', (_req, res) => {
-    res.json({
-      status: 'ok',
-      uptime: process.uptime(),
-      docsDir: fs.existsSync(ctx.DOCS_ROOT),
-      version: process.env.npm_package_version ?? 'unknown',
-    });
-  });
+  app.get('/api/health', healthHandler(ctx));
 
   const openApiSpec = buildOpenApiSpec();
   const swaggerUiPath = path.join(rootDir, 'node_modules', 'swagger-ui-dist');

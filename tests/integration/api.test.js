@@ -27,6 +27,20 @@ describe('GET /api/health', () => {
     assert.ok(typeof data.uptime === 'number');
     assert.ok(typeof data.docsDir === 'boolean');
   });
+
+  test('includes dependencies object with expected keys', async () => {
+    const { status, data } = await api('GET', '/api/health');
+    assert.equal(status, 200);
+    assert.ok(data.dependencies, 'dependencies object should be present');
+    assert.ok(['ok', 'error'].includes(data.dependencies.filesystem));
+    assert.ok(['ok', 'degraded'].includes(data.dependencies.jira));
+    assert.ok(['ok', 'starting'].includes(data.dependencies.docIndex));
+  });
+
+  test('includes X-Request-ID response header', async () => {
+    const res = await fetch(`${baseUrl}/api/health`);
+    assert.ok(res.headers.get('x-request-id'), 'X-Request-ID header should be present');
+  });
 });
 
 // ── GET /api/docs ─────────────────────────────────────────────────────────────
