@@ -76,7 +76,7 @@ export default [
     files: ['src/**/*.ts', 'server.ts'],
     rules: {
       'no-unused-vars': 'off', // superseded by @typescript-eslint/no-unused-vars
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
