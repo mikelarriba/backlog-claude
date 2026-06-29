@@ -1,20 +1,54 @@
 // ── Sprint Distribution Engine ─────────────────────────────────
 import { postJSON, escHtml, showJiraToast, TYPE_LABEL } from './state.js';
-let _distributionData = null;
-export async function openDistributionModal(piName) {
+
+interface DistributionItem {
+  filename: string;
+  docType: string;
+  title: string;
+  priority: string;
+  storyPoints: number | null;
+  wasAlreadyAssigned: boolean;
+}
+
+interface DistributionSprint {
+  name: string;
+  capacity: number;
+  effectiveCapacity?: number;
+  usedPoints: number;
+  assigned: DistributionItem[];
+}
+
+interface DistributionData {
+  sprints: DistributionSprint[];
+  overflow: DistributionItem[];
+  warnings: string[];
+  suggestions: string[];
+}
+
+interface ApplyDistributionResult {
+  updated: number;
+  depWarnings?: Array<{ message: string }>;
+}
+
+let _distributionData: DistributionData | null = null;
+
+export async function openDistributionModal(piName: string): Promise<void> {
   if (!piName) return;
-  const overlay = document.getElementById('distribution-overlay');
-  const body = document.getElementById('distribution-body');
-  const msgs = document.getElementById('distribution-messages');
-  const applyBtn = document.getElementById('distribution-apply-btn');
-  document.getElementById('distribution-title').textContent = `Sprint Distribution: ${piName}`;
+  const overlay = document.getElementById('distribution-overlay') as HTMLElement;
+  const body = document.getElementById('distribution-body') as HTMLElement;
+  const msgs = document.getElementById('distribution-messages') as HTMLElement;
+  const applyBtn = document.getElementById('distribution-apply-btn') as HTMLButtonElement;
+
+  (document.getElementById('distribution-title') as HTMLElement).textContent =
+    `Sprint Distribution: ${piName}`;
   body.innerHTML =
     '<div class="distribution-loading"><div class="spinner"></div> Calculating distribution…</div>';
   msgs.innerHTML = '';
   applyBtn.disabled = true;
   overlay.classList.add('show');
+
   try {
-    const data = await postJSON('/api/docs/distribute', { piName });
+    const data = (await postJSON('/api/docs/distribute', { piName })) as DistributionData;
     _distributionData = data;
     renderDistributionPreview(data);
     applyBtn.disabled = false;
@@ -23,17 +57,20 @@ export async function openDistributionModal(piName) {
     _distributionData = null;
   }
 }
-export function renderDistributionPreview(data) {
-  const body = document.getElementById('distribution-body');
-  const msgs = document.getElementById('distribution-messages');
+
+export function renderDistributionPreview(data: DistributionData): void {
+  const body = document.getElementById('distribution-body') as HTMLElement;
+  const msgs = document.getElementById('distribution-messages') as HTMLElement;
+
   const totalItems =
     data.sprints.reduce((s, sp) => s + sp.assigned.length, 0) + data.overflow.length;
   if (totalItems === 0) {
     body.innerHTML =
       '<div class="distribution-empty">No stories found in this PI to distribute.</div>';
-    document.getElementById('distribution-apply-btn').disabled = true;
+    (document.getElementById('distribution-apply-btn') as HTMLButtonElement).disabled = true;
     return;
   }
+
   let html = data.sprints
     .map((sprint, si) => {
       const effectiveCap = sprint.effectiveCapacity ?? sprint.capacity;
@@ -47,6 +84,7 @@ export function renderDistributionPreview(data) {
       const statsText = bufferPct
         ? `${sprint.usedPoints} / ${effectiveCap} SP (${pct}%, ${bufferPct}% buffer)`
         : `${sprint.usedPoints} / ${sprint.capacity} SP (${pct}%)`;
+
       const itemsHtml = sprint.assigned.length
         ? sprint.assigned
             .map((item, ii) => {
@@ -68,6 +106,7 @@ export function renderDistributionPreview(data) {
             })
             .join('')
         : '<div class="distribution-sprint-empty">No items assigned</div>';
+
       return `
       <div class="distribution-sprint-section">
         <div class="distribution-sprint-header">
@@ -81,6 +120,7 @@ export function renderDistributionPreview(data) {
       </div>`;
     })
     .join('');
+
   if (data.overflow.length) {
     const overflowItems = data.overflow
       .map((item) => {
@@ -107,7 +147,9 @@ export function renderDistributionPreview(data) {
         <div class="distribution-sprint-items">${overflowItems}</div>
       </div>`;
   }
+
   body.innerHTML = html;
+
   let msgsHtml = '';
   if (data.warnings.length) {
     msgsHtml += data.warnings
@@ -121,10 +163,14 @@ export function renderDistributionPreview(data) {
   }
   msgs.innerHTML = msgsHtml;
 }
-export async function applyDistribution() {
+
+export async function applyDistribution(): Promise<void> {
   if (!_distributionData) return;
-  const assignments = [];
-  const checkboxes = document.querySelectorAll('#distribution-body input[type=checkbox]:checked');
+
+  const assignments: Array<{ filename: string; docType: string; sprint: string }> = [];
+  const checkboxes = document.querySelectorAll<HTMLInputElement>(
+    '#distribution-body input[type=checkbox]:checked'
+  );
   for (const cb of checkboxes) {
     const si = parseInt(cb.dataset['sprint'] ?? '');
     const ii = parseInt(cb.dataset['item'] ?? '');
@@ -134,19 +180,24 @@ export async function applyDistribution() {
     if (!item || item.wasAlreadyAssigned) continue;
     assignments.push({ filename: item.filename, docType: item.docType, sprint: sprint.name });
   }
+
   if (!assignments.length) {
     closeDistributionModal();
     showJiraToast('success', 'No new assignments to apply.');
     return;
   }
-  const btn = document.getElementById('distribution-apply-btn');
+
+  const btn = document.getElementById('distribution-apply-btn') as HTMLButtonElement;
   btn.disabled = true;
   btn.textContent = 'Applying…';
+
   try {
-    const data = await postJSON('/api/docs/apply-distribution', {
+    const data = (await postJSON('/api/docs/apply-distribution', {
       assignments,
-    });
+    })) as ApplyDistributionResult;
+
     closeDistributionModal();
+
     if (data.depWarnings && data.depWarnings.length) {
       const msgs = data.depWarnings.map((w) => w.message).join('\n');
       showJiraToast(
@@ -163,8 +214,8 @@ export async function applyDistribution() {
     btn.textContent = 'Apply Distribution';
   }
 }
-export function closeDistributionModal() {
-  document.getElementById('distribution-overlay').classList.remove('show');
+
+export function closeDistributionModal(): void {
+  (document.getElementById('distribution-overlay') as HTMLElement).classList.remove('show');
   _distributionData = null;
 }
-//# sourceMappingURL=distribution.js.map

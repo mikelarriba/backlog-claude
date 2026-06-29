@@ -2,6 +2,8 @@ node_modules/
 dist/
 docs/
 public/js/vendor/
+# compiled TypeScript output — formatted by tsc, not prettier
+public/js/*.map
 package-lock.json
 *.min.js
 openapi.yaml

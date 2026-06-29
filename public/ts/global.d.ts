@@ -5,6 +5,18 @@
 import type { DocEntry, PISettings, SprintConfig, SwimlaneCollapsed, PanelState } from './state.js';
 
 declare global {
+  // ── CDN globals ────────────────────────────────────────────────────────────
+  var marked: { parse: (src: string) => string };
+
+  // ── Window-exposed handler functions (set by main.ts via Object.assign) ───
+  var openDoc: (filename: string, docType: string) => void;
+  var focusEpic: (filename: string) => void;
+
+  interface Window {
+    setTheme: (preference: string) => void;
+  }
+
+  // ── Store-backed state variables ───────────────────────────────────────────
   var allDocs: DocEntry[];
   var jiraBase: string;
   var currentFilename: string | null;

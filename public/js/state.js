@@ -87,7 +87,11 @@ _storeVar('_metaTeams', []);
 _storeVar('_metaWorkCategories', []);
 // List-level state (moved here from list.js so all state is centralised)
 _storeVar('jiraVersions', []);
-_storeVar('_swimlanesCollapsed', { currentPi: false, nextPi: false, backlog: false });
+_storeVar('_swimlanesCollapsed', {
+  currentPi: false,
+  nextPi: false,
+  backlog: false,
+});
 _storeVar('_collapsedItems', new Set());
 // Piconfig-level state referenced from HTML onclick
 _storeVar('_piConfigActivePi', null);
