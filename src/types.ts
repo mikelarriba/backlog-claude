@@ -50,6 +50,8 @@ export interface DocEntry {
 
 export interface DocIndexInstance {
   build: () => Promise<DocIndexInstance>;
+  ready: () => Promise<void>;
+  isReady: () => boolean;
   getAll: () => DocEntry[];
   get: (filename: string) => DocEntry | null;
   invalidate: (docType: string, filename: string) => Promise<void>;

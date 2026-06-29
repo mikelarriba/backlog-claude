@@ -191,8 +191,40 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     return null;
   }
 
+  let _readyResolve: (() => void) | null = null;
+  let _readyReject: ((err: unknown) => void) | null = null;
+  const _readyPromise: Promise<void> = new Promise((resolve, reject) => {
+    _readyResolve = resolve;
+    _readyReject = reject;
+  });
+  let _isReady = false;
+
+  const _originalBuild = build;
+
+  async function buildWithReady(): Promise<DocIndexInstance> {
+    try {
+      const result = await _originalBuild();
+      _isReady = true;
+      _readyResolve?.();
+      return result;
+    } catch (err) {
+      _readyReject?.(err);
+      throw err;
+    }
+  }
+
+  function ready(): Promise<void> {
+    return _readyPromise;
+  }
+
+  function isReady(): boolean {
+    return _isReady;
+  }
+
   const docIndex: DocIndexInstance = {
-    build,
+    build: buildWithReady,
+    ready,
+    isReady,
     getAll,
     get,
     invalidate,
