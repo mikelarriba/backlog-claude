@@ -2,18 +2,32 @@
 import { fetchJSON, postJSON, escHtml, showJiraToast, setJiraStatus, TYPE_LABEL } from './state.js';
 import { openDoc, updateJiraStatus } from './detail.js';
 import { loadDocs } from './list.js';
+import { closeAllDropdowns } from './detail.js';
 
-let _jiraSelectResolve = null;
-let _jiraSelectItems = [];
+interface JiraSelectItem {
+  key?: string;
+  summary?: string;
+  type?: string;
+  localExists?: boolean;
+  filename?: string;
+  docType?: string;
+}
 
-export function showJiraSelectModal(title, items, confirmLabel) {
+let _jiraSelectResolve: ((items: JiraSelectItem[]) => void) | null = null;
+let _jiraSelectItems: JiraSelectItem[] = [];
+
+export function showJiraSelectModal(
+  title: string,
+  items: JiraSelectItem[],
+  confirmLabel?: string
+): Promise<JiraSelectItem[]> {
   return new Promise(function (resolve) {
     _jiraSelectResolve = resolve;
     _jiraSelectItems = items;
-    document.getElementById('jira-select-title').textContent = title;
-    document.getElementById('jira-select-confirm-btn').textContent = confirmLabel || 'Confirm';
+    document.getElementById('jira-select-title')!.textContent = title;
+    document.getElementById('jira-select-confirm-btn')!.textContent = confirmLabel || 'Confirm';
 
-    const list = document.getElementById('jira-select-list');
+    const list = document.getElementById('jira-select-list')!;
     list.innerHTML = items
       .map(function (item, i) {
         const keyHtml = item.key
@@ -50,31 +64,33 @@ export function showJiraSelectModal(title, items, confirmLabel) {
       })
       .join('');
 
-    document.getElementById('jira-select-overlay').classList.add('show');
+    document.getElementById('jira-select-overlay')!.classList.add('show');
   });
 }
 
-export function jiraSelectAll(checked) {
-  document.querySelectorAll('#jira-select-list input[type=checkbox]').forEach(function (cb) {
-    cb.checked = checked;
-  });
+export function jiraSelectAll(checked: boolean): void {
+  document
+    .querySelectorAll<HTMLInputElement>('#jira-select-list input[type=checkbox]')
+    .forEach(function (cb) {
+      cb.checked = checked;
+    });
 }
 
-export function jiraSelectCancel() {
-  document.getElementById('jira-select-overlay').classList.remove('show');
+export function jiraSelectCancel(): void {
+  document.getElementById('jira-select-overlay')!.classList.remove('show');
   if (_jiraSelectResolve) {
     _jiraSelectResolve([]);
     _jiraSelectResolve = null;
   }
 }
 
-export function jiraSelectConfirm() {
+export function jiraSelectConfirm(): void {
   const selected = Array.from(
-    document.querySelectorAll('#jira-select-list input[type=checkbox]:checked')
+    document.querySelectorAll<HTMLInputElement>('#jira-select-list input[type=checkbox]:checked')
   ).map(function (cb) {
-    return _jiraSelectItems[parseInt(cb.dataset.idx)];
+    return _jiraSelectItems[parseInt(cb.dataset.idx!)];
   });
-  document.getElementById('jira-select-overlay').classList.remove('show');
+  document.getElementById('jira-select-overlay')!.classList.remove('show');
   if (_jiraSelectResolve) {
     _jiraSelectResolve(selected);
     _jiraSelectResolve = null;
@@ -82,27 +98,57 @@ export function jiraSelectConfirm() {
 }
 
 // ── Sync preview confirmation modal ──────────────────────────
-let _syncPreviewResolve = null;
-let _syncPreviewItems = [];
+interface SyncPreviewChange {
+  field: string;
+  message?: string;
+  from?: unknown;
+  to?: unknown;
+  pendingEpicTitle?: string;
+  pendingFeatureTitle?: string;
+}
 
-export function showSyncPreviewModal(title, items, confirmLabel) {
+interface SyncPreviewItem {
+  action?: 'create' | 'update' | 'delete';
+  jiraKey?: string;
+  jiraId?: string;
+  jiraTitle?: string;
+  title?: string;
+  changes?: SyncPreviewChange[];
+  reason?: string;
+  docType?: string;
+  localDocType?: string;
+  autoIncluded?: boolean;
+  filename?: string;
+  localFilename?: string;
+  localDocType2?: string;
+  changesArray?: SyncPreviewChange[];
+}
+
+let _syncPreviewResolve: ((items: SyncPreviewItem[] | null) => void) | null = null;
+let _syncPreviewItems: SyncPreviewItem[] = [];
+
+export function showSyncPreviewModal(
+  title: string,
+  items: SyncPreviewItem[],
+  confirmLabel?: string
+): Promise<SyncPreviewItem[] | null> {
   return new Promise(function (resolve) {
     _syncPreviewResolve = resolve;
     _syncPreviewItems = items;
 
-    document.getElementById('sync-preview-title').textContent = title;
-    document.getElementById('sync-preview-confirm-btn').textContent = confirmLabel || 'Confirm';
+    document.getElementById('sync-preview-title')!.textContent = title;
+    document.getElementById('sync-preview-confirm-btn')!.textContent = confirmLabel || 'Confirm';
 
     const createCount = items.filter((i) => i.action === 'create').length;
     const updateCount = items.filter((i) => i.action === 'update').length;
     const deleteCount = items.filter((i) => i.action === 'delete').length;
-    const parts = [];
+    const parts: string[] = [];
     if (createCount) parts.push(`${createCount} new`);
     if (updateCount) parts.push(`${updateCount} update`);
     if (deleteCount) parts.push(`${deleteCount} to delete`);
-    document.getElementById('sync-preview-counts').textContent = parts.join(' · ');
+    document.getElementById('sync-preview-counts')!.textContent = parts.join(' · ');
 
-    const list = document.getElementById('sync-preview-list');
+    const list = document.getElementById('sync-preview-list')!;
     list.innerHTML = items
       .map(function (item, idx) {
         const isCreate = item.action === 'create';
@@ -119,7 +165,7 @@ export function showSyncPreviewModal(title, items, confirmLabel) {
                 if (c.field === 'error')
                   return (
                     '<div class="sync-preview-change"><span class="sync-preview-field">error</span><span class="sync-preview-to" style="color:var(--error-text)">' +
-                    escHtml(c.message) +
+                    escHtml(c.message || '') +
                     '</span></div>'
                   );
                 if (c.field === 'description')
@@ -134,7 +180,7 @@ export function showSyncPreviewModal(title, items, confirmLabel) {
                       escHtml(String(c.from)) +
                       '</span><span class="sync-preview-arrow">→</span>'
                     : '';
-                var toHtml;
+                let toHtml: string;
                 if (c.pendingEpicTitle) {
                   toHtml =
                     '<span class="sync-preview-to" style="color:var(--accent)">[new] ' +
@@ -217,7 +263,7 @@ export function showSyncPreviewModal(title, items, confirmLabel) {
       })
       .join('');
 
-    document.getElementById('sync-preview-overlay').classList.add('show');
+    document.getElementById('sync-preview-overlay')!.classList.add('show');
     document.querySelectorAll('#sync-preview-list .sync-preview-cb').forEach(function (cb) {
       cb.addEventListener('change', _syncPreviewUpdateCount);
     });
@@ -225,34 +271,37 @@ export function showSyncPreviewModal(title, items, confirmLabel) {
   });
 }
 
-function _syncPreviewUpdateCount() {
+function _syncPreviewUpdateCount(): void {
   const total = document.querySelectorAll('#sync-preview-list .sync-preview-cb').length;
   const checked = document.querySelectorAll('#sync-preview-list .sync-preview-cb:checked').length;
-  const btn = document.getElementById('sync-preview-confirm-btn');
+  const btn = document.getElementById('sync-preview-confirm-btn') as HTMLButtonElement | null;
+  if (!btn) return;
   btn.textContent = `Confirm (${checked}/${total})`;
   btn.disabled = checked === 0;
 }
 
-export function syncPreviewSelectAll(checked) {
-  document.querySelectorAll('#sync-preview-list .sync-preview-cb').forEach(function (cb) {
-    cb.checked = checked;
-  });
+export function syncPreviewSelectAll(checked: boolean): void {
+  document
+    .querySelectorAll<HTMLInputElement>('#sync-preview-list .sync-preview-cb')
+    .forEach(function (cb) {
+      cb.checked = checked;
+    });
   _syncPreviewUpdateCount();
 }
 
-export function syncPreviewCancel() {
-  document.getElementById('sync-preview-overlay').classList.remove('show');
+export function syncPreviewCancel(): void {
+  document.getElementById('sync-preview-overlay')!.classList.remove('show');
   if (_syncPreviewResolve) {
     _syncPreviewResolve(null);
     _syncPreviewResolve = null;
   }
 }
 
-export function syncPreviewConfirm() {
+export function syncPreviewConfirm(): void {
   const selected = Array.from(
-    document.querySelectorAll('#sync-preview-list .sync-preview-cb:checked')
+    document.querySelectorAll<HTMLInputElement>('#sync-preview-list .sync-preview-cb:checked')
   ).map(function (cb) {
-    return _syncPreviewItems[parseInt(cb.dataset.idx)];
+    return _syncPreviewItems[parseInt(cb.dataset.idx!)];
   });
   _enterSyncProgressMode();
   if (_syncPreviewResolve) {
@@ -261,17 +310,19 @@ export function syncPreviewConfirm() {
   }
 }
 
-function _enterSyncProgressMode() {
-  document.getElementById('sync-preview-list').style.display = 'none';
-  const actionsEl = document.querySelector('#sync-preview-overlay .dialog-actions');
+function _enterSyncProgressMode(): void {
+  (document.getElementById('sync-preview-list') as HTMLElement).style.display = 'none';
+  const actionsEl = document.querySelector<HTMLElement>('#sync-preview-overlay .dialog-actions');
   if (actionsEl) actionsEl.style.display = 'none';
-  const rightHeader = document.querySelector('.sync-preview-header .sync-preview-header-right');
+  const rightHeader = document.querySelector<HTMLElement>(
+    '.sync-preview-header .sync-preview-header-right'
+  );
   if (rightHeader) rightHeader.style.display = 'none';
   const progressArea = document.getElementById('sync-progress-area');
   if (progressArea) progressArea.style.display = '';
   const labelEl = document.getElementById('sync-progress-label');
   if (labelEl) labelEl.textContent = 'Starting…';
-  const bar = document.getElementById('sync-progress-bar');
+  const bar = document.getElementById('sync-progress-bar') as HTMLElement | null;
   if (bar) bar.style.width = '0%';
   const summary = document.getElementById('sync-progress-summary');
   if (summary) {
@@ -280,20 +331,20 @@ function _enterSyncProgressMode() {
   }
 }
 
-export function updateJiraProgress(current, total, label) {
+export function updateJiraProgress(current: number, total: number, label: string): void {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-  const bar = document.getElementById('sync-progress-bar');
+  const bar = document.getElementById('sync-progress-bar') as HTMLElement | null;
   if (bar) bar.style.width = pct + '%';
   const labelEl = document.getElementById('sync-progress-label');
   if (labelEl) labelEl.textContent = label;
 }
 
-export function finishJiraProgress(summaryText, hasError) {
-  const bar = document.getElementById('sync-progress-bar');
+export function finishJiraProgress(summaryText: string, hasError: boolean): void {
+  const bar = document.getElementById('sync-progress-bar') as HTMLElement | null;
   if (bar) bar.style.width = '100%';
   const labelEl = document.getElementById('sync-progress-label');
   if (labelEl) labelEl.textContent = hasError ? 'Finished with errors' : 'All done ✅';
-  const summary = document.getElementById('sync-progress-summary');
+  const summary = document.getElementById('sync-progress-summary') as HTMLElement | null;
   if (summary) {
     summary.style.whiteSpace = 'pre-wrap';
     summary.textContent = summaryText;
@@ -302,16 +353,18 @@ export function finishJiraProgress(summaryText, hasError) {
   setTimeout(_resetSyncProgressModal, hasError ? 5000 : 2500);
 }
 
-function _resetSyncProgressModal() {
+function _resetSyncProgressModal(): void {
   const overlay = document.getElementById('sync-preview-overlay');
   if (overlay) overlay.classList.remove('show');
-  const list = document.getElementById('sync-preview-list');
+  const list = document.getElementById('sync-preview-list') as HTMLElement | null;
   if (list) list.style.display = '';
-  const actionsEl = document.querySelector('#sync-preview-overlay .dialog-actions');
+  const actionsEl = document.querySelector<HTMLElement>('#sync-preview-overlay .dialog-actions');
   if (actionsEl) actionsEl.style.display = '';
-  const rightHeader = document.querySelector('.sync-preview-header .sync-preview-header-right');
+  const rightHeader = document.querySelector<HTMLElement>(
+    '.sync-preview-header .sync-preview-header-right'
+  );
   if (rightHeader) rightHeader.style.display = '';
-  const progressArea = document.getElementById('sync-progress-area');
+  const progressArea = document.getElementById('sync-progress-area') as HTMLElement | null;
   if (progressArea) progressArea.style.display = 'none';
   if (_syncPreviewResolve) {
     _syncPreviewResolve(null);
@@ -322,8 +375,8 @@ function _resetSyncProgressModal() {
 // ── Push to JIRA ──────────────────────────────────────────────
 const JIRA_CARET = ' <span class="toolbar-caret">▾</span>';
 
-export function updateJiraPushBtn() {
-  const btn = document.getElementById('jira-push-btn');
+export function updateJiraPushBtn(): void {
+  const btn = document.getElementById('jira-push-btn') as HTMLButtonElement | null;
   if (!btn) return;
   const isMultiStory = currentDocType === 'story' && currentFilename?.endsWith('-stories.md');
   btn.innerHTML = (isMultiStory ? '↑ Push Stories' : '↑ JIRA') + JIRA_CARET;
@@ -331,14 +384,14 @@ export function updateJiraPushBtn() {
 }
 
 // ── Pull from JIRA (consolidated: status + fields + children) ─
-export async function pullFromJira() {
+export async function pullFromJira(): Promise<void> {
   // Delegates to updateFromJira which already handles the full pull flow:
   // preview modal → update title/desc/SP/status → retrieve children.
   // When no JIRA_ID is set, it prompts the user to enter a key inline.
   await updateFromJira();
 }
 
-export async function retrieveChildrenFromJira() {
+export async function retrieveChildrenFromJira(): Promise<void> {
   if (!currentFilename || !currentDocType) return;
   if (!currentJiraId || currentJiraId === 'TBD') return;
   await offerChildrenDownload([
@@ -346,24 +399,25 @@ export async function retrieveChildrenFromJira() {
   ]);
 }
 
-export async function syncJiraStatus() {
+export async function syncJiraStatus(): Promise<void> {
   if (!currentFilename || !currentDocType) return;
   if (!currentJiraId || currentJiraId === 'TBD') return;
 
-  const btn = document.getElementById('jira-push-btn');
-  btn.disabled = true;
+  const btn = document.getElementById('jira-push-btn') as HTMLButtonElement | null;
+  if (btn) btn.disabled = true;
   try {
-    const data = await postJSON(
-      `/api/jira/sync-status/${currentDocType}/${encodeURIComponent(currentFilename)}`
-    );
+    const data = (await postJSON(
+      `/api/jira/sync-status/${currentDocType}/${encodeURIComponent(currentFilename)}`,
+      undefined
+    )) as { jiraStatus?: string | null; storyPoints?: number | null };
 
     if (data.jiraStatus) updateJiraStatus(data.jiraStatus);
 
     if (data.storyPoints !== null && data.storyPoints !== undefined) {
-      const spInput = document.getElementById('sp-input');
+      const spInput = document.getElementById('sp-input') as HTMLInputElement | null;
       if (spInput && spInput.style.display !== 'none') {
-        spInput.value = data.storyPoints;
-        spInput.dataset.original = data.storyPoints;
+        spInput.value = String(data.storyPoints);
+        spInput.dataset.original = String(data.storyPoints);
         const doc = allDocs.find(
           (d) => d.filename === currentFilename && d.docType === currentDocType
         );
@@ -377,14 +431,14 @@ export async function syncJiraStatus() {
         : '';
     showJiraToast('success', `✅ Status synced: ${data.jiraStatus || '—'}${spMsg}`);
   } catch (e) {
-    showJiraToast('error', `❌ ${e.message}`);
+    showJiraToast('error', `❌ ${(e as Error).message}`);
   } finally {
     updateJiraPushBtn();
   }
 }
 
 // ── Update from JIRA ─────────────────────────────────────────
-export async function updateFromJira(jiraKeyOverride) {
+export async function updateFromJira(jiraKeyOverride?: string): Promise<void> {
   if (!currentFilename || !currentDocType) return;
 
   const hasKey = currentJiraId && currentJiraId !== 'TBD';
@@ -395,23 +449,25 @@ export async function updateFromJira(jiraKeyOverride) {
     return;
   }
 
-  const key = jiraKeyOverride || currentJiraId;
-  const btn = document.getElementById('jira-push-btn');
-  btn.disabled = true;
-  btn.innerHTML = '⏳ Loading preview…' + JIRA_CARET;
+  const key = jiraKeyOverride || currentJiraId!;
+  const btn = document.getElementById('jira-push-btn') as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Loading preview…' + JIRA_CARET;
+  }
   closeAllDropdowns();
 
   // 1. Fetch pull preview (with children for epics/features)
   const isParent = currentDocType === 'feature' || currentDocType === 'epic';
-  let previewItems;
+  let previewItems: SyncPreviewItem[];
   try {
-    const preview = await postJSON('/api/jira/pull-preview', {
+    const preview = (await postJSON('/api/jira/pull-preview', {
       jiraKey: key,
       includeChildren: isParent,
-    });
+    })) as { items?: SyncPreviewItem[] };
     previewItems = preview.items || [];
   } catch (e) {
-    showJiraToast('error', `❌ Preview failed: ${e.message}`);
+    showJiraToast('error', `❌ Preview failed: ${(e as Error).message}`);
     updateJiraPushBtn();
     return;
   }
@@ -443,7 +499,7 @@ export async function updateFromJira(jiraKeyOverride) {
     (selectedDeletes.length > 0 ? 1 : 0);
   let pullErrors = 0;
   let pullErrorMsg = '';
-  let updatedKey = null;
+  let updatedKey: string | null = null;
   let childrenSynced = 0;
   let childrenDeleted = 0;
   let step = 0;
@@ -451,20 +507,20 @@ export async function updateFromJira(jiraKeyOverride) {
   try {
     if (parentSelected) {
       updateJiraProgress(step, totalSteps, `Fetching ${key}…`);
-      const data = await postJSON(
+      const data = (await postJSON(
         `/api/jira/update-from-jira/${currentDocType}/${encodeURIComponent(currentFilename)}`,
         key !== currentJiraId ? { jiraKey: key } : {}
-      );
+      )) as { key: string };
       updatedKey = data.key;
-      if (currentFilename) openDoc(currentFilename, currentDocType);
+      if (currentFilename) openDoc(currentFilename, currentDocType!);
       step++;
     }
 
     if (selectedChildren.length > 0) {
-      const childKeys = selectedChildren.map((c) => c.jiraKey);
+      const childKeys = selectedChildren.map((c) => c.jiraKey!);
       const overwriteKeys = selectedChildren
         .filter((c) => c.action === 'update')
-        .map((c) => c.jiraKey);
+        .map((c) => c.jiraKey!);
       updateJiraProgress(step, totalSteps, `Syncing ${childKeys.length} child(ren)…`);
       await postJSON('/api/jira/pull', {
         keys: childKeys,
@@ -492,10 +548,10 @@ export async function updateFromJira(jiraKeyOverride) {
     }
   } catch (e) {
     pullErrors++;
-    pullErrorMsg = e.message;
-    console.warn('Pull from JIRA failed:', e.message);
+    pullErrorMsg = (e as Error).message;
+    console.warn('Pull from JIRA failed:', (e as Error).message);
   } finally {
-    const pullParts = [];
+    const pullParts: string[] = [];
     if (updatedKey) pullParts.push(`Updated ${updatedKey}`);
     if (childrenSynced) pullParts.push(`${childrenSynced} child(ren) synced`);
     if (childrenDeleted) pullParts.push(`${childrenDeleted} closed item(s) deleted`);
@@ -508,7 +564,7 @@ export async function updateFromJira(jiraKeyOverride) {
   }
 }
 
-export function showUpdateFromJiraKeyPrompt() {
+export function showUpdateFromJiraKeyPrompt(): void {
   // Swap the dropdown content to show an inline key input
   const menu = document.getElementById('jira-dropdown-menu');
   if (!menu) return;
@@ -526,8 +582,8 @@ export function showUpdateFromJiraKeyPrompt() {
   setTimeout(() => document.getElementById('jira-update-key-input')?.focus(), 30);
 }
 
-export function submitUpdateFromJiraKey() {
-  const input = document.getElementById('jira-update-key-input');
+export function submitUpdateFromJiraKey(): void {
+  const input = document.getElementById('jira-update-key-input') as HTMLInputElement | null;
   if (!input) return;
   const key = input.value.trim().toUpperCase();
   if (!key) {
@@ -538,50 +594,63 @@ export function submitUpdateFromJiraKey() {
   updateFromJira(key);
 }
 
-export async function pushToJira() {
+interface PushPreviewItem extends SyncPreviewItem {
+  filename?: string;
+  docType?: string;
+}
+
+export async function pushToJira(): Promise<void> {
   if (!currentFilename || !currentDocType) return;
 
-  const btn = document.getElementById('jira-push-btn');
+  const btn = document.getElementById('jira-push-btn') as HTMLButtonElement | null;
 
   // 1. Collect all items: parent + all linked children (no pre-selection modal)
-  const itemsToPush = [{ filename: currentFilename, docType: currentDocType }];
+  const itemsToPush: { filename: string; docType: string }[] = [
+    { filename: currentFilename, docType: currentDocType },
+  ];
 
   if (currentDocType === 'feature' || currentDocType === 'epic') {
     try {
-      const linksData = await fetchJSON(
+      const linksData = (await fetchJSON(
         `/api/links/${currentDocType}/${encodeURIComponent(currentFilename)}`
-      );
+      )) as { children?: { filename: string; docType: string }[] };
       const localChildren = linksData.children || [];
       for (const c of localChildren) {
         itemsToPush.push({ filename: c.filename, docType: c.docType });
         // For feature push: also include grandchildren (stories/spikes/bugs under epics)
         if (currentDocType === 'feature' && c.docType === 'epic') {
           try {
-            const epicLinks = await fetchJSON(`/api/links/epic/${encodeURIComponent(c.filename)}`);
+            const epicLinks = (await fetchJSON(
+              `/api/links/epic/${encodeURIComponent(c.filename)}`
+            )) as { children?: { filename: string; docType: string }[] };
             for (const gc of epicLinks.children || []) {
               itemsToPush.push({ filename: gc.filename, docType: gc.docType });
             }
           } catch (e) {
-            console.warn('Failed to load grandchildren for push:', e.message);
+            console.warn('Failed to load grandchildren for push:', (e as Error).message);
           }
         }
       }
     } catch (e) {
-      console.warn('Failed to load children for push:', e.message);
+      console.warn('Failed to load children for push:', (e as Error).message);
     }
   }
 
   // 2. Fetch push preview for all items
-  btn.disabled = true;
-  btn.innerHTML = '⏳ Loading preview…' + JIRA_CARET;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Loading preview…' + JIRA_CARET;
+  }
   closeAllDropdowns();
 
-  let previewItems;
+  let previewItems: PushPreviewItem[];
   try {
-    const preview = await postJSON('/api/jira/push-preview', { items: itemsToPush });
+    const preview = (await postJSON('/api/jira/push-preview', { items: itemsToPush })) as {
+      items?: PushPreviewItem[];
+    };
     previewItems = preview.items || [];
   } catch (e) {
-    showJiraToast('error', `❌ Preview failed: ${e.message}`);
+    showJiraToast('error', `❌ Preview failed: ${(e as Error).message}`);
     updateJiraPushBtn();
     return;
   }
@@ -591,9 +660,9 @@ export async function pushToJira() {
   // This ensures features are created before epics (for "Is Contained" links)
   // and epics before stories (for Epic Link fields).
   previewItems.sort(function (a, b) {
-    var typeOrder = { feature: 0, epic: 1 };
-    var aOrder = (a.action === 'create' ? 0 : 3) + (typeOrder[a.docType] ?? 2);
-    var bOrder = (b.action === 'create' ? 0 : 3) + (typeOrder[b.docType] ?? 2);
+    const typeOrder: Record<string, number> = { feature: 0, epic: 1 };
+    const aOrder = (a.action === 'create' ? 0 : 3) + (typeOrder[a.docType ?? ''] ?? 2);
+    const bOrder = (b.action === 'create' ? 0 : 3) + (typeOrder[b.docType ?? ''] ?? 2);
     return aOrder - bOrder;
   });
 
@@ -610,35 +679,43 @@ export async function pushToJira() {
   }
 
   // 4. Execute push for each selected item with progress tracking
-  const results = [];
-  const errorMessages = [];
+  const results: { key?: string; action?: string }[] = [];
+  const errorMessages: string[] = [];
   for (let idx = 0; idx < selected.length; idx++) {
-    const item = selected[idx];
+    const item = selected[idx] as PushPreviewItem;
     const fn = item.filename;
     const dt = item.docType;
     if (!fn || !dt) continue;
     const jiraKey = item.jiraKey || item.jiraId || item.title || fn;
     updateJiraProgress(idx, selected.length, `Pushing ${jiraKey} (${idx + 1}/${selected.length})…`);
     try {
-      const data = await postJSON(`/api/jira/push/${dt}/${encodeURIComponent(fn)}`);
+      const data = (await postJSON(
+        `/api/jira/push/${dt}/${encodeURIComponent(fn)}`,
+        undefined
+      )) as {
+        type?: string;
+        results?: { key?: string; action?: string }[];
+        key?: string;
+        action?: string;
+      };
       if (data.type === 'multi-story') {
         for (const r of data.results || []) results.push(r);
       } else {
         results.push({ key: data.key, action: data.action });
       }
     } catch (e) {
-      console.warn(`Failed to push ${fn}:`, e.message);
-      errorMessages.push(`${jiraKey}: ${e.message}`);
+      console.warn(`Failed to push ${fn}:`, (e as Error).message);
+      errorMessages.push(`${jiraKey}: ${(e as Error).message}`);
     }
   }
 
   const created = results.filter((r) => r.action === 'created').length;
   const updated = results.filter((r) => r.action !== 'created').length;
-  const pushParts = [];
+  const pushParts: string[] = [];
   if (created) pushParts.push(`${created} created`);
   if (updated) pushParts.push(`${updated} synced`);
   if (errorMessages.length) pushParts.push(`${errorMessages.length} failed`);
-  if (currentFilename) openDoc(currentFilename, currentDocType);
+  if (currentFilename) openDoc(currentFilename, currentDocType!);
   const summaryText = pushParts.length ? `Pushed: ${pushParts.join(', ')}` : 'Nothing pushed';
   const errorDetail = errorMessages.length ? '\n' + errorMessages.join('\n') : '';
   finishJiraProgress(summaryText + errorDetail, errorMessages.length > 0);
@@ -646,18 +723,21 @@ export async function pushToJira() {
 }
 
 // ── Check All JIRA ───────────────────────────────────────────
-export async function checkAllJira() {
-  const btn = document.getElementById('jira-check-all-btn');
+export async function checkAllJira(): Promise<void> {
+  const btn = document.getElementById('jira-check-all-btn') as HTMLButtonElement | null;
   if (!btn) return;
 
   btn.disabled = true;
   btn.textContent = '⏳ Checking…';
 
-  let data;
+  let data: { changed?: SyncPreviewItem[]; total?: number };
   try {
-    data = await postJSON('/api/jira/check-all', {});
+    data = (await postJSON('/api/jira/check-all', {})) as {
+      changed?: SyncPreviewItem[];
+      total?: number;
+    };
   } catch (e) {
-    showJiraToast('error', `❌ ${e.message}`);
+    showJiraToast('error', `❌ ${(e as Error).message}`);
     btn.disabled = false;
     btn.textContent = '↕ Check JIRA';
     return;
@@ -691,19 +771,22 @@ export async function checkAllJira() {
   // Execute sync-status for each selected item with progress tracking
   btn.disabled = true;
   let synced = 0;
-  const syncErrorMsgs = [];
+  const syncErrorMsgs: string[] = [];
 
   for (let i = 0; i < selected.length; i++) {
-    const item = selected[i];
+    const item = selected[i] as PushPreviewItem;
     if (!item.filename || !item.docType) continue;
     const jiraKey = item.jiraKey || item.filename;
     updateJiraProgress(i, selected.length, `Syncing ${jiraKey} (${i + 1}/${selected.length})…`);
     try {
-      await postJSON(`/api/jira/sync-status/${item.docType}/${encodeURIComponent(item.filename)}`);
+      await postJSON(
+        `/api/jira/sync-status/${item.docType}/${encodeURIComponent(item.filename)}`,
+        undefined
+      );
       synced++;
     } catch (e) {
-      syncErrorMsgs.push(`${jiraKey}: ${e.message}`);
-      console.warn(`Failed to sync ${item.filename}:`, e.message);
+      syncErrorMsgs.push(`${jiraKey}: ${(e as Error).message}`);
+      console.warn(`Failed to sync ${item.filename}:`, (e as Error).message);
     }
   }
 
@@ -717,7 +800,7 @@ export async function checkAllJira() {
 
   if (synced > 0) {
     await loadDocs();
-    if (currentFilename) openDoc(currentFilename, currentDocType);
+    if (currentFilename) openDoc(currentFilename, currentDocType!);
   }
 
   btn.disabled = false;
@@ -725,42 +808,55 @@ export async function checkAllJira() {
 }
 
 // ── JIRA Import ───────────────────────────────────────────────
-export async function searchJira() {
-  const type = document.getElementById('jira-type').value;
-  const text = document.getElementById('jira-text').value.trim();
-  const btn = document.getElementById('jira-search-btn');
-  const resultsEl = document.getElementById('jira-results');
+interface JiraSearchIssue {
+  key: string;
+  summary: string;
+  issuetype: string;
+  status: string;
+  localExists?: boolean;
+  localFilename?: string;
+}
 
-  btn.disabled = true;
-  btn.textContent = 'Searching…';
+export async function searchJira(): Promise<void> {
+  const type = (document.getElementById('jira-type') as HTMLSelectElement).value;
+  const text = (document.getElementById('jira-text') as HTMLInputElement).value.trim();
+  const btn = document.getElementById('jira-search-btn') as HTMLButtonElement | null;
+  const resultsEl = document.getElementById('jira-results') as HTMLElement;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Searching…';
+  }
   setJiraStatus('loading', 'Querying JIRA…');
   resultsEl.innerHTML = '';
-  document.getElementById('jira-download-btn').classList.add('hidden');
+  document.getElementById('jira-download-btn')?.classList.add('hidden');
 
   try {
     const params = new URLSearchParams({ type });
     if (text) params.set('text', text);
-    const data = await fetchJSON(`/api/jira/search?${params}`);
+    const data = (await fetchJSON(`/api/jira/search?${params}`)) as { issues?: JiraSearchIssue[] };
 
-    jiraSearchResults = data.issues || [];
-    renderJiraResults(jiraSearchResults);
+    jiraSearchResults = (data.issues || []) as unknown as typeof jiraSearchResults;
+    renderJiraResults(data.issues || []);
     setJiraStatus(
-      jiraSearchResults.length ? 'hidden' : 'success',
-      jiraSearchResults.length ? '' : 'No issues found.'
+      (data.issues || []).length ? 'hidden' : 'success',
+      (data.issues || []).length ? '' : 'No issues found.'
     );
   } catch (e) {
-    setJiraStatus('error', e.message);
+    setJiraStatus('error', (e as Error).message);
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Search JIRA';
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Search JIRA';
+    }
   }
 }
 
-export function renderJiraResults(issues) {
-  const el = document.getElementById('jira-results');
+export function renderJiraResults(issues: JiraSearchIssue[]): void {
+  const el = document.getElementById('jira-results') as HTMLElement;
   if (!issues.length) {
     el.innerHTML = '<div class="jira-empty">No results</div>';
-    document.getElementById('jira-download-btn').classList.add('hidden');
+    document.getElementById('jira-download-btn')?.classList.add('hidden');
     return;
   }
 
@@ -775,7 +871,7 @@ export function renderJiraResults(issues) {
         <div class="jira-result-meta">
           <span class="jira-badge type-${escHtml(issue.issuetype)}">${escHtml(issue.issuetype)}</span>
           <span class="jira-badge status">${escHtml(issue.status)}</span>
-          ${issue.localExists ? `<span class="jira-badge local" title="${escHtml(issue.localFilename)}">✓ Local</span>` : ''}
+          ${issue.localExists ? `<span class="jira-badge local" title="${escHtml(issue.localFilename || '')}">✓ Local</span>` : ''}
         </div>
       </div>
     </div>`
@@ -785,43 +881,73 @@ export function renderJiraResults(issues) {
   updateDownloadBtn();
 }
 
-export function toggleJiraItem(index) {
-  const cb = document.getElementById(`jira-cb-${index}`);
-  const item = cb.closest('.jira-result-item');
+export function toggleJiraItem(index: number): void {
+  const cb = document.getElementById(`jira-cb-${index}`) as HTMLInputElement;
+  const item = cb.closest('.jira-result-item') as HTMLElement;
   cb.checked = !cb.checked;
   item.classList.toggle('selected', cb.checked);
   updateDownloadBtn();
 }
 
-export function updateDownloadBtn() {
+export function updateDownloadBtn(): void {
   const count = document.querySelectorAll('#jira-results input[type=checkbox]:checked').length;
-  const btn = document.getElementById('jira-download-btn');
+  const btn = document.getElementById('jira-download-btn') as HTMLElement | null;
+  if (!btn) return;
   btn.classList.toggle('hidden', count === 0);
   btn.textContent = `⬇ Download ${count} issue${count !== 1 ? 's' : ''}`;
 }
 
-export async function downloadSelected() {
-  const checked = [...document.querySelectorAll('#jira-results input[type=checkbox]:checked')];
+export async function downloadSelected(): Promise<void> {
+  const checked = [
+    ...document.querySelectorAll<HTMLInputElement>('#jira-results input[type=checkbox]:checked'),
+  ];
   const indices = checked.map((cb) => parseInt(cb.id.replace('jira-cb-', '')));
-  const keys = indices.map((i) => jiraSearchResults[i].key);
+  const keys = indices.map((i) => (jiraSearchResults[i] as unknown as JiraSearchIssue).key);
   if (!keys.length) return;
   await performJiraPull(keys, []);
 }
 
-export async function performJiraPull(keys, overwriteKeys, _allPulled = [], parentLink = null) {
-  const btn = document.getElementById('jira-download-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Downloading…';
+interface JiraPullParentLink {
+  filename: string;
+  docType: string;
+}
+
+interface JiraPulledItem {
+  key?: string;
+  docType?: string;
+  filename?: string;
+}
+
+interface JiraConflict {
+  key: string;
+  existingFilename: string;
+  existingDocType: string;
+}
+
+export async function performJiraPull(
+  keys: string[],
+  overwriteKeys: string[],
+  _allPulled: JiraPulledItem[] = [],
+  parentLink: JiraPullParentLink | null = null
+): Promise<void> {
+  const btn = document.getElementById('jira-download-btn') as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Downloading…';
+  }
   setJiraStatus('loading', `Downloading ${keys.length} issue(s)…`);
 
   try {
-    const data = await postJSON('/api/jira/pull', { keys, overwriteKeys, parentLink });
+    const data = (await postJSON('/api/jira/pull', { keys, overwriteKeys, parentLink })) as {
+      pulled?: JiraPulledItem[];
+      conflicts?: JiraConflict[];
+    };
 
     const accumulatedPulled = [..._allPulled, ...(data.pulled || [])];
 
     let resolvedOverwrite = [...overwriteKeys];
     if (data.conflicts?.length) {
-      const conflictItems = data.conflicts.map((c) => ({
+      const conflictItems: JiraSelectItem[] = data.conflicts.map((c) => ({
         key: c.key,
         summary: c.existingFilename,
         type: c.existingDocType,
@@ -832,8 +958,8 @@ export async function performJiraPull(keys, overwriteKeys, _allPulled = [], pare
         'Overwrite selected'
       );
       if (selectedOverwrite.length) {
-        resolvedOverwrite = [...resolvedOverwrite, ...selectedOverwrite.map((c) => c.key)];
-        btn.disabled = false;
+        resolvedOverwrite = [...resolvedOverwrite, ...selectedOverwrite.map((c) => c.key!)];
+        if (btn) btn.disabled = false;
         return performJiraPull(keys, resolvedOverwrite, accumulatedPulled, parentLink);
       }
     }
@@ -850,11 +976,13 @@ export async function performJiraPull(keys, overwriteKeys, _allPulled = [], pare
 
       // Refresh search results
       try {
-        const updatedData = await fetchJSON(
-          `/api/jira/search?type=${document.getElementById('jira-type').value}&text=${encodeURIComponent(document.getElementById('jira-text').value)}`
-        );
-        jiraSearchResults = updatedData.issues || [];
-        renderJiraResults(jiraSearchResults);
+        const typeSel = document.getElementById('jira-type') as HTMLSelectElement;
+        const textInput = document.getElementById('jira-text') as HTMLInputElement;
+        const updatedData = (await fetchJSON(
+          `/api/jira/search?type=${typeSel.value}&text=${encodeURIComponent(textInput.value)}`
+        )) as { issues?: JiraSearchIssue[] };
+        jiraSearchResults = (updatedData.issues || []) as unknown as typeof jiraSearchResults;
+        renderJiraResults(updatedData.issues || []);
       } catch {
         /* non-critical: search refresh after pull */
       }
@@ -862,16 +990,17 @@ export async function performJiraPull(keys, overwriteKeys, _allPulled = [], pare
       setJiraStatus('success', 'No new issues downloaded.');
     }
   } catch (e) {
-    setJiraStatus('error', e.message);
+    setJiraStatus('error', (e as Error).message);
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
     updateDownloadBtn();
   }
 }
 
 // ── Import by key (bypasses label filter) ────────────────────
-export async function pullByKey() {
-  const input = document.getElementById('jira-key-input');
+export async function pullByKey(): Promise<void> {
+  const input = document.getElementById('jira-key-input') as HTMLInputElement | null;
+  if (!input) return;
   const raw = (input.value || '').trim();
   if (!raw) {
     input.focus();
@@ -884,30 +1013,43 @@ export async function pullByKey() {
     .filter(Boolean);
   if (!keys.length) return;
 
-  const btn = document.querySelector('.btn-jira-key');
-  btn.disabled = true;
-  btn.textContent = '⏳ Importing…';
+  const btn = document.querySelector('.btn-jira-key') as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Importing…';
+  }
   setJiraStatus('loading', `Importing ${keys.join(', ')}…`);
 
   try {
     await performJiraPull(keys, []);
     input.value = '';
   } catch (e) {
-    setJiraStatus('error', `❌ ${e.message}`);
+    setJiraStatus('error', `❌ ${(e as Error).message}`);
   } finally {
-    btn.disabled = false;
-    btn.textContent = '⬇ Import';
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '⬇ Import';
+    }
   }
 }
 
-export async function offerChildrenDownload(parentIssues) {
-  const allChildren = [];
-  const childToParent = new Map(); // child.key → parent issue
-  const seen = new Set();
+interface JiraChildIssue {
+  key: string;
+  summary: string;
+  issuetype: string;
+  localExists?: boolean;
+}
+
+export async function offerChildrenDownload(parentIssues: JiraPulledItem[]): Promise<void> {
+  const allChildren: JiraSelectItem[] = [];
+  const childToParent = new Map<string, JiraPulledItem>(); // child.key → parent issue
+  const seen = new Set<string>();
 
   for (const parent of parentIssues) {
     try {
-      const data = await fetchJSON(`/api/jira/children/${encodeURIComponent(parent.key)}`);
+      const data = (await fetchJSON(`/api/jira/children/${encodeURIComponent(parent.key!)}`)) as {
+        children?: JiraChildIssue[];
+      };
       for (const child of data.children || []) {
         if (!seen.has(child.key)) {
           seen.add(child.key);
@@ -921,7 +1063,7 @@ export async function offerChildrenDownload(parentIssues) {
         }
       }
     } catch (e) {
-      console.warn(`Failed to fetch children for ${parent.key}:`, e.message);
+      console.warn(`Failed to fetch children for ${parent.key}:`, (e as Error).message);
     }
   }
 
@@ -929,7 +1071,7 @@ export async function offerChildrenDownload(parentIssues) {
 
   const newCount = allChildren.filter((c) => !c.localExists).length;
   const updateCount = allChildren.filter((c) => c.localExists).length;
-  const parts = [];
+  const parts: string[] = [];
   if (newCount) parts.push(`${newCount} new`);
   if (updateCount) parts.push(`${updateCount} to update`);
   const modalTitle = `Children in JIRA: ${parts.join(', ')}`;
@@ -942,15 +1084,15 @@ export async function offerChildrenDownload(parentIssues) {
   // Pre-include existing children in overwriteKeys so no second conflict dialog fires.
   for (const parent of parentIssues) {
     const childKeys = selected
-      .filter((c) => childToParent.get(c.key)?.key === parent.key)
-      .map((c) => c.key);
+      .filter((c) => childToParent.get(c.key!)?.key === parent.key)
+      .map((c) => c.key!);
     const overwriteKeys = selected
-      .filter((c) => childToParent.get(c.key)?.key === parent.key && c.localExists)
-      .map((c) => c.key);
+      .filter((c) => childToParent.get(c.key!)?.key === parent.key && c.localExists)
+      .map((c) => c.key!);
     if (childKeys.length) {
       await performJiraPull(childKeys, overwriteKeys, [], {
-        filename: parent.filename,
-        docType: parent.docType,
+        filename: parent.filename!,
+        docType: parent.docType!,
       });
     }
   }

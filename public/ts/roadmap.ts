@@ -1,14 +1,21 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
-import { escHtml, postJSON, showJiraToast, patchJSON } from './state.js';
+import { escHtml, postJSON, showJiraToast, patchJSON, getErrorMessage } from './state.js';
+import type { DocEntry, SprintConfig } from './state.js';
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
 import { loadDocs } from './list.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { on } from './store.js';
 
+interface RoadmapSprint {
+  name: string;
+  capacity: number;
+  [key: string]: unknown;
+}
+
 // _roadmapVisiblePis is in state.js as a _storeVar global
-let _roadmapPanelState = { epics: true, stories: true }; // expanded/collapsed
-let _roadmapFocusedEpic = null; // filename of clicked feature (focus mode)
+let _roadmapPanelState: Record<string, boolean> = { epics: true, stories: true }; // expanded/collapsed
+let _roadmapFocusedEpic: string | null = null; // filename of clicked feature (focus mode)
 
 // Re-render PI filter when piSettings arrives (may load after roadmap opens)
 on('piSettings:changed', () => {
@@ -16,18 +23,18 @@ on('piSettings:changed', () => {
 });
 
 // ── Open / Close ─────────────────────────────────────────────
-export function openRoadmapView() {
+export function openRoadmapView(): void {
   // Hide other views
-  document.getElementById('list-view').style.display = 'none';
+  (document.getElementById('list-view') as HTMLElement).style.display = 'none';
   document.getElementById('refine-view')?.classList.remove('show');
-  document.getElementById('detail-view').classList.remove('show');
-  document.querySelector('.right').classList.remove('has-selection');
+  document.getElementById('detail-view')!.classList.remove('show');
+  document.querySelector('.right')!.classList.remove('has-selection');
   currentFilename = null;
   currentDocType = null;
 
   // Show roadmap
-  document.getElementById('roadmap-view').classList.add('show');
-  document.querySelector('.right').classList.add('roadmap-mode');
+  document.getElementById('roadmap-view')!.classList.add('show');
+  document.querySelector('.right')!.classList.add('roadmap-mode');
 
   // Populate PI filter checkboxes
   populateRoadmapPiFilter();
@@ -35,38 +42,38 @@ export function openRoadmapView() {
   // Reset focus, search and multi-selection
   _roadmapFocusedEpic = null;
   clearRoadmapSelection();
-  const searchInput = document.getElementById('rm-epic-search');
+  const searchInput = document.getElementById('rm-epic-search') as HTMLInputElement | null;
   if (searchInput) searchInput.value = '';
 
   renderRoadmapBoard();
 }
 
-export function closeRoadmapView() {
-  document.getElementById('roadmap-view').classList.remove('show');
-  document.querySelector('.right').classList.remove('roadmap-mode');
-  document.querySelector('.right').classList.remove('has-selection');
-  document.getElementById('detail-view').classList.remove('show');
+export function closeRoadmapView(): void {
+  document.getElementById('roadmap-view')!.classList.remove('show');
+  document.querySelector('.right')!.classList.remove('roadmap-mode');
+  document.querySelector('.right')!.classList.remove('has-selection');
+  document.getElementById('detail-view')!.classList.remove('show');
   currentFilename = null;
   currentDocType = null;
-  document.getElementById('list-view').style.display = '';
+  (document.getElementById('list-view') as HTMLElement).style.display = '';
   _roadmapVisiblePis.clear();
   _roadmapFocusedEpic = null;
   clearRoadmapSelection();
 }
 
-export function isRoadmapOpen() {
-  return document.getElementById('roadmap-view').classList.contains('show');
+export function isRoadmapOpen(): boolean {
+  return document.getElementById('roadmap-view')!.classList.contains('show');
 }
 
-export function refreshRoadmapView() {
+export function refreshRoadmapView(): void {
   if (isRoadmapOpen()) renderRoadmapBoard();
 }
 
 // ── PI Filter (checkboxes) ───────────────────────────────────
-function populateRoadmapPiFilter() {
+function populateRoadmapPiFilter(): void {
   const container = document.getElementById('roadmap-pi-filter');
   if (!container) return;
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
   // On first open, check all PIs
   if (!_roadmapVisiblePis.size) pis.forEach((p) => _roadmapVisiblePis.add(p));
   let html = '';
@@ -77,17 +84,17 @@ function populateRoadmapPiFilter() {
   container.innerHTML = html;
 }
 
-export function toggleRoadmapPi(piName, checked) {
+export function toggleRoadmapPi(piName: string, checked: boolean): void {
   if (checked) _roadmapVisiblePis.add(piName);
   else _roadmapVisiblePis.delete(piName);
   renderRoadmapBoard();
 }
 
 // ── Panel collapse ───────────────────────────────────────────
-export function toggleRoadmapPanel(panel) {
+export function toggleRoadmapPanel(panel: string): void {
   _roadmapPanelState[panel] = !_roadmapPanelState[panel];
-  const body = document.getElementById(`rm-body-${panel}`);
-  const chevron = document.getElementById(`rm-chevron-${panel}`);
+  const body = document.getElementById(`rm-body-${panel}`)!;
+  const chevron = document.getElementById(`rm-chevron-${panel}`)!;
   if (_roadmapPanelState[panel]) {
     body.classList.remove('collapsed');
     chevron.textContent = '▼';
@@ -98,19 +105,19 @@ export function toggleRoadmapPanel(panel) {
 }
 
 // ── Epic search filter ──────────────────────────────────────
-export function filterRoadmapEpics(query) {
+export function filterRoadmapEpics(query: string): void {
   const q = query.trim().toLowerCase();
-  document.querySelectorAll('.rm-epic-card').forEach((card) => {
+  document.querySelectorAll<HTMLElement>('.rm-epic-card').forEach((card) => {
     const title = (card.querySelector('.rm-epic-title')?.textContent || '').toLowerCase();
     card.style.display = !q || title.includes(q) ? '' : 'none';
   });
   // Update visible count
   const visible = document.querySelectorAll('.rm-epic-card:not([style*="display: none"])').length;
-  document.getElementById('rm-count-epics').textContent = visible;
+  document.getElementById('rm-count-epics')!.textContent = String(visible);
 }
 
 // ── Epic focus (click on epic card) ──────────────────────────
-export function focusEpic(filename) {
+export function focusEpic(filename: string): void {
   if (_roadmapFocusedEpic === filename) {
     _roadmapFocusedEpic = null; // toggle off
   } else {
@@ -119,35 +126,53 @@ export function focusEpic(filename) {
   applyEpicFocus();
 }
 
-export function applyEpicFocus() {
+export function applyEpicFocus(): void {
   // Epic panel: highlight focused epic
-  document.querySelectorAll('.rm-epic-card').forEach((card) => {
-    card.classList.toggle('rm-focused', card.dataset.filename === _roadmapFocusedEpic);
+  document.querySelectorAll<HTMLElement>('.rm-epic-card').forEach((card) => {
+    card.classList.toggle('rm-focused', card.dataset['filename'] === _roadmapFocusedEpic);
     card.classList.toggle(
       'rm-dimmed',
-      _roadmapFocusedEpic && card.dataset.filename !== _roadmapFocusedEpic
+      !!_roadmapFocusedEpic && card.dataset['filename'] !== _roadmapFocusedEpic
     );
   });
 
   // Story panel: dim non-matching stories
   const focusNone = _roadmapFocusedEpic === '__none__';
-  document.querySelectorAll('.roadmap-card').forEach((card) => {
+  document.querySelectorAll<HTMLElement>('.roadmap-card').forEach((card) => {
     if (!_roadmapFocusedEpic) {
       card.classList.remove('rm-dimmed');
       return;
     }
-    const parent = card.dataset.parent || '';
+    const parent = card.dataset['parent'] || '';
     const matches = focusNone ? parent === '' : parent === _roadmapFocusedEpic;
     card.classList.toggle('rm-dimmed', !matches);
   });
 }
 
 // ── Push Sprints to JIRA (modal-based) ──────────────────────
-let _sprintPushPreview = []; // current preview changes
-let _sprintPushFilters = { add: true, change: true, pull: true };
-let _sprintPushItems = []; // items prepared for preview
+interface SprintPushItem {
+  filename: string;
+  docType: string;
+  sprint: string;
+  jiraId: string | null;
+  title: string;
+}
 
-export async function pushSprintsToJira() {
+interface SprintPushChange {
+  changeType: 'add' | 'change' | 'pull' | string;
+  jiraId: string;
+  filename?: string;
+  docType?: string;
+  title: string;
+  targetSprint?: string;
+  currentJiraSprint?: string;
+}
+
+let _sprintPushPreview: SprintPushChange[] = []; // current preview changes
+let _sprintPushFilters: Record<string, boolean> = { add: true, change: true, pull: true };
+let _sprintPushItems: SprintPushItem[] = []; // items prepared for preview
+
+export async function pushSprintsToJira(): Promise<void> {
   const leafTypes = new Set(['story', 'spike', 'bug']);
   _sprintPushItems = allDocs
     .filter((d) => leafTypes.has(d.docType) && d.jiraId)
@@ -167,22 +192,22 @@ export async function pushSprintsToJira() {
   openSprintPushModal();
 }
 
-export function openSprintPushModal() {
+export function openSprintPushModal(): void {
   _sprintPushPreview = [];
   _sprintPushFilters = { add: true, change: true, pull: true };
 
   // Reset all steps
-  document.getElementById('sprint-push-select-step').style.display = '';
-  document.getElementById('sprint-push-loading').classList.remove('show');
-  document.getElementById('sprint-push-error').classList.remove('show');
-  document.getElementById('sprint-push-empty').classList.remove('show');
-  document.getElementById('sprint-push-list').innerHTML = '';
-  document.getElementById('sprint-push-stats').textContent = '';
-  document.getElementById('sprint-push-actions').style.display = 'none';
-  document.getElementById('sprint-push-filters').style.display = 'none';
-  document.getElementById('sprint-push-progress-msg').textContent =
+  (document.getElementById('sprint-push-select-step') as HTMLElement).style.display = '';
+  document.getElementById('sprint-push-loading')!.classList.remove('show');
+  document.getElementById('sprint-push-error')!.classList.remove('show');
+  document.getElementById('sprint-push-empty')!.classList.remove('show');
+  document.getElementById('sprint-push-list')!.innerHTML = '';
+  document.getElementById('sprint-push-stats')!.textContent = '';
+  (document.getElementById('sprint-push-actions') as HTMLElement).style.display = 'none';
+  (document.getElementById('sprint-push-filters') as HTMLElement).style.display = 'none';
+  document.getElementById('sprint-push-progress-msg')!.textContent =
     'Comparing sprint assignments with JIRA…';
-  document.getElementById('sprint-push-progress-fill').style.width = '0%';
+  (document.getElementById('sprint-push-progress-fill') as HTMLElement).style.width = '0%';
 
   // Reset filter pills
   document.querySelectorAll('.sprint-push-pill').forEach((p) => p.classList.add('active'));
@@ -190,17 +215,17 @@ export function openSprintPushModal() {
   // Populate sprint checkboxes from all PIs
   _populateSprintSelector();
 
-  document.getElementById('sprint-push-overlay').classList.add('show');
+  document.getElementById('sprint-push-overlay')!.classList.add('show');
 }
 
-function _populateSprintSelector() {
-  const container = document.getElementById('sprint-push-sprint-list');
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
-  const seen = new Set();
+function _populateSprintSelector(): void {
+  const container = document.getElementById('sprint-push-sprint-list')!;
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
+  const seen = new Set<string>();
   let html = '';
 
   for (const pi of pis) {
-    const sprints = sprintConfig[pi] || [];
+    const sprints = ((sprintConfig as SprintConfig)[pi] as RoadmapSprint[] | undefined) || [];
     if (!sprints.length) continue;
     html += `<div class="sprint-push-pi-group"><span class="sprint-push-pi-label">${escHtml(pi)}</span>`;
     for (const s of sprints) {
@@ -220,11 +245,11 @@ function _populateSprintSelector() {
   });
 }
 
-function _updatePreviewBtnState() {
+function _updatePreviewBtnState(): void {
   const checked = document.querySelectorAll(
     '#sprint-push-sprint-list input[type="checkbox"]:checked'
   );
-  const btn = document.getElementById('sprint-push-preview-btn');
+  const btn = document.getElementById('sprint-push-preview-btn') as HTMLButtonElement | null;
   if (btn) {
     btn.disabled = checked.length === 0;
     btn.textContent = checked.length
@@ -233,24 +258,28 @@ function _updatePreviewBtnState() {
   }
 }
 
-export function sprintPushToggleAllSprints(checked) {
-  document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]').forEach((cb) => {
-    cb.checked = checked;
-  });
+export function sprintPushToggleAllSprints(checked: boolean): void {
+  document
+    .querySelectorAll<HTMLInputElement>('#sprint-push-sprint-list input[type="checkbox"]')
+    .forEach((cb) => {
+      cb.checked = checked;
+    });
   _updatePreviewBtnState();
 }
 
-export async function startSprintPushPreview() {
+export async function startSprintPushPreview(): Promise<void> {
   // Gather selected sprints
   const selectedSprints = [
-    ...document.querySelectorAll('#sprint-push-sprint-list input[type="checkbox"]:checked'),
+    ...document.querySelectorAll<HTMLInputElement>(
+      '#sprint-push-sprint-list input[type="checkbox"]:checked'
+    ),
   ].map((cb) => cb.value);
 
   if (!selectedSprints.length) return;
 
   // Switch to loading step
-  document.getElementById('sprint-push-select-step').style.display = 'none';
-  document.getElementById('sprint-push-loading').classList.add('show');
+  (document.getElementById('sprint-push-select-step') as HTMLElement).style.display = 'none';
+  document.getElementById('sprint-push-loading')!.classList.add('show');
 
   try {
     const body = JSON.stringify({ items: _sprintPushItems, selectedSprints });
@@ -260,27 +289,35 @@ export async function startSprintPushPreview() {
       body,
     });
 
-    const reader = response.body.getReader();
+    const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let result = null;
+    let result: { changes?: SprintPushChange[] } | null = null;
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop();
+      buffer = lines.pop()!;
 
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         try {
-          const payload = JSON.parse(line.slice(6));
+          const payload = JSON.parse(line.slice(6)) as {
+            type?: string;
+            message?: string;
+            current?: number;
+            total?: number;
+            changes?: SprintPushChange[];
+          };
           if (payload.type === 'progress') {
-            document.getElementById('sprint-push-progress-msg').textContent = payload.message;
+            document.getElementById('sprint-push-progress-msg')!.textContent =
+              payload.message ?? '';
             if (payload.current && payload.total) {
               const pct = Math.round((payload.current / payload.total) * 100);
-              document.getElementById('sprint-push-progress-fill').style.width = pct + '%';
+              (document.getElementById('sprint-push-progress-fill') as HTMLElement).style.width =
+                pct + '%';
             }
           } else if (payload.type === 'result') {
             result = payload;
@@ -288,36 +325,37 @@ export async function startSprintPushPreview() {
             throw new Error(payload.message);
           }
         } catch (parseErr) {
-          if (parseErr.message && !parseErr.message.includes('JSON')) throw parseErr;
+          const msg = (parseErr as Error).message;
+          if (msg && !msg.includes('JSON')) throw parseErr;
         }
       }
     }
 
     if (result) {
       _sprintPushPreview = result.changes || [];
-      renderSprintPushPreview(result);
+      renderSprintPushPreview(result as { changes?: SprintPushChange[] });
     } else {
       showSprintPushError('No response received from server.');
     }
   } catch (e) {
-    showSprintPushError('Failed to fetch preview: ' + e.message);
+    showSprintPushError('Failed to fetch preview: ' + getErrorMessage(e));
   }
 }
 
-export function closeSprintPushModal() {
-  document.getElementById('sprint-push-overlay').classList.remove('show');
+export function closeSprintPushModal(): void {
+  document.getElementById('sprint-push-overlay')!.classList.remove('show');
 }
 
-function showSprintPushError(msg) {
-  document.getElementById('sprint-push-loading').classList.remove('show');
-  document.getElementById('sprint-push-select-step').style.display = 'none';
-  const el = document.getElementById('sprint-push-error');
+function showSprintPushError(msg: string): void {
+  document.getElementById('sprint-push-loading')!.classList.remove('show');
+  (document.getElementById('sprint-push-select-step') as HTMLElement).style.display = 'none';
+  const el = document.getElementById('sprint-push-error')!;
   el.textContent = msg;
   el.classList.add('show');
 }
 
-function renderSprintPushPreview(preview) {
-  document.getElementById('sprint-push-loading').classList.remove('show');
+function renderSprintPushPreview(preview: { changes?: SprintPushChange[] }): void {
+  document.getElementById('sprint-push-loading')!.classList.remove('show');
 
   // Filter out items where the sprint hasn't actually changed (client-side safety net)
   const allChanges = preview.changes || [];
@@ -329,14 +367,14 @@ function renderSprintPushPreview(preview) {
   });
 
   if (!changes.length) {
-    document.getElementById('sprint-push-empty').classList.add('show');
-    document.getElementById('sprint-push-stats').textContent = 'All in sync';
+    document.getElementById('sprint-push-empty')!.classList.add('show');
+    document.getElementById('sprint-push-stats')!.textContent = 'All in sync';
     return;
   }
 
   // Show filters and actions
-  document.getElementById('sprint-push-filters').style.display = 'flex';
-  document.getElementById('sprint-push-actions').style.display = 'flex';
+  (document.getElementById('sprint-push-filters') as HTMLElement).style.display = 'flex';
+  (document.getElementById('sprint-push-actions') as HTMLElement).style.display = 'flex';
 
   // Recompute counts from filtered set
   const adds = changes.filter((c) => c.changeType === 'add').length;
@@ -344,22 +382,22 @@ function renderSprintPushPreview(preview) {
   const pulls = changes.filter((c) => c.changeType === 'pull').length;
 
   // Update pill counts
-  document.getElementById('sprint-push-count-add').textContent = adds;
-  document.getElementById('sprint-push-count-change').textContent = changesCount;
-  document.getElementById('sprint-push-count-pull').textContent = pulls;
+  document.getElementById('sprint-push-count-add')!.textContent = String(adds);
+  document.getElementById('sprint-push-count-change')!.textContent = String(changesCount);
+  document.getElementById('sprint-push-count-pull')!.textContent = String(pulls);
 
   // Stats summary
-  document.getElementById('sprint-push-stats').textContent =
+  document.getElementById('sprint-push-stats')!.textContent =
     `${changes.length} change${changes.length !== 1 ? 's' : ''} found`;
 
   // Render rows
-  const list = document.getElementById('sprint-push-list');
+  const list = document.getElementById('sprint-push-list')!;
   list.innerHTML = '';
 
   for (const c of changes) {
     const row = document.createElement('label');
     row.className = 'sprint-push-item';
-    row.dataset.type = c.changeType;
+    row.dataset['type'] = c.changeType;
 
     let arrow = '';
     const badgeLabel =
@@ -388,13 +426,13 @@ function renderSprintPushPreview(preview) {
   _sprintPushUpdateCount();
 }
 
-function _escHtml(s) {
+function _escHtml(s: string | null | undefined): string {
   const d = document.createElement('div');
   d.textContent = s || '';
   return d.innerHTML;
 }
 
-export function toggleSprintPushFilter(type) {
+export function toggleSprintPushFilter(type: string): void {
   _sprintPushFilters[type] = !_sprintPushFilters[type];
 
   // Update pill active state
@@ -404,49 +442,59 @@ export function toggleSprintPushFilter(type) {
   _applySprintPushFilters();
 }
 
-function _applySprintPushFilters() {
-  const items = document.querySelectorAll('.sprint-push-item');
+function _applySprintPushFilters(): void {
+  const items = document.querySelectorAll<HTMLElement>('.sprint-push-item');
   items.forEach((item) => {
-    const type = item.dataset.type;
+    const type = item.dataset['type'] ?? '';
     item.style.display = _sprintPushFilters[type] ? '' : 'none';
   });
 }
 
-export function sprintPushSelectAll(checked) {
-  document.querySelectorAll('.sprint-push-item').forEach((item) => {
+export function sprintPushSelectAll(checked: boolean): void {
+  document.querySelectorAll<HTMLElement>('.sprint-push-item').forEach((item) => {
     if (item.style.display === 'none') return; // skip hidden
-    const cb = item.querySelector('input[type="checkbox"]');
+    const cb = item.querySelector<HTMLInputElement>('input[type="checkbox"]');
     if (cb) cb.checked = checked;
   });
   _sprintPushUpdateCount();
 }
 
-export function _sprintPushUpdateCount() {
-  const all = document.querySelectorAll('.sprint-push-item input[type="checkbox"]');
+export function _sprintPushUpdateCount(): void {
+  const all = document.querySelectorAll<HTMLInputElement>(
+    '.sprint-push-item input[type="checkbox"]'
+  );
   const checked = [...all].filter((cb) => cb.checked).length;
-  const btn = document.getElementById('sprint-push-confirm');
+  const btn = document.getElementById('sprint-push-confirm') as HTMLButtonElement;
   btn.textContent = `Sync Changes (${checked}/${all.length})`;
   btn.disabled = checked === 0;
 }
 
-export async function confirmSprintPush() {
-  const checkboxes = document.querySelectorAll('.sprint-push-item input[type="checkbox"]:checked');
+interface SprintPushResultItem {
+  status: 'ok' | 'skipped' | 'error' | string;
+}
+
+export async function confirmSprintPush(): Promise<void> {
+  const checkboxes = document.querySelectorAll<HTMLInputElement>(
+    '.sprint-push-item input[type="checkbox"]:checked'
+  );
   if (!checkboxes.length) return;
 
-  const btn = document.getElementById('sprint-push-confirm');
+  const btn = document.getElementById('sprint-push-confirm') as HTMLButtonElement;
   btn.disabled = true;
   btn.textContent = 'Syncing…';
 
   const items = [...checkboxes].map((cb) => ({
-    filename: cb.dataset.filename,
-    sprint: cb.dataset.targetSprint,
-    changeType: cb.dataset.changeType,
-    jiraId: cb.dataset.jiraId,
-    docType: cb.dataset.docType || '',
+    filename: cb.dataset['filename'],
+    sprint: cb.dataset['targetSprint'],
+    changeType: cb.dataset['changeType'],
+    jiraId: cb.dataset['jiraId'],
+    docType: cb.dataset['docType'] || '',
   }));
 
   try {
-    const res = await postJSON('/api/jira/push-sprints', { items });
+    const res = (await postJSON('/api/jira/push-sprints', { items })) as {
+      results?: SprintPushResultItem[];
+    };
     const ok = (res.results || []).filter((r) => r.status === 'ok').length;
     const skipped = (res.results || []).filter((r) => r.status === 'skipped').length;
     const errors = (res.results || []).filter((r) => r.status === 'error').length;
@@ -461,20 +509,20 @@ export async function confirmSprintPush() {
     if (pulled > 0) loadDocs(); // refresh local data after pull
     closeSprintPushModal();
   } catch (e) {
-    showJiraToast('error', 'Failed to push sprints: ' + e.message);
+    showJiraToast('error', 'Failed to push sprints: ' + getErrorMessage(e));
     btn.disabled = false;
     _sprintPushUpdateCount();
   }
 }
 
 // ── Gather all sprints across visible PIs ────────────────────
-export function getAllSprints() {
-  const all = [];
-  const seen = new Set();
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+export function getAllSprints(): RoadmapSprint[] {
+  const all: RoadmapSprint[] = [];
+  const seen = new Set<string>();
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
   for (const pi of pis) {
     if (!_roadmapVisiblePis.has(pi)) continue; // skip unchecked PIs
-    for (const s of sprintConfig[pi] || []) {
+    for (const s of ((sprintConfig as SprintConfig)[pi] as RoadmapSprint[] | undefined) || []) {
       if (!seen.has(s.name)) {
         seen.add(s.name);
         all.push(s);
@@ -486,7 +534,7 @@ export function getAllSprints() {
 
 // ── Pull from JIRA Sprints ───────────────────────────────────
 
-const JIRA_TYPE_TO_LOCAL = {
+const JIRA_TYPE_TO_LOCAL: Record<string, string> = {
   'New Feature': 'feature',
   Epic: 'epic',
   Story: 'story',
@@ -495,22 +543,22 @@ const JIRA_TYPE_TO_LOCAL = {
   Bug: 'bug',
 };
 
-export function pullFromJiraSprints() {
-  const overlay = document.getElementById('pull-sprint-overlay');
+export function pullFromJiraSprints(): void {
+  const overlay = document.getElementById('pull-sprint-overlay')!;
   // Reset UI state
-  document.getElementById('pull-sprint-select-step').style.display = '';
-  document.getElementById('pull-sprint-loading').style.display = 'none';
-  document.getElementById('pull-sprint-error').style.display = 'none';
-  document.getElementById('pull-sprint-empty').style.display = 'none';
-  document.getElementById('pull-sprint-results').innerHTML = '';
-  document.getElementById('pull-sprint-actions').style.display = 'none';
+  (document.getElementById('pull-sprint-select-step') as HTMLElement).style.display = '';
+  (document.getElementById('pull-sprint-loading') as HTMLElement).style.display = 'none';
+  (document.getElementById('pull-sprint-error') as HTMLElement).style.display = 'none';
+  (document.getElementById('pull-sprint-empty') as HTMLElement).style.display = 'none';
+  document.getElementById('pull-sprint-results')!.innerHTML = '';
+  (document.getElementById('pull-sprint-actions') as HTMLElement).style.display = 'none';
 
   // Populate sprint checkboxes
-  const list = document.getElementById('pull-sprint-list');
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  const list = document.getElementById('pull-sprint-list')!;
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
   let html = '';
   for (const pi of pis) {
-    const sprints = sprintConfig[pi] || [];
+    const sprints = ((sprintConfig as SprintConfig)[pi] as RoadmapSprint[] | undefined) || [];
     if (!sprints.length) continue;
     html += `<div class="sprint-push-pi-group"><strong>${escHtml(pi)}</strong></div>`;
     for (const s of sprints) {
@@ -521,30 +569,40 @@ export function pullFromJiraSprints() {
   overlay.classList.add('show');
 }
 
-export function closePullSprintModal() {
-  document.getElementById('pull-sprint-overlay').classList.remove('show');
+export function closePullSprintModal(): void {
+  document.getElementById('pull-sprint-overlay')!.classList.remove('show');
 }
 
-export function pullSprintToggleAll(checked) {
+export function pullSprintToggleAll(checked: boolean): void {
   document
-    .querySelectorAll('#pull-sprint-list input[type="checkbox"]')
+    .querySelectorAll<HTMLInputElement>('#pull-sprint-list input[type="checkbox"]')
     .forEach((cb) => (cb.checked = checked));
 }
 
-export async function startPullSprintPreview() {
-  const cbs = document.querySelectorAll('#pull-sprint-list input[type="checkbox"]:checked');
+interface PullSprintResult {
+  key: string;
+  issuetype: string;
+  summary: string;
+  sprintName: string;
+  storyPoints?: number | null;
+}
+
+export async function startPullSprintPreview(): Promise<void> {
+  const cbs = document.querySelectorAll<HTMLInputElement>(
+    '#pull-sprint-list input[type="checkbox"]:checked'
+  );
   const selectedSprints = [...cbs].map((cb) => cb.value);
   if (!selectedSprints.length) {
     showJiraToast('error', 'Select at least one sprint');
     return;
   }
 
-  document.getElementById('pull-sprint-select-step').style.display = 'none';
-  document.getElementById('pull-sprint-loading').style.display = '';
-  document.getElementById('pull-sprint-error').style.display = 'none';
-  document.getElementById('pull-sprint-empty').style.display = 'none';
-  document.getElementById('pull-sprint-results').innerHTML = '';
-  document.getElementById('pull-sprint-actions').style.display = 'none';
+  (document.getElementById('pull-sprint-select-step') as HTMLElement).style.display = 'none';
+  (document.getElementById('pull-sprint-loading') as HTMLElement).style.display = '';
+  (document.getElementById('pull-sprint-error') as HTMLElement).style.display = 'none';
+  (document.getElementById('pull-sprint-empty') as HTMLElement).style.display = 'none';
+  document.getElementById('pull-sprint-results')!.innerHTML = '';
+  (document.getElementById('pull-sprint-actions') as HTMLElement).style.display = 'none';
 
   try {
     const res = await fetch('/api/jira/pull-sprint-preview', {
@@ -553,50 +611,54 @@ export async function startPullSprintPreview() {
       body: JSON.stringify({ selectedSprints }),
     });
 
-    const reader = res.body.getReader();
+    const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let result = null;
+    let result: PullSprintResult[] | null = null;
 
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop();
+      buffer = lines.pop()!;
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        const msg = JSON.parse(line.slice(6));
+        const msg = JSON.parse(line.slice(6)) as {
+          type?: string;
+          message?: string;
+          results?: PullSprintResult[];
+        };
         if (msg.type === 'progress') {
-          document.getElementById('pull-sprint-progress-msg').textContent = msg.message;
+          document.getElementById('pull-sprint-progress-msg')!.textContent = msg.message ?? '';
         } else if (msg.type === 'error') {
-          document.getElementById('pull-sprint-loading').style.display = 'none';
-          document.getElementById('pull-sprint-error').style.display = '';
-          document.getElementById('pull-sprint-error').textContent = msg.message;
+          (document.getElementById('pull-sprint-loading') as HTMLElement).style.display = 'none';
+          (document.getElementById('pull-sprint-error') as HTMLElement).style.display = '';
+          document.getElementById('pull-sprint-error')!.textContent = msg.message ?? '';
           return;
         } else if (msg.type === 'done') {
-          result = msg.results;
+          result = msg.results ?? null;
         }
       }
     }
 
-    document.getElementById('pull-sprint-loading').style.display = 'none';
+    (document.getElementById('pull-sprint-loading') as HTMLElement).style.display = 'none';
 
     if (!result || !result.length) {
-      document.getElementById('pull-sprint-empty').style.display = '';
+      (document.getElementById('pull-sprint-empty') as HTMLElement).style.display = '';
       return;
     }
 
     _renderPullSprintResults(result);
   } catch (e) {
-    document.getElementById('pull-sprint-loading').style.display = 'none';
-    document.getElementById('pull-sprint-error').style.display = '';
-    document.getElementById('pull-sprint-error').textContent = e.message;
+    (document.getElementById('pull-sprint-loading') as HTMLElement).style.display = 'none';
+    (document.getElementById('pull-sprint-error') as HTMLElement).style.display = '';
+    document.getElementById('pull-sprint-error')!.textContent = getErrorMessage(e);
   }
 }
 
-function _renderPullSprintResults(results) {
-  const container = document.getElementById('pull-sprint-results');
+function _renderPullSprintResults(results: PullSprintResult[]): void {
+  const container = document.getElementById('pull-sprint-results')!;
   let html = `<div class="sprint-push-results-header">
     <label><input type="checkbox" checked onchange="pullSprintSelectAllItems(this.checked)" /> Select all</label>
     <span>${results.length} new issue${results.length !== 1 ? 's' : ''} found</span>
@@ -615,18 +677,18 @@ function _renderPullSprintResults(results) {
     </label>`;
   }
   container.innerHTML = html;
-  document.getElementById('pull-sprint-actions').style.display = '';
+  (document.getElementById('pull-sprint-actions') as HTMLElement).style.display = '';
   _pullSprintUpdateCount();
 }
 
-export function pullSprintSelectAllItems(checked) {
+export function pullSprintSelectAllItems(checked: boolean): void {
   document
-    .querySelectorAll('#pull-sprint-results input[type="checkbox"]')
+    .querySelectorAll<HTMLInputElement>('#pull-sprint-results input[type="checkbox"]')
     .forEach((cb) => (cb.checked = checked));
   _pullSprintUpdateCount();
 }
 
-export function _pullSprintUpdateCount() {
+export function _pullSprintUpdateCount(): void {
   const checked = document.querySelectorAll(
     '#pull-sprint-results input[type="checkbox"]:checked'
   ).length;
@@ -635,15 +697,17 @@ export function _pullSprintUpdateCount() {
   if (btn) btn.textContent = `Pull Selected (${checked}/${total})`;
 }
 
-export async function confirmPullSprint() {
-  const cbs = document.querySelectorAll('#pull-sprint-results input[type="checkbox"]:checked');
-  const issues = [...cbs].map((cb) => ({ key: cb.value, sprintName: cb.dataset.sprint }));
+export async function confirmPullSprint(): Promise<void> {
+  const cbs = document.querySelectorAll<HTMLInputElement>(
+    '#pull-sprint-results input[type="checkbox"]:checked'
+  );
+  const issues = [...cbs].map((cb) => ({ key: cb.value, sprintName: cb.dataset['sprint'] }));
   if (!issues.length) {
     showJiraToast('error', 'No issues selected');
     return;
   }
 
-  const btn = document.getElementById('pull-sprint-confirm');
+  const btn = document.getElementById('pull-sprint-confirm') as HTMLButtonElement;
   btn.disabled = true;
   btn.textContent = 'Pulling…';
 
@@ -653,61 +717,73 @@ export async function confirmPullSprint() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ issues }),
     });
-    const data = await res.json();
+    const data = (await res.json()) as { results?: SprintPushResultItem[] };
     const ok = data.results?.filter((r) => r.status === 'ok').length || 0;
     const err = data.results?.filter((r) => r.status === 'error').length || 0;
     showJiraToast('ok', `Pulled ${ok} issue${ok !== 1 ? 's' : ''}${err ? `, ${err} failed` : ''}`);
     closePullSprintModal();
     loadDocs();
   } catch (e) {
-    showJiraToast('error', 'Pull failed: ' + e.message);
+    showJiraToast('error', 'Pull failed: ' + getErrorMessage(e));
     btn.disabled = false;
     _pullSprintUpdateCount();
   }
 }
 
 // ── Dependency modal ─────────────────────────────────────────
-let _depModalFilename = null;
-let _depModalDocType = null;
+let _depModalFilename: string | null = null;
+let _depModalDocType: string | null = null;
 
-export async function openDepModal(filename, docType) {
+interface DepLinkItem {
+  filename: string;
+  title?: string;
+  docType?: string;
+}
+
+interface DepLinksData {
+  blocks?: DepLinkItem[];
+  blockedBy?: DepLinkItem[];
+  parallel?: DepLinkItem[];
+}
+
+export async function openDepModal(filename: string, docType: string): Promise<void> {
   _depModalFilename = filename;
   _depModalDocType = docType;
 
   const doc = allDocs.find((d) => d.filename === filename);
-  document.getElementById('dep-modal-subtitle').textContent = doc?.title || filename;
+  document.getElementById('dep-modal-subtitle')!.textContent = doc?.title || filename;
 
   // Reset state
-  document.getElementById('dep-blocks-list').innerHTML = '<div class="dep-loading">Loading…</div>';
-  document.getElementById('dep-blockedby-list').innerHTML = '';
+  document.getElementById('dep-blocks-list')!.innerHTML = '<div class="dep-loading">Loading…</div>';
+  document.getElementById('dep-blockedby-list')!.innerHTML = '';
 
-  document.getElementById('dep-overlay').classList.add('show');
+  document.getElementById('dep-overlay')!.classList.add('show');
 
   try {
-    const data = await fetch(
+    const data = (await fetch(
       `/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`
-    ).then((r) => r.json());
+    ).then((r) => r.json())) as DepLinksData;
     renderDepLists(data);
     populateDepTargetSelect(filename, data);
   } catch (e) {
-    document.getElementById('dep-blocks-list').innerHTML =
-      `<div class="dep-error">${escHtml(e.message)}</div>`;
+    document.getElementById('dep-blocks-list')!.innerHTML =
+      `<div class="dep-error">${escHtml(getErrorMessage(e))}</div>`;
   }
 }
 
-function renderDepLists(data) {
-  function depItemHtml(item, direction) {
+function renderDepLists(data: DepLinksData): void {
+  function depItemHtml(item: DepLinkItem, direction: string): string {
     return `
       <div class="dep-item">
         <span class="dep-item-title">${escHtml(item.title || item.filename)}</span>
         <button class="btn-ghost btn-xs dep-remove-btn"
-                onclick="removeDepLink('${escHtml(item.filename)}','${escHtml(item.docType || _depModalDocType)}','${direction}')"
+                onclick="removeDepLink('${escHtml(item.filename)}','${escHtml(item.docType || _depModalDocType || '')}','${direction}')"
                 title="Remove">&times;</button>
       </div>`;
   }
 
-  const blocksList = document.getElementById('dep-blocks-list');
-  const blockedByList = document.getElementById('dep-blockedby-list');
+  const blocksList = document.getElementById('dep-blocks-list')!;
+  const blockedByList = document.getElementById('dep-blockedby-list')!;
 
   blocksList.innerHTML = (data.blocks || []).length
     ? (data.blocks || []).map((item) => depItemHtml(item, 'blocks')).join('')
@@ -725,7 +801,7 @@ function renderDepLists(data) {
   }
 }
 
-function populateDepTargetSelect(excludeFilename, currentData) {
+function populateDepTargetSelect(excludeFilename: string, currentData: DepLinksData): void {
   const leafTypes = new Set(['story', 'spike', 'bug']);
   const alreadyBlocks = new Set((currentData.blocks || []).map((b) => b.filename));
   const alreadyParallel = new Set((currentData.parallel || []).map((p) => p.filename));
@@ -739,7 +815,7 @@ function populateDepTargetSelect(excludeFilename, currentData) {
   const blockCandidates = allCandidates.filter((d) => !alreadyBlocks.has(d.filename));
   const parallelCandidates = allCandidates.filter((d) => !alreadyParallel.has(d.filename));
 
-  const select = document.getElementById('dep-target-select');
+  const select = document.getElementById('dep-target-select') as HTMLSelectElement | null;
   if (select) {
     select.innerHTML = blockCandidates.length
       ? blockCandidates
@@ -751,7 +827,7 @@ function populateDepTargetSelect(excludeFilename, currentData) {
       : '<option value="" disabled>No candidates</option>';
   }
 
-  const parallelSelect = document.getElementById('dep-parallel-select');
+  const parallelSelect = document.getElementById('dep-parallel-select') as HTMLSelectElement | null;
   if (parallelSelect) {
     parallelSelect.innerHTML = parallelCandidates.length
       ? parallelCandidates
@@ -764,11 +840,13 @@ function populateDepTargetSelect(excludeFilename, currentData) {
   }
 }
 
-export async function addDepLink() {
-  const select = document.getElementById('dep-target-select');
+export async function addDepLink(): Promise<void> {
+  const select = document.getElementById('dep-target-select') as HTMLSelectElement | null;
+  if (!select) return;
   const targetFilename = select.value;
   if (!targetFilename) return;
-  const targetDocType = select.selectedOptions[0]?.dataset.doctype || 'story';
+  const targetDocType =
+    (select.selectedOptions[0] as HTMLOptionElement | undefined)?.dataset['doctype'] || 'story';
 
   try {
     await postJSON('/api/link', {
@@ -779,11 +857,11 @@ export async function addDepLink() {
       targetFilename,
     });
     // Refresh modal
-    const data = await fetch(
-      `/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`
-    ).then((r) => r.json());
+    const data = (await fetch(
+      `/api/links/${encodeURIComponent(_depModalDocType!)}/${encodeURIComponent(_depModalFilename!)}`
+    ).then((r) => r.json())) as DepLinksData;
     renderDepLists(data);
-    populateDepTargetSelect(_depModalFilename, data);
+    populateDepTargetSelect(_depModalFilename!, data);
     // Update allDocs entry
     const srcDoc = allDocs.find((d) => d.filename === _depModalFilename);
     if (srcDoc) {
@@ -793,20 +871,21 @@ export async function addDepLink() {
     const tgtDoc = allDocs.find((d) => d.filename === targetFilename);
     if (tgtDoc) {
       tgtDoc.blockedBy = tgtDoc.blockedBy || [];
-      if (!tgtDoc.blockedBy.includes(_depModalFilename)) tgtDoc.blockedBy.push(_depModalFilename);
+      if (!tgtDoc.blockedBy.includes(_depModalFilename!)) tgtDoc.blockedBy.push(_depModalFilename!);
     }
     renderRoadmapBoard();
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', getErrorMessage(e));
   }
 }
 
-export async function addParallelLink() {
-  const select = document.getElementById('dep-parallel-select');
+export async function addParallelLink(): Promise<void> {
+  const select = document.getElementById('dep-parallel-select') as HTMLSelectElement | null;
   if (!select) return;
   const targetFilename = select.value;
   if (!targetFilename) return;
-  const targetDocType = select.selectedOptions[0]?.dataset.doctype || 'story';
+  const targetDocType =
+    (select.selectedOptions[0] as HTMLOptionElement | undefined)?.dataset['doctype'] || 'story';
 
   try {
     await postJSON('/api/link', {
@@ -816,20 +895,28 @@ export async function addParallelLink() {
       targetType: targetDocType,
       targetFilename,
     });
-    const data = await fetch(
-      `/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`
-    ).then((r) => r.json());
+    const data = (await fetch(
+      `/api/links/${encodeURIComponent(_depModalDocType!)}/${encodeURIComponent(_depModalFilename!)}`
+    ).then((r) => r.json())) as DepLinksData;
     renderDepLists(data);
-    populateDepTargetSelect(_depModalFilename, data);
+    populateDepTargetSelect(_depModalFilename!, data);
     renderRoadmapBoard();
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', getErrorMessage(e));
   }
 }
 
-export async function removeDepLink(targetFilename, targetDocType, direction) {
+export async function removeDepLink(
+  targetFilename: string,
+  targetDocType: string,
+  direction: string
+): Promise<void> {
   try {
-    let srcFilename, srcDocType, tgtFilename, tgtDocType, linkType;
+    let srcFilename: string | null,
+      srcDocType: string | null,
+      tgtFilename: string,
+      tgtDocType: string,
+      linkType: string;
     if (direction === 'parallel') {
       linkType = 'parallel';
       srcFilename = _depModalFilename;
@@ -846,8 +933,8 @@ export async function removeDepLink(targetFilename, targetDocType, direction) {
       linkType = 'blocks';
       srcFilename = targetFilename;
       srcDocType = targetDocType;
-      tgtFilename = _depModalFilename;
-      tgtDocType = _depModalDocType;
+      tgtFilename = _depModalFilename!;
+      tgtDocType = _depModalDocType!;
     }
     await fetch('/api/link', {
       method: 'DELETE',
@@ -861,11 +948,11 @@ export async function removeDepLink(targetFilename, targetDocType, direction) {
       }),
     });
     // Refresh modal
-    const data = await fetch(
-      `/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`
-    ).then((r) => r.json());
+    const data = (await fetch(
+      `/api/links/${encodeURIComponent(_depModalDocType!)}/${encodeURIComponent(_depModalFilename!)}`
+    ).then((r) => r.json())) as DepLinksData;
     renderDepLists(data);
-    populateDepTargetSelect(_depModalFilename, data);
+    populateDepTargetSelect(_depModalFilename!, data);
     // Update allDocs entries
     const srcDoc = allDocs.find((d) => d.filename === srcFilename);
     if (srcDoc) srcDoc.blocks = (srcDoc.blocks || []).filter((f) => f !== tgtFilename);
@@ -873,23 +960,28 @@ export async function removeDepLink(targetFilename, targetDocType, direction) {
     if (tgtDoc) tgtDoc.blockedBy = (tgtDoc.blockedBy || []).filter((f) => f !== srcFilename);
     renderRoadmapBoard();
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', getErrorMessage(e));
   }
 }
 
-export function closeDepModal() {
-  document.getElementById('dep-overlay').classList.remove('show');
+export function closeDepModal(): void {
+  document.getElementById('dep-overlay')!.classList.remove('show');
   _depModalFilename = null;
   _depModalDocType = null;
 }
 
 // ── Split modal (kept from old roadmap) ──────────────────────
-let _splitModalFilename = null;
-let _splitModalDocType = null;
-let _splitModalSprint1 = null;
-let _splitModalSprint2 = null;
+let _splitModalFilename: string | null = null;
+let _splitModalDocType: string | null = null;
+let _splitModalSprint1: string | null = null;
+let _splitModalSprint2: string | null = null;
 
-export function openSplitModal(filename, docType, sprint1, sprint2) {
+export function openSplitModal(
+  filename: string,
+  docType: string,
+  sprint1?: string | null,
+  sprint2?: string | null
+): void {
   _splitModalFilename = filename;
   _splitModalDocType = docType;
   _splitModalSprint1 = sprint1 || null;
@@ -910,36 +1002,36 @@ export function openSplitModal(filename, docType, sprint1, sprint2) {
     ? `<option value="${escHtml(sprint2)}" selected>${escHtml(sprint2)}</option>${sprintOptions}`
     : sprintOptions;
 
-  document.getElementById('split-modal-title').textContent = doc?.title || filename;
-  document.getElementById('split-modal-sp').textContent = sp
+  document.getElementById('split-modal-title')!.textContent = doc?.title || filename;
+  document.getElementById('split-modal-sp')!.textContent = sp
     ? `${sp} SP → ~${Math.round(sp / 2)} SP each`
     : 'No SP estimate';
-  document.getElementById('split-sprint-1').innerHTML = sel1;
-  document.getElementById('split-sprint-2').innerHTML = sel2;
-  document.getElementById('split-modal-output').innerHTML = '';
-  document.getElementById('split-modal-status').className = 'split-modal-status';
+  document.getElementById('split-sprint-1')!.innerHTML = sel1;
+  document.getElementById('split-sprint-2')!.innerHTML = sel2;
+  document.getElementById('split-modal-output')!.innerHTML = '';
+  document.getElementById('split-modal-status')!.className = 'split-modal-status';
 
-  const applyBtn = document.getElementById('split-apply-btn');
+  const applyBtn = document.getElementById('split-apply-btn') as HTMLButtonElement;
   applyBtn.disabled = false;
   applyBtn.textContent = 'Split with AI';
 
-  document.getElementById('split-overlay').classList.add('show');
+  document.getElementById('split-overlay')!.classList.add('show');
 }
 
-export function closeSplitModal() {
-  document.getElementById('split-overlay').classList.remove('show');
+export function closeSplitModal(): void {
+  document.getElementById('split-overlay')!.classList.remove('show');
   _splitModalFilename = null;
   _splitModalDocType = null;
 }
 
-export async function executeSplit() {
+export async function executeSplit(): Promise<void> {
   if (!_splitModalFilename) return;
 
-  const sprint1 = document.getElementById('split-sprint-1').value;
-  const sprint2 = document.getElementById('split-sprint-2').value;
-  const btn = document.getElementById('split-apply-btn');
-  const output = document.getElementById('split-modal-output');
-  const status = document.getElementById('split-modal-status');
+  const sprint1 = (document.getElementById('split-sprint-1') as HTMLSelectElement).value;
+  const sprint2 = (document.getElementById('split-sprint-2') as HTMLSelectElement).value;
+  const btn = document.getElementById('split-apply-btn') as HTMLButtonElement;
+  const output = document.getElementById('split-modal-output')!;
+  const status = document.getElementById('split-modal-status')!;
 
   btn.disabled = true;
   btn.textContent = 'Splitting…';
@@ -958,30 +1050,35 @@ export async function executeSplit() {
       }),
     });
 
-    const reader = res.body.getReader();
+    const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     let done = false;
-    let result = null;
+    let result: { files: unknown[] } | null = null;
 
     while (!done) {
       const { done: streamDone, value } = await reader.read();
       if (streamDone) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop();
+      buffer = lines.pop()!;
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         try {
-          const payload = JSON.parse(line.slice(6));
+          const payload = JSON.parse(line.slice(6)) as {
+            error?: { message?: string };
+            text?: string;
+            done?: boolean;
+            files?: unknown[];
+          };
           if (payload.error) throw new Error(payload.error.message || 'Split failed');
           if (payload.text) output.textContent += payload.text;
           if (payload.done) {
-            result = payload;
+            result = payload as { files: unknown[] };
             done = true;
           }
         } catch (parseErr) {
-          if (parseErr.message !== 'Split failed') continue;
+          if ((parseErr as Error).message !== 'Split failed') continue;
           throw parseErr;
         }
       }
@@ -995,7 +1092,7 @@ export async function executeSplit() {
     }
   } catch (err) {
     status.className = 'split-modal-status show error';
-    status.textContent = err.message || 'Split failed';
+    status.textContent = getErrorMessage(err, 'Split failed');
     btn.disabled = false;
     btn.textContent = 'Retry';
   }
@@ -1003,19 +1100,19 @@ export async function executeSplit() {
 
 // ── Roadmap context menus ─────────────────────────────────────
 
-function _closeRoadmapCtx() {
+function _closeRoadmapCtx(): void {
   const el = document.getElementById('rm-context-menu');
   if (el) el.remove();
   document.removeEventListener('mousedown', _rmCtxDismiss);
   document.removeEventListener('contextmenu', _rmCtxDismiss);
 }
 
-function _rmCtxDismiss(e) {
+function _rmCtxDismiss(e: Event): void {
   const menu = document.getElementById('rm-context-menu');
-  if (menu && !menu.contains(e.target)) _closeRoadmapCtx();
+  if (menu && !menu.contains(e.target as Node)) _closeRoadmapCtx();
 }
 
-function _showRoadmapCtx(x, y, html) {
+function _showRoadmapCtx(x: number, y: number, html: string): void {
   _closeRoadmapCtx();
   const menu = document.createElement('div');
   menu.className = 'context-menu';
@@ -1037,7 +1134,7 @@ function _showRoadmapCtx(x, y, html) {
 }
 
 // ── Epic context menu (top panel) ────────────────────────────
-export function handleEpicContextMenu(e, filename, docType) {
+export function handleEpicContextMenu(e: MouseEvent, filename: string, docType: string): void {
   e.preventDefault();
   e.stopPropagation();
 
@@ -1059,17 +1156,23 @@ export function handleEpicContextMenu(e, filename, docType) {
   _showRoadmapCtx(e.clientX, e.clientY, html);
 }
 
-export function rmCtxOpenEpic(filename, docType) {
+export function rmCtxOpenEpic(filename: string, docType: string): void {
   _closeRoadmapCtx();
   openDoc(filename, docType);
 }
 
-export async function rmCtxMoveEpic(filename, docType, direction) {
+export async function rmCtxMoveEpic(
+  filename: string,
+  docType: string,
+  direction: string
+): Promise<void> {
   _closeRoadmapCtx();
 
   // Get the visible epic cards in current order (respects search filter)
-  const cards = [...document.querySelectorAll('.rm-epic-card:not([style*="display: none"])')];
-  const filenames = cards.map((c) => c.dataset.filename).filter(Boolean);
+  const cards = [
+    ...document.querySelectorAll<HTMLElement>('.rm-epic-card:not([style*="display: none"])'),
+  ];
+  const filenames = cards.map((c) => c.dataset['filename']).filter(Boolean) as string[];
   const idx = filenames.indexOf(filename);
   if (idx < 0) return;
 
@@ -1081,7 +1184,7 @@ export async function rmCtxMoveEpic(filename, docType, direction) {
 
   const [item] = sorted.splice(srcIdx, 1);
 
-  let targetIdx;
+  let targetIdx: number;
   if (direction === 'up') {
     // Move before the previous visible item in the full sorted list
     const prevFn = filenames[idx - 1];
@@ -1115,18 +1218,18 @@ export async function rmCtxMoveEpic(filename, docType, direction) {
     await loadDocs();
     refreshRoadmapView();
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', getErrorMessage(e));
   }
 }
 
 // ── Sprint submenu builder ───────────────────────────────────
-function _buildSprintSubmenu(filename, docType) {
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
-  const seen = new Set();
+function _buildSprintSubmenu(filename: string, docType: string): string {
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
+  const seen = new Set<string>();
   let items = '';
 
   for (const pi of pis) {
-    for (const s of sprintConfig[pi] || []) {
+    for (const s of ((sprintConfig as SprintConfig)[pi] as RoadmapSprint[] | undefined) || []) {
       if (seen.has(s.name)) continue;
       seen.add(s.name);
       items += `<button class="ctx-item" onclick="rmCtxSetSprint('${escHtml(filename)}','${escHtml(docType)}','${escHtml(s.name)}')">${escHtml(s.name)}</button>`;
@@ -1146,7 +1249,7 @@ function _buildSprintSubmenu(filename, docType) {
 }
 
 // ── Story context menu (bottom panel) ────────────────────────
-export function handleStoryContextMenu(e, filename, docType) {
+export function handleStoryContextMenu(e: MouseEvent, filename: string, docType: string): void {
   e.preventDefault();
   e.stopPropagation();
 
@@ -1167,18 +1270,24 @@ export function handleStoryContextMenu(e, filename, docType) {
   _showRoadmapCtx(e.clientX, e.clientY, html);
 }
 
-export async function rmCtxMoveStory(filename, docType, direction) {
+export async function rmCtxMoveStory(
+  filename: string,
+  docType: string,
+  direction: string
+): Promise<void> {
   _closeRoadmapCtx();
 
   // Find the card and its sprint column
-  const card = document.querySelector(`.roadmap-card[data-filename="${CSS.escape(filename)}"]`);
+  const card = document.querySelector<HTMLElement>(
+    `.roadmap-card[data-filename="${CSS.escape(filename)}"]`
+  );
   if (!card) return;
   const column = card.closest('.roadmap-card-list');
   if (!column) return;
 
   // Get the ordered filenames in this column
-  const cards = [...column.querySelectorAll('.roadmap-card')];
-  const filenames = cards.map((c) => c.dataset.filename);
+  const cards = [...column.querySelectorAll<HTMLElement>('.roadmap-card')];
+  const filenames = cards.map((c) => c.dataset['filename']);
   const idx = filenames.indexOf(filename);
   if (idx < 0) return;
 
@@ -1190,7 +1299,7 @@ export async function rmCtxMoveStory(filename, docType, direction) {
 
   const [item] = sorted.splice(srcIdx, 1);
 
-  let targetIdx;
+  let targetIdx: number;
   if (direction === 'up') {
     const prevFn = filenames[idx - 1];
     if (!prevFn) return;
@@ -1221,12 +1330,16 @@ export async function rmCtxMoveStory(filename, docType, direction) {
     await loadDocs();
     refreshRoadmapView();
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', getErrorMessage(e));
   }
 }
 
 // ── Set sprint from context menu ────────────────────────────
-export async function rmCtxSetSprint(filename, docType, sprintName) {
+export async function rmCtxSetSprint(
+  filename: string,
+  docType: string,
+  sprintName: string
+): Promise<void> {
   _closeRoadmapCtx();
 
   try {
@@ -1238,6 +1351,6 @@ export async function rmCtxSetSprint(filename, docType, sprintName) {
     renderRoadmapBoard();
     showJiraToast('success', sprintName ? `Moved to ${sprintName}` : 'Removed from sprint');
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', getErrorMessage(e));
   }
 }

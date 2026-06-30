@@ -1,10 +1,18 @@
 // ── Refine edge/link popups and manage-links mode ─────────────
-import { showJiraToast, escHtml } from './state.js';
+import { showJiraToast, escHtml, getErrorMessage } from './state.js';
 import { loadDocs } from './list.js';
 import { rebuildCanvasEdges, renderCanvas } from './refine-canvas.js';
 
 // ── Edge click popup ───────────────────────────────────────────
-export function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
+export function _showEdgePopup(
+  x: number,
+  y: number,
+  linkType: string,
+  srcFn: string,
+  srcDt: string,
+  tgtFn: string,
+  tgtDt: string
+): void {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
@@ -23,18 +31,24 @@ export function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
 
   popup
     .querySelector('#_edge-delete-btn')
-    .addEventListener('click', () => _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt));
+    ?.addEventListener('click', () => _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt));
   popup
     .querySelector('#_edge-change-btn')
-    .addEventListener('click', () =>
+    ?.addEventListener('click', () =>
       _changeCanvasLinkType(linkType, altType, srcFn, srcDt, tgtFn, tgtDt)
     );
-  popup.querySelector('#_edge-cancel-btn').addEventListener('click', _closeLinkPopup);
+  popup.querySelector('#_edge-cancel-btn')?.addEventListener('click', _closeLinkPopup);
 
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
 
-export async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
+export async function _deleteCanvasLink(
+  linkType: string,
+  srcFn: string,
+  srcDt: string,
+  tgtFn: string,
+  tgtDt: string
+): Promise<void> {
   _closeLinkPopup();
   try {
     const res = await fetch('/api/link', {
@@ -49,19 +63,26 @@ export async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
       }),
     });
     if (!res.ok) {
-      const d = await res.json();
+      const d = (await res.json()) as { error?: { message?: string } };
       throw new Error(d.error?.message || 'Delete failed');
     }
     await loadDocs();
     rebuildCanvasEdges();
-    renderCanvas(_canvasEpicFilename, _canvasDocType);
+    renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
     _restoreManageLinksState();
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', getErrorMessage(e));
   }
 }
 
-export async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtFn, tgtDt) {
+export async function _changeCanvasLinkType(
+  oldType: string,
+  newType: string,
+  srcFn: string,
+  srcDt: string,
+  tgtFn: string,
+  tgtDt: string
+): Promise<void> {
   _closeLinkPopup();
   try {
     const delRes = await fetch('/api/link', {
@@ -89,19 +110,19 @@ export async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtF
       }),
     });
     if (!addRes.ok) {
-      const d = await addRes.json();
+      const d = (await addRes.json()) as { error?: { message?: string } };
       throw new Error(d.error?.message || 'Create failed');
     }
     await loadDocs();
     rebuildCanvasEdges();
-    renderCanvas(_canvasEpicFilename, _canvasDocType);
+    renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
     _restoreManageLinksState();
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', getErrorMessage(e));
   }
 }
 
-export function _restoreManageLinksState() {
+export function _restoreManageLinksState(): void {
   if (!_canvasManageLinks) return;
   const btn = document.getElementById('manage-links-btn');
   if (btn) btn.classList.add('active');
@@ -111,7 +132,7 @@ export function _restoreManageLinksState() {
 }
 
 // ── Manage Links mode ──────────────────────────────────────────
-export function toggleManageLinks() {
+export function toggleManageLinks(): void {
   _canvasManageLinks = !_canvasManageLinks;
   const btn = document.getElementById('manage-links-btn');
   if (btn) btn.classList.toggle('active', _canvasManageLinks);
@@ -124,11 +145,18 @@ export function toggleManageLinks() {
   });
 }
 
-export function _closeLinkPopup() {
+export function _closeLinkPopup(): void {
   document.querySelectorAll('.canvas-link-popup').forEach((el) => el.remove());
 }
 
-export function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+export function _showLinkPopup(
+  x: number,
+  y: number,
+  srcFilename: string,
+  srcDocType: string,
+  tgtFilename: string,
+  tgtDocType: string
+): void {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
@@ -144,12 +172,12 @@ export function _showLinkPopup(x, y, srcFilename, srcDocType, tgtFilename, tgtDo
 }
 
 export async function _createCanvasLink(
-  linkType,
-  srcFilename,
-  srcDocType,
-  tgtFilename,
-  tgtDocType
-) {
+  linkType: string,
+  srcFilename: string,
+  srcDocType: string,
+  tgtFilename: string,
+  tgtDocType: string
+): Promise<void> {
   _closeLinkPopup();
   // Reject epic node links
   if (!['story', 'spike', 'bug'].includes(tgtDocType)) {
@@ -168,14 +196,14 @@ export async function _createCanvasLink(
         targetFilename: tgtFilename,
       }),
     });
-    const data = await res.json();
+    const data = (await res.json()) as { error?: { message?: string } };
     if (!res.ok) throw new Error(data.error?.message || 'Link failed');
 
     await loadDocs();
     rebuildCanvasEdges();
-    renderCanvas(_canvasEpicFilename, _canvasDocType);
+    renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
     _restoreManageLinksState();
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', getErrorMessage(e));
   }
 }

@@ -15,6 +15,7 @@ import {
   stripFrontmatter,
   patchJSON,
 } from './state.js';
+import type { DocEntry, PanelState } from './state.js';
 import { loadDocs } from './list.js';
 import {
   buildCanvasGraph,
@@ -25,13 +26,62 @@ import {
 } from './refine-canvas.js';
 import { _closeLinkPopup } from './refine-edges.js';
 
+// ── Local ambient declarations ─────────────────────────────────
+// _renderComments / _parseComments are module-local (non-exported, never
+// attached to window) functions defined in detail.js. The original
+// refine.js calls them as bare globals inside openRefinePanel — this is
+// pre-existing dead code (they are not reachable at runtime and the call
+// would throw a ReferenceError). Preserved here exactly as-is; see the
+// migration summary for details instead of adding a new ambient global.
+declare const _renderComments: (
+  comments: RpComment[],
+  filename: string,
+  docType: string,
+  containerEl?: HTMLElement | null
+) => void;
+declare const _parseComments: (content: string) => RpComment[];
+
+interface RpComment {
+  id: string;
+  text: string;
+}
+
 // ── Canvas state ─ all in state.js as _storeVar globals ──────
 // _canvasEpicFilename, _canvasDocType, _canvasManageLinks,
 // _canvasSelectedCards, _activePanelState, _panelStates
 
+// ── API response shapes ───────────────────────────────────────
+interface FeatureDeepEpic {
+  filename: string;
+  title?: string;
+  children?: DocEntry[];
+  blocks?: string[];
+  parallel?: string[];
+}
+
+interface FeatureDeepResponse {
+  epics: FeatureDeepEpic[];
+}
+
+interface LinksDeepResponseItem {
+  filename: string;
+  title?: string;
+  docType?: string;
+}
+
+interface LinksDeepResponse {
+  blocks?: LinksDeepResponseItem[];
+  blockedBy?: LinksDeepResponseItem[];
+  parallel?: LinksDeepResponseItem[];
+}
+
+interface ApiErrorBody {
+  error?: { message?: string };
+}
+
 // ── Card search / filter ──────────────────────────────────────
-export function onCanvasSearch(query) {
-  const cards = document.querySelectorAll('#refine-canvas .canvas-card');
+export function onCanvasSearch(query: string): void {
+  const cards = document.querySelectorAll<HTMLElement>('#refine-canvas .canvas-card');
   const q = (query || '').trim().toLowerCase();
 
   if (q.length < 3) {
@@ -55,37 +105,41 @@ export function onCanvasSearch(query) {
 }
 
 // ── Entry / Exit ───────────────────────────────────────────────
-export async function openManualRefine(filename, docType) {
+export async function openManualRefine(filename: string, docType?: string): Promise<void> {
   if (!filename) return;
   docType = docType || 'epic';
   _canvasEpicFilename = filename;
   _canvasDocType = docType;
   // Refine view needs the full right panel — suspend split mode while open
-  document.querySelector('.right').classList.remove('split-mode');
+  document.querySelector('.right')?.classList.remove('split-mode');
 
   const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
-  document.getElementById('refine-epic-title').textContent = doc?.title || filename;
+  const titleEl = document.getElementById('refine-epic-title');
+  if (titleEl) titleEl.textContent = doc?.title || filename;
 
   // Switch views
-  document.getElementById('list-view').style.display = 'none';
-  document.getElementById('detail-view').classList.remove('show');
-  document.getElementById('refine-view').classList.add('show');
+  const listView = document.getElementById('list-view') as HTMLElement | null;
+  if (listView) listView.style.display = 'none';
+  document.getElementById('detail-view')?.classList.remove('show');
+  document.getElementById('refine-view')?.classList.add('show');
 
   // Clear search
-  const searchInput = document.getElementById('refine-search');
+  const searchInput = document.getElementById('refine-search') as HTMLInputElement | null;
   if (searchInput) searchInput.value = '';
 
   // Render the correct "+ Create" buttons for this doc type
   _canvasManageLinks = false;
   const addBtns = document.getElementById('refine-add-btns');
-  if (docType === 'feature') {
-    addBtns.innerHTML = `<button class="btn-xs" onclick="openCreatePanel('epic')">＋ Epic</button>`;
-  } else {
-    addBtns.innerHTML = `
+  if (addBtns) {
+    if (docType === 'feature') {
+      addBtns.innerHTML = `<button class="btn-xs" onclick="openCreatePanel('epic')">＋ Epic</button>`;
+    } else {
+      addBtns.innerHTML = `
       <button class="btn-xs green" onclick="openCreatePanel('story')">＋ Story</button>
       <button class="btn-xs" onclick="openCreatePanel('spike')">＋ Spike</button>
       <button class="btn-xs red" onclick="openCreatePanel('bug')">＋ Bug</button>
       <button class="btn-xs" id="manage-links-btn" onclick="toggleManageLinks()">⛓ Manage Links</button>`;
+    }
   }
 
   closeRefinePanel();
@@ -97,7 +151,7 @@ export async function openManualRefine(filename, docType) {
   document.addEventListener('keydown', _onCanvasKeydown);
 }
 
-function _onCanvasKeydown(e) {
+function _onCanvasKeydown(e: KeyboardEvent): void {
   if (e.key === 'Escape' && _canvasSelectedCards.size > 0) {
     _canvasSelectedCards.clear();
     document
@@ -106,8 +160,8 @@ function _onCanvasKeydown(e) {
   }
 }
 
-export function closeRefineView() {
-  document.getElementById('refine-view').classList.remove('show');
+export function closeRefineView(): void {
+  document.getElementById('refine-view')?.classList.remove('show');
   document.removeEventListener('keydown', _onCanvasKeydown);
   updateSplitMode();
 
@@ -124,27 +178,29 @@ export function closeRefineView() {
   if (canvas) canvas.classList.remove('manage-links-active');
 
   if (currentFilename && currentDocType) {
-    document.getElementById('detail-view').classList.add('show');
+    document.getElementById('detail-view')?.classList.add('show');
   } else {
-    document.getElementById('list-view').style.display = 'flex';
+    const listView = document.getElementById('list-view') as HTMLElement | null;
+    if (listView) listView.style.display = 'flex';
   }
 }
 
 // ── Feature multi-panel view ───────────────────────────────────
-const _FP_COLLAPSED_KEY = (fn) => `fp:collapsed:${fn}`;
+const _FP_COLLAPSED_KEY = (fn: string): string => `fp:collapsed:${fn}`;
 
-export async function renderFeatureMultiPanel(featureFilename) {
+export async function renderFeatureMultiPanel(featureFilename: string): Promise<void> {
   const container = document.getElementById('refine-canvas');
+  if (!container) return;
   container.innerHTML = '<div class="canvas-empty">Loading feature…</div>';
   _panelStates.clear();
 
-  let data;
+  let data: FeatureDeepResponse;
   try {
     const res = await fetch(`/api/links/feature/${encodeURIComponent(featureFilename)}/deep`);
     if (!res.ok) throw new Error('Failed to load feature hierarchy');
-    data = await res.json();
+    data = (await res.json()) as FeatureDeepResponse;
   } catch (e) {
-    container.innerHTML = `<div class="canvas-empty">Error: ${escHtml(e.message)}</div>`;
+    container.innerHTML = `<div class="canvas-empty">Error: ${escHtml(e instanceof Error ? e.message : String(e))}</div>`;
     return;
   }
 
@@ -154,11 +210,11 @@ export async function renderFeatureMultiPanel(featureFilename) {
 
   for (const epic of data.epics) {
     const children = epic.children || [];
-    const ps = {
+    const ps: PanelState = {
       stories: children,
       layout: {},
-      blocks: epic.blocks || [],
-      parallel: epic.parallel || [],
+      blocks: (epic.blocks || []) as unknown as string[],
+      parallel: (epic.parallel || []) as unknown as string[],
     };
     _panelStates.set(epic.filename, ps);
 
@@ -166,14 +222,14 @@ export async function renderFeatureMultiPanel(featureFilename) {
     try {
       const lr = await fetch(`/api/canvas/layout/${encodeURIComponent(epic.filename)}`);
       if (lr.ok) {
-        const saved = await lr.json();
+        const saved = (await lr.json()) as Record<string, unknown>;
         if (Object.keys(saved).length) ps.layout = saved;
       }
     } catch {
       /* no-op */
     }
     if (!Object.keys(ps.layout).length && children.length) {
-      ps.layout = computeAutoLayout(children, ps.blocks, ps.parallel);
+      ps.layout = computeAutoLayout(children, ps.blocks, ps.parallel) as Record<string, unknown>;
     }
 
     const isCollapsed = collapsedSet.has(epic.filename);
@@ -194,18 +250,20 @@ export async function renderFeatureMultiPanel(featureFilename) {
   }
 }
 
-function _fpLoadCollapsed(featureFilename) {
+function _fpLoadCollapsed(featureFilename: string): Set<string> {
   try {
-    return new Set(JSON.parse(localStorage.getItem(_FP_COLLAPSED_KEY(featureFilename)) || '[]'));
+    return new Set(
+      JSON.parse(localStorage.getItem(_FP_COLLAPSED_KEY(featureFilename)) || '[]') as string[]
+    );
   } catch {
     return new Set();
   }
 }
 
-function _fpSaveCollapsed(featureFilename) {
-  const collapsed = [];
+function _fpSaveCollapsed(featureFilename: string): void {
+  const collapsed: (string | undefined)[] = [];
   document
-    .querySelectorAll('.feature-panel.fp-collapsed')
+    .querySelectorAll<HTMLElement>('.feature-panel.fp-collapsed')
     .forEach((p) => collapsed.push(p.dataset.epicFilename));
   try {
     localStorage.setItem(_FP_COLLAPSED_KEY(featureFilename), JSON.stringify(collapsed));
@@ -214,8 +272,8 @@ function _fpSaveCollapsed(featureFilename) {
   }
 }
 
-export function _toggleEpicPanel(epicFilename, featureFilename) {
-  const panel = document.querySelector(
+export function _toggleEpicPanel(epicFilename: string, featureFilename: string): void {
+  const panel = document.querySelector<HTMLElement>(
     `.feature-panel[data-epic-filename="${CSS.escape(epicFilename)}"]`
   );
   if (!panel) return;
@@ -225,7 +283,12 @@ export function _toggleEpicPanel(epicFilename, featureFilename) {
   _fpSaveCollapsed(featureFilename);
 }
 
-function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
+function _renderEpicPanel(
+  epic: FeatureDeepEpic,
+  ps: PanelState,
+  featureFilename: string,
+  isCollapsed: boolean
+): HTMLElement {
   const totalSP = ps.stories.reduce(
     (s, c) => s + (allDocs.find((d) => d.filename === c.filename)?.storyPoints || 0),
     0
@@ -257,10 +320,15 @@ function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
 
   // Right-click on epic header → context menu with Split Epic
   const header = panel.querySelector('.fp-header');
-  header.addEventListener('contextmenu', (e) => {
+  header?.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    _showEpicContextMenu(e.clientX, e.clientY, epic.filename, featureFilename);
+    _showEpicContextMenu(
+      (e as MouseEvent).clientX,
+      (e as MouseEvent).clientY,
+      epic.filename,
+      featureFilename
+    );
   });
 
   // Canvas rendering is deferred — called from renderFeatureMultiPanel
@@ -269,8 +337,9 @@ function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
 }
 
 // ── Refine Panel ───────────────────────────────────────────────
-export function closeRefinePanel() {
+export function closeRefinePanel(): void {
   const panel = document.getElementById('refine-panel');
+  if (!panel) return;
   panel.classList.remove('open');
   setTimeout(() => {
     if (!panel.classList.contains('open')) panel.innerHTML = '';
@@ -280,15 +349,16 @@ export function closeRefinePanel() {
     .forEach((el) => el.classList.remove('selected'));
 }
 
-export async function openRefinePanel(filename, docType) {
+export async function openRefinePanel(filename: string, docType: string): Promise<void> {
   const panel = document.getElementById('refine-panel');
+  if (!panel) return;
   panel.innerHTML = '<div class="rp-loading">Loading…</div>';
   panel.classList.add('open');
 
   try {
     const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     if (!res.ok) throw new Error('Not found');
-    const { content } = await res.json();
+    const { content } = (await res.json()) as { content: string };
     const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     const title = doc?.title || filename;
 
@@ -370,7 +440,7 @@ export async function openRefinePanel(filename, docType) {
   }
 }
 
-async function _loadRpDeps(filename, docType) {
+async function _loadRpDeps(filename: string, docType: string): Promise<void> {
   const section = document.getElementById('rp-deps-section');
   if (!section) return;
   try {
@@ -381,9 +451,9 @@ async function _loadRpDeps(filename, docType) {
       section.innerHTML = '';
       return;
     }
-    const data = await res.json();
+    const data = (await res.json()) as LinksDeepResponse;
 
-    function depRow(item, lType) {
+    function depRow(item: LinksDeepResponseItem, lType: string): string {
       const ef = escHtml(item.filename);
       const et = escHtml(item.docType || docType);
       return `<div class="rp-dep-row">
@@ -417,12 +487,12 @@ async function _loadRpDeps(filename, docType) {
 }
 
 export async function _removeCanvasLink(
-  linkType,
-  srcFilename,
-  srcDocType,
-  tgtFilename,
-  tgtDocType
-) {
+  linkType: string,
+  srcFilename: string,
+  srcDocType: string,
+  tgtFilename: string,
+  tgtDocType: string
+): Promise<void> {
   // For blockedBy direction: the blocker is tgt, the blocked is src
   let finalSrc = srcFilename,
     finalSrcType = srcDocType;
@@ -451,17 +521,17 @@ export async function _removeCanvasLink(
     });
     await loadDocs();
     rebuildCanvasEdges();
-    renderCanvas(_canvasEpicFilename, _canvasDocType);
+    renderCanvas(_canvasEpicFilename ?? '', _canvasDocType ?? '');
     // Reopen panel to refresh deps
     openRefinePanel(srcFilename, srcDocType);
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', e instanceof Error ? e.message : String(e));
   }
 }
 
 // ── Inline field editing (refine panel) ───────────────────────
-export async function saveRpTitle() {
-  const input = document.getElementById('rp-title-input');
+export async function saveRpTitle(): Promise<void> {
+  const input = document.getElementById('rp-title-input') as HTMLInputElement | null;
   if (!input) return;
   const newTitle = input.value.trim();
   const original = input.dataset.original;
@@ -483,20 +553,20 @@ export async function saveRpTitle() {
     const h2 = document.querySelector('#rp-content h2');
     if (h2) h2.textContent = newTitle;
   } catch {
-    input.value = original;
+    input.value = original ?? '';
   }
 }
 
-export function cancelRpTitleEdit() {
-  const input = document.getElementById('rp-title-input');
+export function cancelRpTitleEdit(): void {
+  const input = document.getElementById('rp-title-input') as HTMLInputElement | null;
   if (input) {
     input.value = input.dataset.original || '';
     input.blur();
   }
 }
 
-export async function saveRpStoryPoints(filename, docType) {
-  const input = document.getElementById('rp-sp-input');
+export async function saveRpStoryPoints(filename: string, docType: string): Promise<void> {
+  const input = document.getElementById('rp-sp-input') as HTMLInputElement | null;
   if (!input) return;
   const newVal = input.value.trim();
   const orig = input.dataset.original || '';
@@ -519,8 +589,8 @@ export async function saveRpStoryPoints(filename, docType) {
   }
 }
 
-export async function saveRpPriority(filename, docType) {
-  const sel = document.getElementById('rp-priority-select');
+export async function saveRpPriority(filename: string, docType: string): Promise<void> {
+  const sel = document.getElementById('rp-priority-select') as HTMLSelectElement | null;
   if (!sel) return;
   const newPri = sel.value;
   try {
@@ -529,34 +599,39 @@ export async function saveRpPriority(filename, docType) {
     const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     if (doc) doc.priority = newPri;
   } catch (e) {
-    showJiraToast('error', `Failed to save priority: ${e.message}`);
+    showJiraToast(
+      'error',
+      `Failed to save priority: ${e instanceof Error ? e.message : String(e)}`
+    );
   }
 }
 
-export function toggleRpUpgrade() {
-  const wrap = document.getElementById('rp-upgrade-wrap');
+export function toggleRpUpgrade(): void {
+  const wrap = document.getElementById('rp-upgrade-wrap') as HTMLElement | null;
   if (!wrap) return;
   const isOpen = wrap.style.display !== 'none';
   wrap.style.display = isOpen ? 'none' : 'block';
-  if (!isOpen) document.getElementById('rp-upgrade-text')?.focus();
+  if (!isOpen) (document.getElementById('rp-upgrade-text') as HTMLElement | null)?.focus();
 }
 
-export async function executeRpUpgrade(filename, docType) {
-  const feedback = document.getElementById('rp-upgrade-text')?.value.trim();
+export async function executeRpUpgrade(filename: string, docType: string): Promise<void> {
+  const feedback = (
+    document.getElementById('rp-upgrade-text') as HTMLTextAreaElement | null
+  )?.value.trim();
   if (!feedback) {
-    document.getElementById('rp-upgrade-text')?.focus();
+    (document.getElementById('rp-upgrade-text') as HTMLElement | null)?.focus();
     return;
   }
 
-  const btn = document.getElementById('rp-upgrade-run');
-  const stream = document.getElementById('rp-upgrade-stream');
+  const btn = document.getElementById('rp-upgrade-run') as HTMLButtonElement;
+  const stream = document.getElementById('rp-upgrade-stream') as HTMLElement;
   btn.disabled = true;
   btn.textContent = '⏳ Regenerating…';
   stream.textContent = '';
   stream.style.display = 'block';
 
   try {
-    let result = null;
+    let result: Record<string, unknown> | null = null;
     await streamSSE(
       `/api/doc/${docType}/${encodeURIComponent(filename)}/upgrade`,
       { feedback },
@@ -571,9 +646,9 @@ export async function executeRpUpgrade(filename, docType) {
     );
 
     if (result) {
-      document.getElementById('rp-content').innerHTML = marked.parse(
-        stripFrontmatter(result.content)
-      );
+      const content = (result as { content: string }).content;
+      const rpContent = document.getElementById('rp-content');
+      if (rpContent) rpContent.innerHTML = marked.parse(stripFrontmatter(content));
       await loadDocs();
       // Update the card title in the canvas
       const updated = allDocs.find((d) => d.filename === filename && d.docType === docType);
@@ -587,33 +662,39 @@ export async function executeRpUpgrade(filename, docType) {
     btn.textContent = 'Regenerate';
     btn.disabled = false;
     stream.style.display = 'none';
-    document.getElementById('rp-upgrade-wrap').style.display = 'none';
-    document.getElementById('rp-upgrade-text').value = '';
+    const wrap = document.getElementById('rp-upgrade-wrap') as HTMLElement | null;
+    if (wrap) wrap.style.display = 'none';
+    const textArea = document.getElementById('rp-upgrade-text') as HTMLTextAreaElement | null;
+    if (textArea) textArea.value = '';
   } catch (e) {
-    stream.textContent += `\n\n❌ ${e.message}`;
+    stream.textContent += `\n\n❌ ${e instanceof Error ? e.message : String(e)}`;
     btn.disabled = false;
     btn.textContent = 'Regenerate';
   }
 }
 
-export async function confirmRpDelete(filename, docType) {
+export async function confirmRpDelete(filename: string, docType: string): Promise<void> {
   if (!confirm(`Delete "${filename}"? This cannot be undone.`)) return;
   try {
     const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`, {
       method: 'DELETE',
     });
-    if (!res.ok) throw new Error((await res.json()).error?.message || 'Delete failed');
+    if (!res.ok) {
+      const body = (await res.json()) as ApiErrorBody;
+      throw new Error(body.error?.message || 'Delete failed');
+    }
     closeRefinePanel();
-    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    await buildCanvasGraph(_canvasEpicFilename ?? '', _canvasDocType ?? '');
   } catch (e) {
-    alert(`Failed to delete: ${e.message}`);
+    alert(`Failed to delete: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
 // ── Create new child node ──────────────────────────────────────
-export function openCreatePanel(type) {
+export function openCreatePanel(type: string): void {
   if (!_canvasEpicFilename) return;
   const panel = document.getElementById('refine-panel');
+  if (!panel) return;
   panel.classList.add('open');
   document
     .querySelectorAll('.canvas-card.selected')
@@ -646,19 +727,30 @@ export function openCreatePanel(type) {
       <div class="rp-stream" id="rp-create-stream" style="display:none"></div>
     </div>`;
 
-  document.getElementById('rp-create-idea').focus();
+  (document.getElementById('rp-create-idea') as HTMLElement | null)?.focus();
 }
 
-export async function executeRpCreate(type) {
-  const title = document.getElementById('rp-create-title').value.trim();
-  const idea = document.getElementById('rp-create-idea').value.trim();
+interface RpCreateGenBody {
+  title: string;
+  idea: string;
+  type: string;
+  priority: string;
+  fixVersion?: string;
+  pi?: string;
+  parentEpic?: string;
+  parentFeature?: string;
+}
+
+export async function executeRpCreate(type: string): Promise<void> {
+  const title = (document.getElementById('rp-create-title') as HTMLInputElement).value.trim();
+  const idea = (document.getElementById('rp-create-idea') as HTMLTextAreaElement).value.trim();
   if (!idea) {
-    document.getElementById('rp-create-idea').focus();
+    (document.getElementById('rp-create-idea') as HTMLElement | null)?.focus();
     return;
   }
 
-  const btn = document.getElementById('rp-create-btn');
-  const stream = document.getElementById('rp-create-stream');
+  const btn = document.getElementById('rp-create-btn') as HTMLButtonElement;
+  const stream = document.getElementById('rp-create-stream') as HTMLElement;
   btn.disabled = true;
   btn.textContent = '⏳ Generating…';
   stream.textContent = '⚙ Generating document…';
@@ -666,18 +758,21 @@ export async function executeRpCreate(type) {
 
   try {
     const parentDoc = allDocs.find((d) => d.filename === _canvasEpicFilename);
-    const genBody = { title, idea, type, priority: 'Medium' };
+    const genBody: RpCreateGenBody = { title, idea, type, priority: 'Medium' };
     if (parentDoc?.fixVersion) genBody.fixVersion = parentDoc.fixVersion;
     if (parentDoc?.pi && parentDoc.pi !== 'TBD') genBody.pi = parentDoc.pi;
-    if (_canvasDocType === 'epic') genBody.parentEpic = _canvasEpicFilename;
-    if (_canvasDocType === 'feature') genBody.parentFeature = _canvasEpicFilename;
+    if (_canvasDocType === 'epic') genBody.parentEpic = _canvasEpicFilename ?? undefined;
+    if (_canvasDocType === 'feature') genBody.parentFeature = _canvasEpicFilename ?? undefined;
     const genRes = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(genBody),
     });
-    if (!genRes.ok) throw new Error((await genRes.json()).error?.message || 'Generate failed');
-    const { filename: newFilename } = await genRes.json();
+    if (!genRes.ok) {
+      const body = (await genRes.json()) as ApiErrorBody;
+      throw new Error(body.error?.message || 'Generate failed');
+    }
+    const { filename: newFilename } = (await genRes.json()) as { filename: string };
 
     stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
 
@@ -696,7 +791,7 @@ export async function executeRpCreate(type) {
     stream.textContent += '\n✓ Linked successfully.';
 
     await loadDocs();
-    await buildCanvasGraph(_canvasEpicFilename, _canvasDocType);
+    await buildCanvasGraph(_canvasEpicFilename ?? '', _canvasDocType ?? '');
 
     setTimeout(() => {
       const card = document.querySelector(
@@ -708,7 +803,7 @@ export async function executeRpCreate(type) {
       }
     }, 100);
   } catch (e) {
-    stream.textContent += `\n\n❌ ${e.message}`;
+    stream.textContent += `\n\n❌ ${e instanceof Error ? e.message : String(e)}`;
     btn.disabled = false;
     btn.textContent = 'Generate & Link';
   }

@@ -1,11 +1,13 @@
 // ── Refine canvas: layout computation, rendering, and persistence ─
 import { escHtml, TYPE_LABEL, postJSON } from './state.js';
+import type { DocEntry, PanelState } from './state.js';
 import { openRefinePanel, openManualRefine } from './refine.js';
 import {
   _showEpicContextMenu,
   _showEmptyCellMenu,
   _showCardContextMenu,
   _showMultiCardContextMenu,
+  _showFpCardContextMenu,
 } from './refine-nodes.js';
 import { _showEdgePopup, _showLinkPopup } from './refine-edges.js';
 
@@ -16,8 +18,34 @@ const GUTTER_X = 60;
 const GUTTER_Y = 36;
 const TOP_OFFSET = 80;
 
+interface CanvasPos {
+  col: number;
+  row: number;
+}
+
+interface BlockEdge {
+  src: string;
+  tgt: string;
+}
+
+interface ParallelPair {
+  a: string;
+  b: string;
+}
+
+interface CardPos {
+  cx: number;
+  cy: number;
+  x: number;
+  y: number;
+}
+
 // ── Mini-canvas rendering for feature multi-panel view ────────
-export function _renderFpCanvas(epicFilename, ps, featureFilename) {
+export function _renderFpCanvas(
+  epicFilename: string,
+  ps: PanelState,
+  featureFilename: string
+): void {
   const container = document.getElementById(`fp-canvas-${epicFilename}`);
   if (!container) return;
   container.innerHTML = '';
@@ -31,8 +59,9 @@ export function _renderFpCanvas(epicFilename, ps, featureFilename) {
     CELL_H = 90,
     GUTTER_X = 14,
     GUTTER_Y = 14;
-  const positions = {};
-  for (const c of ps.stories) positions[c.filename] = ps.layout[c.filename] || { col: 0, row: 0 };
+  const positions: Record<string, CanvasPos> = {};
+  for (const c of ps.stories)
+    positions[c.filename] = (ps.layout[c.filename] as CanvasPos | undefined) || { col: 0, row: 0 };
 
   const usedCols = [...new Set(Object.values(positions).map((p) => p.col))].sort((a, b) => a - b);
   const usedRows = [...new Set(Object.values(positions).map((p) => p.row))].sort((a, b) => a - b);
@@ -53,7 +82,7 @@ export function _renderFpCanvas(epicFilename, ps, featureFilename) {
   const wrap = document.createElement('div');
   wrap.style.cssText = `position:relative;width:${totalW}px;min-height:${totalH}px`;
 
-  const cellAt = (col, row) => ({
+  const cellAt = (col: number, row: number) => ({
     x: GUTTER_X + col * (CELL_W + GUTTER_X),
     y: GUTTER_Y + row * (CELL_H + GUTTER_Y),
   });
@@ -64,13 +93,13 @@ export function _renderFpCanvas(epicFilename, ps, featureFilename) {
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
   defs.innerHTML = `<marker id="fp-arr-${epicFilename}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#ef4444"/></marker>`;
   svg.appendChild(defs);
-  const cardPos = {};
+  const cardPos: Record<string, CardPos> = {};
   for (const c of ps.stories) {
     const p = positions[c.filename];
     const { x, y } = cellAt(p.col, p.row);
     cardPos[c.filename] = { cx: x + CELL_W / 2, cy: y + CELL_H / 2, x, y };
   }
-  for (const { src, tgt } of ps.blocks) {
+  for (const { src, tgt } of ps.blocks as unknown as BlockEdge[]) {
     const s = cardPos[src],
       t = cardPos[tgt];
     if (!s || !t) continue;
@@ -106,7 +135,7 @@ export function _renderFpCanvas(epicFilename, ps, featureFilename) {
       </div>
       <div class="fp-card-title">${escHtml(c.title || c.filename)}</div>`;
     card.addEventListener('click', () => openRefinePanel(c.filename, c.docType || 'story'));
-    card.addEventListener('contextmenu', (e) => {
+    card.addEventListener('contextmenu', (e: MouseEvent) => {
       e.preventDefault();
       _showFpCardContextMenu(
         e.clientX,
@@ -118,8 +147,8 @@ export function _renderFpCanvas(epicFilename, ps, featureFilename) {
       );
     });
     // Drag-drop to reposition within panel
-    card.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', c.filename);
+    card.addEventListener('dragstart', (e: DragEvent) => {
+      e.dataTransfer?.setData('text/plain', c.filename);
     });
     wrap.appendChild(card);
 
@@ -127,17 +156,17 @@ export function _renderFpCanvas(epicFilename, ps, featureFilename) {
     const cell = document.createElement('div');
     cell.className = 'canvas-swimlane-cell fp-drop-cell';
     cell.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${CELL_W}px;height:${CELL_H}px`;
-    cell.dataset.col = p.col;
-    cell.dataset.row = p.row;
-    cell.addEventListener('dragover', (e) => {
+    cell.dataset.col = String(p.col);
+    cell.dataset.row = String(p.row);
+    cell.addEventListener('dragover', (e: DragEvent) => {
       e.preventDefault();
       cell.classList.add('drag-over');
     });
     cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
-    cell.addEventListener('drop', async (e) => {
+    cell.addEventListener('drop', async (e: DragEvent) => {
       e.preventDefault();
       cell.classList.remove('drag-over');
-      const fn = e.dataTransfer.getData('text/plain');
+      const fn = e.dataTransfer?.getData('text/plain');
       if (!fn || fn === c.filename) return;
       ps.layout[fn] = { col: p.col, row: p.row };
       await saveCanvasLayout(ps, epicFilename);
@@ -150,31 +179,29 @@ export function _renderFpCanvas(epicFilename, ps, featureFilename) {
 }
 
 // ── Graph construction ─────────────────────────────────────────
-export async function buildCanvasGraph(filename, docType) {
+export async function buildCanvasGraph(filename: string, docType: string): Promise<void> {
   _canvasSelectedCards.clear();
-  let children = [];
-  let blocks = [];
-  let parallel = [];
+  let children: DocEntry[] = [];
 
   try {
     const res = await fetch(`/api/links/${docType}/${encodeURIComponent(filename)}`);
     if (res.ok) {
-      const data = await res.json();
+      const data = (await res.json()) as {
+        children?: DocEntry[];
+        blocks?: unknown;
+        parallel?: unknown;
+      };
       children = data.children || [];
-      // eslint-disable-next-line no-unused-vars
-      blocks = data.blocks || [];
-      // eslint-disable-next-line no-unused-vars
-      parallel = data.parallel || [];
     }
   } catch {
     /* render with just the epic node */
   }
 
   // Load saved layout
-  let savedPositions = {};
+  let savedPositions: Record<string, CanvasPos> = {};
   try {
     const res = await fetch(`/api/canvas/layout/${encodeURIComponent(filename)}`);
-    if (res.ok) savedPositions = await res.json();
+    if (res.ok) savedPositions = (await res.json()) as Record<string, CanvasPos>;
   } catch {
     /* no-op */
   }
@@ -190,14 +217,24 @@ export async function buildCanvasGraph(filename, docType) {
     if (!doc) continue;
     for (const blockedFn of doc.blocks || []) {
       if (childFilenames.has(blockedFn)) {
-        _activePanelState.blocks.push({ src: child.filename, tgt: blockedFn });
+        (_activePanelState.blocks as unknown as BlockEdge[]).push({
+          src: child.filename,
+          tgt: blockedFn,
+        });
       }
     }
     for (const parallelFn of doc.parallel || []) {
       if (childFilenames.has(parallelFn)) {
         const pairKey = [child.filename, parallelFn].sort().join('|');
-        if (!_activePanelState.parallel.find((p) => [p.a, p.b].sort().join('|') === pairKey)) {
-          _activePanelState.parallel.push({ a: child.filename, b: parallelFn });
+        if (
+          !(_activePanelState.parallel as unknown as ParallelPair[]).find(
+            (p) => [p.a, p.b].sort().join('|') === pairKey
+          )
+        ) {
+          (_activePanelState.parallel as unknown as ParallelPair[]).push({
+            a: child.filename,
+            b: parallelFn,
+          });
         }
       }
     }
@@ -208,8 +245,8 @@ export async function buildCanvasGraph(filename, docType) {
   } else {
     _activePanelState.layout = computeAutoLayout(
       children,
-      _activePanelState.blocks,
-      _activePanelState.parallel
+      _activePanelState.blocks as unknown as BlockEdge[],
+      _activePanelState.parallel as unknown as ParallelPair[]
     );
     // Save auto-layout and sync ranks so dependency order propagates to list view
     if (Object.keys(_activePanelState.layout).length > 0) {
@@ -221,7 +258,7 @@ export async function buildCanvasGraph(filename, docType) {
 }
 
 // ── Lightweight edge rebuild (preserves card positions) ────────
-export function rebuildCanvasEdges(ps = _activePanelState) {
+export function rebuildCanvasEdges(ps: PanelState = _activePanelState): void {
   const childFilenames = new Set(ps.stories.map((c) => c.filename));
   ps.blocks = [];
   ps.parallel = [];
@@ -230,14 +267,18 @@ export function rebuildCanvasEdges(ps = _activePanelState) {
     if (!doc) continue;
     for (const blockedFn of doc.blocks || []) {
       if (childFilenames.has(blockedFn)) {
-        ps.blocks.push({ src: child.filename, tgt: blockedFn });
+        (ps.blocks as unknown as BlockEdge[]).push({ src: child.filename, tgt: blockedFn });
       }
     }
     for (const parallelFn of doc.parallel || []) {
       if (childFilenames.has(parallelFn)) {
         const pairKey = [child.filename, parallelFn].sort().join('|');
-        if (!ps.parallel.find((p) => [p.a, p.b].sort().join('|') === pairKey)) {
-          ps.parallel.push({ a: child.filename, b: parallelFn });
+        if (
+          !(ps.parallel as unknown as ParallelPair[]).find(
+            (p) => [p.a, p.b].sort().join('|') === pairKey
+          )
+        ) {
+          (ps.parallel as unknown as ParallelPair[]).push({ a: child.filename, b: parallelFn });
         }
       }
     }
@@ -245,21 +286,25 @@ export function rebuildCanvasEdges(ps = _activePanelState) {
 }
 
 // ── Auto layout: topological BFS ──────────────────────────────
-export function computeAutoLayout(children, blocks, _parallel) {
-  const layout = {};
+export function computeAutoLayout(
+  children: DocEntry[],
+  blocks: BlockEdge[],
+  _parallel: ParallelPair[]
+): Record<string, CanvasPos> {
+  const layout: Record<string, CanvasPos> = {};
   if (!children.length) return layout;
 
   // Build adjacency: who blocks whom
-  const blockedByMap = new Map(); // tgt → [src, ...] (who must come before tgt)
+  const blockedByMap = new Map<string, string[]>(); // tgt → [src, ...] (who must come before tgt)
   for (const { src, tgt } of blocks) {
     if (!blockedByMap.has(tgt)) blockedByMap.set(tgt, []);
-    blockedByMap.get(tgt).push(src);
+    blockedByMap.get(tgt)!.push(src);
   }
 
   // Phase 1 — seed BFS with true roots (stories with no blockers in this epic)
-  const rowMap = new Map();
-  const visited = new Set();
-  const queue = [];
+  const rowMap = new Map<string, number>();
+  const visited = new Set<string>();
+  const queue: string[] = [];
   for (const child of children) {
     if (!(blockedByMap.get(child.filename) || []).length) {
       rowMap.set(child.filename, 0);
@@ -295,16 +340,16 @@ export function computeAutoLayout(children, blocks, _parallel) {
   //
   // Union-find groups items that must be in the same column.
   // Each independent component (workstream) gets its own column number.
-  const colSets = new Map();
+  const colSets = new Map<string, string>();
   for (const child of children) colSets.set(child.filename, child.filename);
 
-  function findRoot(fn) {
+  function findRoot(fn: string): string {
     if (colSets.get(fn) === fn) return fn;
-    const root = findRoot(colSets.get(fn));
+    const root = findRoot(colSets.get(fn)!);
     colSets.set(fn, root);
     return root;
   }
-  function union(a, b) {
+  function union(a: string, b: string): void {
     const ra = findRoot(a),
       rb = findRoot(b);
     if (ra !== rb) colSets.set(ra, rb);
@@ -315,7 +360,7 @@ export function computeAutoLayout(children, blocks, _parallel) {
   // Parallel items are intentionally NOT unioned — they go in separate columns
 
   // Assign one column per component, roots-first for stable ordering
-  const componentCol = new Map();
+  const componentCol = new Map<string, number>();
   let nextCol = 0;
   const sortedByRow = [...children].sort(
     (a, b) => (rowMap.get(a.filename) || 0) - (rowMap.get(b.filename) || 0)
@@ -336,8 +381,9 @@ export function computeAutoLayout(children, blocks, _parallel) {
 }
 
 // ── Render canvas ──────────────────────────────────────────────
-export function renderCanvas(epicFilename, docType) {
+export function renderCanvas(epicFilename: string, docType: string): void {
   const container = document.getElementById('refine-canvas');
+  if (!container) return;
   container.innerHTML = '';
   container.style.position = 'relative';
   container.style.overflow = 'auto';
@@ -349,7 +395,7 @@ export function renderCanvas(epicFilename, docType) {
   }
 
   // Resolve feature parent banner (only when viewing an epic)
-  let featureDoc = null;
+  let featureDoc: DocEntry | undefined | null = null;
   let bannerOffset = 0;
   if (docType === 'epic') {
     const epicEntry = allDocs.find((d) => d.filename === epicFilename && d.docType === 'epic');
@@ -365,27 +411,22 @@ export function renderCanvas(epicFilename, docType) {
   const effectiveTopOffset = TOP_OFFSET + bannerOffset;
 
   // Compact layout: remap col/row values to remove gaps
-  const usedCols = [...new Set(Object.values(_activePanelState.layout).map((p) => p.col))].sort(
+  const layoutEntries = _activePanelState.layout as Record<string, CanvasPos>;
+  const usedCols = [...new Set(Object.values(layoutEntries).map((p) => p.col))].sort(
     (a, b) => a - b
   );
-  const usedRows = [...new Set(Object.values(_activePanelState.layout).map((p) => p.row))].sort(
+  const usedRows = [...new Set(Object.values(layoutEntries).map((p) => p.row))].sort(
     (a, b) => a - b
   );
   if (usedCols.length || usedRows.length) {
     const colRemap = new Map(usedCols.map((c, i) => [c, i]));
     const rowRemap = new Map(usedRows.map((r, i) => [r, i]));
     let changed = false;
-    for (const fn of Object.keys(_activePanelState.layout)) {
-      const newCol =
-        colRemap.get(_activePanelState.layout[fn].col) ?? _activePanelState.layout[fn].col;
-      const newRow =
-        rowRemap.get(_activePanelState.layout[fn].row) ?? _activePanelState.layout[fn].row;
-      if (
-        newCol !== _activePanelState.layout[fn].col ||
-        newRow !== _activePanelState.layout[fn].row
-      )
-        changed = true;
-      _activePanelState.layout[fn] = { col: newCol, row: newRow };
+    for (const fn of Object.keys(layoutEntries)) {
+      const newCol = colRemap.get(layoutEntries[fn].col) ?? layoutEntries[fn].col;
+      const newRow = rowRemap.get(layoutEntries[fn].row) ?? layoutEntries[fn].row;
+      if (newCol !== layoutEntries[fn].col || newRow !== layoutEntries[fn].row) changed = true;
+      layoutEntries[fn] = { col: newCol, row: newRow };
     }
     if (changed) saveCanvasLayout(_activePanelState, epicFilename);
   }
@@ -419,7 +460,7 @@ export function renderCanvas(epicFilename, docType) {
       <span class="canvas-feature-title">${escHtml(featureDoc.title || featureDoc.filename)}</span>`;
     banner.style.cursor = 'pointer';
     banner.title = 'Open feature in refinement view';
-    banner.addEventListener('click', () => openManualRefine(featureDoc.filename, 'feature'));
+    banner.addEventListener('click', () => openManualRefine(featureDoc!.filename, 'feature'));
     wrapper.appendChild(banner);
   }
 
@@ -440,7 +481,7 @@ export function renderCanvas(epicFilename, docType) {
     openRefinePanel(epicFilename, docType);
   });
   if (docType === 'epic') {
-    epicNode.addEventListener('contextmenu', (e) => {
+    epicNode.addEventListener('contextmenu', (e: MouseEvent) => {
       e.preventDefault();
       _showEpicContextMenu(e.clientX, e.clientY, epicFilename, featureDoc?.filename || null);
     });
@@ -450,15 +491,15 @@ export function renderCanvas(epicFilename, docType) {
   // ── Swimlane grid cells (visible + drop targets) ──────────────
   // During a card drag, wrapper gets class 'drag-active' which sets
   // pointer-events:none on all cards, letting dragover fall through to cells.
-  const cellAt = (col, row) => ({
+  const cellAt = (col: number, row: number) => ({
     x: GUTTER_X + col * (CELL_W + GUTTER_X),
     y: effectiveTopOffset + row * (CELL_H + GUTTER_Y),
   });
 
   // Build set of occupied cell positions for empty-cell detection
-  const _occupiedCells = new Set();
+  const _occupiedCells = new Set<string>();
   for (const child of _activePanelState.stories) {
-    const pos = _activePanelState.layout[child.filename] || { col: 0, row: 0 };
+    const pos = (layoutEntries[child.filename] as CanvasPos | undefined) || { col: 0, row: 0 };
     _occupiedCells.add(`${pos.col},${pos.row}`);
   }
 
@@ -467,34 +508,34 @@ export function renderCanvas(epicFilename, docType) {
       const { x, y } = cellAt(col, row);
       const cell = document.createElement('div');
       cell.className = 'canvas-swimlane-cell';
-      cell.dataset.col = col;
-      cell.dataset.row = row;
+      cell.dataset.col = String(col);
+      cell.dataset.row = String(row);
       cell.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${CELL_W}px;height:${CELL_H}px`;
 
-      cell.addEventListener('dragover', (e) => {
+      cell.addEventListener('dragover', (e: DragEvent) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
         cell.classList.add('drag-over');
       });
       cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
-      cell.addEventListener('drop', async (e) => {
+      cell.addEventListener('drop', async (e: DragEvent) => {
         e.preventDefault();
         cell.classList.remove('drag-over');
         wrapper.classList.remove('drag-active');
-        const fn = e.dataTransfer.getData('text/plain');
+        const fn = e.dataTransfer?.getData('text/plain');
         if (!fn) return;
-        const newCol = parseInt(cell.dataset.col);
-        const newRow = parseInt(cell.dataset.row);
-        const cur = _activePanelState.layout[fn] || {};
+        const newCol = parseInt(cell.dataset.col!);
+        const newRow = parseInt(cell.dataset.row!);
+        const cur = (layoutEntries[fn] as CanvasPos | undefined) || ({} as CanvasPos);
         if (cur.col === newCol && cur.row === newRow) return;
-        _activePanelState.layout[fn] = { col: newCol, row: newRow };
+        layoutEntries[fn] = { col: newCol, row: newRow };
         await saveCanvasLayout(_activePanelState, epicFilename);
         renderCanvas(epicFilename, docType);
       });
 
       // Right-click on empty cell → create new story/spike/bug
       if (!_occupiedCells.has(`${col},${row}`)) {
-        cell.addEventListener('contextmenu', (e) => {
+        cell.addEventListener('contextmenu', (e: MouseEvent) => {
           e.preventDefault();
           _showEmptyCellMenu(e.clientX, e.clientY, col, row, epicFilename, docType);
         });
@@ -505,9 +546,9 @@ export function renderCanvas(epicFilename, docType) {
   }
 
   // ── Story cards ───────────────────────────────────────────────
-  const cardPositions = {};
+  const cardPositions: Record<string, CardPos> = {};
   for (const child of _activePanelState.stories) {
-    const pos = _activePanelState.layout[child.filename] || { col: 0, row: 0 };
+    const pos = (layoutEntries[child.filename] as CanvasPos | undefined) || { col: 0, row: 0 };
     const { x, y } = cellAt(pos.col, pos.row);
     const cx = x + CELL_W / 2;
     const cy = y + CELL_H / 2;
@@ -535,8 +576,8 @@ export function renderCanvas(epicFilename, docType) {
       <div class="canvas-handle canvas-handle--right"  data-side="right"></div>`;
 
     // Click → open panel (plain) or toggle multi-select (Cmd/Ctrl)
-    card.addEventListener('click', (e) => {
-      if (e.target.classList.contains('canvas-handle')) return;
+    card.addEventListener('click', (e: MouseEvent) => {
+      if ((e.target as HTMLElement).classList.contains('canvas-handle')) return;
       if (e.metaKey || e.ctrlKey) {
         // Cmd/Ctrl+Click: toggle multi-select without opening panel
         if (_canvasSelectedCards.has(child.filename)) {
@@ -561,7 +602,7 @@ export function renderCanvas(epicFilename, docType) {
     });
 
     // Right-click → context menu (multi-select aware)
-    card.addEventListener('contextmenu', (e) => {
+    card.addEventListener('contextmenu', (e: MouseEvent) => {
       e.preventDefault();
       // If right-clicking a card not in multi-selection, reset to single
       if (_canvasSelectedCards.size > 0 && !_canvasSelectedCards.has(child.filename)) {
@@ -583,9 +624,9 @@ export function renderCanvas(epicFilename, docType) {
     });
 
     // HTML5 drag to reposition
-    card.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', child.filename);
-      e.dataTransfer.effectAllowed = 'move';
+    card.addEventListener('dragstart', (e: DragEvent) => {
+      e.dataTransfer?.setData('text/plain', child.filename);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
       // Defer so the drag ghost renders before we hide the card
       setTimeout(() => {
         card.classList.add('dragging');
@@ -600,10 +641,11 @@ export function renderCanvas(epicFilename, docType) {
 
     // Handle mousedown for rubber-band link creation (Manage Links mode)
     card.querySelectorAll('.canvas-handle').forEach((handle) => {
-      handle.addEventListener('mousedown', (e) => {
+      handle.addEventListener('mousedown', (e: Event) => {
+        const me = e as MouseEvent;
         if (!_canvasManageLinks) return;
-        e.stopPropagation();
-        e.preventDefault();
+        me.stopPropagation();
+        me.preventDefault();
         card.setAttribute('draggable', 'false');
 
         const rubberLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -612,24 +654,26 @@ export function renderCanvas(epicFilename, docType) {
         rubberLine.setAttribute('stroke-dasharray', '5 3');
         rubberLine.setAttribute('pointer-events', 'none');
         const r0 = svg.getBoundingClientRect();
-        rubberLine.setAttribute('x1', e.clientX - r0.left);
-        rubberLine.setAttribute('y1', e.clientY - r0.top);
-        rubberLine.setAttribute('x2', e.clientX - r0.left);
-        rubberLine.setAttribute('y2', e.clientY - r0.top);
+        rubberLine.setAttribute('x1', String(me.clientX - r0.left));
+        rubberLine.setAttribute('y1', String(me.clientY - r0.top));
+        rubberLine.setAttribute('x2', String(me.clientX - r0.left));
+        rubberLine.setAttribute('y2', String(me.clientY - r0.top));
         svg.appendChild(rubberLine);
 
-        function onMove(mv) {
+        function onMove(mv: MouseEvent): void {
           const r = svg.getBoundingClientRect();
-          rubberLine.setAttribute('x2', mv.clientX - r.left);
-          rubberLine.setAttribute('y2', mv.clientY - r.top);
+          rubberLine.setAttribute('x2', String(mv.clientX - r.left));
+          rubberLine.setAttribute('y2', String(mv.clientY - r.top));
         }
-        function onUp(mu) {
+        function onUp(mu: MouseEvent): void {
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
           rubberLine.remove();
           if (!_canvasManageLinks) card.setAttribute('draggable', 'true');
           const els = document.elementsFromPoint(mu.clientX, mu.clientY);
-          const tgtCard = els.find((el) => el.classList.contains('canvas-card') && el !== card);
+          const tgtCard = els.find((el) => el.classList.contains('canvas-card') && el !== card) as
+            | HTMLElement
+            | undefined;
           if (tgtCard) {
             const tgtFn = tgtCard.dataset.filename;
             const tgtDt = tgtCard.dataset.doctype;
@@ -640,7 +684,7 @@ export function renderCanvas(epicFilename, docType) {
                 child.filename,
                 child.docType || docType,
                 tgtFn,
-                tgtDt
+                tgtDt || ''
               );
             }
           }
@@ -659,7 +703,13 @@ export function renderCanvas(epicFilename, docType) {
 }
 
 // ── Draw SVG edges ─────────────────────────────────────────────
-function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _totalW) {
+function drawCanvasEdges(
+  svg: SVGSVGElement,
+  cardPositions: Record<string, CardPos>,
+  _epicFilename: string,
+  _epicCenterX: number,
+  _totalW: number
+): void {
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
   defs.innerHTML = `
     <marker id="arrow-blocks" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
@@ -671,7 +721,7 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
   svg.appendChild(defs);
 
   // Helper: make a path clickable with a wider transparent hit area
-  function addHitArea(svg, d, onClick) {
+  function addHitArea(svg: SVGSVGElement, d: string, onClick: (e: MouseEvent) => void): void {
     const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     hit.setAttribute('d', d);
     hit.setAttribute('stroke', 'transparent');
@@ -679,23 +729,25 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
     hit.setAttribute('fill', 'none');
     hit.setAttribute('pointer-events', 'stroke');
     hit.style.cursor = 'pointer';
-    hit.addEventListener('click', onClick);
+    hit.addEventListener('click', onClick as EventListener);
     svg.appendChild(hit);
   }
 
   // SEC arrows: cards sharing a column, consecutive rows
-  const byCols = {};
-  for (const [fn, pos] of Object.entries(_activePanelState.layout)) {
+  const byCols: Record<string, { fn: string; row: number }[]> = {};
+  for (const [fn, pos] of Object.entries(_activePanelState.layout as Record<string, CanvasPos>)) {
     if (!byCols[pos.col]) byCols[pos.col] = [];
     byCols[pos.col].push({ fn, row: pos.row });
   }
+  const blocksList = _activePanelState.blocks as unknown as BlockEdge[];
+  const parallelList = _activePanelState.parallel as unknown as ParallelPair[];
   for (const colItems of Object.values(byCols)) {
     colItems.sort((a, b) => a.row - b.row);
     for (let i = 0; i < colItems.length - 1; i++) {
       const src = cardPositions[colItems[i].fn];
       const tgt = cardPositions[colItems[i + 1].fn];
       if (!src || !tgt || src === tgt) continue;
-      const hasBlocks = _activePanelState.blocks.some(
+      const hasBlocks = blocksList.some(
         (b) =>
           (b.src === colItems[i].fn && b.tgt === colItems[i + 1].fn) ||
           (b.src === colItems[i + 1].fn && b.tgt === colItems[i].fn)
@@ -715,8 +767,8 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
       svg.appendChild(path);
 
       const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      label.setAttribute('x', x1 + 6);
-      label.setAttribute('y', y1 + (y2 - y1) / 2);
+      label.setAttribute('x', String(x1 + 6));
+      label.setAttribute('y', String(y1 + (y2 - y1) / 2));
       label.setAttribute('class', 'canvas-edge-label');
       label.textContent = 'SEC';
       svg.appendChild(label);
@@ -724,7 +776,7 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
   }
 
   // BLOCKS arrows (red) — clickable
-  for (const { src, tgt } of _activePanelState.blocks) {
+  for (const { src, tgt } of blocksList) {
     if (src === tgt) continue;
     const s = cardPositions[src];
     const t = cardPositions[tgt];
@@ -750,20 +802,20 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
     svg.appendChild(path);
 
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('x', (x1 + x2) / 2 + 4);
-    label.setAttribute('y', (y1 + y2) / 2);
+    label.setAttribute('x', String((x1 + x2) / 2 + 4));
+    label.setAttribute('y', String((y1 + y2) / 2));
     label.setAttribute('class', 'canvas-edge-label canvas-edge-label--blocks');
     label.textContent = 'BLOCKS';
     svg.appendChild(label);
 
-    addHitArea(svg, d, (e) => {
+    addHitArea(svg, d, (e: MouseEvent) => {
       e.stopPropagation();
-      _showEdgePopup(e.clientX, e.clientY, 'blocks', src, srcDt, tgt, tgtDt);
+      _showEdgePopup(e.clientX, e.clientY, 'blocks', src, srcDt || '', tgt, tgtDt || '');
     });
   }
 
   // PARALLEL brackets — clickable
-  for (const { a, b } of _activePanelState.parallel) {
+  for (const { a, b } of parallelList) {
     const pa = cardPositions[a];
     const pb = cardPositions[b];
     if (!pa || !pb) continue;
@@ -785,21 +837,24 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
     svg.appendChild(path);
 
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('x', (x1 + x2) / 2);
-    label.setAttribute('y', y - 3);
+    label.setAttribute('x', String((x1 + x2) / 2));
+    label.setAttribute('y', String(y - 3));
     label.setAttribute('text-anchor', 'middle');
     label.setAttribute('class', 'canvas-edge-label canvas-edge-label--parallel');
     label.textContent = 'PARALLEL';
     svg.appendChild(label);
 
-    addHitArea(svg, d, (e) => {
+    addHitArea(svg, d, (e: MouseEvent) => {
       e.stopPropagation();
-      _showEdgePopup(e.clientX, e.clientY, 'parallel', a, aDt, b, bDt);
+      _showEdgePopup(e.clientX, e.clientY, 'parallel', a, aDt || '', b, bDt || '');
     });
   }
 }
 
-export async function saveCanvasLayout(ps = _activePanelState, parentFilename) {
+export async function saveCanvasLayout(
+  ps: PanelState = _activePanelState,
+  parentFilename?: string | null
+): Promise<void> {
   const fn = parentFilename || _canvasEpicFilename;
   if (!fn) return;
   try {
@@ -816,15 +871,16 @@ export async function saveCanvasLayout(ps = _activePanelState, parentFilename) {
 
 // ── Sync canvas grid order → Rank frontmatter field ──────────
 // Order: col-first (left→right), then row within each col (top→bottom)
-async function syncCanvasRanks(ps = _activePanelState) {
+async function syncCanvasRanks(ps: PanelState = _activePanelState): Promise<void> {
   if (!ps.stories.length) return;
+  const layoutEntries = ps.layout as Record<string, CanvasPos>;
   const entries = ps.stories
-    .filter((c) => ps.layout[c.filename])
+    .filter((c) => layoutEntries[c.filename])
     .map((c) => ({
       filename: c.filename,
-      docType: c.docType || c.type || 'story',
-      col: ps.layout[c.filename].col,
-      row: ps.layout[c.filename].row,
+      docType: c.docType || 'story',
+      col: layoutEntries[c.filename].col,
+      row: layoutEntries[c.filename].row,
     }))
     .sort((a, b) => (a.col !== b.col ? a.col - b.col : a.row - b.row));
 
@@ -842,7 +898,7 @@ async function syncCanvasRanks(ps = _activePanelState) {
   }
 }
 
-export async function resetCanvasLayout(epicFilename) {
+export async function resetCanvasLayout(epicFilename: string): Promise<void> {
   try {
     await fetch(`/api/canvas/layout/${encodeURIComponent(epicFilename)}`, { method: 'DELETE' });
   } catch {
@@ -850,8 +906,8 @@ export async function resetCanvasLayout(epicFilename) {
   }
   _activePanelState.layout = computeAutoLayout(
     _activePanelState.stories,
-    _activePanelState.blocks,
-    _activePanelState.parallel
+    _activePanelState.blocks as unknown as BlockEdge[],
+    _activePanelState.parallel as unknown as ParallelPair[]
   );
-  renderCanvas(epicFilename, _canvasDocType);
+  renderCanvas(epicFilename, _canvasDocType || '');
 }
