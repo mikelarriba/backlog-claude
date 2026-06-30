@@ -25,6 +25,7 @@ import {
   computeAutoLayout,
 } from './refine-canvas.js';
 import { _closeLinkPopup } from './refine-edges.js';
+import { _showEpicContextMenu } from './refine-nodes.js';
 
 // ── Local ambient declarations ─────────────────────────────────
 // _renderComments / _parseComments are module-local (non-exported, never
