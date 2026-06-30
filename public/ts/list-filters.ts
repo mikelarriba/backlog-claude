@@ -9,11 +9,23 @@ import {
   showJiraToast,
   SECTION_LABELS,
 } from './state.js';
+import type { DocEntry } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { loadDocs } from './list.js';
 import { renderSwimlanes } from './list-render.js';
 import { sectionToFixVersion } from './dragdrop.js';
-export function toggleItemCollapse(filename, e) {
+
+// NOTE: `_lastClickedItem` is declared in global.d.ts as `string | null`, but
+// at runtime (here and in dragdrop.js) it always holds either `null` or a
+// `{ filename, docType }` object — never a bare string. The ambient
+// declaration is out of date; casting locally rather than editing
+// global.d.ts (out of scope for this migration pass).
+interface LastClickedItem {
+  filename: string;
+  docType: string;
+}
+
+export function toggleItemCollapse(filename: string, e: MouseEvent): void {
   e.stopPropagation();
   if (_collapsedItems.has(filename)) {
     _collapsedItems.delete(filename);
@@ -22,7 +34,8 @@ export function toggleItemCollapse(filename, e) {
   }
   applyFilters();
 }
-export function collapseAll() {
+
+export function collapseAll(): void {
   const childrenMap = buildChildrenMap(allDocs);
   for (const d of allDocs) {
     if (
@@ -34,11 +47,13 @@ export function collapseAll() {
   }
   applyFilters();
 }
-export function expandAll() {
+
+export function expandAll(): void {
   _collapsedItems.clear();
   applyFilters();
 }
-export function toggleSwimlane(sectionKey) {
+
+export function toggleSwimlane(sectionKey: 'currentPi' | 'nextPi' | 'backlog'): void {
   _swimlanesCollapsed[sectionKey] = !_swimlanesCollapsed[sectionKey];
   const section = document.querySelector(`.swimlane-section[data-section="${sectionKey}"]`);
   if (!section) return;
@@ -53,53 +68,64 @@ export function toggleSwimlane(sectionKey) {
     chevron.textContent = '▼';
   }
 }
-export async function updatePiVersion(sectionKey, versionName) {
+
+export async function updatePiVersion(
+  sectionKey: 'currentPi' | 'nextPi',
+  versionName: string
+): Promise<void> {
   const update = { ...piSettings };
   if (sectionKey === 'currentPi') update.currentPi = versionName || null;
   if (sectionKey === 'nextPi') update.nextPi = versionName || null;
+
   try {
     await putJSON('/api/settings/pi', update);
     piSettings = update;
     applyFilters();
   } catch (e) {
-    console.error('Failed to save PI settings:', e.message);
+    console.error('Failed to save PI settings:', (e as Error).message);
   }
 }
+
 // ── Filters ───────────────────────────────────────────────────
-export function setTypeFilter(type) {
+export function setTypeFilter(type: string): void {
   activeTypeFilter = type;
-  document.querySelectorAll('[data-type]').forEach((el) => {
+  document.querySelectorAll<HTMLElement>('[data-type]').forEach((el) => {
     el.classList.toggle('active', el.dataset.type === type);
   });
   applyFilters();
 }
-export function setStatusFilter(status) {
+
+export function setStatusFilter(status: string): void {
   activeStatusFilter = status;
-  document.querySelectorAll('[data-status]').forEach((el) => {
+  document.querySelectorAll<HTMLElement>('[data-status]').forEach((el) => {
     el.classList.toggle('active', el.dataset.status === status);
   });
   applyFilters();
 }
-export function setTeamFilter(team) {
+
+export function setTeamFilter(team: string): void {
   activeTeamFilter = team;
-  document.querySelectorAll('[data-team]').forEach((el) => {
+  document.querySelectorAll<HTMLElement>('[data-team]').forEach((el) => {
     el.classList.toggle('active', el.dataset.team === team);
   });
   applyFilters();
 }
-export function setWorkCatFilter(cat) {
+
+export function setWorkCatFilter(cat: string): void {
   activeWorkCatFilter = cat;
-  document.querySelectorAll('[data-workcat]').forEach((el) => {
+  document.querySelectorAll<HTMLElement>('[data-workcat]').forEach((el) => {
     el.classList.toggle('active', el.dataset.workcat === cat);
   });
   applyFilters();
 }
+
 // The rest parameter is unused at runtime (this function always re-derives
 // from the `allDocs` global) but is accepted so callers — e.g. the
 // `on('docs:changed', ...)` subscription in main.ts, and `debounce()` below —
 // can pass arguments (such as the changed docs payload) without a type error.
-export function applyFilters(..._args) {
-  const q = document.getElementById('search')?.value.toLowerCase() ?? '';
+export function applyFilters(..._args: unknown[]): void {
+  const q =
+    (document.getElementById('search') as HTMLInputElement | null)?.value.toLowerCase() ?? '';
   let filtered = allDocs;
   if (activeTypeFilter !== 'all') filtered = filtered.filter((d) => d.docType === activeTypeFilter);
   if (activeStatusFilter !== 'all')
@@ -113,38 +139,53 @@ export function applyFilters(..._args) {
     );
   renderSwimlanes(filtered);
 }
-export const applyFiltersDebounced = debounce(applyFilters, 200);
+
+export const applyFiltersDebounced: (...args: unknown[]) => void = debounce(applyFilters, 200);
+
 // ── Multi-select ─────────────────────────────────────────────
-export function itemKey(filename, docType) {
+export function itemKey(filename: string, docType: string): string {
   return `${docType}:${filename}`;
 }
-export function getVisibleItems() {
-  return Array.from(document.querySelectorAll('.epic-item')).map((el) => ({
-    filename: el.dataset.filename,
-    docType: el.dataset.doctype,
+
+interface VisibleItem {
+  filename: string;
+  docType: string;
+  el: HTMLElement;
+}
+
+export function getVisibleItems(): VisibleItem[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.epic-item')).map((el) => ({
+    filename: el.dataset.filename as string,
+    docType: el.dataset.doctype as string,
     el,
   }));
 }
-export function clearSelection() {
+
+export function clearSelection(): void {
   selectedItems.clear();
   _lastClickedItem = null;
   document
     .querySelectorAll('.epic-item.multi-selected')
     .forEach((el) => el.classList.remove('multi-selected'));
 }
-export function syncSelectionUI() {
-  document.querySelectorAll('.epic-item').forEach((el) => {
-    const key = itemKey(el.dataset.filename, el.dataset.doctype);
+
+export function syncSelectionUI(): void {
+  document.querySelectorAll<HTMLElement>('.epic-item').forEach((el) => {
+    const key = itemKey(el.dataset.filename as string, el.dataset.doctype as string);
     el.classList.toggle('multi-selected', selectedItems.has(key));
   });
 }
-export function handleItemClick(e, filename, docType) {
+
+export function handleItemClick(e: MouseEvent, filename: string, docType: string): void {
   if (_justDragged) return;
+
   // Clicks on collapse button are handled separately
-  if (e.target.closest('.collapse-btn')) return;
+  if ((e.target as HTMLElement).closest('.collapse-btn')) return;
+
   const key = itemKey(filename, docType);
   const isMeta = e.metaKey || e.ctrlKey;
   const isShift = e.shiftKey;
+
   if (isMeta) {
     // Cmd/Ctrl+Click: toggle individual item
     e.preventDefault();
@@ -153,14 +194,15 @@ export function handleItemClick(e, filename, docType) {
     } else {
       selectedItems.add(key);
     }
-    _lastClickedItem = { filename, docType };
+    _lastClickedItem = { filename, docType } as unknown as string;
     syncSelectionUI();
     return;
   }
+
   if (isShift && _lastClickedItem) {
     // Shift+Click: range select
     e.preventDefault();
-    const lastClicked = _lastClickedItem;
+    const lastClicked = _lastClickedItem as unknown as LastClickedItem;
     const visible = getVisibleItems();
     const lastIdx = visible.findIndex(
       (v) => v.filename === lastClicked.filename && v.docType === lastClicked.docType
@@ -176,38 +218,47 @@ export function handleItemClick(e, filename, docType) {
     syncSelectionUI();
     return;
   }
+
   // Plain click: clear selection and open the doc
   if (selectedItems.size > 0) {
     clearSelection();
   }
   openDoc(filename, docType);
 }
+
 // ── Context menu ─────────────────────────────────────────────
-export function handleItemContextMenu(e, filename, docType) {
+export function handleItemContextMenu(e: MouseEvent, filename: string, docType: string): void {
   e.preventDefault();
+
   const key = itemKey(filename, docType);
+
   // If right-clicking an unselected item, add it to the current selection
   if (!selectedItems.has(key)) {
     selectedItems.add(key);
-    _lastClickedItem = { filename, docType };
+    _lastClickedItem = { filename, docType } as unknown as string;
     syncSelectionUI();
   }
+
   showContextMenu(e.clientX, e.clientY);
 }
-export function showContextMenu(x, y) {
+
+export function showContextMenu(x: number, y: number): void {
   closeContextMenu();
   const count = selectedItems.size;
   if (!count) return;
+
   const menu = document.createElement('div');
   menu.className = 'context-menu';
   menu.id = 'list-context-menu';
+
   // "Move to PI" submenu
-  const piOptions = [];
+  const piOptions: { label: string; badge: string | null; section: string }[] = [];
   if (piSettings.currentPi)
     piOptions.push({ label: piSettings.currentPi, badge: 'Current', section: 'currentPi' });
   if (piSettings.nextPi)
     piOptions.push({ label: piSettings.nextPi, badge: 'Next', section: 'nextPi' });
   piOptions.push({ label: 'Backlog (clear version)', badge: null, section: 'backlog' });
+
   const piItems = piOptions
     .map((opt) => {
       const badge = opt.badge ? `<span class="ctx-badge">${escHtml(opt.badge)}</span>` : '';
@@ -216,10 +267,11 @@ export function showContextMenu(x, y) {
     </button>`;
     })
     .join('');
+
   // "Assign Sprint" submenu — collect sprints from all PIs
-  const allSprints = new Map();
+  const allSprints = new Map<string, string>();
   for (const [pi, sprints] of Object.entries(sprintConfig)) {
-    for (const s of sprints) {
+    for (const s of sprints as { name: string }[]) {
       if (!allSprints.has(s.name)) allSprints.set(s.name, pi);
     }
   }
@@ -230,6 +282,7 @@ export function showContextMenu(x, y) {
     )
     .join('');
   const sprintClear = `<button class="ctx-item" onclick="contextAssignField('sprint','')">Clear sprint</button>`;
+
   // "Assign Team" submenu
   const teamItems = (_metaTeams || [])
     .map(
@@ -238,6 +291,7 @@ export function showContextMenu(x, y) {
     )
     .join('');
   const teamClear = `<button class="ctx-item" onclick="contextAssignField('team','')">Clear team</button>`;
+
   // "Assign Category" submenu
   const catItems = (_metaWorkCategories || [])
     .map(
@@ -246,12 +300,14 @@ export function showContextMenu(x, y) {
     )
     .join('');
   const catClear = `<button class="ctx-item" onclick="contextAssignField('workCategory','')">Clear category</button>`;
+
   const splitOption =
     count === 1
       ? `
     <div class="ctx-separator"></div>
     <button class="ctx-item" onclick="contextSplitItem()">✂ Split Issue</button>`
       : '';
+
   menu.innerHTML = `
     <div class="ctx-header">${count} item${count > 1 ? 's' : ''} selected</div>
     <div class="ctx-separator"></div>
@@ -275,44 +331,52 @@ export function showContextMenu(x, y) {
     <div class="ctx-separator"></div>
     <button class="ctx-item ctx-danger" onclick="contextDeleteSelected()">Delete</button>
   `;
+
   document.body.appendChild(menu);
+
   // Position: ensure it stays within viewport
   const rect = menu.getBoundingClientRect();
   if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
   if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
+
   // Close on outside click (next tick)
   setTimeout(() => {
     document.addEventListener('mousedown', _closeContextMenuHandler);
     document.addEventListener('contextmenu', _closeContextMenuOnRightClick);
   }, 0);
 }
-function _closeContextMenuHandler(e) {
-  if (!e.target.closest('#list-context-menu')) closeContextMenu();
+
+function _closeContextMenuHandler(e: MouseEvent): void {
+  if (!(e.target as HTMLElement).closest('#list-context-menu')) closeContextMenu();
 }
-function _closeContextMenuOnRightClick(e) {
-  if (!e.target.closest('#list-context-menu')) closeContextMenu();
+function _closeContextMenuOnRightClick(e: MouseEvent): void {
+  if (!(e.target as HTMLElement).closest('#list-context-menu')) closeContextMenu();
 }
-export function closeContextMenu() {
+
+export function closeContextMenu(): void {
   const menu = document.getElementById('list-context-menu');
   if (menu) menu.remove();
   document.removeEventListener('mousedown', _closeContextMenuHandler);
   document.removeEventListener('contextmenu', _closeContextMenuOnRightClick);
 }
-export async function contextMoveToPI(section) {
+
+export async function contextMoveToPI(section: string): Promise<void> {
   closeContextMenu();
   const newFixVersion = sectionToFixVersion(section);
   if (section !== 'backlog' && !newFixVersion) {
     showJiraToast('error', `Set a version for ${SECTION_LABELS[section]} first`);
     return;
   }
+
   const docs = getSelectedDocs();
   if (!docs.length) return;
+
   // Include descendants for parent items
   const childrenMap = buildChildrenMap(allDocs);
-  const allToMove = [];
-  const seen = new Set();
+  const allToMove: DocEntry[] = [];
+  const seen = new Set<string>();
   for (const d of docs) {
     if (seen.has(d.filename)) continue;
     seen.add(d.filename);
@@ -324,6 +388,7 @@ export async function contextMoveToPI(section) {
       }
     }
   }
+
   try {
     await postJSON('/api/docs/batch-fix-version', {
       fixVersion: newFixVersion,
@@ -332,31 +397,40 @@ export async function contextMoveToPI(section) {
     showJiraToast('success', `Moved ${allToMove.length} item(s) to ${SECTION_LABELS[section]}`);
     clearSelection();
   } catch (err) {
-    showJiraToast('error', err.message);
+    showJiraToast('error', (err as Error).message);
   }
 }
-export async function contextDeleteSelected() {
+
+interface BatchDeleteResponse {
+  deleted: number;
+  skipped?: { reason: string }[];
+}
+
+export async function contextDeleteSelected(): Promise<void> {
   closeContextMenu();
   const docs = getSelectedDocs();
   if (!docs.length) return;
+
   const count = docs.length;
   const msg =
     count === 1
       ? `Delete "${docs[0].title}"? This cannot be undone.`
       : `Delete ${count} selected items? This cannot be undone.`;
+
   const msgEl = document.getElementById('delete-msg');
   if (msgEl) msgEl.textContent = msg;
   document.getElementById('delete-overlay')?.classList.add('show');
+
   // Replace the delete handler temporarily for batch delete
-  const btn = document.getElementById('confirm-delete-btn');
+  const btn = document.getElementById('confirm-delete-btn') as HTMLButtonElement | null;
   if (!btn) return;
   btn.onclick = async () => {
     btn.disabled = true;
     btn.textContent = 'Deleting…';
     try {
-      const data = await postJSON('/api/docs/batch-delete', {
+      const data = (await postJSON('/api/docs/batch-delete', {
         docs: docs.map((d) => ({ type: d.docType, filename: d.filename })),
-      });
+      })) as BatchDeleteResponse;
       closeDeleteDialog();
       clearSelection();
       // Always reload to purge stale entries from the list
@@ -373,31 +447,35 @@ export async function contextDeleteSelected() {
     } catch (err) {
       btn.disabled = false;
       btn.textContent = 'Delete';
-      showJiraToast('error', err.message);
+      showJiraToast('error', (err as Error).message);
     } finally {
       // Restore original handler
       btn.onclick = executeDelete;
     }
   };
 }
-export async function contextAssignField(field, value) {
+
+export async function contextAssignField(field: string, value: string): Promise<void> {
   closeContextMenu();
   const docs = getSelectedDocs();
   if (!docs.length) return;
-  const fieldLabels = {
+
+  const fieldLabels: Record<string, string> = {
     sprint: 'Sprint',
     team: 'Team',
     workCategory: 'Category',
   };
   const label = fieldLabels[field] || field;
   const displayValue = value || '(clear)';
+
   if (docs.length > 1) {
     // Show confirmation dialog for multi-select
     const msg = `Assign ${label} "${displayValue}" to ${docs.length} selected items?`;
     const msgEl = document.getElementById('bulk-assign-msg');
     if (msgEl) msgEl.textContent = msg;
     document.getElementById('bulk-assign-overlay')?.classList.add('show');
-    const btn = document.getElementById('confirm-bulk-assign-btn');
+
+    const btn = document.getElementById('confirm-bulk-assign-btn') as HTMLButtonElement | null;
     if (!btn) return;
     btn.disabled = false;
     btn.textContent = 'Apply';
@@ -412,16 +490,28 @@ export async function contextAssignField(field, value) {
     };
     return;
   }
+
   // Single item — apply directly
   await _executeBatchFieldUpdate(field, value, docs, label, displayValue);
 }
-async function _executeBatchFieldUpdate(field, value, docs, label, displayValue) {
+
+interface BatchFieldUpdateResponse {
+  updated: number;
+}
+
+async function _executeBatchFieldUpdate(
+  field: string,
+  value: string,
+  docs: DocEntry[],
+  label: string,
+  displayValue: string
+): Promise<void> {
   try {
-    const data = await postJSON('/api/docs/batch-update-field', {
+    const data = (await postJSON('/api/docs/batch-update-field', {
       field,
       value: value || null,
       docs: docs.map((d) => ({ type: d.docType, filename: d.filename })),
-    });
+    })) as BatchFieldUpdateResponse;
     clearSelection();
     if (data.updated > 0) {
       showJiraToast('success', `${label} → "${displayValue}" applied to ${data.updated} item(s)`);
@@ -429,14 +519,16 @@ async function _executeBatchFieldUpdate(field, value, docs, label, displayValue)
       showJiraToast('error', 'No items updated');
     }
   } catch (err) {
-    showJiraToast('error', err.message);
+    showJiraToast('error', (err as Error).message);
   }
 }
-export function closeBulkAssignDialog() {
+
+export function closeBulkAssignDialog(): void {
   document.getElementById('bulk-assign-overlay')?.classList.remove('show');
 }
-export function getSelectedDocs() {
-  const docs = [];
+
+export function getSelectedDocs(): DocEntry[] {
+  const docs: DocEntry[] = [];
   for (const key of selectedItems) {
     const [docType, ...rest] = key.split(':');
     const filename = rest.join(':');
@@ -445,4 +537,3 @@ export function getSelectedDocs() {
   }
   return docs;
 }
-//# sourceMappingURL=list-filters.js.map

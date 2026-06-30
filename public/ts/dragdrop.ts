@@ -14,45 +14,69 @@ import {
   DRAG_TARGETS,
   SECTION_LABELS,
 } from './state.js';
+import type { DocEntry } from './state.js';
 import { loadHierarchy } from './detail.js';
 import { clearSelection, itemKey, getSelectedDocs, applyFilters } from './list-filters.js';
 import { _rankSortFn } from './list-render.js';
-export function getSwimlaneSection(doc) {
+
+export function getSwimlaneSection(doc: DocEntry | undefined | null): string {
   if (!doc) return 'backlog';
   if (doc.fixVersion && piSettings.currentPi && doc.fixVersion === piSettings.currentPi)
     return 'currentPi';
   if (doc.fixVersion && piSettings.nextPi && doc.fixVersion === piSettings.nextPi) return 'nextPi';
   return 'backlog';
 }
-export function sectionToFixVersion(section) {
+
+export function sectionToFixVersion(section: string): string | null {
   if (section === 'currentPi') return piSettings.currentPi;
   if (section === 'nextPi') return piSettings.nextPi;
   return null; // backlog = clear version
 }
-let _dropPopup = null;
-let _pendingDropSrc = null;
-let _pendingDropTgt = null;
-let _escListener = null;
-export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY) {
+
+// ── Drop action popup ─────────────────────────────────────────
+interface DropRef {
+  filename: string;
+  docType: string;
+}
+
+let _dropPopup: HTMLElement | null = null;
+let _pendingDropSrc: DropRef | null = null;
+let _pendingDropTgt: DropRef | null = null;
+let _escListener: ((e: KeyboardEvent) => void) | null = null;
+
+export function showDropActionPopup(
+  srcFilename: string,
+  srcDocType: string,
+  targetEl: HTMLElement,
+  cursorX: number,
+  cursorY: number
+): void {
   hideDropActionPopup();
-  const tgtFilename = targetEl.dataset.filename;
-  const tgtDocType = targetEl.dataset.doctype;
+
+  const tgtFilename = targetEl.dataset.filename as string;
+  const tgtDocType = targetEl.dataset.doctype as string;
   const tgtTitle =
     targetEl.querySelector('.epic-title-text')?.textContent ||
     targetEl.querySelector('.roadmap-card-title')?.textContent ||
     tgtFilename;
+
   const canLink = (DRAG_TARGETS[srcDocType] || []).includes(tgtDocType);
   const canDep = srcFilename !== tgtFilename && !canLink;
+
   if (!canLink && !canDep) return; // nothing to offer
+
   _pendingDropSrc = { filename: srcFilename, docType: srcDocType };
   _pendingDropTgt = { filename: tgtFilename, docType: tgtDocType };
+
   const popup = document.createElement('div');
   popup.className = 'drop-action-popup';
+
   // Subtitle — target item title
   const subtitle = document.createElement('div');
   subtitle.className = 'drop-action-popup-title';
   subtitle.textContent = tgtTitle.length > 40 ? tgtTitle.slice(0, 38) + '…' : tgtTitle;
   popup.appendChild(subtitle);
+
   if (canLink) {
     const btn = document.createElement('button');
     btn.className = 'drop-action-btn drop-link-btn';
@@ -63,6 +87,7 @@ export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, 
     });
     popup.appendChild(btn);
   }
+
   if (canDep) {
     const btn = document.createElement('button');
     btn.className = 'drop-action-btn drop-dep-btn';
@@ -73,8 +98,10 @@ export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, 
     });
     popup.appendChild(btn);
   }
+
   document.body.appendChild(popup);
   _dropPopup = popup;
+
   // Position near cursor, clamped to viewport
   const pw = popup.offsetWidth || 220;
   const ph = popup.offsetHeight || 90;
@@ -84,17 +111,20 @@ export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, 
   const top = Math.min(cursorY - 10, vh - ph - 12);
   popup.style.left = `${Math.max(8, left)}px`;
   popup.style.top = `${Math.max(8, top)}px`;
+
   // Dismiss on outside click
   setTimeout(() => {
     document.addEventListener('click', hideDropActionPopup, { once: true });
   }, 0);
+
   // Dismiss on Escape
-  _escListener = (e) => {
+  _escListener = (e: KeyboardEvent) => {
     if (e.key === 'Escape') hideDropActionPopup();
   };
   document.addEventListener('keydown', _escListener);
 }
-export function hideDropActionPopup() {
+
+export function hideDropActionPopup(): void {
   if (_dropPopup) {
     _dropPopup.remove();
     _dropPopup = null;
@@ -106,14 +136,17 @@ export function hideDropActionPopup() {
   _pendingDropSrc = null;
   _pendingDropTgt = null;
 }
-async function executeDropLink() {
+
+async function executeDropLink(): Promise<void> {
   if (!_pendingDropSrc || !_pendingDropTgt) return;
   const src = _pendingDropSrc;
   const tgt = _pendingDropTgt;
   hideDropActionPopup();
+
   const tgtEl = document.querySelector(`#epic-list [data-filename="${CSS.escape(tgt.filename)}"]`);
   const tgtTitle = tgtEl?.querySelector('.epic-title-text')?.textContent || tgt.filename;
   const dragDocs = getDragDocs(src.filename, src.docType);
+
   try {
     let linked = 0;
     for (const d of dragDocs) {
@@ -131,19 +164,22 @@ async function executeDropLink() {
     showJiraToast('success', msg);
     clearSelection();
     if (currentFilename === src.filename || currentFilename === tgt.filename) {
-      loadHierarchy(currentFilename, currentDocType);
+      loadHierarchy(currentFilename as string, currentDocType as string);
     }
   } catch (err) {
-    showJiraToast('error', err.message);
+    showJiraToast('error', (err as Error).message);
   }
 }
-async function executeDropDep() {
+
+async function executeDropDep(): Promise<void> {
   if (!_pendingDropSrc || !_pendingDropTgt) return;
   const src = _pendingDropSrc;
   const tgt = _pendingDropTgt;
   hideDropActionPopup();
+
   const tgtEl = document.querySelector(`#epic-list [data-filename="${CSS.escape(tgt.filename)}"]`);
   const tgtTitle = tgtEl?.querySelector('.epic-title-text')?.textContent || tgt.filename;
+
   try {
     await postJSON('/api/link', {
       linkType: 'blocks',
@@ -169,15 +205,22 @@ async function executeDropDep() {
       `"${allDocs.find((d) => d.filename === src.filename)?.title || src.filename}" now blocks "${tgtTitle}"`
     );
   } catch (err) {
-    showJiraToast('error', err.message);
+    showJiraToast('error', (err as Error).message);
   }
 }
+
 // ── Existing drop actions ─────────────────────────────────────
-async function _executeLinkDrop(srcFilename, srcDocType, dropTarget) {
-  const tgtFilename = dropTarget.dataset.filename;
-  const tgtDocType = dropTarget.dataset.doctype;
+async function _executeLinkDrop(
+  srcFilename: string,
+  srcDocType: string,
+  dropTarget: HTMLElement
+): Promise<void> {
+  const tgtFilename = dropTarget.dataset.filename as string;
+  const tgtDocType = dropTarget.dataset.doctype as string;
   const tgtTitle = dropTarget.querySelector('.epic-title-text')?.textContent || tgtFilename;
+
   const dragDocs = getDragDocs(srcFilename, srcDocType);
+
   try {
     let linked = 0;
     for (const d of dragDocs) {
@@ -191,27 +234,35 @@ async function _executeLinkDrop(srcFilename, srcDocType, dropTarget) {
       });
       linked++;
     }
+
     const msg = linked > 1 ? `Linked ${linked} items to "${tgtTitle}"` : `Linked to "${tgtTitle}"`;
     showJiraToast('success', msg);
     clearSelection();
     if (currentFilename === srcFilename || currentFilename === tgtFilename) {
-      loadHierarchy(currentFilename, currentDocType);
+      loadHierarchy(currentFilename as string, currentDocType as string);
     }
   } catch (err) {
-    showJiraToast('error', err.message);
+    showJiraToast('error', (err as Error).message);
   }
 }
-async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
-  const targetSection = dropSwimlane.dataset.section;
+
+async function executeMoveDrop(
+  srcFilename: string,
+  srcDocType: string,
+  dropSwimlane: HTMLElement
+): Promise<void> {
+  const targetSection = dropSwimlane.dataset.section as string;
   const newFixVersion = sectionToFixVersion(targetSection);
+
   if (targetSection !== 'backlog' && !newFixVersion) {
     showJiraToast('error', `Set a version for ${SECTION_LABELS[targetSection]} first`);
     return;
   }
+
   const dragDocs = getDragDocs(srcFilename, srcDocType);
   const childrenMap = buildChildrenMap(allDocs);
-  const allToMove = [];
-  const seen = new Set();
+  const allToMove: DocEntry[] = [];
+  const seen = new Set<string>();
   for (const d of dragDocs) {
     if (seen.has(d.filename)) continue;
     seen.add(d.filename);
@@ -223,21 +274,24 @@ async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
       }
     }
   }
+
   try {
     await postJSON('/api/docs/batch-fix-version', {
       fixVersion: newFixVersion,
       docs: allToMove.map((d) => ({ type: d.docType, filename: d.filename })),
     });
+
     const label = SECTION_LABELS[targetSection];
     const countMsg = allToMove.length > 1 ? ` (${allToMove.length} items)` : '';
     showJiraToast('success', `Moved to ${label}${countMsg}`);
     clearSelection();
   } catch (err) {
-    showJiraToast('error', err.message);
+    showJiraToast('error', (err as Error).message);
   }
 }
+
 // Returns the docs being dragged — either the multi-selection or just the single item
-function getDragDocs(srcFilename, srcDocType) {
+function getDragDocs(srcFilename: string, srcDocType: string): DocEntry[] {
   const key = itemKey(srcFilename, srcDocType);
   if (selectedItems.size > 1 && selectedItems.has(key)) {
     return getSelectedDocs();
@@ -245,9 +299,11 @@ function getDragDocs(srcFilename, srcDocType) {
   const doc = allDocs.find((d) => d.filename === srcFilename && d.docType === srcDocType);
   return doc ? [doc] : [];
 }
+
 // ── Insertion marker (rerank visual indicator) ────────────────
-let _insertionMarker = null;
-export function getInsertionMarker() {
+let _insertionMarker: HTMLElement | null = null;
+
+export function getInsertionMarker(): HTMLElement {
   if (!_insertionMarker) {
     _insertionMarker = document.createElement('div');
     _insertionMarker.className = 'rank-insert-line';
@@ -255,7 +311,8 @@ export function getInsertionMarker() {
   }
   return _insertionMarker;
 }
-export function showInsertionMarker(clientY) {
+
+export function showInsertionMarker(clientY: number): void {
   const list = document.getElementById('epic-list');
   if (!list) return;
   const listRect = list.getBoundingClientRect();
@@ -265,61 +322,93 @@ export function showInsertionMarker(clientY) {
   marker.style.left = `${listRect.left + 4}px`;
   marker.style.width = `${listRect.width - 8}px`;
 }
-export function hideInsertionMarker() {
+
+export function hideInsertionMarker(): void {
   if (_insertionMarker) _insertionMarker.style.display = 'none';
 }
+
 // Returns the filename of the item the cursor is ABOVE (insert before it),
 // or null to insert at the end of the type group.
-function computeInsertBefore(srcDocType, clientY) {
-  const items = [...document.querySelectorAll('#epic-list .epic-item')].filter(
+function computeInsertBefore(srcDocType: string, clientY: number): string | null {
+  const items = [...document.querySelectorAll<HTMLElement>('#epic-list .epic-item')].filter(
     (el) => el.dataset.doctype === srcDocType && !el.classList.contains('drag-source')
   );
+
   for (const el of items) {
     const rect = el.getBoundingClientRect();
-    if (clientY < rect.top + rect.height / 2) return el.dataset.filename;
+    if (clientY < rect.top + rect.height / 2) return el.dataset.filename as string;
   }
   return null; // insert at end
 }
-export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFilename) {
+
+export async function executeRerankDrop(
+  srcFilename: string,
+  srcDocType: string,
+  insertBeforeFilename: string | null | undefined
+): Promise<void> {
   const group = allDocs.filter((d) => d.docType === srcDocType);
   const sorted = [...group].sort(_rankSortFn);
+
   const draggedIdx = sorted.findIndex((d) => d.filename === srcFilename);
   if (draggedIdx < 0) return;
+
   const [dragged] = sorted.splice(draggedIdx, 1);
+
   let insertIdx = sorted.length; // default: end
   if (insertBeforeFilename) {
     const targetIdx = sorted.findIndex((d) => d.filename === insertBeforeFilename);
     if (targetIdx >= 0) insertIdx = targetIdx;
   }
   sorted.splice(insertIdx, 0, dragged);
+
   try {
     await postJSON('/api/docs/rerank', {
       type: srcDocType,
       orderedFilenames: sorted.map((d) => d.filename),
     });
   } catch (e) {
-    showJiraToast('error', e.message);
+    showJiraToast('error', (e as Error).message);
   }
 }
-function resolveDropTargets(snap, e) {
-  let dropTarget = null,
-    dropSwimlane = null;
+
+interface DragState {
+  srcFilename: string;
+  srcDocType: string;
+  startX: number;
+  startY: number;
+  started: boolean;
+  ghost: HTMLElement | null;
+  currentTarget: HTMLElement | null;
+  currentSwimlane: HTMLElement | null;
+  isReranking: boolean;
+  rerankInsertBefore: string | null | undefined;
+}
+
+function resolveDropTargets(
+  snap: DragState,
+  e: MouseEvent
+): { dropTarget: HTMLElement | null; dropSwimlane: HTMLElement | null } {
+  let dropTarget: HTMLElement | null = null,
+    dropSwimlane: HTMLElement | null = null;
+
   if (snap.started && snap.ghost) {
     snap.ghost.style.visibility = 'hidden';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
     snap.ghost.style.visibility = '';
-    const itemUnder = elUnder?.closest('.epic-item');
+
+    const itemUnder = elUnder?.closest('.epic-item') as HTMLElement | null;
     if (itemUnder && itemUnder.dataset.filename !== snap.srcFilename) {
       const rect = itemUnder.getBoundingClientRect();
       const relY = e.clientY - rect.top;
       const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
-      const tgtType = itemUnder.dataset.doctype;
+      const tgtType = itemUnder.dataset.doctype as string;
       const canLink = (DRAG_TARGETS[snap.srcDocType] || []).includes(tgtType);
       const canDep = !canLink;
       if (inCenter && (canLink || canDep)) dropTarget = itemUnder;
     }
+
     if (!dropTarget) {
-      const sectionUnder = elUnder?.closest('.swimlane-section');
+      const sectionUnder = elUnder?.closest('.swimlane-section') as HTMLElement | null;
       if (sectionUnder) {
         const srcDoc = allDocs.find((d) => d.filename === snap.srcFilename);
         const srcLane = getSwimlaneSection(srcDoc);
@@ -327,25 +416,29 @@ function resolveDropTargets(snap, e) {
       }
     }
   }
+
   return {
     dropTarget: dropTarget || snap.currentTarget,
     dropSwimlane: dropSwimlane || snap.currentSwimlane,
   };
 }
-export function initDragDrop() {
+
+export function initDragDrop(): void {
   const list = document.getElementById('epic-list');
   if (!list) return;
-  let state = null;
+  let state: DragState | null = null;
   const DRAG_THRESHOLD = 6;
-  list.addEventListener('mousedown', (e) => {
-    const handle = e.target.closest('.drag-handle');
+
+  list.addEventListener('mousedown', (e: MouseEvent) => {
+    const handle = (e.target as HTMLElement).closest('.drag-handle');
     if (!handle) return;
     e.preventDefault();
-    const item = handle.closest('.epic-item');
+    const item = handle.closest('.epic-item') as HTMLElement | null;
     if (!item) return;
+
     state = {
-      srcFilename: item.dataset.filename,
-      srcDocType: item.dataset.doctype,
+      srcFilename: item.dataset.filename as string,
+      srcDocType: item.dataset.doctype as string,
       startX: e.clientX,
       startY: e.clientY,
       started: false,
@@ -356,16 +449,21 @@ export function initDragDrop() {
       rerankInsertBefore: undefined,
     };
   });
-  document.addEventListener('mousemove', (e) => {
+
+  document.addEventListener('mousemove', (e: MouseEvent) => {
     if (!state) return;
+
     if (!state.started) {
       const dx = Math.abs(e.clientX - state.startX);
       const dy = Math.abs(e.clientY - state.startY);
       if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) return;
+
       state.started = true;
       _justDragged = true;
+
       const dragDocs = getDragDocs(state.srcFilename, state.srcDocType);
       const multiCount = dragDocs.length;
+
       const ghost = document.createElement('div');
       ghost.className = 'drag-ghost';
       if (multiCount > 1) {
@@ -381,12 +479,13 @@ export function initDragDrop() {
         ghost.appendChild(badge);
         ghost.appendChild(
           document.createTextNode(
-            allDocs.find((d) => d.filename === state.srcFilename)?.title || state.srcFilename
+            allDocs.find((d) => d.filename === state!.srcFilename)?.title || state.srcFilename
           )
         );
       }
       document.body.appendChild(ghost);
       state.ghost = ghost;
+
       if (multiCount > 1) {
         for (const d of dragDocs) {
           const el = list.querySelector(
@@ -401,11 +500,14 @@ export function initDragDrop() {
       list.classList.add('dragging-active');
       document.body.style.userSelect = 'none';
     }
-    state.ghost.style.left = `${e.clientX + 14}px`;
-    state.ghost.style.top = `${e.clientY + 10}px`;
-    state.ghost.style.visibility = 'hidden';
+
+    state.ghost!.style.left = `${e.clientX + 14}px`;
+    state.ghost!.style.top = `${e.clientY + 10}px`;
+
+    state.ghost!.style.visibility = 'hidden';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
-    state.ghost.style.visibility = '';
+    state.ghost!.style.visibility = '';
+
     list
       .querySelectorAll('.drag-target-hover')
       .forEach((el) => el.classList.remove('drag-target-hover'));
@@ -416,15 +518,17 @@ export function initDragDrop() {
     state.currentSwimlane = null;
     state.isReranking = false;
     state.rerankInsertBefore = undefined;
+
     // ── Zone detection ──────────────────────────────────────────
-    const targetItem = elUnder?.closest('.epic-item');
+    const targetItem = elUnder?.closest('.epic-item') as HTMLElement | null;
     if (targetItem && targetItem.dataset.filename !== state.srcFilename) {
       const rect = targetItem.getBoundingClientRect();
       const relY = e.clientY - rect.top;
       const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
-      const tgtType = targetItem.dataset.doctype;
+      const tgtType = targetItem.dataset.doctype as string;
       const canLink = (DRAG_TARGETS[state.srcDocType] || []).includes(tgtType);
       const canDep = !canLink;
+
       if (inCenter && (canLink || canDep)) {
         // Center of a valid target → highlight for action popup
         targetItem.classList.add('drag-target-hover');
@@ -433,10 +537,11 @@ export function initDragDrop() {
         return;
       }
     }
+
     // Not on a center-zone target → check swimlane or rerank
-    const swimlaneSection = elUnder?.closest('.swimlane-section');
+    const swimlaneSection = elUnder?.closest('.swimlane-section') as HTMLElement | null;
     if (swimlaneSection) {
-      const srcDoc = allDocs.find((d) => d.filename === state.srcFilename);
+      const srcDoc = allDocs.find((d) => d.filename === state!.srcFilename);
       const srcLane = getSwimlaneSection(srcDoc);
       if (swimlaneSection.dataset.section !== srcLane) {
         // Different swimlane → PI move
@@ -453,11 +558,14 @@ export function initDragDrop() {
       hideInsertionMarker();
     }
   });
-  document.addEventListener('mouseup', async (e) => {
+
+  document.addEventListener('mouseup', async (e: MouseEvent) => {
     if (!state) return;
     const snap = state;
     state = null;
+
     const { dropTarget, dropSwimlane } = resolveDropTargets(snap, e);
+
     if (snap.ghost) snap.ghost.remove();
     hideInsertionMarker();
     list.classList.remove('dragging-active');
@@ -468,10 +576,13 @@ export function initDragDrop() {
       .querySelectorAll('.swimlane-drop-target')
       .forEach((el) => el.classList.remove('swimlane-drop-target'));
     document.body.style.userSelect = '';
+
     setTimeout(() => {
       _justDragged = false;
     }, 150);
+
     if (!snap.started) return;
+
     if (dropTarget)
       return showDropActionPopup(
         snap.srcFilename,
@@ -485,4 +596,3 @@ export function initDragDrop() {
       return executeRerankDrop(snap.srcFilename, snap.srcDocType, snap.rerankInsertBefore);
   });
 }
-//# sourceMappingURL=dragdrop.js.map

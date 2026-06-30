@@ -2,31 +2,42 @@
 import { fetchJSON, escHtml, showJiraToast } from './state.js';
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
-let _bugFiles = [];
-export function openBugModal() {
-  _bugFiles = [];
-  document.getElementById('bug-id').value = '';
-  document.getElementById('bug-title').value = '';
-  document.getElementById('bug-description').value = '';
-  document.getElementById('bug-team').value = '';
-  document.getElementById('bug-work-category').value = '';
-  document.getElementById('bug-files').value = '';
-  document.getElementById('bug-file-list').innerHTML = '';
-  document.getElementById('bug-dropzone-label').textContent = 'Drop files here or click to browse';
-  document.getElementById('bug-submit-btn').disabled = false;
-  document.getElementById('bug-submit-label').textContent = 'Create Bug';
-  document.getElementById('bug-modal-overlay').classList.add('show');
-  document.getElementById('bug-id').focus();
+
+interface BugCreateResponse {
+  filename: string;
+  title: string;
 }
-export function closeBugModal() {
-  document.getElementById('bug-modal-overlay').classList.remove('show');
+
+let _bugFiles: File[] = [];
+
+export function openBugModal(): void {
+  _bugFiles = [];
+  (document.getElementById('bug-id') as HTMLInputElement).value = '';
+  (document.getElementById('bug-title') as HTMLInputElement).value = '';
+  (document.getElementById('bug-description') as HTMLTextAreaElement).value = '';
+  (document.getElementById('bug-team') as HTMLSelectElement).value = '';
+  (document.getElementById('bug-work-category') as HTMLSelectElement).value = '';
+  (document.getElementById('bug-files') as HTMLInputElement).value = '';
+  (document.getElementById('bug-file-list') as HTMLElement).innerHTML = '';
+  (document.getElementById('bug-dropzone-label') as HTMLElement).textContent =
+    'Drop files here or click to browse';
+  (document.getElementById('bug-submit-btn') as HTMLButtonElement).disabled = false;
+  (document.getElementById('bug-submit-label') as HTMLElement).textContent = 'Create Bug';
+  document.getElementById('bug-modal-overlay')!.classList.add('show');
+  (document.getElementById('bug-id') as HTMLInputElement).focus();
+}
+
+export function closeBugModal(): void {
+  document.getElementById('bug-modal-overlay')!.classList.remove('show');
   _bugFiles = [];
 }
+
 // ── File handling ─────────────────────────────────────────────
-export function onBugFilesSelected(fileList) {
+export function onBugFilesSelected(fileList: FileList): void {
   addBugFiles(Array.from(fileList));
 }
-export function addBugFiles(files) {
+
+export function addBugFiles(files: File[]): void {
   for (const file of files) {
     if (_bugFiles.length >= 5) break;
     if (_bugFiles.some((f) => f.name === file.name && f.size === file.size)) continue;
@@ -34,19 +45,21 @@ export function addBugFiles(files) {
   }
   renderBugFileList();
 }
-export function removeBugFile(index) {
+
+export function removeBugFile(index: number): void {
   _bugFiles.splice(index, 1);
   renderBugFileList();
 }
-export function renderBugFileList() {
-  const el = document.getElementById('bug-file-list');
+
+export function renderBugFileList(): void {
+  const el = document.getElementById('bug-file-list') as HTMLElement;
   if (!_bugFiles.length) {
     el.innerHTML = '';
-    document.getElementById('bug-dropzone-label').textContent =
+    (document.getElementById('bug-dropzone-label') as HTMLElement).textContent =
       'Drop files here or click to browse';
     return;
   }
-  document.getElementById('bug-dropzone-label').textContent =
+  (document.getElementById('bug-dropzone-label') as HTMLElement).textContent =
     `${_bugFiles.length}/5 file(s) selected — click to add more`;
   el.innerHTML = _bugFiles
     .map(
@@ -60,50 +73,57 @@ export function renderBugFileList() {
     )
     .join('');
 }
-function formatBytes(bytes) {
+
+function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
+
 // ── Drag & drop on dropzone ───────────────────────────────────
 (function initBugDropzone() {
   document.addEventListener('DOMContentLoaded', () => {
     const dz = document.getElementById('bug-dropzone');
     if (!dz) return;
-    dz.addEventListener('dragover', (e) => {
+    dz.addEventListener('dragover', (e: Event) => {
       e.preventDefault();
       dz.classList.add('dragover');
     });
     dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-    dz.addEventListener('drop', (e) => {
+    dz.addEventListener('drop', (e: Event) => {
       e.preventDefault();
       dz.classList.remove('dragover');
-      const dragEvent = e;
+      const dragEvent = e as DragEvent;
       if (dragEvent.dataTransfer?.files.length)
         addBugFiles(Array.from(dragEvent.dataTransfer.files));
     });
   });
 })();
+
 // ── Submit ────────────────────────────────────────────────────
-export async function submitBugReport() {
-  const id = document.getElementById('bug-id').value.trim();
-  const title = document.getElementById('bug-title').value.trim();
-  const desc = document.getElementById('bug-description').value.trim();
+export async function submitBugReport(): Promise<void> {
+  const id = (document.getElementById('bug-id') as HTMLInputElement).value.trim();
+  const title = (document.getElementById('bug-title') as HTMLInputElement).value.trim();
+  const desc = (document.getElementById('bug-description') as HTMLTextAreaElement).value.trim();
+
   if (!id) {
-    document.getElementById('bug-id').focus();
+    (document.getElementById('bug-id') as HTMLInputElement).focus();
     return;
   }
   if (!title) {
-    document.getElementById('bug-title').focus();
+    (document.getElementById('bug-title') as HTMLInputElement).focus();
     return;
   }
-  const btn = document.getElementById('bug-submit-btn');
-  const label = document.getElementById('bug-submit-label');
+
+  const btn = document.getElementById('bug-submit-btn') as HTMLButtonElement;
+  const label = document.getElementById('bug-submit-label') as HTMLElement;
   btn.disabled = true;
   label.textContent = 'Creating…';
+
   try {
-    const team = document.getElementById('bug-team').value;
-    const workCategory = document.getElementById('bug-work-category').value;
+    const team = (document.getElementById('bug-team') as HTMLSelectElement).value;
+    const workCategory = (document.getElementById('bug-work-category') as HTMLSelectElement).value;
+
     const formData = new FormData();
     formData.append('id', id);
     formData.append('title', title);
@@ -113,10 +133,12 @@ export async function submitBugReport() {
     for (const file of _bugFiles) {
       formData.append('attachments', file);
     }
-    const data = await fetchJSON('/api/bugs/create', {
+
+    const data = (await fetchJSON('/api/bugs/create', {
       method: 'POST',
       body: formData,
-    });
+    })) as BugCreateResponse;
+
     closeBugModal();
     showJiraToast('success', `✅ Bug created: ${data.title}`);
     await loadDocs();
@@ -127,4 +149,3 @@ export async function submitBugReport() {
     label.textContent = 'Create Bug';
   }
 }
-//# sourceMappingURL=bugcreate.js.map

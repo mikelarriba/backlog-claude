@@ -1,10 +1,18 @@
 // ── Roadmap rendering helpers and render functions ─────────────
 import { escHtml, TYPE_LABEL } from './state.js';
+import type { DocEntry, SprintConfig } from './state.js';
 import { applyEpicFocus, getAllSprints } from './roadmap.js';
 import { initRoadmapDragDrop, attachRoadmapDepHoverListeners } from './roadmap-drag.js';
 import { syncRoadmapSelectionUI } from './roadmap-select.js';
+
+interface RoadmapSprint {
+  name: string;
+  capacity: number;
+  [key: string]: unknown;
+}
+
 // ── Story-point card heights (Fibonacci scale) ────────────────
-const SP_HEIGHTS = {
+const SP_HEIGHTS: Record<number, number> = {
   0: 56,
   1: 64,
   2: 72,
@@ -14,19 +22,22 @@ const SP_HEIGHTS = {
   13: 132,
   21: 160,
 };
-function spCardHeight(sp) {
+function spCardHeight(sp: number): number {
   const n = Number(sp) || 0;
   const keys = Object.keys(SP_HEIGHTS).map(Number);
   const closest = keys.reduce((p, c) => (Math.abs(c - n) < Math.abs(p - n) ? c : p));
   return SP_HEIGHTS[closest];
 }
+
 // ── Priority ordering ─────────────────────────────────────────
-const PRIO_ORDER = { critical: 0, major: 0, high: 1, medium: 2, low: 3 };
+const PRIO_ORDER: Record<string, number> = { critical: 0, major: 0, high: 1, medium: 2, low: 3 };
+
 // ── Topological sort: priority/rank first, then dep-order ─────
 // Ensures blockers always appear before the items they block within
 // the same sprint column. Uses a stable bubble-pass approach.
-export function topoSortCards(docs) {
+export function topoSortCards(docs: DocEntry[]): DocEntry[] {
   if (!docs.length) return docs;
+
   // First sort by rank, then priority
   const sorted = [...docs].sort((a, b) => {
     const ra = a.rank != null ? a.rank : 9999;
@@ -36,6 +47,7 @@ export function topoSortCards(docs) {
     const pb = PRIO_ORDER[(b.priority || 'medium').toLowerCase()] ?? 2;
     return pa - pb;
   });
+
   // Enforce dep ordering: blocked item must come after its blocker
   const filenameSet = new Set(docs.map((d) => d.filename));
   let changed = true;
@@ -58,8 +70,9 @@ export function topoSortCards(docs) {
   }
   return sorted;
 }
+
 // Category-based colours for epic cards
-const _CATEGORY_COLORS = {
+const _CATEGORY_COLORS: Record<string, string> = {
   'User Features': '#16a34a',
   'Platform Features': '#0891b2',
   'Testing Features': '#d97706',
@@ -67,20 +80,23 @@ const _CATEGORY_COLORS = {
   'Technical Debt': '#dc2626',
 };
 const _CATEGORY_FALLBACK = '#94a3b8';
-export function epicColor(workCategory) {
+export function epicColor(workCategory: string | null | undefined): string {
   return (workCategory && _CATEGORY_COLORS[workCategory]) || _CATEGORY_FALLBACK;
 }
+
 // ── Main render ──────────────────────────────────────────────
-export function renderRoadmapBoard() {
-  const sprints = getAllSprints();
+export function renderRoadmapBoard(): void {
+  const sprints = getAllSprints() as RoadmapSprint[];
+
   if (!sprints.length) {
-    document.getElementById('rm-body-epics').innerHTML =
+    document.getElementById('rm-body-epics')!.innerHTML =
       '<div class="roadmap-empty">No sprints configured. Set up sprints in PI Sprint Config.</div>';
-    document.getElementById('rm-body-stories').innerHTML = '';
-    document.getElementById('rm-count-epics').textContent = '0';
-    document.getElementById('rm-count-stories').textContent = '0';
+    document.getElementById('rm-body-stories')!.innerHTML = '';
+    document.getElementById('rm-count-epics')!.textContent = '0';
+    document.getElementById('rm-count-stories')!.textContent = '0';
     return;
   }
+
   renderEpicPanel(sprints);
   renderStoryPanel(sprints);
   injectGhostCards();
@@ -88,17 +104,28 @@ export function renderRoadmapBoard() {
   syncRoadmapSelectionUI();
   attachRoadmapDepHoverListeners();
 }
+
+interface EpicMapEntry {
+  epicDoc: DocEntry | null | undefined;
+  sprints: Set<string>;
+  storyCount: number;
+  totalSP: number;
+}
+
 // ── Epic panel rendering ─────────────────────────────────────
-export function renderEpicPanel(sprints) {
-  const body = document.getElementById('rm-body-epics');
+export function renderEpicPanel(sprints: RoadmapSprint[]): void {
+  const body = document.getElementById('rm-body-epics')!;
+
   const epicTypes = new Set(['epic']);
   const leafTypes = new Set(['story', 'spike', 'bug']);
+
   // All visible leaf docs (respect PI checkboxes)
   const visibleLeafs = allDocs.filter(
     (d) => leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
   );
+
   // Map: epicFilename → { epicDoc, sprintSet, storyCount, totalSP }
-  const epicMap = new Map();
+  const epicMap = new Map<string, EpicMapEntry>();
   for (const leaf of visibleLeafs) {
     const key = leaf.parentFilename || '__none__';
     if (!epicMap.has(key)) {
@@ -107,17 +134,19 @@ export function renderEpicPanel(sprints) {
         : null;
       epicMap.set(key, { epicDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
     }
-    const entry = epicMap.get(key);
+    const entry = epicMap.get(key)!;
     entry.storyCount++;
     entry.totalSP += Number(leaf.storyPoints) || 0;
     if (leaf.sprint) entry.sprints.add(leaf.sprint);
   }
+
   // Also add epics/features with no children yet
   for (const d of allDocs) {
     if (epicTypes.has(d.docType) && !epicMap.has(d.filename)) {
       epicMap.set(d.filename, { epicDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
     }
   }
+
   // Sort: by rank, then filename descending
   const sorted = [...epicMap.entries()].sort(([ka, a], [kb, b]) => {
     if (ka === '__none__') return 1;
@@ -127,10 +156,13 @@ export function renderEpicPanel(sprints) {
     if (ra !== rb) return ra - rb;
     return kb.localeCompare(ka);
   });
-  document.getElementById('rm-count-epics').textContent = String(sorted.length);
+
+  document.getElementById('rm-count-epics')!.textContent = String(sorted.length);
+
   // Sprint name → index for positioning
   const sprintIdx = new Map(sprints.map((s, i) => [s.name, i]));
   const N = sprints.length;
+
   // Header row
   const headerCells = sprints
     .map(
@@ -139,6 +171,7 @@ export function renderEpicPanel(sprints) {
   `
     )
     .join('');
+
   // Epic rows
   let rowsHtml = '';
   for (const [key, { epicDoc, sprints: sprintSet, storyCount, totalSP }] of sorted) {
@@ -147,10 +180,12 @@ export function renderEpicPanel(sprints) {
     const color = isNone ? 'var(--muted)' : epicColor(epicDoc?.workCategory);
     const fn = epicDoc?.filename || '';
     const snippet = epicDoc?.descriptionSnippet || '';
+
     // Compute sprint span
-    const indices = [...sprintSet].filter((s) => sprintIdx.has(s)).map((s) => sprintIdx.get(s));
+    const indices = [...sprintSet].filter((s) => sprintIdx.has(s)).map((s) => sprintIdx.get(s)!);
     const minIdx = indices.length ? Math.min(...indices) : -1;
     const maxIdx = indices.length ? Math.max(...indices) : -1;
+
     // Bar geometry
     let barHtml = '';
     if (minIdx >= 0) {
@@ -158,13 +193,17 @@ export function renderEpicPanel(sprints) {
       const widthPct = (((maxIdx - minIdx + 1) / N) * 100).toFixed(2);
       barHtml = `<div class="rm-epic-bar" style="left:${leftPct}%;width:${widthPct}%;background:${color};"></div>`;
     }
+
     // Grid cells (vertical lines)
     const cells = sprints.map(() => '<div class="rm-grid-cell"></div>').join('');
+
     const meta = `${storyCount} stor${storyCount !== 1 ? 'ies' : 'y'} · ${totalSP} SP`;
+
     // Tooltip data attributes for hover popup
     const tooltipAttrs = snippet
       ? ` data-tooltip-title="${escHtml(title)}" data-tooltip-desc="${escHtml(snippet)}"`
       : ` data-tooltip-title="${escHtml(title)}"`;
+
     const epicDocType = epicDoc?.docType || 'epic';
     rowsHtml += `
       <div class="rm-epic-card${isNone ? ' rm-epic-unlinked' : ''}"
@@ -184,38 +223,47 @@ export function renderEpicPanel(sprints) {
         </div>
       </div>`;
   }
+
   body.innerHTML = `
     <div class="rm-board-header">
       <div class="rm-name-col-header">Epic</div>
       <div class="rm-sprint-headers">${headerCells}</div>
     </div>
     ${rowsHtml}`;
+
   // Attach tooltip hover listeners
-  body.querySelectorAll('.rm-epic-card[data-tooltip-title]').forEach((card) => {
+  body.querySelectorAll<HTMLElement>('.rm-epic-card[data-tooltip-title]').forEach((card) => {
     card.addEventListener('mouseenter', showFeatureTooltip);
     card.addEventListener('mouseleave', hideFeatureTooltip);
   });
 }
+
 // ── Story panel rendering ────────────────────────────────────
-export function renderStoryPanel(sprints) {
-  const body = document.getElementById('rm-body-stories');
+export function renderStoryPanel(sprints: RoadmapSprint[]): void {
+  const body = document.getElementById('rm-body-stories')!;
+
   const leafTypes = new Set(['story', 'spike', 'bug']);
+
   // Get visible stories (respect PI checkboxes)
   const piDocs = allDocs.filter(
     (d) => leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
   );
-  document.getElementById('rm-count-stories').textContent = String(piDocs.length);
+
+  document.getElementById('rm-count-stories')!.textContent = String(piDocs.length);
+
   // Group by sprint
-  const grouped = new Map();
-  const unassigned = [];
+  const grouped = new Map<string, DocEntry[]>();
+  const unassigned: DocEntry[] = [];
   for (const s of sprints) grouped.set(s.name, []);
+
   for (const d of piDocs) {
     if (d.sprint && grouped.has(d.sprint)) {
-      grouped.get(d.sprint).push(d);
+      grouped.get(d.sprint)!.push(d);
     } else {
       unassigned.push(d);
     }
   }
+
   // Render columns (same sprint order as epic panel)
   let html = '';
   for (const s of sprints) {
@@ -224,14 +272,22 @@ export function renderStoryPanel(sprints) {
   }
   // Unassigned
   html += renderStoryColumn(null, unassigned, 0);
+
   body.innerHTML = `<div class="rm-story-columns">${html}</div>`;
   initRoadmapDragDrop();
 }
-export function renderStoryColumn(sprintName, docs, capacity) {
+
+export function renderStoryColumn(
+  sprintName: string | null,
+  docs: DocEntry[],
+  capacity: number
+): string {
   const isUnassigned = !sprintName;
   const label = isUnassigned ? 'Unassigned' : escHtml(sprintName);
   const columnClass = isUnassigned ? 'roadmap-column roadmap-unassigned' : 'roadmap-column';
+
   const usedSP = docs.reduce((sum, d) => sum + (Number(d.storyPoints) || 0), 0);
+
   // eslint-disable-next-line no-useless-assignment
   let statsHtml = '';
   let barHtml = '';
@@ -246,10 +302,12 @@ export function renderStoryColumn(sprintName, docs, capacity) {
   } else {
     statsHtml = `<span class="roadmap-col-stats">${docs.length} item(s)</span>`;
   }
+
   const sortedDocs = topoSortCards(docs);
   const cardsHtml = sortedDocs.length
     ? sortedDocs.map((d) => renderRoadmapCard(d, sprintName)).join('')
     : '<div class="roadmap-card-empty">No items</div>';
+
   return `
     <div class="${columnClass}" data-sprint="${sprintName ? escHtml(sprintName) : ''}">
       <div class="roadmap-column-header">
@@ -262,12 +320,14 @@ export function renderStoryColumn(sprintName, docs, capacity) {
       </div>
     </div>`;
 }
-export function renderRoadmapCard(d, _sprintName) {
+
+export function renderRoadmapCard(d: DocEntry, _sprintName: string | null): string {
   const priorityClass = (d.priority || 'Medium').replace(/\s+/g, '-').toLowerCase();
   const sp = Number(d.storyPoints) || 0;
   const spLabel = sp ? `${sp} SP` : 'No SP';
   const spClass = sp ? 'rm-badge rm-sp' : 'rm-badge rm-no-sp';
   const cardHeight = spCardHeight(sp);
+
   // Find parent epic for focus
   const parentFn = d.parentFilename || '';
   let parentHtml = '';
@@ -278,6 +338,7 @@ export function renderRoadmapCard(d, _sprintName) {
       parentHtml = `<div class="roadmap-card-parent"><span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}</div>`;
     }
   }
+
   // Dependency badges
   const blocks = d.blocks || [];
   const blockedBy = d.blockedBy || [];
@@ -288,8 +349,10 @@ export function renderRoadmapCard(d, _sprintName) {
   if (blocks.length) depHtml += `<div class="dep-badge dep-blocks">→ blocks ${blocks.length}</div>`;
   if (parallel.length)
     depHtml += `<div class="dep-badge dep-parallel"># parallel ${parallel.length}</div>`;
+
   const depBlockedClass = blockedBy.length ? ' rm-dep-blocked' : '';
   const noEstimateClass = sp ? '' : ' rm-no-estimate';
+
   return `
     <div class="roadmap-card${depBlockedClass}${noEstimateClass}" draggable="true"
          onclick="handleRoadmapCardClick(event,'${escHtml(d.filename)}','${d.docType}')"
@@ -312,54 +375,66 @@ export function renderRoadmapCard(d, _sprintName) {
               onclick="event.stopPropagation();openDepModal('${escHtml(d.filename)}','${d.docType}')">⛓</button>
     </div>`;
 }
+
 // ── Feature tooltip popup ────────────────────────────────────
-let _tooltipEl = null;
-export function showFeatureTooltip(e) {
-  const card = e.currentTarget;
+let _tooltipEl: HTMLDivElement | null = null;
+
+export function showFeatureTooltip(e: Event): void {
+  const card = e.currentTarget as HTMLElement;
   const title = card.dataset['tooltipTitle'] || '';
   const desc = card.dataset['tooltipDesc'] || '';
   if (!title) return;
+
   if (!_tooltipEl) {
     _tooltipEl = document.createElement('div');
     _tooltipEl.className = 'rm-feature-tooltip';
     document.body.appendChild(_tooltipEl);
   }
+
   let html = `<div class="rm-tooltip-title">${escHtml(title)}</div>`;
   if (desc) html += `<div class="rm-tooltip-desc">${escHtml(desc)}</div>`;
   _tooltipEl.innerHTML = html;
   _tooltipEl.classList.add('show');
+
   const rect = card.getBoundingClientRect();
   _tooltipEl.style.left = rect.left + 12 + 'px';
   _tooltipEl.style.top = rect.bottom + 4 + 'px';
+
   // Keep tooltip on screen
   requestAnimationFrame(() => {
-    const tr = _tooltipEl.getBoundingClientRect();
+    const tr = _tooltipEl!.getBoundingClientRect();
     if (tr.right > window.innerWidth - 8) {
-      _tooltipEl.style.left = window.innerWidth - tr.width - 8 + 'px';
+      _tooltipEl!.style.left = window.innerWidth - tr.width - 8 + 'px';
     }
     if (tr.bottom > window.innerHeight - 8) {
-      _tooltipEl.style.top = rect.top - tr.height - 4 + 'px';
+      _tooltipEl!.style.top = rect.top - tr.height - 4 + 'px';
     }
   });
 }
-export function hideFeatureTooltip() {
+
+export function hideFeatureTooltip(): void {
   if (_tooltipEl) _tooltipEl.classList.remove('show');
 }
+
 // ── Ghost cards for stories split across PIs ─────────────────
-export function injectGhostCards() {
+export function injectGhostCards(): void {
   const leafTypes = new Set(['story', 'spike', 'bug']);
+
   // Find stories whose PI (fixVersion) differs from their parent epic's PI
   const crossPiStories = allDocs.filter((d) => {
     if (!leafTypes.has(d.docType) || !d.parentFilename || !d.fixVersion) return false;
     const parent = allDocs.find((p) => p.filename === d.parentFilename);
     return parent && parent.fixVersion && parent.fixVersion !== d.fixVersion;
   });
+
   for (const story of crossPiStories) {
     const parent = allDocs.find((p) => p.filename === story.parentFilename);
     if (!parent || !parent.fixVersion) continue;
+
     // Find the first rendered sprint column belonging to the parent's PI
-    const parentSprints = sprintConfig[parent.fixVersion] || [];
-    let targetList = null;
+    const parentSprints =
+      ((sprintConfig as SprintConfig)[parent.fixVersion] as RoadmapSprint[] | undefined) || [];
+    let targetList: Element | null = null;
     for (const s of parentSprints) {
       targetList = document.querySelector(
         `.roadmap-card-list[data-sprint="${CSS.escape(s.name)}"]`
@@ -367,18 +442,18 @@ export function injectGhostCards() {
       if (targetList) break;
     }
     if (!targetList) continue;
+
     const color = epicColor(parent.workCategory);
     const ghostHtml = `
       <div class="roadmap-card ghost-card"
            onclick="openDoc('${escHtml(story.filename)}','${story.docType}')"
-           title="Story is in ${escHtml(story.fixVersion)}; parent epic is in ${escHtml(parent.fixVersion)}">
+           title="Story is in ${escHtml(story.fixVersion!)}; parent epic is in ${escHtml(parent.fixVersion)}">
         <div class="roadmap-card-parent">
           <span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}
         </div>
         <div class="roadmap-card-title">${escHtml(story.title)}</div>
-        <div class="ghost-card-label">⤵ Split to ${escHtml(story.fixVersion)}</div>
+        <div class="ghost-card-label">⤵ Split to ${escHtml(story.fixVersion!)}</div>
       </div>`;
     targetList.insertAdjacentHTML('beforeend', ghostHtml);
   }
 }
-//# sourceMappingURL=roadmap-render.js.map

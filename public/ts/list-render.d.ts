@@ -1,2 +1,0 @@
-// side-effect import
-export {};

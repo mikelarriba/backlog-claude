@@ -1,65 +1,112 @@
 // ── PI Sprint Configuration ────────────────────────────────────
 import { fetchJSON, putJSON, escHtml, toggleSection } from './state.js';
 import { refreshRoadmapView } from './roadmap.js';
-function _sprintsFor(piName) {
-  const cfg = sprintConfig;
+import type { PISettings } from './state.js';
+
+// _piConfigActivePi is a store-backed global in state.js (referenced from HTML onclick)
+
+// ── Local types ──────────────────────────────────────────────
+// jiraVersions is declared as `string[]` in global.d.ts (legacy ambient typing),
+// but at runtime it is actually populated with version objects from the API
+// (see list.js loadJiraVersions(): jiraVersions = data.versions). Use a local
+// shape here to type its real usage without touching global.d.ts.
+interface JiraVersion {
+  name: string;
+  released?: boolean;
+}
+
+// sprintConfig is declared as `SprintConfig = Record<string, unknown>` in
+// state.ts/global.d.ts (legacy ambient typing), but at runtime each value is
+// actually an array of Sprint objects keyed by PI name. Use a local shape
+// here to type its real usage without touching global.d.ts.
+interface Sprint {
+  name: string;
+  capacity: number;
+}
+
+interface SprintsResponse {
+  sprints?: Sprint[];
+}
+
+interface SplitThresholdResponse {
+  splitThreshold?: number;
+}
+
+function _sprintsFor(piName: string): Sprint[] {
+  const cfg = sprintConfig as unknown as Record<string, Sprint[]>;
   return cfg[piName] || [];
 }
-function _setSprintsFor(piName, sprints) {
-  sprintConfig[piName] = sprints;
+
+function _setSprintsFor(piName: string, sprints: Sprint[]): void {
+  (sprintConfig as unknown as Record<string, Sprint[]>)[piName] = sprints;
 }
-export function togglePiConfigSection() {
+
+export function togglePiConfigSection(): void {
   toggleSection('pi-config-body', 'pi-config-chevron');
-  if (document.getElementById('pi-config-body').classList.contains('open') && !_piConfigActivePi) {
+  if (document.getElementById('pi-config-body')!.classList.contains('open') && !_piConfigActivePi) {
     renderPiConfigTabs();
   }
 }
-export function renderPiConfigTabs() {
-  const tabs = document.getElementById('pi-config-tabs');
+
+export function renderPiConfigTabs(): void {
+  const tabs = document.getElementById('pi-config-tabs') as HTMLElement;
+
   // Build version options from jiraVersions (same data used in swimlane selects)
-  const versions = jiraVersions;
+  const versions = jiraVersions as unknown as JiraVersion[];
   const versionOptions = (versions || [])
     .map(
       (v) =>
         `<option value="${escHtml(v.name)}">${escHtml(v.name)}${v.released ? ' (released)' : ''}</option>`
     )
     .join('');
+
   const currentSelected = piSettings.currentPi || '';
   const nextSelected = piSettings.nextPi || '';
+
   tabs.innerHTML = `
     <div class="pi-config-version-row">
       <label class="pi-config-version-label">Current PI</label>
       <select class="pi-config-version-select" onchange="_updatePiFromConfig('currentPi', this.value)">
         <option value="">— Select version —</option>
-        ${versionOptions.replace(`value="${escHtml(currentSelected)}"`, `value="${escHtml(currentSelected)}" selected`)}
+        ${versionOptions.replace(
+          `value="${escHtml(currentSelected)}"`,
+          `value="${escHtml(currentSelected)}" selected`
+        )}
       </select>
     </div>
     <div class="pi-config-version-row">
       <label class="pi-config-version-label">Next PI</label>
       <select class="pi-config-version-select" onchange="_updatePiFromConfig('nextPi', this.value)">
         <option value="">— Select version —</option>
-        ${versionOptions.replace(`value="${escHtml(nextSelected)}"`, `value="${escHtml(nextSelected)}" selected`)}
+        ${versionOptions.replace(
+          `value="${escHtml(nextSelected)}"`,
+          `value="${escHtml(nextSelected)}" selected`
+        )}
       </select>
     </div>
     <div class="pi-config-tab-bar">${_renderPiTabButtons()}</div>`;
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
   if (pis.length && !_piConfigActivePi) selectPiConfigTab(pis[0]);
 }
-function _renderPiTabButtons() {
-  const pis = [];
+
+function _renderPiTabButtons(): string {
+  const pis: Array<{ key: string; label: string; name: string }> = [];
   if (piSettings.currentPi)
     pis.push({ key: 'currentPi', label: 'Current PI', name: piSettings.currentPi });
   if (piSettings.nextPi) pis.push({ key: 'nextPi', label: 'Next PI', name: piSettings.nextPi });
   if (!pis.length) return '';
   return pis
     .map(
-      (p) => `<button class="pi-config-tab${_piConfigActivePi === p.name ? ' active' : ''}"
+      (p) =>
+        `<button class="pi-config-tab${_piConfigActivePi === p.name ? ' active' : ''}"
              onclick="selectPiConfigTab('${escHtml(p.name)}')">${escHtml(p.label)}<span class="pi-config-tab-name">${escHtml(p.name)}</span></button>`
     )
     .join('');
 }
-export async function _updatePiFromConfig(sectionKey, versionName) {
-  const update = { ...piSettings };
+
+export async function _updatePiFromConfig(sectionKey: string, versionName: string): Promise<void> {
+  const update: PISettings = { ...piSettings };
   if (sectionKey === 'currentPi') update.currentPi = versionName || null;
   if (sectionKey === 'nextPi') update.nextPi = versionName || null;
   try {
@@ -68,16 +115,17 @@ export async function _updatePiFromConfig(sectionKey, versionName) {
     renderPiConfigTabs();
     await loadAllSprintConfigs();
     // If active tab is no longer valid, switch to the first available PI
-    const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
-    if (pis.length && !pis.includes(_piConfigActivePi)) {
+    const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
+    if (pis.length && !pis.includes(_piConfigActivePi as string)) {
       selectPiConfigTab(pis[0]);
     }
     refreshRoadmapView();
   } catch (e) {
-    setPiConfigStatus('error', 'Failed to update PI: ' + e.message);
+    setPiConfigStatus('error', 'Failed to update PI: ' + (e as Error).message);
   }
 }
-export async function selectPiConfigTab(piName) {
+
+export async function selectPiConfigTab(piName: string): Promise<void> {
   _piConfigActivePi = piName;
   // Update active tab style
   document.querySelectorAll('.pi-config-tab').forEach((t) => {
@@ -85,9 +133,12 @@ export async function selectPiConfigTab(piName) {
   });
   await loadSprintConfigForPi(piName);
 }
-export async function loadSprintConfigForPi(piName) {
+
+export async function loadSprintConfigForPi(piName: string): Promise<void> {
   try {
-    const data = await fetchJSON(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
+    const data = (await fetchJSON(
+      `/api/settings/pi/sprints/${encodeURIComponent(piName)}`
+    )) as SprintsResponse;
     const sprints =
       data.sprints && data.sprints.length
         ? data.sprints
@@ -103,8 +154,9 @@ export async function loadSprintConfigForPi(piName) {
     renderSprintRows([]);
   }
 }
-export function renderSprintRows(sprints) {
-  const container = document.getElementById('pi-config-sprints');
+
+export function renderSprintRows(sprints: Sprint[]): void {
+  const container = document.getElementById('pi-config-sprints') as HTMLElement;
   if (!sprints.length) {
     container.innerHTML =
       '<div class="pi-config-empty">No sprints defined. Click "+ Add Sprint".</div>';
@@ -125,7 +177,8 @@ export function renderSprintRows(sprints) {
     )
     .join('');
 }
-export function addSprintRow() {
+
+export function addSprintRow(): void {
   if (!_piConfigActivePi) return;
   const sprints = _sprintsFor(_piConfigActivePi);
   const nextNum = sprints.length + 1;
@@ -133,7 +186,8 @@ export function addSprintRow() {
   _setSprintsFor(_piConfigActivePi, sprints);
   renderSprintRows(sprints);
 }
-export function removeSprintRow(index) {
+
+export function removeSprintRow(index: number): void {
   if (!_piConfigActivePi) return;
   const sprints = _sprintsFor(_piConfigActivePi);
   if (sprints.length <= 1) return; // keep at least one
@@ -141,44 +195,49 @@ export function removeSprintRow(index) {
   _setSprintsFor(_piConfigActivePi, sprints);
   renderSprintRows(sprints);
 }
-export function collectSprintRows() {
+
+export function collectSprintRows(): Sprint[] {
   const rows = document.querySelectorAll('.pi-config-sprint-row');
   return Array.from(rows)
     .map((row) => ({
-      name: row.querySelector('.pi-config-sprint-name').value.trim(),
-      capacity: Number(row.querySelector('.pi-config-sprint-cap').value) || 0,
+      name: (row.querySelector('.pi-config-sprint-name') as HTMLInputElement).value.trim(),
+      capacity: Number((row.querySelector('.pi-config-sprint-cap') as HTMLInputElement).value) || 0,
     }))
     .filter((s) => s.name);
 }
-export async function saveSprintConfig() {
+
+export async function saveSprintConfig(): Promise<void> {
   if (!_piConfigActivePi) return;
   const sprints = collectSprintRows();
   if (!sprints.length) {
     setPiConfigStatus('error', 'At least one sprint with a name is required.');
     return;
   }
-  const btn = document.getElementById('pi-config-save-btn');
+
+  const btn = document.getElementById('pi-config-save-btn') as HTMLButtonElement;
   btn.disabled = true;
   btn.textContent = 'Saving…';
+
   try {
-    const data = await putJSON(
+    const data = (await putJSON(
       `/api/settings/pi/sprints/${encodeURIComponent(_piConfigActivePi)}`,
       {
         sprints,
       }
-    );
+    )) as SprintsResponse;
     _setSprintsFor(_piConfigActivePi, data.sprints || []);
     renderSprintRows(data.sprints || []);
     setPiConfigStatus('success', 'Sprint configuration saved.');
   } catch (e) {
-    setPiConfigStatus('error', e.message);
+    setPiConfigStatus('error', (e as Error).message);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Save Configuration';
   }
 }
-export function setPiConfigStatus(type, message) {
-  const el = document.getElementById('pi-config-status');
+
+export function setPiConfigStatus(type: string, message?: string): void {
+  const el = document.getElementById('pi-config-status') as HTMLElement;
   el.className = `pi-config-status${type !== 'hidden' ? ' show ' + type : ''}`;
   el.textContent = message || '';
   if (type === 'success')
@@ -186,33 +245,41 @@ export function setPiConfigStatus(type, message) {
       el.className = 'pi-config-status';
     }, 3000);
 }
+
 // Load sprint config for both PIs (called during init) — parallel fetches
-export async function loadAllSprintConfigs() {
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+export async function loadAllSprintConfigs(): Promise<void> {
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
+
   const [, thresholdRes] = await Promise.all([
     // Fetch all PI sprint configs in parallel
     Promise.all(
       pis.map(async (piName) => {
         try {
-          const data = await fetchJSON(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
+          const data = (await fetchJSON(
+            `/api/settings/pi/sprints/${encodeURIComponent(piName)}`
+          )) as SprintsResponse;
           if (data.sprints && data.sprints.length) {
             _setSprintsFor(piName, data.sprints);
           }
         } catch (e) {
-          console.warn(`Failed to load sprint config for ${piName}:`, e.message);
+          console.warn(`Failed to load sprint config for ${piName}:`, (e as Error).message);
         }
       })
     ),
     // Fetch split threshold in parallel with sprint configs
-    fetchJSON('/api/settings/pi/split-threshold').catch(() => null),
+    fetchJSON('/api/settings/pi/split-threshold').catch(
+      () => null
+    ) as Promise<SplitThresholdResponse | null>,
   ]);
+
   if (thresholdRes) {
     splitThreshold = thresholdRes.splitThreshold ?? 8;
-    const el = document.getElementById('split-threshold-input');
+    const el = document.getElementById('split-threshold-input') as HTMLInputElement | null;
     if (el) el.value = String(splitThreshold);
   }
 }
-export async function saveSplitThreshold(value) {
+
+export async function saveSplitThreshold(value: string): Promise<void> {
   const val = parseInt(value, 10);
   if (!val || val < 1) return;
   try {
@@ -221,11 +288,11 @@ export async function saveSplitThreshold(value) {
     refreshRoadmapView();
     setPiConfigStatus('success', `Split threshold set to ${val} SP`);
   } catch (e) {
-    console.warn('Failed to save split threshold:', e.message);
+    console.warn('Failed to save split threshold:', (e as Error).message);
   }
 }
+
 // Get sprint names for a given PI version name
-export function getSprintsForPi(piVersionName) {
+export function getSprintsForPi(piVersionName: string): Sprint[] {
   return _sprintsFor(piVersionName);
 }
-//# sourceMappingURL=piconfig.js.map

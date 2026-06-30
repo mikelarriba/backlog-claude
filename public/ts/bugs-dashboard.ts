@@ -1,17 +1,79 @@
 // ── Bug Dashboard ────────────────────────────────────────────────────────────
 import { streamSSE } from './state.js';
-let _chart = null;
-let _allBugs = [];
-let _filteredBugs = [];
-const _selectedKeys = new Set();
+
+interface ChartInstance {
+  destroy(): void;
+}
+
+interface ChartConstructor {
+  new (ctx: HTMLCanvasElement, config: Record<string, unknown>): ChartInstance;
+}
+
+interface BugEntry {
+  key: string;
+  summary: string;
+  status: string;
+  priority: string;
+  assignee: string | null;
+  created: string | null;
+  [key: string]: unknown;
+}
+
+interface BugsStats {
+  total?: number;
+  open?: number;
+  resolved30d?: number;
+  avgResolutionDays?: number | null;
+  [key: string]: unknown;
+}
+
+interface BugsTimeSeriesPoint {
+  week: string;
+  projected?: boolean;
+  [key: string]: unknown;
+}
+
+interface BugsDashboardData {
+  bugs?: BugEntry[];
+  stats?: BugsStats;
+  timeSeries?: BugsTimeSeriesPoint[];
+  cachedAt?: string;
+}
+
+interface ProgressChunk {
+  type: 'progress';
+  message?: string;
+  total?: number;
+  fetched?: number;
+}
+
+interface CompleteChunk {
+  type: 'complete';
+  data: BugsDashboardData;
+}
+
+interface ErrorChunk {
+  type: 'error';
+  message: string;
+  code?: string;
+}
+
+type DashboardChunk = ProgressChunk | CompleteChunk | ErrorChunk;
+
+let _chart: ChartInstance | null = null;
+let _allBugs: BugEntry[] = [];
+let _filteredBugs: BugEntry[] = [];
+const _selectedKeys = new Set<string>();
 let _includeClosed = false;
-export async function loadBugsDashboard(force = false) {
-  const refreshBtn = document.getElementById('bugs-refresh-btn');
+
+export async function loadBugsDashboard(force = false): Promise<void> {
+  const refreshBtn = document.getElementById('bugs-refresh-btn') as HTMLButtonElement | null;
   const cachedAtEl = document.getElementById('bugs-cached-at');
   const loadingEl = document.getElementById('bugs-loading');
   const loadingMsg = document.getElementById('bugs-loading-message');
-  const loadingBar = document.getElementById('bugs-loading-bar');
-  const errorBanner = document.getElementById('bugs-error-banner');
+  const loadingBar = document.getElementById('bugs-loading-bar') as HTMLElement | null;
+  const errorBanner = document.getElementById('bugs-error-banner') as HTMLElement | null;
+
   // Show loading, hide error
   if (loadingEl) loadingEl.style.display = '';
   if (errorBanner) errorBanner.style.display = 'none';
@@ -19,6 +81,7 @@ export async function loadBugsDashboard(force = false) {
     refreshBtn.disabled = true;
     refreshBtn.textContent = '↻ Loading…';
   }
+
   try {
     const params = new URLSearchParams();
     if (force) params.set('force', 'true');
@@ -26,24 +89,27 @@ export async function loadBugsDashboard(force = false) {
     const qs = params.toString();
     const url = `/api/bugs/dashboard${qs ? `?${qs}` : ''}`;
     const res = await fetch(url);
-    const reader = res.body.getReader();
+    const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let data = null;
+    let data: BugsDashboardData | null = null;
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop();
+      buffer = lines.pop()!;
+
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        let parsed;
+        let parsed: DashboardChunk;
         try {
-          parsed = JSON.parse(line.slice(6));
+          parsed = JSON.parse(line.slice(6)) as DashboardChunk;
         } catch {
           continue;
         }
+
         if (parsed.type === 'progress') {
           if (loadingMsg) loadingMsg.textContent = parsed.message || 'Loading…';
           if (loadingBar && parsed.total && parsed.fetched != null) {
@@ -57,14 +123,19 @@ export async function loadBugsDashboard(force = false) {
         }
       }
     }
+
     if (!data) throw new DashboardError('No data received from server', 'EMPTY_RESPONSE');
+
     // Hide loading
     if (loadingEl) loadingEl.style.display = 'none';
+
     _allBugs = data.bugs || [];
     _selectedKeys.clear();
     filterBugsTable();
+
     renderBugsStats(data.stats || {});
     renderBugsChart(data.timeSeries || []);
+
     if (cachedAtEl && data.cachedAt) {
       const d = new Date(data.cachedAt);
       cachedAtEl.textContent = `Updated ${d.toLocaleTimeString()}`;
@@ -81,12 +152,14 @@ export async function loadBugsDashboard(force = false) {
     if (loadingBar) loadingBar.style.width = '0%';
   }
 }
-export function refreshBugsDashboard() {
+
+export function refreshBugsDashboard(): void {
   closeBugsAnalysis();
   loadBugsDashboard(true);
 }
-export function renderBugsStats(stats) {
-  const set = (id, val) => {
+
+export function renderBugsStats(stats: BugsStats): void {
+  const set = (id: string, val: unknown): void => {
     const el = document.getElementById(id);
     if (el) el.textContent = val != null ? String(val) : '—';
   };
@@ -95,18 +168,27 @@ export function renderBugsStats(stats) {
   set('bugs-stat-resolved30d', stats.resolved30d ?? 0);
   set('bugs-stat-avg', stats.avgResolutionDays != null ? `${stats.avgResolutionDays}d` : '—');
 }
-export function renderBugsChart(timeSeries) {
-  const canvas = document.getElementById('bugs-chart');
-  const ChartCtor = window.Chart;
+
+export function renderBugsChart(timeSeries: BugsTimeSeriesPoint[]): void {
+  const canvas = document.getElementById('bugs-chart') as HTMLCanvasElement | null;
+  const ChartCtor = (window as unknown as { Chart?: ChartConstructor }).Chart;
   if (!canvas || typeof ChartCtor === 'undefined' || !timeSeries?.length) return;
+
   if (_chart) {
     _chart.destroy();
     _chart = null;
   }
+
   const labels = timeSeries.map((p) => p.week);
   const isProjected = timeSeries.map((p) => !!p.projected);
   const firstProjectedIdx = isProjected.findIndex(Boolean);
-  function makeDataset(label, key, color, fill) {
+
+  function makeDataset(
+    label: string,
+    key: string,
+    color: string,
+    fill: boolean
+  ): Record<string, unknown> {
     return {
       label,
       data: timeSeries.map((p) => p[key] ?? 0),
@@ -116,13 +198,14 @@ export function renderBugsChart(timeSeries) {
       fill,
       tension: 0.3,
       segment: {
-        borderDash: (ctx) =>
+        borderDash: (ctx: { p0DataIndex: number }) =>
           firstProjectedIdx > 0 && ctx.p0DataIndex >= firstProjectedIdx - 1 ? [6, 4] : [],
       },
       pointRadius: 0,
       pointHoverRadius: 4,
     };
   }
+
   _chart = new ChartCtor(canvas, {
     type: 'line',
     data: {
@@ -162,14 +245,17 @@ export function renderBugsChart(timeSeries) {
     },
   });
 }
-export function renderBugsTable(bugs) {
+
+export function renderBugsTable(bugs: BugEntry[]): void {
   const wrap = document.getElementById('bugs-table-wrap');
   if (!wrap) return;
+
   if (!bugs || bugs.length === 0) {
     wrap.innerHTML = '<p class="bugs-empty">No bugs match the current filters.</p>';
     _updateAnalyzeButton();
     return;
   }
+
   const rows = bugs
     .map((b) => {
       const checked = _selectedKeys.has(b.key) ? 'checked' : '';
@@ -187,6 +273,7 @@ export function renderBugsTable(bugs) {
       </tr>`;
     })
     .join('');
+
   wrap.innerHTML = `<div class="bugs-table-wrap">
     <table class="bugs-table">
       <thead>
@@ -198,21 +285,28 @@ export function renderBugsTable(bugs) {
       <tbody>${rows}</tbody>
     </table>
   </div>`;
+
   _syncSelectAllCheckbox();
   _updateAnalyzeButton();
 }
-export function filterBugsTable() {
-  const priority = document.getElementById('bugs-filter-priority')?.value || 'all';
-  const status = document.getElementById('bugs-filter-status')?.value || 'all';
+
+export function filterBugsTable(): void {
+  const priority =
+    (document.getElementById('bugs-filter-priority') as HTMLSelectElement | null)?.value || 'all';
+  const status =
+    (document.getElementById('bugs-filter-status') as HTMLSelectElement | null)?.value || 'all';
+
   _filteredBugs = _allBugs.filter((b) => {
     const priorityOk = priority === 'all' || (b.priority || '').toLowerCase() === priority;
     const statusOk = status === 'all' || (b.status || '').toLowerCase() === status.toLowerCase();
     return priorityOk && statusOk;
   });
+
   renderBugsTable(_filteredBugs);
   _updateSelectionCount();
 }
-export function bugToggleKey(key, checked) {
+
+export function bugToggleKey(key: string, checked: boolean): void {
   if (checked) _selectedKeys.add(key);
   else _selectedKeys.delete(key);
   _syncRowHighlight(key, checked);
@@ -220,67 +314,81 @@ export function bugToggleKey(key, checked) {
   _updateAnalyzeButton();
   _updateSelectionCount();
 }
-export function bugToggleAll(checked) {
+
+export function bugToggleAll(checked: boolean): void {
   if (checked) _filteredBugs.forEach((b) => _selectedKeys.add(b.key));
   else _filteredBugs.forEach((b) => _selectedKeys.delete(b.key));
   renderBugsTable(_filteredBugs);
 }
-export async function analyzeBugs() {
+
+export async function analyzeBugs(): Promise<void> {
   if (_selectedKeys.size === 0) return;
-  const panel = document.getElementById('bugs-analysis-panel');
+
+  const panel = document.getElementById('bugs-analysis-panel') as HTMLElement | null;
   const body = document.getElementById('bugs-analysis-body');
   if (!panel || !body) return;
+
   panel.style.display = '';
   body.innerHTML = '<em>Analyzing…</em>';
-  const btn = document.getElementById('bugs-analyze-btn');
+
+  const btn = document.getElementById('bugs-analyze-btn') as HTMLButtonElement | null;
   if (btn) btn.disabled = true;
+
   let markdown = '';
   try {
     await streamSSE(
       '/api/bugs/dashboard/analyze',
       { bugKeys: [..._selectedKeys] },
       {
-        onText: (chunk) => {
+        onText: (chunk: string) => {
           markdown += chunk;
           body.innerHTML = typeof marked !== 'undefined' ? marked.parse(markdown) : _esc(markdown);
         },
         onDone: () => {
           if (btn) btn.disabled = false;
         },
-        onError: (err) => {
+        onError: (err: Error) => {
           body.innerHTML = `<p class="bugs-error">Analysis failed: ${_esc(err.message)}</p>`;
           if (btn) btn.disabled = false;
         },
       }
     );
   } catch (err) {
-    body.innerHTML = `<p class="bugs-error">Analysis failed: ${_esc(err.message || String(err))}</p>`;
+    body.innerHTML = `<p class="bugs-error">Analysis failed: ${_esc((err as Error).message || String(err))}</p>`;
     if (btn) btn.disabled = false;
   }
 }
-export function closeBugsAnalysis() {
-  const panel = document.getElementById('bugs-analysis-panel');
+
+export function closeBugsAnalysis(): void {
+  const panel = document.getElementById('bugs-analysis-panel') as HTMLElement | null;
   if (panel) panel.style.display = 'none';
 }
-export function toggleClosedBugs(checked) {
+
+export function toggleClosedBugs(checked: boolean): void {
   _includeClosed = checked;
   loadBugsDashboard(true);
 }
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
 class DashboardError extends Error {
-  constructor(message, code) {
+  code?: string;
+  constructor(message: string, code?: string) {
     super(message);
     this.code = code;
   }
 }
-function _showError(err) {
-  const banner = document.getElementById('bugs-error-banner');
+
+function _showError(err: unknown): void {
+  const banner = document.getElementById('bugs-error-banner') as HTMLElement | null;
   const titleEl = document.getElementById('bugs-error-title');
   const detailEl = document.getElementById('bugs-error-detail');
   if (!banner) return;
+
   const code = err instanceof DashboardError ? err.code || '' : '';
   let title = 'Failed to load bug data';
-  let detail = err?.message || String(err);
+  let detail = (err as Error)?.message || String(err);
+
   if (code === 'JIRA_NOT_CONFIGURED') {
     title = 'JIRA not configured';
   } else if (detail.includes('timed out')) {
@@ -293,39 +401,45 @@ function _showError(err) {
     title = 'Network error';
     detail = 'Could not reach the server. Check your connection and try again.';
   }
+
   if (titleEl) titleEl.textContent = title;
   if (detailEl) detailEl.textContent = detail;
   banner.style.display = '';
 }
-function _statusClass(status) {
+
+function _statusClass(status: string): string {
   const s = (status || '').toLowerCase().replace(/\s+/g, '-');
   return `bugs-status-${s}`;
 }
-function _esc(str) {
+
+function _esc(str: unknown): string {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
-function _syncRowHighlight(key, selected) {
+
+function _syncRowHighlight(key: string, selected: boolean): void {
   const row = document.querySelector(`.bugs-table tr[data-key="${CSS.escape(key)}"]`);
   if (row) row.classList.toggle('selected', selected);
 }
-function _syncSelectAllCheckbox() {
-  const cb = document.getElementById('bugs-select-all');
+
+function _syncSelectAllCheckbox(): void {
+  const cb = document.getElementById('bugs-select-all') as HTMLInputElement | null;
   if (!cb) return;
   const total = _filteredBugs.length;
   const sel = _filteredBugs.filter((b) => _selectedKeys.has(b.key)).length;
   cb.checked = total > 0 && sel === total;
   cb.indeterminate = sel > 0 && sel < total;
 }
-function _updateAnalyzeButton() {
-  const btn = document.getElementById('bugs-analyze-btn');
+
+function _updateAnalyzeButton(): void {
+  const btn = document.getElementById('bugs-analyze-btn') as HTMLButtonElement | null;
   if (btn) btn.disabled = _selectedKeys.size === 0;
 }
-function _updateSelectionCount() {
+
+function _updateSelectionCount(): void {
   const el = document.getElementById('bugs-selection-count');
   if (el) el.textContent = _selectedKeys.size > 0 ? `${_selectedKeys.size} selected` : '';
 }
-//# sourceMappingURL=bugs-dashboard.js.map
