@@ -13,3 +13,4 @@ docs/*
 .claude/commands/
 playwright-report/
 test-results/
+public/js/*.js.map
