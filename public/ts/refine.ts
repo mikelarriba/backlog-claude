@@ -79,6 +79,20 @@ interface ApiErrorBody {
   error?: { message?: string };
 }
 
+// PanelState.blocks/parallel are typed string[] in state.ts, but the
+// canvas layer (refine-canvas.ts) actually stores { src, tgt } / { a, b }
+// edge objects under those arrays — matching its local BlockEdge/ParallelPair
+// shapes (not exported, so re-declared here for the cast).
+interface BlockEdge {
+  src: string;
+  tgt: string;
+}
+
+interface ParallelPair {
+  a: string;
+  b: string;
+}
+
 // ── Card search / filter ──────────────────────────────────────
 export function onCanvasSearch(query: string): void {
   const cards = document.querySelectorAll<HTMLElement>('#refine-canvas .canvas-card');
@@ -229,7 +243,11 @@ export async function renderFeatureMultiPanel(featureFilename: string): Promise<
       /* no-op */
     }
     if (!Object.keys(ps.layout).length && children.length) {
-      ps.layout = computeAutoLayout(children, ps.blocks, ps.parallel) as Record<string, unknown>;
+      ps.layout = computeAutoLayout(
+        children,
+        ps.blocks as unknown as BlockEdge[],
+        ps.parallel as unknown as ParallelPair[]
+      ) as unknown as Record<string, unknown>;
     }
 
     const isCollapsed = collapsedSet.has(epic.filename);
