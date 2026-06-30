@@ -11,6 +11,7 @@ declare global {
   // ── Window-exposed handler functions (set by main.ts via Object.assign) ───
   var openDoc: (filename: string, docType: string) => void;
   var focusEpic: (filename: string) => void;
+  var updateSplitMode: () => void;
 
   interface Window {
     setTheme: (preference: string) => void;
