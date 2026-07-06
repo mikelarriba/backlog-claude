@@ -96,20 +96,6 @@ export function groupByEpic(
 }
 
 /**
- * Build a dependency map: filename → Set of blocker filenames. O(e) where
- * e is the total number of dependency edges across all docs.
- */
-export function buildDependencyMap(docs: DistributionDoc[]): Map<string, Set<string>> {
-  const map = new Map<string, Set<string>>();
-  for (const doc of docs) {
-    if (doc.blockedBy.length > 0) {
-      map.set(doc.filename, new Set(doc.blockedBy));
-    }
-  }
-  return map;
-}
-
-/**
  * Greedy sprint-fill algorithm.
  *
  * Algorithm:
