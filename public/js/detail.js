@@ -11,8 +11,7 @@ import {
   TYPE_LABEL,
   STATUS_LABEL,
 } from './state.js';
-import { loadDocs } from './list.js';
-import { applyFilters } from './list-filters.js';
+import { upsertDoc } from './store.js';
 import { showJiraSelectModal, updateJiraPushBtn } from './jira.js';
 import { getSprintsForPi } from './piconfig.js';
 import { resetStoriesSection } from './stories.js';
@@ -102,7 +101,23 @@ export async function deleteDepFromDetail(targetFn, targetDocType, linkType) {
       const d = await res.json();
       throw new Error(d.error?.message || 'Delete failed');
     }
-    await loadDocs();
+    // Update both affected docs in the store directly — the field changes are
+    // fully known from the link we just removed, so no refetch is needed.
+    if (apiLinkType === 'parallel') {
+      const srcDoc = allDocs.find((d) => d.filename === srcFn);
+      if (srcDoc)
+        upsertDoc({ ...srcDoc, parallel: (srcDoc.parallel || []).filter((f) => f !== tgtFn) });
+      const tgtDoc = allDocs.find((d) => d.filename === tgtFn);
+      if (tgtDoc)
+        upsertDoc({ ...tgtDoc, parallel: (tgtDoc.parallel || []).filter((f) => f !== srcFn) });
+    } else {
+      const srcDoc = allDocs.find((d) => d.filename === srcFn);
+      if (srcDoc)
+        upsertDoc({ ...srcDoc, blocks: (srcDoc.blocks || []).filter((f) => f !== tgtFn) });
+      const tgtDoc = allDocs.find((d) => d.filename === tgtFn);
+      if (tgtDoc)
+        upsertDoc({ ...tgtDoc, blockedBy: (tgtDoc.blockedBy || []).filter((f) => f !== srcFn) });
+    }
     const doc = allDocs.find((d) => d.filename === currentFilename);
     if (doc) renderDetailDeps(doc);
     showJiraToast('ok', 'Dependency removed');
@@ -316,7 +331,7 @@ export async function saveStoryPoints() {
     });
     input.dataset.original = newVal;
     const doc = allDocs.find((d) => d.filename === currentFilename && d.docType === currentDocType);
-    if (doc) doc.storyPoints = newVal === '' ? null : Number(newVal);
+    if (doc) upsertDoc({ ...doc, storyPoints: newVal === '' ? null : Number(newVal) });
   } catch {
     input.value = orig;
   }
@@ -357,8 +372,7 @@ export async function updateDocSprint(sprint) {
       sprint: sprint || null,
     });
     const doc = allDocs.find((d) => d.filename === currentFilename && d.docType === currentDocType);
-    if (doc) doc.sprint = sprint || null;
-    applyFilters();
+    if (doc) upsertDoc({ ...doc, sprint: sprint || null });
   } catch (e) {
     console.warn('Failed to save sprint:', e.message);
   }
@@ -375,8 +389,7 @@ export async function updateDocTeam(team) {
       team: team || null,
     });
     const doc = allDocs.find((d) => d.filename === currentFilename && d.docType === currentDocType);
-    if (doc) doc.team = team || null;
-    applyFilters();
+    if (doc) upsertDoc({ ...doc, team: team || null });
   } catch (e) {
     console.warn('Failed to save team:', e.message);
   }
@@ -388,8 +401,7 @@ export async function updateDocWorkCategory(workCategory) {
       workCategory: workCategory || null,
     });
     const doc = allDocs.find((d) => d.filename === currentFilename && d.docType === currentDocType);
-    if (doc) doc.workCategory = workCategory || null;
-    applyFilters();
+    if (doc) upsertDoc({ ...doc, workCategory: workCategory || null });
   } catch (e) {
     console.warn('Failed to save work category:', e.message);
   }
@@ -593,7 +605,7 @@ export async function linkExistingChildren() {
     'Link selected'
   );
   if (!selected.length) return;
-  let linked = 0;
+  const linkedItems = [];
   for (const item of selected) {
     try {
       await postJSON('/api/link', {
@@ -602,15 +614,20 @@ export async function linkExistingChildren() {
         targetType: currentDocType,
         targetFilename: currentFilename,
       });
-      linked++;
+      linkedItems.push(item);
     } catch (e) {
       console.warn(`Failed to link ${item.filename}:`, e.message);
     }
   }
-  if (linked > 0) {
-    showJiraToast('success', `Linked ${linked} item(s)`);
+  if (linkedItems.length > 0) {
+    showJiraToast('success', `Linked ${linkedItems.length} item(s)`);
+    // Each successful link only changes the child's parent field — apply that
+    // update directly instead of refetching the whole doc list.
+    for (const item of linkedItems) {
+      const doc = allDocs.find((d) => d.filename === item.filename && d.docType === item.docType);
+      if (doc) upsertDoc({ ...doc, parentFilename: currentFilename });
+    }
     loadHierarchy(currentFilename, currentDocType);
-    await loadDocs();
   }
 }
 export function childLabel(docType) {
@@ -653,7 +670,7 @@ export async function updateDocStatus(status) {
       status,
     });
     const doc = allDocs.find((d) => d.filename === currentFilename && d.docType === currentDocType);
-    if (doc) doc.status = status;
+    if (doc) upsertDoc({ ...doc, status });
   } catch (e) {
     console.error('Failed to update status:', e.message);
   }

@@ -3,6 +3,7 @@ import { fetchJSON, postJSON, escHtml, showJiraToast, setJiraStatus, TYPE_LABEL 
 import { openDoc, updateJiraStatus } from './detail.js';
 import { loadDocs } from './list.js';
 import { closeAllDropdowns } from './detail.js';
+import { upsertDoc } from './store.js';
 let _jiraSelectResolve = null;
 let _jiraSelectItems = [];
 export function showJiraSelectModal(title, items, confirmLabel) {
@@ -336,7 +337,7 @@ export async function syncJiraStatus() {
         const doc = allDocs.find(
           (d) => d.filename === currentFilename && d.docType === currentDocType
         );
-        if (doc) doc.storyPoints = data.storyPoints;
+        if (doc) upsertDoc({ ...doc, storyPoints: data.storyPoints });
       }
     }
     const spMsg =

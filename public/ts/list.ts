@@ -4,6 +4,7 @@ import type { DocEntry, PISettings } from './state.js';
 import { openDoc } from './detail.js';
 import { getSelectedDocs, closeContextMenu } from './list-filters.js';
 import { _rankSortFn } from './list-render.js';
+import { upsertDoc } from './store.js';
 
 // Note: piSettings, jiraVersions, _swimlanesCollapsed, _collapsedItems are
 // now declared as store-backed globals in state.js (moved from here).
@@ -24,6 +25,10 @@ export async function moveDocRank(filename: string, docType: string, delta: numb
       type: docType,
       orderedFilenames: sorted.map((d) => d.filename),
     });
+    // The server assigns rank = index + 1 for every entry in orderedFilenames —
+    // apply that same deterministic update locally instead of refetching the
+    // full doc list.
+    sorted.forEach((d, i) => upsertDoc({ ...d, rank: i + 1 }));
   } catch (e) {
     showJiraToast('error', e instanceof Error ? e.message : String(e));
   }

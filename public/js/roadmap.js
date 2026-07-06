@@ -4,7 +4,7 @@ import { renderRoadmapBoard } from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
 import { loadDocs } from './list.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
-import { on } from './store.js';
+import { on, upsertDoc } from './store.js';
 // _roadmapVisiblePis is in state.js as a _storeVar global
 let _roadmapPanelState = { epics: true, stories: true }; // expanded/collapsed
 let _roadmapFocusedEpic = null; // filename of clicked feature (focus mode)
@@ -683,13 +683,15 @@ export async function addDepLink() {
     // Update allDocs entry
     const srcDoc = allDocs.find((d) => d.filename === _depModalFilename);
     if (srcDoc) {
-      srcDoc.blocks = srcDoc.blocks || [];
-      if (!srcDoc.blocks.includes(targetFilename)) srcDoc.blocks.push(targetFilename);
+      const blocks = srcDoc.blocks || [];
+      if (!blocks.includes(targetFilename))
+        upsertDoc({ ...srcDoc, blocks: [...blocks, targetFilename] });
     }
     const tgtDoc = allDocs.find((d) => d.filename === targetFilename);
     if (tgtDoc) {
-      tgtDoc.blockedBy = tgtDoc.blockedBy || [];
-      if (!tgtDoc.blockedBy.includes(_depModalFilename)) tgtDoc.blockedBy.push(_depModalFilename);
+      const blockedBy = tgtDoc.blockedBy || [];
+      if (!blockedBy.includes(_depModalFilename))
+        upsertDoc({ ...tgtDoc, blockedBy: [...blockedBy, _depModalFilename] });
     }
     renderRoadmapBoard();
   } catch (e) {
@@ -761,9 +763,14 @@ export async function removeDepLink(targetFilename, targetDocType, direction) {
     populateDepTargetSelect(_depModalFilename, data);
     // Update allDocs entries
     const srcDoc = allDocs.find((d) => d.filename === srcFilename);
-    if (srcDoc) srcDoc.blocks = (srcDoc.blocks || []).filter((f) => f !== tgtFilename);
+    if (srcDoc)
+      upsertDoc({ ...srcDoc, blocks: (srcDoc.blocks || []).filter((f) => f !== tgtFilename) });
     const tgtDoc = allDocs.find((d) => d.filename === tgtFilename);
-    if (tgtDoc) tgtDoc.blockedBy = (tgtDoc.blockedBy || []).filter((f) => f !== srcFilename);
+    if (tgtDoc)
+      upsertDoc({
+        ...tgtDoc,
+        blockedBy: (tgtDoc.blockedBy || []).filter((f) => f !== srcFilename),
+      });
     renderRoadmapBoard();
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
@@ -971,7 +978,10 @@ export async function rmCtxMoveEpic(filename, docType, direction) {
       type: docType,
       orderedFilenames: sorted.map((d) => d.filename),
     });
-    await loadDocs();
+    // The server assigns rank = index + 1 for every entry in orderedFilenames —
+    // apply that same deterministic update locally instead of refetching the
+    // full doc list.
+    sorted.forEach((d, i) => upsertDoc({ ...d, rank: i + 1 }));
     refreshRoadmapView();
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
@@ -1061,7 +1071,10 @@ export async function rmCtxMoveStory(filename, docType, direction) {
       type: docType,
       orderedFilenames: sorted.map((d) => d.filename),
     });
-    await loadDocs();
+    // The server assigns rank = index + 1 for every entry in orderedFilenames —
+    // apply that same deterministic update locally instead of refetching the
+    // full doc list.
+    sorted.forEach((d, i) => upsertDoc({ ...d, rank: i + 1 }));
     refreshRoadmapView();
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
@@ -1075,7 +1088,7 @@ export async function rmCtxSetSprint(filename, docType, sprintName) {
       sprint: sprintName || null,
     });
     const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
-    if (doc) doc.sprint = sprintName || null;
+    if (doc) upsertDoc({ ...doc, sprint: sprintName || null });
     renderRoadmapBoard();
     showJiraToast('success', sprintName ? `Moved to ${sprintName}` : 'Removed from sprint');
   } catch (e) {
