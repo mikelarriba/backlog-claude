@@ -248,9 +248,27 @@ export default function jiraSyncRoutes({
       issuelinks?: Array<{ inwardIssue?: { key: string } }>;
     };
   };
+  // docIndex.findByJiraId is the primary, O(1) lookup — it's built at startup and
+  // kept in sync via docIndex.invalidate on every write, so it should never miss
+  // an entry that findLocalFileByJiraId's O(n) disk scan would find. Fall back to
+  // the scan only as a last-resort safety net, and log loudly when it fires so a
+  // docIndex staleness bug doesn't go unnoticed.
+  async function findExistingByJiraId(jiraId: string) {
+    const existing = docIndex.findByJiraId(jiraId);
+    if (existing) return existing;
+    const fallback = await findLocalFileByJiraId(jiraId);
+    if (fallback) {
+      logWarn(
+        'jira/sync',
+        `docIndex missed ${jiraId} that a full disk scan found — check docIndex sync`
+      );
+    }
+    return fallback;
+  }
+
   // ── Shared helper: build preview item from a JIRA issue ──────
   async function _buildPreviewItem(iss: JiraPreviewIssue) {
-    const existing = docIndex.findByJiraId(iss.key) || (await findLocalFileByJiraId(iss.key));
+    const existing = await findExistingByJiraId(iss.key);
     const jiraTitle = String(iss.fields?.summary || '').trim();
     const jiraSP = iss.fields?.[FIELD_STORY_POINTS] ?? null;
     const jiraTypeName = iss.fields?.issuetype?.name || '';

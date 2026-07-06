@@ -26,10 +26,29 @@ export default function jiraSearchRoutes({
   findLocalFileByJiraId,
   jiraIssueToMarkdown,
   broadcast,
+  logWarn,
   logError,
   docIndex,
 }: JiraRouteContext) {
   const router = Router();
+
+  // docIndex.findByJiraId is the primary, O(1) lookup — it's built at startup and
+  // kept in sync via docIndex.invalidate on every write, so it should never miss
+  // an entry that findLocalFileByJiraId's O(n) disk scan would find. Fall back to
+  // the scan only as a last-resort safety net, and log loudly when it fires so a
+  // docIndex staleness bug doesn't go unnoticed.
+  async function findExistingByJiraId(jiraId: string) {
+    const existing = docIndex.findByJiraId(jiraId);
+    if (existing) return existing;
+    const fallback = await findLocalFileByJiraId(jiraId);
+    if (fallback) {
+      logWarn(
+        'jira/search',
+        `docIndex missed ${jiraId} that a full disk scan found — check docIndex sync`
+      );
+    }
+    return fallback;
+  }
 
   // ── GET /api/jira/search ───────────────────────────────────────────────────
   router.get('/api/jira/search', async (req, res) => {
@@ -74,7 +93,7 @@ export default function jiraSearchRoutes({
       const issues = await Promise.all(
         rawIssues.map(async (issue) => {
           const iss = issue;
-          const existing = docIndex.findByJiraId(iss.key) || (await findLocalFileByJiraId(iss.key));
+          const existing = await findExistingByJiraId(iss.key);
           return {
             key: iss.key,
             summary: String(iss.fields.summary || ''),
@@ -160,8 +179,7 @@ export default function jiraSearchRoutes({
       async function addChild(child: JiraChildIssue) {
         if (seen.has(child.key)) return;
         seen.add(child.key);
-        const existing =
-          docIndex.findByJiraId(child.key) || (await findLocalFileByJiraId(child.key));
+        const existing = await findExistingByJiraId(child.key);
         children.push({
           key: child.key,
           summary: child.fields?.summary || '',
@@ -239,7 +257,7 @@ export default function jiraSearchRoutes({
       const conflicts = [];
 
       for (const key of keys) {
-        const existing = docIndex.findByJiraId(key) || (await findLocalFileByJiraId(key));
+        const existing = await findExistingByJiraId(key);
         if (existing && !overwriteKeys.includes(key)) {
           conflicts.push({
             key,
