@@ -88,6 +88,8 @@ export async function loadBugsDashboard(force = false): Promise<void> {
     if (_includeClosed) params.set('includeClosed', 'true');
     const qs = params.toString();
     const url = `/api/bugs/dashboard${qs ? `?${qs}` : ''}`;
+    // Raw fetch: this streams SSE progress events, not a single JSON response —
+    // the shared fetchJSON/postJSON helpers don't apply here.
     const res = await fetch(url);
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();

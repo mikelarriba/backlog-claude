@@ -1,5 +1,13 @@
 // ── Refine node interactions: context menus, create, split, move ─
-import { escHtml, showJiraToast, TYPE_LABEL } from './state.js';
+import {
+  escHtml,
+  showJiraToast,
+  TYPE_LABEL,
+  postJSON,
+  fetchJSON,
+  deleteJSON,
+  getErrorMessage,
+} from './state.js';
 import { loadDocs } from './list.js';
 import { upsertDoc, removeDoc } from './store.js';
 import {
@@ -14,29 +22,23 @@ export async function _fpCreateChild(type, epicFilename, featureFilename) {
   const title = prompt(`Title for new ${type}:`);
   if (!title) return;
   try {
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idea: title, type, parentEpic: epicFilename }),
+    const data = await postJSON('/api/generate', {
+      idea: title,
+      type,
+      parentEpic: epicFilename,
     });
-    if (!res.ok) throw new Error('Generate failed');
-    const data = await res.json();
     if (data.filename) {
-      await fetch('/api/link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceType: type,
-          sourceFilename: data.filename,
-          targetType: 'epic',
-          targetFilename: epicFilename,
-        }),
+      await postJSON('/api/link', {
+        sourceType: type,
+        sourceFilename: data.filename,
+        targetType: 'epic',
+        targetFilename: epicFilename,
       });
       showJiraToast('ok', `Created ${data.filename}`);
       await renderFeatureMultiPanel(featureFilename);
     }
   } catch (e) {
-    showJiraToast('error', `Failed: ${e instanceof Error ? e.message : String(e)}`);
+    showJiraToast('error', `Failed: ${getErrorMessage(e)}`);
   }
 }
 // ── Card context menu (right-click → move to edge / split) ──
@@ -131,20 +133,12 @@ export function _showFpCardContextMenu(
 }
 export async function _fpMoveToEpic(filename, docType, fromEpic, toEpic, featureFilename) {
   try {
-    const res = await fetch('/api/link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sourceType: docType,
-        sourceFilename: filename,
-        targetType: 'epic',
-        targetFilename: toEpic,
-      }),
+    await postJSON('/api/link', {
+      sourceType: docType,
+      sourceFilename: filename,
+      targetType: 'epic',
+      targetFilename: toEpic,
     });
-    if (!res.ok) {
-      const d = await res.json();
-      throw new Error(d.error?.message || 'Move failed');
-    }
     // The link move only changes this doc's parent — apply it directly instead
     // of refetching the whole doc list.
     const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
@@ -152,7 +146,7 @@ export async function _fpMoveToEpic(filename, docType, fromEpic, toEpic, feature
     showJiraToast('ok', `Moved to ${allDocs.find((d) => d.filename === toEpic)?.title || toEpic}`);
     await renderFeatureMultiPanel(featureFilename);
   } catch (e) {
-    showJiraToast('error', e instanceof Error ? e.message : String(e));
+    showJiraToast('error', getErrorMessage(e));
   }
 }
 // ── Epic context menu (right-click on epic header) ──────────
@@ -259,28 +253,14 @@ export async function _executeEmptyCellCreate(type, col, row, epicFilename, epic
     if (parentDoc?.pi && parentDoc.pi !== 'TBD') genBody.pi = parentDoc.pi;
     if (epicDocType === 'epic') genBody.parentEpic = epicFilename;
     if (epicDocType === 'feature') genBody.parentFeature = epicFilename;
-    const genRes = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(genBody),
-    });
-    if (!genRes.ok) {
-      const body = await genRes.json();
-      throw new Error(body.error?.message || 'Generate failed');
-    }
-    const { filename: newFilename } = await genRes.json();
+    const { filename: newFilename } = await postJSON('/api/generate', genBody);
     stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
-    const linkRes = await fetch('/api/link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sourceType: type,
-        sourceFilename: newFilename,
-        targetType: epicDocType,
-        targetFilename: epicFilename,
-      }),
+    await postJSON('/api/link', {
+      sourceType: type,
+      sourceFilename: newFilename,
+      targetType: epicDocType,
+      targetFilename: epicFilename,
     });
-    if (!linkRes.ok) throw new Error('Link failed');
     stream.textContent += '\n✓ Linked successfully.';
     showJiraToast('ok', `Created ${newFilename}`);
     await loadDocs();
@@ -346,7 +326,7 @@ export function _showMultiCardContextMenu(x, y, epicFilename, docType) {
     for (const fn of _canvasSelectedCards) {
       const doc = allDocs.find((d) => d.filename === fn);
       if (!doc) continue;
-      await fetch(`/api/doc/${doc.docType}/${encodeURIComponent(fn)}`, { method: 'DELETE' });
+      await deleteJSON(`/api/doc/${doc.docType}/${encodeURIComponent(fn)}`);
       // We already know exactly which doc was deleted — remove it from the
       // store directly instead of refetching the whole doc list.
       removeDoc(fn);
@@ -438,16 +418,10 @@ export async function _executeCanvasSplit(
     // Epic splitting uses the composite /api/split-epic endpoint
     if (childDocType === 'epic') {
       stream.textContent = '⚙ Splitting epic…';
-      const splitRes = await fetch('/api/split-epic', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ epicFilename: originalFilename, description: idea }),
+      const result = await postJSON('/api/split-epic', {
+        epicFilename: originalFilename,
+        description: idea,
       });
-      if (!splitRes.ok) {
-        const body = await splitRes.json();
-        throw new Error(body.error?.message || 'Split failed');
-      }
-      const result = await splitRes.json();
       stream.textContent = `✓ Created ${result.newEpicFilename}`;
       if (result.featureCreated) {
         stream.textContent += `\n✓ Auto-created feature: ${result.featureTitle}`;
@@ -463,9 +437,9 @@ export async function _executeCanvasSplit(
       return;
     }
     // Non-epic splitting: existing generate + link flow
-    const origRes = await fetch(`/api/doc/${childDocType}/${encodeURIComponent(originalFilename)}`);
-    if (!origRes.ok) throw new Error('Could not load original issue');
-    const { content: origContent } = await origRes.json();
+    const { content: origContent } = await fetchJSON(
+      `/api/doc/${childDocType}/${encodeURIComponent(originalFilename)}`
+    );
     const origDoc = allDocs.find((d) => d.filename === originalFilename);
     stream.textContent = '⚙ Generating new issue…';
     const genBody = {
@@ -477,28 +451,14 @@ export async function _executeCanvasSplit(
     if (origDoc?.pi && origDoc.pi !== 'TBD') genBody.pi = origDoc.pi;
     if (epicDocType === 'epic') genBody.parentEpic = epicFilename;
     if (epicDocType === 'feature') genBody.parentFeature = epicFilename;
-    const genRes = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(genBody),
-    });
-    if (!genRes.ok) {
-      const body = await genRes.json();
-      throw new Error(body.error?.message || 'Generate failed');
-    }
-    const { filename: newFilename } = await genRes.json();
+    const { filename: newFilename } = await postJSON('/api/generate', genBody);
     stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
-    const linkRes = await fetch('/api/link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sourceType: childDocType,
-        sourceFilename: newFilename,
-        targetType: epicDocType,
-        targetFilename: epicFilename,
-      }),
+    await postJSON('/api/link', {
+      sourceType: childDocType,
+      sourceFilename: newFilename,
+      targetType: epicDocType,
+      targetFilename: epicFilename,
     });
-    if (!linkRes.ok) throw new Error('Link failed');
     stream.textContent += '\n✓ Linked successfully.';
     showJiraToast('ok', `Created ${newFilename}`);
     await loadDocs();

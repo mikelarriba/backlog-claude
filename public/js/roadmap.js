@@ -1,5 +1,12 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
-import { escHtml, postJSON, showJiraToast, patchJSON, getErrorMessage } from './state.js';
+import {
+  escHtml,
+  postJSON,
+  showJiraToast,
+  patchJSON,
+  fetchJSON,
+  getErrorMessage,
+} from './state.js';
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
 import { loadDocs } from './list.js';
@@ -217,6 +224,8 @@ export async function startSprintPushPreview() {
   document.getElementById('sprint-push-loading').classList.add('show');
   try {
     const body = JSON.stringify({ items: _sprintPushItems, selectedSprints });
+    // Raw fetch: this streams SSE progress events, not a single JSON response —
+    // the shared fetchJSON/postJSON helpers don't apply here.
     const response = await fetch('/api/jira/push-sprints-preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -472,6 +481,8 @@ export async function startPullSprintPreview() {
   document.getElementById('pull-sprint-results').innerHTML = '';
   document.getElementById('pull-sprint-actions').style.display = 'none';
   try {
+    // Raw fetch: this streams SSE progress events, not a single JSON response —
+    // the shared fetchJSON/postJSON helpers don't apply here.
     const res = await fetch('/api/jira/pull-sprint-preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -561,12 +572,7 @@ export async function confirmPullSprint() {
   btn.disabled = true;
   btn.textContent = 'Pulling…';
   try {
-    const res = await fetch('/api/jira/pull-sprint', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ issues }),
-    });
-    const data = await res.json();
+    const data = await postJSON('/api/jira/pull-sprint', { issues });
     const ok = data.results?.filter((r) => r.status === 'ok').length || 0;
     const err = data.results?.filter((r) => r.status === 'error').length || 0;
     showJiraToast('ok', `Pulled ${ok} issue${ok !== 1 ? 's' : ''}${err ? `, ${err} failed` : ''}`);
@@ -591,9 +597,9 @@ export async function openDepModal(filename, docType) {
   document.getElementById('dep-blockedby-list').innerHTML = '';
   document.getElementById('dep-overlay').classList.add('show');
   try {
-    const data = await fetch(
+    const data = await fetchJSON(
       `/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`
-    ).then((r) => r.json());
+    );
     renderDepLists(data);
     populateDepTargetSelect(filename, data);
   } catch (e) {
@@ -675,9 +681,9 @@ export async function addDepLink() {
       targetFilename,
     });
     // Refresh modal
-    const data = await fetch(
+    const data = await fetchJSON(
       `/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`
-    ).then((r) => r.json());
+    );
     renderDepLists(data);
     populateDepTargetSelect(_depModalFilename, data);
     // Update allDocs entry
@@ -712,9 +718,9 @@ export async function addParallelLink() {
       targetType: targetDocType,
       targetFilename,
     });
-    const data = await fetch(
+    const data = await fetchJSON(
       `/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`
-    ).then((r) => r.json());
+    );
     renderDepLists(data);
     populateDepTargetSelect(_depModalFilename, data);
     renderRoadmapBoard();
@@ -744,7 +750,9 @@ export async function removeDepLink(targetFilename, targetDocType, direction) {
       tgtFilename = _depModalFilename;
       tgtDocType = _depModalDocType;
     }
-    await fetch('/api/link', {
+    // fetchJSON is used directly (rather than deleteJSON) because this DELETE
+    // needs a JSON request body, which deleteJSON's signature doesn't support.
+    await fetchJSON('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -756,9 +764,9 @@ export async function removeDepLink(targetFilename, targetDocType, direction) {
       }),
     });
     // Refresh modal
-    const data = await fetch(
+    const data = await fetchJSON(
       `/api/links/${encodeURIComponent(_depModalDocType)}/${encodeURIComponent(_depModalFilename)}`
-    ).then((r) => r.json());
+    );
     renderDepLists(data);
     populateDepTargetSelect(_depModalFilename, data);
     // Update allDocs entries
@@ -833,6 +841,8 @@ export async function executeSplit() {
   output.textContent = '';
   status.className = 'split-modal-status';
   try {
+    // Raw fetch: this streams SSE progress/text events, not a single JSON response —
+    // the shared fetchJSON/postJSON helpers don't apply here.
     const res = await fetch('/api/docs/split-story', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -123,16 +123,10 @@ export async function executeSplitIssue(): Promise<void> {
     // Epic splitting uses the composite /api/split-epic endpoint
     if (docType === 'epic') {
       status.textContent = '⚙ Splitting epic…';
-      const splitRes = await fetch('/api/split-epic', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ epicFilename: filename, description: idea }),
-      });
-      if (!splitRes.ok) {
-        const errBody = (await splitRes.json()) as { error?: { message?: string } };
-        throw new Error(errBody.error?.message || 'Split failed');
-      }
-      const result = (await splitRes.json()) as {
+      const result = (await postJSON('/api/split-epic', {
+        epicFilename: filename,
+        description: idea,
+      })) as {
         newEpicFilename: string;
         featureCreated?: boolean;
         featureTitle?: string;
@@ -153,9 +147,9 @@ export async function executeSplitIssue(): Promise<void> {
 
     // Non-epic splitting: existing generate + link flow
     status.textContent = '⚙ Fetching original…';
-    const origRes = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
-    if (!origRes.ok) throw new Error('Could not load original issue');
-    const { content: origContent } = (await origRes.json()) as { content: string };
+    const { content: origContent } = (await fetchJSON(
+      `/api/doc/${docType}/${encodeURIComponent(filename)}`
+    )) as { content: string };
     const origDoc = allDocs.find((d) => d.filename === filename && d.docType === docType);
 
     status.textContent = '⚙ Generating new issue…';
@@ -173,16 +167,9 @@ export async function executeSplitIssue(): Promise<void> {
       if (parentDoc?.docType === 'feature') genBody.parentFeature = origDoc.parentFilename;
     }
 
-    const genRes = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(genBody),
-    });
-    if (!genRes.ok) {
-      const errBody = (await genRes.json()) as { error?: { message?: string } };
-      throw new Error(errBody.error?.message || 'Generate failed');
-    }
-    const { filename: newFilename } = (await genRes.json()) as { filename: string };
+    const { filename: newFilename } = (await postJSON('/api/generate', genBody)) as {
+      filename: string;
+    };
 
     status.textContent = `✓ Created ${newFilename}`;
 
@@ -190,15 +177,11 @@ export async function executeSplitIssue(): Promise<void> {
     if (origDoc?.parentFilename) {
       const parentDoc = allDocs.find((d) => d.filename === origDoc.parentFilename);
       if (parentDoc) {
-        await fetch('/api/link', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourceType: docType,
-            sourceFilename: newFilename,
-            targetType: parentDoc.docType,
-            targetFilename: origDoc.parentFilename,
-          }),
+        await postJSON('/api/link', {
+          sourceType: docType,
+          sourceFilename: newFilename,
+          targetType: parentDoc.docType,
+          targetFilename: origDoc.parentFilename,
         });
       }
     }
