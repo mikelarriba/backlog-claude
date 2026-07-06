@@ -1,5 +1,5 @@
 // ── Refine canvas: layout computation, rendering, and persistence ─
-import { escHtml, TYPE_LABEL, postJSON } from './state.js';
+import { escHtml, TYPE_LABEL, postJSON, putJSON, fetchJSON, deleteJSON } from './state.js';
 import { openRefinePanel, openManualRefine } from './refine.js';
 import {
   _showEpicContextMenu,
@@ -142,19 +142,15 @@ export async function buildCanvasGraph(filename, docType) {
   _canvasSelectedCards.clear();
   let children = [];
   try {
-    const res = await fetch(`/api/links/${docType}/${encodeURIComponent(filename)}`);
-    if (res.ok) {
-      const data = await res.json();
-      children = data.children || [];
-    }
+    const data = await fetchJSON(`/api/links/${docType}/${encodeURIComponent(filename)}`);
+    children = data.children || [];
   } catch {
     /* render with just the epic node */
   }
   // Load saved layout
   let savedPositions = {};
   try {
-    const res = await fetch(`/api/canvas/layout/${encodeURIComponent(filename)}`);
-    if (res.ok) savedPositions = await res.json();
+    savedPositions = await fetchJSON(`/api/canvas/layout/${encodeURIComponent(filename)}`);
   } catch {
     /* no-op */
   }
@@ -726,11 +722,7 @@ export async function saveCanvasLayout(ps = _activePanelState, parentFilename) {
   const fn = parentFilename || _canvasEpicFilename;
   if (!fn) return;
   try {
-    await fetch(`/api/canvas/layout/${encodeURIComponent(fn)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ positions: ps.layout }),
-    });
+    await putJSON(`/api/canvas/layout/${encodeURIComponent(fn)}`, { positions: ps.layout });
   } catch {
     /* silent */
   }
@@ -764,7 +756,7 @@ async function syncCanvasRanks(ps = _activePanelState) {
 }
 export async function resetCanvasLayout(epicFilename) {
   try {
-    await fetch(`/api/canvas/layout/${encodeURIComponent(epicFilename)}`, { method: 'DELETE' });
+    await deleteJSON(`/api/canvas/layout/${encodeURIComponent(epicFilename)}`);
   } catch {
     /* no-op */
   }

@@ -126,7 +126,9 @@ export async function deleteDepFromDetail(
     tgtType = currentDocType;
   }
   try {
-    const res = await fetch('/api/link', {
+    // fetchJSON is used directly (rather than deleteJSON) because this DELETE
+    // needs a JSON request body, which deleteJSON's signature doesn't support.
+    await fetchJSON('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -137,10 +139,6 @@ export async function deleteDepFromDetail(
         targetFilename: tgtFn,
       }),
     });
-    if (!res.ok) {
-      const d = (await res.json()) as { error?: { message?: string } };
-      throw new Error(d.error?.message || 'Delete failed');
-    }
     // Update both affected docs in the store directly — the field changes are
     // fully known from the link we just removed, so no refetch is needed.
     if (apiLinkType === 'parallel') {
@@ -269,9 +267,9 @@ export async function addDocComment(filename: string, docType: string): Promise<
   const fullText = `**${now}** — Me\n${text}`;
 
   try {
-    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
-    if (!res.ok) throw new Error('Load failed');
-    const { content } = (await res.json()) as { content: string };
+    const { content } = (await fetchJSON(
+      `/api/doc/${docType}/${encodeURIComponent(filename)}`
+    )) as { content: string };
     const existing = _parseComments(content);
     existing.push({ id, text: fullText });
     await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, {
@@ -305,9 +303,9 @@ export async function saveCommentEdit(
   const text = (ta?.value || '').trim();
   if (!text) return;
   try {
-    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
-    if (!res.ok) throw new Error('Load failed');
-    const { content } = (await res.json()) as { content: string };
+    const { content } = (await fetchJSON(
+      `/api/doc/${docType}/${encodeURIComponent(filename)}`
+    )) as { content: string };
     const comments = _parseComments(content).map((c) => (c.id === id ? { ...c, text } : c));
     await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, {
       commentsSection: _serializeComments(comments),
@@ -326,9 +324,9 @@ export async function deleteDocComment(
 ): Promise<void> {
   if (!confirm('Delete this comment?')) return;
   try {
-    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
-    if (!res.ok) throw new Error('Load failed');
-    const { content } = (await res.json()) as { content: string };
+    const { content } = (await fetchJSON(
+      `/api/doc/${docType}/${encodeURIComponent(filename)}`
+    )) as { content: string };
     const comments = _parseComments(content).filter((c) => c.id !== id);
     await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, {
       commentsSection: _serializeComments(comments),

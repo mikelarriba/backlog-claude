@@ -1,5 +1,5 @@
 // ── Refine edge/link popups and manage-links mode ─────────────
-import { showJiraToast, escHtml, getErrorMessage } from './state.js';
+import { showJiraToast, escHtml, getErrorMessage, postJSON, fetchJSON } from './state.js';
 import { loadDocs } from './list.js';
 import { rebuildCanvasEdges, renderCanvas } from './refine-canvas.js';
 // ── Edge click popup ───────────────────────────────────────────
@@ -31,7 +31,9 @@ export function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
 export async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
   _closeLinkPopup();
   try {
-    const res = await fetch('/api/link', {
+    // fetchJSON is used directly (rather than deleteJSON) because this DELETE
+    // needs a JSON request body, which deleteJSON's signature doesn't support.
+    await fetchJSON('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -42,10 +44,6 @@ export async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
         targetFilename: tgtFn,
       }),
     });
-    if (!res.ok) {
-      const d = await res.json();
-      throw new Error(d.error?.message || 'Delete failed');
-    }
     await loadDocs();
     rebuildCanvasEdges();
     renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
@@ -57,7 +55,9 @@ export async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
 export async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtFn, tgtDt) {
   _closeLinkPopup();
   try {
-    const delRes = await fetch('/api/link', {
+    // fetchJSON is used directly (rather than deleteJSON) because this DELETE
+    // needs a JSON request body, which deleteJSON's signature doesn't support.
+    await fetchJSON('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -68,22 +68,13 @@ export async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtF
         targetFilename: tgtFn,
       }),
     });
-    if (!delRes.ok) throw new Error('Delete failed');
-    const addRes = await fetch('/api/link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        linkType: newType,
-        sourceType: srcDt,
-        sourceFilename: srcFn,
-        targetType: tgtDt,
-        targetFilename: tgtFn,
-      }),
+    await postJSON('/api/link', {
+      linkType: newType,
+      sourceType: srcDt,
+      sourceFilename: srcFn,
+      targetType: tgtDt,
+      targetFilename: tgtFn,
     });
-    if (!addRes.ok) {
-      const d = await addRes.json();
-      throw new Error(d.error?.message || 'Create failed');
-    }
     await loadDocs();
     rebuildCanvasEdges();
     renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
@@ -144,19 +135,13 @@ export async function _createCanvasLink(
     return;
   }
   try {
-    const res = await fetch('/api/link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        linkType,
-        sourceType: srcDocType,
-        sourceFilename: srcFilename,
-        targetType: tgtDocType,
-        targetFilename: tgtFilename,
-      }),
+    await postJSON('/api/link', {
+      linkType,
+      sourceType: srcDocType,
+      sourceFilename: srcFilename,
+      targetType: tgtDocType,
+      targetFilename: tgtFilename,
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || 'Link failed');
     await loadDocs();
     rebuildCanvasEdges();
     renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');

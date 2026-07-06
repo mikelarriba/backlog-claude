@@ -1,5 +1,12 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
-import { escHtml, postJSON, showJiraToast, patchJSON, getErrorMessage } from './state.js';
+import {
+  escHtml,
+  postJSON,
+  showJiraToast,
+  patchJSON,
+  fetchJSON,
+  getErrorMessage,
+} from './state.js';
 import type { DocEntry, SprintConfig } from './state.js';
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
@@ -283,6 +290,8 @@ export async function startSprintPushPreview(): Promise<void> {
 
   try {
     const body = JSON.stringify({ items: _sprintPushItems, selectedSprints });
+    // Raw fetch: this streams SSE progress events, not a single JSON response —
+    // the shared fetchJSON/postJSON helpers don't apply here.
     const response = await fetch('/api/jira/push-sprints-preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -605,6 +614,8 @@ export async function startPullSprintPreview(): Promise<void> {
   (document.getElementById('pull-sprint-actions') as HTMLElement).style.display = 'none';
 
   try {
+    // Raw fetch: this streams SSE progress events, not a single JSON response —
+    // the shared fetchJSON/postJSON helpers don't apply here.
     const res = await fetch('/api/jira/pull-sprint-preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -712,12 +723,9 @@ export async function confirmPullSprint(): Promise<void> {
   btn.textContent = 'Pulling…';
 
   try {
-    const res = await fetch('/api/jira/pull-sprint', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ issues }),
-    });
-    const data = (await res.json()) as { results?: SprintPushResultItem[] };
+    const data = (await postJSON('/api/jira/pull-sprint', { issues })) as {
+      results?: SprintPushResultItem[];
+    };
     const ok = data.results?.filter((r) => r.status === 'ok').length || 0;
     const err = data.results?.filter((r) => r.status === 'error').length || 0;
     showJiraToast('ok', `Pulled ${ok} issue${ok !== 1 ? 's' : ''}${err ? `, ${err} failed` : ''}`);
@@ -760,9 +768,9 @@ export async function openDepModal(filename: string, docType: string): Promise<v
   document.getElementById('dep-overlay')!.classList.add('show');
 
   try {
-    const data = (await fetch(
+    const data = (await fetchJSON(
       `/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`
-    ).then((r) => r.json())) as DepLinksData;
+    )) as DepLinksData;
     renderDepLists(data);
     populateDepTargetSelect(filename, data);
   } catch (e) {
@@ -857,9 +865,9 @@ export async function addDepLink(): Promise<void> {
       targetFilename,
     });
     // Refresh modal
-    const data = (await fetch(
+    const data = (await fetchJSON(
       `/api/links/${encodeURIComponent(_depModalDocType!)}/${encodeURIComponent(_depModalFilename!)}`
-    ).then((r) => r.json())) as DepLinksData;
+    )) as DepLinksData;
     renderDepLists(data);
     populateDepTargetSelect(_depModalFilename!, data);
     // Update allDocs entry
@@ -897,9 +905,9 @@ export async function addParallelLink(): Promise<void> {
       targetType: targetDocType,
       targetFilename,
     });
-    const data = (await fetch(
+    const data = (await fetchJSON(
       `/api/links/${encodeURIComponent(_depModalDocType!)}/${encodeURIComponent(_depModalFilename!)}`
-    ).then((r) => r.json())) as DepLinksData;
+    )) as DepLinksData;
     renderDepLists(data);
     populateDepTargetSelect(_depModalFilename!, data);
     renderRoadmapBoard();
@@ -938,7 +946,9 @@ export async function removeDepLink(
       tgtFilename = _depModalFilename!;
       tgtDocType = _depModalDocType!;
     }
-    await fetch('/api/link', {
+    // fetchJSON is used directly (rather than deleteJSON) because this DELETE
+    // needs a JSON request body, which deleteJSON's signature doesn't support.
+    await fetchJSON('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -950,9 +960,9 @@ export async function removeDepLink(
       }),
     });
     // Refresh modal
-    const data = (await fetch(
+    const data = (await fetchJSON(
       `/api/links/${encodeURIComponent(_depModalDocType!)}/${encodeURIComponent(_depModalFilename!)}`
-    ).then((r) => r.json())) as DepLinksData;
+    )) as DepLinksData;
     renderDepLists(data);
     populateDepTargetSelect(_depModalFilename!, data);
     // Update allDocs entries
@@ -1046,6 +1056,8 @@ export async function executeSplit(): Promise<void> {
   status.className = 'split-modal-status';
 
   try {
+    // Raw fetch: this streams SSE progress/text events, not a single JSON response —
+    // the shared fetchJSON/postJSON helpers don't apply here.
     const res = await fetch('/api/docs/split-story', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -14,6 +14,10 @@ import {
   streamSSE,
   stripFrontmatter,
   patchJSON,
+  postJSON,
+  fetchJSON,
+  deleteJSON,
+  getErrorMessage,
 } from './state.js';
 import { loadDocs } from './list.js';
 import {
@@ -126,11 +130,9 @@ export async function renderFeatureMultiPanel(featureFilename) {
   _panelStates.clear();
   let data;
   try {
-    const res = await fetch(`/api/links/feature/${encodeURIComponent(featureFilename)}/deep`);
-    if (!res.ok) throw new Error('Failed to load feature hierarchy');
-    data = await res.json();
+    data = await fetchJSON(`/api/links/feature/${encodeURIComponent(featureFilename)}/deep`);
   } catch (e) {
-    container.innerHTML = `<div class="canvas-empty">Error: ${escHtml(e instanceof Error ? e.message : String(e))}</div>`;
+    container.innerHTML = `<div class="canvas-empty">Error: ${escHtml(getErrorMessage(e))}</div>`;
     return;
   }
   const collapsedSet = _fpLoadCollapsed(featureFilename);
@@ -147,11 +149,8 @@ export async function renderFeatureMultiPanel(featureFilename) {
     _panelStates.set(epic.filename, ps);
     // Load or compute layout for this epic's panel
     try {
-      const lr = await fetch(`/api/canvas/layout/${encodeURIComponent(epic.filename)}`);
-      if (lr.ok) {
-        const saved = await lr.json();
-        if (Object.keys(saved).length) ps.layout = saved;
-      }
+      const saved = await fetchJSON(`/api/canvas/layout/${encodeURIComponent(epic.filename)}`);
+      if (Object.keys(saved).length) ps.layout = saved;
     } catch {
       /* no-op */
     }
@@ -256,9 +255,7 @@ export async function openRefinePanel(filename, docType) {
   panel.innerHTML = '<div class="rp-loading">Loading…</div>';
   panel.classList.add('open');
   try {
-    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
-    if (!res.ok) throw new Error('Not found');
-    const { content } = await res.json();
+    const { content } = await fetchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
     const title = doc?.title || filename;
     const ef = escHtml(filename);
@@ -339,14 +336,9 @@ async function _loadRpDeps(filename, docType) {
   const section = document.getElementById('rp-deps-section');
   if (!section) return;
   try {
-    const res = await fetch(
+    const data = await fetchJSON(
       `/api/links/${encodeURIComponent(docType)}/${encodeURIComponent(filename)}`
     );
-    if (!res.ok) {
-      section.innerHTML = '';
-      return;
-    }
-    const data = await res.json();
     function depRow(item, lType) {
       const ef = escHtml(item.filename);
       const et = escHtml(item.docType || docType);
@@ -399,7 +391,9 @@ export async function _removeCanvasLink(
     ];
   }
   try {
-    await fetch('/api/link', {
+    // fetchJSON is used directly (rather than deleteJSON) because this DELETE
+    // needs a JSON request body, which deleteJSON's signature doesn't support.
+    await fetchJSON('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -416,7 +410,7 @@ export async function _removeCanvasLink(
     // Reopen panel to refresh deps
     openRefinePanel(srcFilename, srcDocType);
   } catch (e) {
-    showJiraToast('error', e instanceof Error ? e.message : String(e));
+    showJiraToast('error', getErrorMessage(e));
   }
 }
 // ── Inline field editing (refine panel) ───────────────────────
@@ -555,17 +549,11 @@ export async function executeRpUpgrade(filename, docType) {
 export async function confirmRpDelete(filename, docType) {
   if (!confirm(`Delete "${filename}"? This cannot be undone.`)) return;
   try {
-    const res = await fetch(`/api/doc/${docType}/${encodeURIComponent(filename)}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) {
-      const body = await res.json();
-      throw new Error(body.error?.message || 'Delete failed');
-    }
+    await deleteJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     closeRefinePanel();
     await buildCanvasGraph(_canvasEpicFilename ?? '', _canvasDocType ?? '');
   } catch (e) {
-    alert(`Failed to delete: ${e instanceof Error ? e.message : String(e)}`);
+    alert(`Failed to delete: ${getErrorMessage(e)}`);
   }
 }
 // ── Create new child node ──────────────────────────────────────
@@ -625,28 +613,14 @@ export async function executeRpCreate(type) {
     if (parentDoc?.pi && parentDoc.pi !== 'TBD') genBody.pi = parentDoc.pi;
     if (_canvasDocType === 'epic') genBody.parentEpic = _canvasEpicFilename ?? undefined;
     if (_canvasDocType === 'feature') genBody.parentFeature = _canvasEpicFilename ?? undefined;
-    const genRes = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(genBody),
-    });
-    if (!genRes.ok) {
-      const body = await genRes.json();
-      throw new Error(body.error?.message || 'Generate failed');
-    }
-    const { filename: newFilename } = await genRes.json();
+    const { filename: newFilename } = await postJSON('/api/generate', genBody);
     stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
-    const linkRes = await fetch('/api/link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sourceType: type,
-        sourceFilename: newFilename,
-        targetType: _canvasDocType,
-        targetFilename: _canvasEpicFilename,
-      }),
+    await postJSON('/api/link', {
+      sourceType: type,
+      sourceFilename: newFilename,
+      targetType: _canvasDocType,
+      targetFilename: _canvasEpicFilename,
     });
-    if (!linkRes.ok) throw new Error('Link failed');
     stream.textContent += '\n✓ Linked successfully.';
     await loadDocs();
     await buildCanvasGraph(_canvasEpicFilename ?? '', _canvasDocType ?? '');

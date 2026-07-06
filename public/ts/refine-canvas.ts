@@ -1,5 +1,5 @@
 // ── Refine canvas: layout computation, rendering, and persistence ─
-import { escHtml, TYPE_LABEL, postJSON } from './state.js';
+import { escHtml, TYPE_LABEL, postJSON, putJSON, fetchJSON, deleteJSON } from './state.js';
 import type { DocEntry, PanelState } from './state.js';
 import { openRefinePanel, openManualRefine } from './refine.js';
 import {
@@ -184,15 +184,12 @@ export async function buildCanvasGraph(filename: string, docType: string): Promi
   let children: DocEntry[] = [];
 
   try {
-    const res = await fetch(`/api/links/${docType}/${encodeURIComponent(filename)}`);
-    if (res.ok) {
-      const data = (await res.json()) as {
-        children?: DocEntry[];
-        blocks?: unknown;
-        parallel?: unknown;
-      };
-      children = data.children || [];
-    }
+    const data = (await fetchJSON(`/api/links/${docType}/${encodeURIComponent(filename)}`)) as {
+      children?: DocEntry[];
+      blocks?: unknown;
+      parallel?: unknown;
+    };
+    children = data.children || [];
   } catch {
     /* render with just the epic node */
   }
@@ -200,8 +197,9 @@ export async function buildCanvasGraph(filename: string, docType: string): Promi
   // Load saved layout
   let savedPositions: Record<string, CanvasPos> = {};
   try {
-    const res = await fetch(`/api/canvas/layout/${encodeURIComponent(filename)}`);
-    if (res.ok) savedPositions = (await res.json()) as Record<string, CanvasPos>;
+    savedPositions = (await fetchJSON(
+      `/api/canvas/layout/${encodeURIComponent(filename)}`
+    )) as Record<string, CanvasPos>;
   } catch {
     /* no-op */
   }
@@ -858,11 +856,7 @@ export async function saveCanvasLayout(
   const fn = parentFilename || _canvasEpicFilename;
   if (!fn) return;
   try {
-    await fetch(`/api/canvas/layout/${encodeURIComponent(fn)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ positions: ps.layout }),
-    });
+    await putJSON(`/api/canvas/layout/${encodeURIComponent(fn)}`, { positions: ps.layout });
   } catch {
     /* silent */
   }
@@ -900,7 +894,7 @@ async function syncCanvasRanks(ps: PanelState = _activePanelState): Promise<void
 
 export async function resetCanvasLayout(epicFilename: string): Promise<void> {
   try {
-    await fetch(`/api/canvas/layout/${encodeURIComponent(epicFilename)}`, { method: 'DELETE' });
+    await deleteJSON(`/api/canvas/layout/${encodeURIComponent(epicFilename)}`);
   } catch {
     /* no-op */
   }
