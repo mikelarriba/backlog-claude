@@ -1,6 +1,7 @@
 // ── Refine node interactions: context menus, create, split, move ─
 import { escHtml, showJiraToast, TYPE_LABEL } from './state.js';
 import { loadDocs } from './list.js';
+import { upsertDoc, removeDoc } from './store.js';
 import {
   openRefinePanel,
   openManualRefine,
@@ -183,7 +184,10 @@ export async function _fpMoveToEpic(
       const d = (await res.json()) as ApiErrorBody;
       throw new Error(d.error?.message || 'Move failed');
     }
-    await loadDocs();
+    // The link move only changes this doc's parent — apply it directly instead
+    // of refetching the whole doc list.
+    const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
+    if (doc) upsertDoc({ ...doc, parentFilename: toEpic });
     showJiraToast('ok', `Moved to ${allDocs.find((d) => d.filename === toEpic)?.title || toEpic}`);
     await renderFeatureMultiPanel(featureFilename);
   } catch (e) {
@@ -444,9 +448,11 @@ export function _showMultiCardContextMenu(
       const doc = allDocs.find((d) => d.filename === fn);
       if (!doc) continue;
       await fetch(`/api/doc/${doc.docType}/${encodeURIComponent(fn)}`, { method: 'DELETE' });
+      // We already know exactly which doc was deleted — remove it from the
+      // store directly instead of refetching the whole doc list.
+      removeDoc(fn);
     }
     _canvasSelectedCards.clear();
-    await loadDocs();
     await buildCanvasGraph(epicFilename, docType);
   });
 
