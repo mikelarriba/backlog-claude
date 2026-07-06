@@ -511,7 +511,7 @@ export default function jiraPushSprintsRoutes({
       try {
         piSettings = JSON.parse(await fs.promises.readFile(piSettingsPath, 'utf-8'));
       } catch {
-        /* no-op */
+        // Optional file — best-effort read; sprint→PI mapping is simply skipped if missing/corrupt.
       }
       const sprintConfig = (piSettings.sprints || {}) as Record<string, Array<{ name: string }>>;
       const sprintToPi = new Map<string, string>();

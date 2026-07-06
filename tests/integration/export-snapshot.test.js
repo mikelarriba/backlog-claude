@@ -44,6 +44,33 @@ describe('GET /api/export/doc — error cases', () => {
     const { status } = await fetchHtml('/api/export/doc/epic/nonexistent.md');
     assert.equal(status, 404);
   });
+
+  // Regression test for issue #340: assertDocType/assertFilename used to throw
+  // plain object literals, which are not `instanceof Error`. export.ts's old
+  // ad hoc `err instanceof Error ? err.message : String(err)` handling fell
+  // through to String(err), producing the literal string "[object Object]"
+  // instead of the real validation message. It now uses parseApiError + sendError
+  // like every other route file, so the real message must come through.
+  test('returns the real validation message for an unknown doc type, not [object Object]', async () => {
+    const { status, data } = await api('GET', '/api/export/doc/unknown/some-file.md');
+    assert.equal(status, 400);
+    assert.equal(data.error, 'Invalid document type');
+    assert.equal(data.code, 'INVALID_TYPE');
+    assert.ok(
+      !data.error.includes('[object Object]'),
+      'error message must not be "[object Object]"'
+    );
+  });
+
+  test('returns the real validation message for an invalid filename, not [object Object]', async () => {
+    const { status, data } = await api('GET', '/api/export/doc/epic/Not-Valid-Filename.txt');
+    assert.equal(status, 400);
+    assert.ok(
+      data.error.startsWith('Filename must match pattern'),
+      `expected filename validation message, got: ${data.error}`
+    );
+    assert.equal(data.code, 'INVALID_FILENAME');
+  });
 });
 
 // ── GET /api/export/doc — HTML structure for epic ────────────────────────────

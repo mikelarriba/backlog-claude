@@ -7,6 +7,7 @@ import { WORKFLOW_STATUSES } from './transforms.js';
 import { ValidationError } from './validate.js';
 import type { TypeConfig, TypeConfigEntry } from '../types.js';
 import type { ApiError } from '../types/errors.js';
+import { AppError } from '../types/errors.js';
 
 export function sendError(
   res: Response,
@@ -35,7 +36,16 @@ export function parseApiError(
   fallbackMessage = 'Unexpected server error'
 ): ParsedError {
   if (!err) return { code: fallbackCode, message: fallbackMessage };
+  if (err instanceof AppError)
+    return {
+      code: err.code,
+      message: err.message,
+      ...(err.details !== undefined ? { details: err.details } : {}),
+    };
   if (err instanceof ValidationError) return { code: 'VALIDATION_ERROR', message: err.message };
+  // Generic Error instances (including CircuitOpenError, which carries its own
+  // `.code`) fall through to the duck-typed handling below, which already
+  // picks up `.code`/`.message`/`.details` from any error-shaped object.
   if (typeof err === 'string') return { code: fallbackCode, message: err };
   const e = err as Record<string, unknown>;
   return {
@@ -54,22 +64,20 @@ export function normalizeType(value: unknown): string {
 export function assertDocType(type: unknown, TYPE_CONFIG: TypeConfig): string {
   const normalized = normalizeType(type);
   if (!TYPE_CONFIG[normalized]) {
-    throw {
-      code: 'INVALID_TYPE',
-      message: 'Invalid document type',
-      details: { allowed: Object.keys(TYPE_CONFIG), received: type },
-    };
+    throw new AppError('INVALID_TYPE', 'Invalid document type', {
+      allowed: Object.keys(TYPE_CONFIG),
+      received: type,
+    });
   }
   return normalized;
 }
 
 export function assertStatus(status: string): void {
   if (!WORKFLOW_STATUSES.includes(status)) {
-    throw {
-      code: 'INVALID_STATUS',
-      message: 'Invalid workflow status',
-      details: { allowed: WORKFLOW_STATUSES, received: status },
-    };
+    throw new AppError('INVALID_STATUS', 'Invalid workflow status', {
+      allowed: WORKFLOW_STATUSES,
+      received: status,
+    });
   }
 }
 
@@ -80,10 +88,10 @@ const SAFE_FILENAME_RE = /^[a-z0-9][a-z0-9-]*\.md$/;
 export function assertFilename(filename: unknown): string {
   const cleaned = path.basename(String(filename || '').trim());
   if (!cleaned || !SAFE_FILENAME_RE.test(cleaned)) {
-    throw {
-      code: 'INVALID_FILENAME',
-      message: 'Filename must match pattern: lowercase letters, digits, hyphens, ending in .md',
-    };
+    throw new AppError(
+      'INVALID_FILENAME',
+      'Filename must match pattern: lowercase letters, digits, hyphens, ending in .md'
+    );
   }
   return cleaned;
 }
@@ -93,11 +101,9 @@ export function assertBody(body: Record<string, unknown>, required: string[]): v
     (k) => body[k] === undefined || body[k] === null || body[k] === ''
   );
   if (missing.length) {
-    throw {
-      code: 'MISSING_FIELDS',
-      message: `Missing required fields: ${missing.join(', ')}`,
-      details: { missing },
-    };
+    throw new AppError('MISSING_FIELDS', `Missing required fields: ${missing.join(', ')}`, {
+      missing,
+    });
   }
 }
 
