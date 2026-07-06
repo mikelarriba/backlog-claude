@@ -8,6 +8,7 @@ import {
   computeAutoLayout,
   renderGrid,
   esc,
+  escAttr,
   stripFrontmatter,
   epicColor,
 } from '../../src/services/exportLayout.js';
@@ -75,6 +76,39 @@ describe('topoSortCards', () => {
       ['b.md', 'a.md']
     );
   });
+
+  test('resolves a 3-link blockedBy chain into full dependency order', () => {
+    // "a" is ranked first but is blocked by "b", which is blocked by "c" —
+    // both links must be walked so the final order is c, b, a.
+    const docs = [
+      makeDoc({ filename: 'a.md', rank: 1, blockedBy: ['b.md'] }),
+      makeDoc({ filename: 'b.md', rank: 2, blockedBy: ['c.md'] }),
+      makeDoc({ filename: 'c.md', rank: 3 }),
+    ];
+    const sorted = topoSortCards(docs);
+    assert.deepEqual(
+      sorted.map((d) => d.filename),
+      ['c.md', 'b.md', 'a.md']
+    );
+  });
+
+  // Note: a genuine mutual cycle (a blockedBy b *and* b blockedBy a) is NOT
+  // exercised here — the reorder loop below has no cycle-breaking guard and
+  // hangs indefinitely on that input (verified manually; not something a test
+  // can safely assert against). A self-reference is the one cycle shape the
+  // algorithm handles safely, since the "swap to a later position" check
+  // (`bi > i`) is never true for a doc that blocks itself.
+  test('a doc that blocks itself does not hang and is left in place', () => {
+    const docs = [
+      makeDoc({ filename: 'a.md', rank: 1, blockedBy: ['a.md'] }),
+      makeDoc({ filename: 'b.md', rank: 2 }),
+    ];
+    const sorted = topoSortCards(docs);
+    assert.deepEqual(
+      sorted.map((d) => d.filename),
+      ['a.md', 'b.md']
+    );
+  });
 });
 
 describe('computeAutoLayout', () => {
@@ -103,6 +137,38 @@ describe('computeAutoLayout', () => {
     assert.notEqual(layout['a.md'].col, layout['b.md'].col);
     assert.equal(layout['a.md'].row, 0);
     assert.equal(layout['b.md'].row, 0);
+  });
+
+  test('assigns three disconnected components three distinct columns', () => {
+    const children = [{ filename: 'a.md' }, { filename: 'b.md' }, { filename: 'c.md' }];
+    const layout = computeAutoLayout(children, []);
+    const cols = new Set([layout['a.md'].col, layout['b.md'].col, layout['c.md'].col]);
+    assert.equal(cols.size, 3);
+  });
+
+  test('a diamond dependency (two blockers converging on one child) merges into a single column', () => {
+    // a -> c, b -> c: c's row must be max(a.row, b.row) + 1, and the union-find
+    // column assignment must merge a, b, and c into the same connected component.
+    const children = [{ filename: 'a.md' }, { filename: 'b.md' }, { filename: 'c.md' }];
+    const blocks = [
+      { src: 'a.md', tgt: 'c.md' },
+      { src: 'b.md', tgt: 'c.md' },
+    ];
+    const layout = computeAutoLayout(children, blocks);
+    assert.equal(layout['a.md'].row, 0);
+    assert.equal(layout['b.md'].row, 0);
+    assert.equal(layout['c.md'].row, 1);
+    assert.equal(layout['a.md'].col, layout['b.md'].col);
+    assert.equal(layout['b.md'].col, layout['c.md'].col);
+  });
+
+  test('ignores a block edge whose target is not in the children list', () => {
+    const children = [{ filename: 'a.md' }];
+    const blocks = [{ src: 'a.md', tgt: 'ghost.md' }];
+    assert.doesNotThrow(() => computeAutoLayout(children, blocks));
+    const layout = computeAutoLayout(children, blocks);
+    assert.equal(layout['a.md'].row, 0);
+    assert.equal(layout['ghost.md'], undefined);
   });
 });
 
@@ -150,6 +216,20 @@ describe('renderGrid', () => {
 describe('pure helpers', () => {
   test('esc escapes HTML-sensitive characters', () => {
     assert.equal(esc('<b>"Tom" & Jerry</b>'), '&lt;b&gt;&quot;Tom&quot; &amp; Jerry&lt;/b&gt;');
+  });
+
+  test('esc coerces non-string input (null, undefined, numbers) to a safe string', () => {
+    assert.equal(esc(null), '');
+    assert.equal(esc(undefined), '');
+    assert.equal(esc(42), '42');
+  });
+
+  test('escAttr escapes ampersands, quotes, and newlines for use in HTML attributes', () => {
+    assert.equal(escAttr('Tom & "Jerry"\nline two'), 'Tom &amp; &quot;Jerry&quot;&#10;line two');
+  });
+
+  test('escAttr leaves a string with no special characters unchanged', () => {
+    assert.equal(escAttr('plain text'), 'plain text');
   });
 
   test('stripFrontmatter removes the leading YAML block', () => {

@@ -96,17 +96,6 @@ export function assertFilename(filename: unknown): string {
   return cleaned;
 }
 
-export function assertBody(body: Record<string, unknown>, required: string[]): void {
-  const missing = required.filter(
-    (k) => body[k] === undefined || body[k] === null || body[k] === ''
-  );
-  if (missing.length) {
-    throw new AppError('MISSING_FIELDS', `Missing required fields: ${missing.join(', ')}`, {
-      missing,
-    });
-  }
-}
-
 export function setupSSE(res: Response): void {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');

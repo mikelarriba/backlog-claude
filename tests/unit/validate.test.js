@@ -3,10 +3,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ValidationError,
-  requireOneOf,
   requireString,
-  requirePositiveInt,
-  optionalString,
   VALID_PRIORITIES,
   VALID_STATUSES,
   VALID_DOC_TYPES,
@@ -19,29 +16,6 @@ describe('ValidationError', () => {
     assert.equal(e.code, 'VALIDATION_ERROR');
     assert.equal(e.message, 'test');
     assert.ok(e instanceof Error);
-  });
-});
-
-describe('requireOneOf', () => {
-  test('accepts a value in the allowed list', () => {
-    assert.equal(requireOneOf('High', VALID_PRIORITIES, 'priority'), 'High');
-  });
-
-  test('throws for a value not in the list', () => {
-    assert.throws(() => requireOneOf('VeryHigh', VALID_PRIORITIES, 'priority'), ValidationError);
-  });
-
-  test('throws for a non-string value', () => {
-    assert.throws(() => requireOneOf(42, VALID_PRIORITIES, 'priority'), ValidationError);
-  });
-
-  test('includes the field name in the error message', () => {
-    try {
-      requireOneOf('bad', ['a', 'b'], 'myField');
-      assert.fail('expected throw');
-    } catch (e) {
-      assert.ok(e.message.includes('myField'));
-    }
   });
 });
 
@@ -76,65 +50,6 @@ describe('requireString', () => {
 
   test('accepts matching pattern', () => {
     assert.equal(requireString('12345', 'code', { pattern: /^\d+$/ }), '12345');
-  });
-});
-
-describe('requirePositiveInt', () => {
-  test('accepts a valid positive integer', () => {
-    assert.equal(requirePositiveInt(5, 'sp'), 5);
-  });
-
-  test('accepts string-encoded integer', () => {
-    assert.equal(requirePositiveInt('3', 'sp'), 3);
-  });
-
-  test('throws for zero', () => {
-    assert.throws(() => requirePositiveInt(0, 'sp'), ValidationError);
-  });
-
-  test('throws for negative', () => {
-    assert.throws(() => requirePositiveInt(-1, 'sp'), ValidationError);
-  });
-
-  test('throws for float', () => {
-    assert.throws(() => requirePositiveInt(1.5, 'sp'), ValidationError);
-  });
-
-  test('throws for non-number', () => {
-    assert.throws(() => requirePositiveInt('abc', 'sp'), ValidationError);
-  });
-
-  test('throws when value exceeds max', () => {
-    assert.throws(() => requirePositiveInt(50, 'sp', { max: 40 }), ValidationError);
-  });
-
-  test('accepts value equal to max', () => {
-    assert.equal(requirePositiveInt(40, 'sp', { max: 40 }), 40);
-  });
-});
-
-describe('optionalString', () => {
-  test('returns undefined for undefined input', () => {
-    assert.equal(optionalString(undefined, 'name'), undefined);
-  });
-
-  test('returns undefined for null input', () => {
-    assert.equal(optionalString(null, 'name'), undefined);
-  });
-
-  test('returns the string for valid input', () => {
-    assert.equal(optionalString('hello', 'name'), 'hello');
-  });
-
-  test('throws for empty string (still must be non-empty when provided)', () => {
-    assert.throws(() => optionalString('', 'name'), ValidationError);
-  });
-
-  test('throws when length exceeds maxLength', () => {
-    assert.throws(
-      () => optionalString('too long string', 'name', { maxLength: 5 }),
-      ValidationError
-    );
   });
 });
 

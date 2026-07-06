@@ -160,3 +160,84 @@ describe('docIndex — dependency fields', () => {
     assert.deepEqual(entry.blockedBy, []);
   });
 });
+
+// ── findByJiraId edge cases ────────────────────────────────────────────────────
+
+describe('docIndex — findByJiraId edge cases', () => {
+  let tmpRoot, docIndex;
+
+  before(async () => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'docindex-jiraid-'));
+    const TYPE_CONFIG = makeTypeConfig(tmpRoot);
+    const storyDir = TYPE_CONFIG.story.dir();
+    const epicDir = TYPE_CONFIG.epic.dir();
+    fs.mkdirSync(storyDir, { recursive: true });
+    fs.mkdirSync(epicDir, { recursive: true });
+
+    // Two docs that (incorrectly) share the same JIRA_ID — should not happen in
+    // practice, but the index must not throw or silently merge them.
+    writeDoc(storyDir, 'story-dup-1.md', 'JIRA_ID: EAMDM-1\n');
+    writeDoc(storyDir, 'story-dup-2.md', 'JIRA_ID: EAMDM-1\n');
+    // Three docs sharing a different JIRA_ID, to confirm the "return the first
+    // match" behavior holds even with more than two duplicates.
+    writeDoc(epicDir, 'epic-triple-1.md', 'JIRA_ID: EAMDM-3\n');
+    writeDoc(epicDir, 'epic-triple-2.md', 'JIRA_ID: EAMDM-3\n');
+    writeDoc(epicDir, 'epic-triple-3.md', 'JIRA_ID: EAMDM-3\n');
+    // A doc with an explicit "TBD" JIRA_ID (not yet pushed to JIRA).
+    writeDoc(storyDir, 'story-tbd.md', 'JIRA_ID: TBD\n');
+    // A doc with no JIRA_ID field in frontmatter at all.
+    writeDoc(epicDir, 'epic-no-jiraid.md');
+    // A normal, uniquely-identified doc for a sanity-check lookup.
+    writeDoc(epicDir, 'epic-unique.md', 'JIRA_ID: EAMDM-2\n');
+
+    docIndex = createDocIndex({ TYPE_CONFIG });
+    await docIndex.build();
+  });
+
+  after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
+
+  test('resolves a unique JIRA_ID to its doc', () => {
+    const result = docIndex.findByJiraId('EAMDM-2');
+    assert.deepEqual(result, { docType: 'epic', filename: 'epic-unique.md' });
+  });
+
+  test('returns exactly one match (not a throw or a merged result) when the JIRA_ID is duplicated across docs', () => {
+    const result = docIndex.findByJiraId('EAMDM-1');
+    assert.ok(result, 'expected a match');
+    assert.equal(result.docType, 'story');
+    assert.ok(
+      ['story-dup-1.md', 'story-dup-2.md'].includes(result.filename),
+      `expected one of the duplicate filenames, got ${result.filename}`
+    );
+  });
+
+  test('returns null for a "TBD" JIRA_ID', () => {
+    assert.equal(docIndex.findByJiraId('TBD'), null);
+  });
+
+  test('returns null when looked up id is empty', () => {
+    assert.equal(docIndex.findByJiraId(''), null);
+  });
+
+  test('does not match a doc with no JIRA_ID field at all', () => {
+    // The doc without a JIRA_ID should simply never be found by any lookup —
+    // confirm the index didn't crash while indexing it, and that an unrelated
+    // id doesn't accidentally match it.
+    assert.equal(docIndex.findByJiraId('EAMDM-999'), null);
+    assert.equal(docIndex.get('epic-no-jiraid.md').jiraId, null);
+  });
+
+  test('lookup is case-sensitive: a differently-cased id does not match', () => {
+    assert.equal(docIndex.findByJiraId('eamdm-2'), null);
+  });
+
+  test('returns exactly one match when the JIRA_ID is duplicated across three docs', () => {
+    const result = docIndex.findByJiraId('EAMDM-3');
+    assert.ok(result, 'expected a match');
+    assert.equal(result.docType, 'epic');
+    assert.ok(
+      ['epic-triple-1.md', 'epic-triple-2.md', 'epic-triple-3.md'].includes(result.filename),
+      `expected one of the triplicate filenames, got ${result.filename}`
+    );
+  });
+});
