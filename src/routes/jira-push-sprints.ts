@@ -5,7 +5,9 @@ import path from 'path';
 import { pMap } from '../utils/pMap.js';
 import { sendError, parseApiError, setupSSE, ensureDir } from '../utils/routeHelpers.js';
 import { setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
+import { ensureSprintCache } from '../services/jiraService.js';
 import { JIRA_LABEL_TO_TEAM } from '../config/metadata.js';
+import { config } from '../config/env.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraPushSprintsRoutes({
@@ -22,35 +24,6 @@ export default function jiraPushSprintsRoutes({
   docIndex,
 }: JiraRouteContext) {
   const router = Router();
-
-  const JIRA_CONCURRENCY = Number(process.env.JIRA_CONCURRENCY) || 5;
-
-  // ── Sprint cache ────────────────────────────────────────────────────────────
-  let _sprintCache: { map: Map<string, number>; fetchedAt: number } | null = null;
-  const SPRINT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-  async function ensureSprintCache(): Promise<Map<string, number>> {
-    if (_sprintCache && Date.now() - _sprintCache.fetchedAt < SPRINT_CACHE_TTL) {
-      return _sprintCache.map;
-    }
-    const map = new Map<string, number>();
-    let startAt = 0;
-    const maxResults = 50;
-    while (true) {
-      const data = (await jiraAgileRequest(
-        'GET',
-        `/board/${JIRA_BOARD_ID}/sprint?state=active,future&maxResults=${maxResults}&startAt=${startAt}`
-      )) as Record<string, unknown>;
-      const sprints = (data.values as Array<{ name?: string; id?: number }>) || [];
-      for (const s of sprints) {
-        if (s.name && s.id) map.set(s.name, s.id);
-      }
-      if (data.isLast !== false || sprints.length < maxResults) break;
-      startAt += sprints.length;
-    }
-    _sprintCache = { map, fetchedAt: Date.now() };
-    return map;
-  }
 
   // ── Sprint name resolver ────────────────────────────────────────────────────
   // Local sprint names (e.g. "Sprint 100") may differ from JIRA names
@@ -101,7 +74,7 @@ export default function jiraPushSprintsRoutes({
       };
 
       send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
-      const sprintMap = await ensureSprintCache();
+      const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
 
       // Build name mapping between local sprint names and JIRA sprint names
       const { localToJira, jiraToLocal } = buildSprintNameMap(selectedSprints, sprintMap);
@@ -341,7 +314,7 @@ export default function jiraPushSprintsRoutes({
 
     try {
       const { items = [] } = req.body;
-      const sprintMap = await ensureSprintCache();
+      const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
 
       // Resolve local sprint name to JIRA sprint ID (with fuzzy matching)
       const resolveId = (name: string): number | null => {
@@ -408,7 +381,7 @@ export default function jiraPushSprintsRoutes({
             return { filename, status: 'error', error: msg };
           }
         },
-        { concurrency: JIRA_CONCURRENCY }
+        { concurrency: config.JIRA_CONCURRENCY }
       );
 
       res.json({ results });
@@ -436,7 +409,7 @@ export default function jiraPushSprintsRoutes({
       const { selectedSprints = [] } = req.body as { selectedSprints: string[] };
 
       send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
-      const sprintMap = await ensureSprintCache();
+      const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
 
       // Build sprint name mapping
       const { localToJira } = buildSprintNameMap(selectedSprints, sprintMap);
@@ -591,7 +564,7 @@ export default function jiraPushSprintsRoutes({
             return { key, status: 'error', error: msg };
           }
         },
-        { concurrency: JIRA_CONCURRENCY }
+        { concurrency: config.JIRA_CONCURRENCY }
       );
 
       res.json({ results });

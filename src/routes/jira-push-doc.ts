@@ -12,9 +12,15 @@ import {
   markdownToJira,
 } from '../utils/transforms.js';
 import { parseStorySections, serializeStoryFile } from '../services/storyService.js';
-import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
+import {
+  LOCAL_TO_JIRA_TYPE,
+  ensureSprintCache,
+  getContainsLinkTypeName,
+  resolveParentJiraId,
+} from '../services/jiraService.js';
 import { logAudit } from '../utils/auditLog.js';
 import { TEAM_TO_JIRA_LABEL, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
+import { config } from '../config/env.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraPushDocRoutes({
@@ -41,73 +47,10 @@ export default function jiraPushDocRoutes({
 }: JiraRouteContext) {
   const router = Router();
 
-  const JIRA_CONCURRENCY = Number(process.env.JIRA_CONCURRENCY) || 5;
-
-  // ── Sprint cache (for Agile API sprint lookup) ──────────────────────────────
-  let _sprintCache: { map: Map<string, number>; fetchedAt: number } | null = null;
-  const SPRINT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-  async function ensureSprintCache(): Promise<Map<string, number>> {
-    if (_sprintCache && Date.now() - _sprintCache.fetchedAt < SPRINT_CACHE_TTL) {
-      return _sprintCache.map;
-    }
-    const map = new Map<string, number>();
-    let startAt = 0;
-    const maxResults = 50;
-    while (true) {
-      const data = (await jiraAgileRequest(
-        'GET',
-        `/board/${JIRA_BOARD_ID}/sprint?state=active,future&maxResults=${maxResults}&startAt=${startAt}`
-      )) as Record<string, unknown>;
-      const sprints = (data.values as Array<{ name?: string; id?: number }>) || [];
-      for (const s of sprints) {
-        if (s.name && s.id) map.set(s.name, s.id);
-      }
-      if (data.isLast !== false || sprints.length < maxResults) break;
-      startAt += sprints.length;
-    }
-    _sprintCache = { map, fetchedAt: Date.now() };
-    return map;
-  }
-
   async function getSprintId(sprintName: string) {
     if (!JIRA_BOARD_ID) return null;
-    const map = await ensureSprintCache();
+    const map = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
     return map.get(sprintName) ?? null;
-  }
-
-  // ── "Contains" link type discovery (cached) ─────────────────────────────────
-  let _containsLinkType: { name: string; fetchedAt: number } | null = null;
-  const LINK_TYPE_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-  async function getContainsLinkTypeName() {
-    if (_containsLinkType && Date.now() - _containsLinkType.fetchedAt < LINK_TYPE_CACHE_TTL) {
-      return _containsLinkType.name;
-    }
-    try {
-      const data = (await jiraRequest('GET', '/issueLinkType')) as {
-        issueLinkTypes?: Array<{ name: string; inward: string; outward: string }>;
-      };
-      const types = data.issueLinkTypes || [];
-      const match = types.find(
-        (t) => /contain/i.test(t.name) || /contain/i.test(t.inward) || /contain/i.test(t.outward)
-      );
-      if (match) {
-        _containsLinkType = { name: match.name, fetchedAt: Date.now() };
-        return match.name;
-      }
-      logWarn(
-        'jira/push',
-        `No "contains" link type found in JIRA. Available: ${types.map((t) => t.name).join(', ')}`
-      );
-      return null;
-    } catch (e) {
-      logWarn(
-        'jira/push',
-        `Could not fetch JIRA link types: ${e instanceof Error ? e.message : String(e)}`
-      );
-      return null;
-    }
   }
 
   // ── Multi-story push helper ─────────────────────────────────────────────────
@@ -125,12 +68,7 @@ export default function jiraPushDocRoutes({
     type: string;
   }) {
     const epicFilename = filename.replace('-stories.md', '.md');
-    const epicPath = path.join(EPICS_DIR, epicFilename);
-    let epicJiraId = null;
-    if (fs.existsSync(epicPath)) {
-      const id = extractFrontmatterField(await fs.promises.readFile(epicPath, 'utf-8'), 'JIRA_ID');
-      if (id && id !== 'TBD') epicJiraId = id;
-    }
+    const epicJiraId = await resolveParentJiraId(EPICS_DIR, epicFilename);
 
     const results = [];
     const errors = [];
@@ -227,14 +165,8 @@ export default function jiraPushDocRoutes({
       if (type === 'story' || type === 'spike' || type === 'bug') {
         const epicFilename = extractFrontmatterField(content, 'Epic_ID');
         if (epicFilename && epicFilename !== 'TBD') {
-          const epicPath = path.join(EPICS_DIR, epicFilename);
-          if (fs.existsSync(epicPath)) {
-            const epicJiraId = extractFrontmatterField(
-              await fs.promises.readFile(epicPath, 'utf-8'),
-              'JIRA_ID'
-            );
-            if (epicJiraId && epicJiraId !== 'TBD') updateFields[FIELD_EPIC_LINK] = epicJiraId;
-          }
+          const epicJiraId = await resolveParentJiraId(EPICS_DIR, epicFilename);
+          if (epicJiraId) updateFields[FIELD_EPIC_LINK] = epicJiraId;
         } else {
           // Epic_ID cleared — remove Epic Link in JIRA
           updateFields[FIELD_EPIC_LINK] = null;
@@ -267,26 +199,20 @@ export default function jiraPushDocRoutes({
       if (type === 'epic') {
         const featureFilename = extractFrontmatterField(content, 'Feature_ID');
         if (featureFilename && featureFilename !== 'TBD') {
-          const featurePath = path.join(FEATURES_DIR, featureFilename);
-          if (fs.existsSync(featurePath)) {
-            const featureJiraId = extractFrontmatterField(
-              await fs.promises.readFile(featurePath, 'utf-8'),
-              'JIRA_ID'
-            );
-            if (featureJiraId && featureJiraId !== 'TBD') {
-              const linkTypeName = await getContainsLinkTypeName();
-              if (linkTypeName) {
-                await jiraRequest('POST', '/issueLink', {
-                  type: { name: linkTypeName },
-                  inwardIssue: { key },
-                  outwardIssue: { key: featureJiraId },
-                }).catch((e) =>
-                  logWarn(
-                    'jira/push',
-                    `Could not create "${linkTypeName}" link: ${e instanceof Error ? e.message : String(e)}`
-                  )
-                );
-              }
+          const featureJiraId = await resolveParentJiraId(FEATURES_DIR, featureFilename);
+          if (featureJiraId) {
+            const linkTypeName = await getContainsLinkTypeName(jiraRequest, logWarn);
+            if (linkTypeName) {
+              await jiraRequest('POST', '/issueLink', {
+                type: { name: linkTypeName },
+                inwardIssue: { key },
+                outwardIssue: { key: featureJiraId },
+              }).catch((e) =>
+                logWarn(
+                  'jira/push',
+                  `Could not create "${linkTypeName}" link: ${e instanceof Error ? e.message : String(e)}`
+                )
+              );
             }
           }
         }
@@ -310,14 +236,8 @@ export default function jiraPushDocRoutes({
       if (type === 'story' || type === 'spike' || type === 'bug') {
         const epicFilename = extractFrontmatterField(content, 'Epic_ID');
         if (epicFilename && epicFilename !== 'TBD') {
-          const epicPath = path.join(EPICS_DIR, epicFilename);
-          if (fs.existsSync(epicPath)) {
-            const epicJiraId = extractFrontmatterField(
-              await fs.promises.readFile(epicPath, 'utf-8'),
-              'JIRA_ID'
-            );
-            if (epicJiraId && epicJiraId !== 'TBD') fields[FIELD_EPIC_LINK] = epicJiraId;
-          }
+          const epicJiraId = await resolveParentJiraId(EPICS_DIR, epicFilename);
+          if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
         }
       }
 
@@ -328,26 +248,20 @@ export default function jiraPushDocRoutes({
       if (type === 'epic') {
         const featureFilename = extractFrontmatterField(content, 'Feature_ID');
         if (featureFilename && featureFilename !== 'TBD') {
-          const featurePath = path.join(FEATURES_DIR, featureFilename);
-          if (fs.existsSync(featurePath)) {
-            const featureJiraId = extractFrontmatterField(
-              await fs.promises.readFile(featurePath, 'utf-8'),
-              'JIRA_ID'
-            );
-            if (featureJiraId && featureJiraId !== 'TBD') {
-              const linkTypeName = await getContainsLinkTypeName();
-              if (linkTypeName) {
-                await jiraRequest('POST', '/issueLink', {
-                  type: { name: linkTypeName },
-                  inwardIssue: { key },
-                  outwardIssue: { key: featureJiraId },
-                }).catch((e) =>
-                  logWarn(
-                    'jira/push',
-                    `Could not create "${linkTypeName}" link: ${e instanceof Error ? e.message : String(e)}`
-                  )
-                );
-              }
+          const featureJiraId = await resolveParentJiraId(FEATURES_DIR, featureFilename);
+          if (featureJiraId) {
+            const linkTypeName = await getContainsLinkTypeName(jiraRequest, logWarn);
+            if (linkTypeName) {
+              await jiraRequest('POST', '/issueLink', {
+                type: { name: linkTypeName },
+                inwardIssue: { key },
+                outwardIssue: { key: featureJiraId },
+              }).catch((e) =>
+                logWarn(
+                  'jira/push',
+                  `Could not create "${linkTypeName}" link: ${e instanceof Error ? e.message : String(e)}`
+                )
+              );
             }
           }
         }
@@ -457,15 +371,16 @@ export default function jiraPushDocRoutes({
             const epicFilename = extractFrontmatterField(content, 'Epic_ID');
             if (epicFilename && epicFilename !== 'TBD') {
               epicFilenameRef = epicFilename;
-              const epicPath = path.join(EPICS_DIR, epicFilename);
-              if (fs.existsSync(epicPath)) {
-                const epicContent = await fs.promises.readFile(epicPath, 'utf-8');
-                const eid = extractFrontmatterField(epicContent, 'JIRA_ID');
-                if (eid && eid !== 'TBD') {
-                  localEpicJiraId = eid;
-                } else {
-                  // Epic exists locally but not yet in JIRA — capture its title for preview
-                  pendingEpicTitle = extractJiraSummary(epicContent);
+              const eid = await resolveParentJiraId(EPICS_DIR, epicFilename);
+              if (eid) {
+                localEpicJiraId = eid;
+              } else {
+                // Epic exists locally but not yet in JIRA — capture its title for preview
+                const epicPath = path.join(EPICS_DIR, epicFilename);
+                if (fs.existsSync(epicPath)) {
+                  pendingEpicTitle = extractJiraSummary(
+                    await fs.promises.readFile(epicPath, 'utf-8')
+                  );
                 }
               }
             }
@@ -475,12 +390,13 @@ export default function jiraPushDocRoutes({
           if (docType === 'epic') {
             const featureFilename = extractFrontmatterField(content, 'Feature_ID');
             if (featureFilename && featureFilename !== 'TBD') {
-              const featurePath = path.join(FEATURES_DIR, featureFilename);
-              if (fs.existsSync(featurePath)) {
-                const featureContent = await fs.promises.readFile(featurePath, 'utf-8');
-                const fid = extractFrontmatterField(featureContent, 'JIRA_ID');
-                if (!fid || fid === 'TBD') {
-                  pendingFeatureTitle = extractJiraSummary(featureContent);
+              const fid = await resolveParentJiraId(FEATURES_DIR, featureFilename);
+              if (!fid) {
+                const featurePath = path.join(FEATURES_DIR, featureFilename);
+                if (fs.existsSync(featurePath)) {
+                  pendingFeatureTitle = extractJiraSummary(
+                    await fs.promises.readFile(featurePath, 'utf-8')
+                  );
                 }
               }
             }
@@ -658,7 +574,7 @@ export default function jiraPushDocRoutes({
 
           return preview;
         },
-        { concurrency: JIRA_CONCURRENCY }
+        { concurrency: config.JIRA_CONCURRENCY }
       );
 
       res.json({ items: previews });

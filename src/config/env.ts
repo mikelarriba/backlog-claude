@@ -43,6 +43,9 @@ const EnvSchema = z.object({
   JIRA_TIMEOUT_MS: z.coerce.number().default(30_000),
   JIRA_CIRCUIT_FAILURE_THRESHOLD: z.coerce.number().default(5),
   JIRA_CIRCUIT_RESET_TIMEOUT_MS: z.coerce.number().default(30_000),
+  // Shared caches in jiraService.ts (sprint lookup / "contains" link type discovery).
+  JIRA_SPRINT_CACHE_TTL_MS: z.coerce.number().default(5 * 60 * 1000),
+  JIRA_LINKTYPE_CACHE_TTL_MS: z.coerce.number().default(30 * 60 * 1000),
 
   // ── Rate limiting ──────────────────────────────────────────────────────────
   RATE_LIMIT_API: z.coerce.number().default(300),

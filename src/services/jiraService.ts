@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { jiraToMarkdown } from '../utils/transforms.js';
+import { jiraToMarkdown, extractFrontmatterField } from '../utils/transforms.js';
 import type { TypeConfig } from '../types.js';
+import type { Logger } from '../utils/logger.js';
 import { config } from '../config/env.js';
 
 export const LOCAL_TO_JIRA_TYPE: Record<string, string> = {
@@ -44,6 +45,90 @@ export interface JiraServiceInstance {
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
   jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };
   extractJiraSummary: (content: string) => string;
+}
+
+// ── Shared sprint-ID cache (JIRA Agile API) ─────────────────────────────────
+// Single cache shared by jira-push-doc and jira-push-sprints routes so both
+// always see the same sprint data instead of holding independent, potentially
+// disagreeing copies.
+let _sprintCache: { map: Map<string, number>; fetchedAt: number } | null = null;
+
+export async function ensureSprintCache(
+  jiraAgileRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>,
+  boardId: string,
+  ttlMs: number = config.JIRA_SPRINT_CACHE_TTL_MS
+): Promise<Map<string, number>> {
+  if (_sprintCache && Date.now() - _sprintCache.fetchedAt < ttlMs) {
+    return _sprintCache.map;
+  }
+  const map = new Map<string, number>();
+  let startAt = 0;
+  const maxResults = 50;
+  while (true) {
+    const data = (await jiraAgileRequest(
+      'GET',
+      `/board/${boardId}/sprint?state=active,future&maxResults=${maxResults}&startAt=${startAt}`
+    )) as Record<string, unknown>;
+    const sprints = (data.values as Array<{ name?: string; id?: number }>) || [];
+    for (const s of sprints) {
+      if (s.name && s.id) map.set(s.name, s.id);
+    }
+    if (data.isLast !== false || sprints.length < maxResults) break;
+    startAt += sprints.length;
+  }
+  _sprintCache = { map, fetchedAt: Date.now() };
+  return map;
+}
+
+// ── Shared "contains" link-type cache ───────────────────────────────────────
+// Single cache for the JIRA issue-link type used to link epics to features.
+let _containsLinkType: { name: string; fetchedAt: number } | null = null;
+
+export async function getContainsLinkTypeName(
+  jiraRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>,
+  logWarn: Logger['logWarn'],
+  ttlMs: number = config.JIRA_LINKTYPE_CACHE_TTL_MS
+): Promise<string | null> {
+  if (_containsLinkType && Date.now() - _containsLinkType.fetchedAt < ttlMs) {
+    return _containsLinkType.name;
+  }
+  try {
+    const data = (await jiraRequest('GET', '/issueLinkType')) as {
+      issueLinkTypes?: Array<{ name: string; inward: string; outward: string }>;
+    };
+    const types = data.issueLinkTypes || [];
+    const match = types.find(
+      (t) => /contain/i.test(t.name) || /contain/i.test(t.inward) || /contain/i.test(t.outward)
+    );
+    if (match) {
+      _containsLinkType = { name: match.name, fetchedAt: Date.now() };
+      return match.name;
+    }
+    logWarn(
+      'jira/push',
+      `No "contains" link type found in JIRA. Available: ${types.map((t) => t.name).join(', ')}`
+    );
+    return null;
+  } catch (e) {
+    logWarn(
+      'jira/push',
+      `Could not fetch JIRA link types: ${e instanceof Error ? e.message : String(e)}`
+    );
+    return null;
+  }
+}
+
+// ── Shared parent-JIRA-ID resolver ──────────────────────────────────────────
+// Reads a parent doc file from disk and extracts its JIRA_ID, returning null if
+// the file doesn't exist or has no linked JIRA issue yet (still 'TBD'). Used to
+// resolve Epic Link / "contains" link targets without repeating the inline
+// read-then-extract idiom at every call site.
+export async function resolveParentJiraId(dir: string, filename: string): Promise<string | null> {
+  const filePath = path.join(dir, filename);
+  if (!fs.existsSync(filePath)) return null;
+  const content = await fs.promises.readFile(filePath, 'utf-8');
+  const jiraId = extractFrontmatterField(content, 'JIRA_ID');
+  return jiraId && jiraId !== 'TBD' ? jiraId : null;
 }
 
 export function createJiraService({
@@ -166,6 +251,12 @@ export function createJiraService({
     return all.slice(0, maxTotal);
   }
 
+  // O(n) disk-scan fallback. docIndex.findByJiraId is the primary, O(1) lookup
+  // path everywhere (docs stay in sync because docIndex.invalidate is called on
+  // every write); this is only meant to be reached as a last-resort safety net
+  // if the index is ever missing an entry it should have. Callers that use it
+  // as a fallback should log a warning when it fires so a docIndex bug doesn't
+  // go unnoticed.
   async function findLocalFileByJiraId(
     jiraId: string
   ): Promise<{ docType: string; filename: string } | null> {
