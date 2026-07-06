@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { assertDocType, assertFilename } from '../utils/routeHelpers.js';
+import { assertDocType, assertFilename, sendError, parseApiError } from '../utils/routeHelpers.js';
 import type { DocEntry, RouteContext } from '../types.js';
 
 export interface ExportRouteContext {
@@ -921,7 +921,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       if (fs.existsSync(CANVAS_LAYOUT_PATH))
         return JSON.parse(await fs.promises.readFile(CANVAS_LAYOUT_PATH, 'utf-8'));
     } catch {
-      /* no-op */
+      // Optional file — best-effort read; fall back to auto-layout if missing/corrupt.
     }
     return {};
   }
@@ -931,7 +931,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       if (fs.existsSync(PI_SETTINGS_PATH))
         return JSON.parse(await fs.promises.readFile(PI_SETTINGS_PATH, 'utf-8'));
     } catch {
-      /* no-op */
+      // Optional file — best-effort read; fall back to defaults if missing/corrupt.
     }
     return {};
   }
@@ -977,7 +977,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
                 content = await fs.promises.readFile(childPath, 'utf-8');
             }
           } catch {
-            /* no-op */
+            // Best-effort read of a child doc's content; card renders without a body if unreadable.
           }
           return {
             filename: c.filename,
@@ -1037,8 +1037,8 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(html);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      res.status(400).send(`Export failed: ${esc(msg)}`);
+      const apiErr = parseApiError(err, 'EXPORT_FAILED', 'Export failed');
+      sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
     }
   });
 
@@ -1161,7 +1161,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
               if (fs.existsSync(fp))
                 contentMap[d.filename] = await fs.promises.readFile(fp, 'utf-8');
             } catch {
-              /* no-op */
+              // Best-effort read of an issue's description; entry renders as "No description" if unreadable.
             }
           })
         );
@@ -1218,8 +1218,8 @@ ${MD_RENDER_SCRIPT}
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(html);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      res.status(500).send(`Export failed: ${esc(msg)}`);
+      const apiErr = parseApiError(err, 'EXPORT_FAILED', 'Export failed');
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
 
