@@ -1,7 +1,7 @@
 // ── ES Module entry point ────────────────────────────────────────
-import { fetchJSON, putJSON, debounce, toggleSection, store } from './state.js';
+import { fetchJSON, debounce, store } from './state.js';
 import type { DocEntry } from './state.js';
-import { on, upsertDoc, removeDoc, setPiSettings } from './store.js';
+import { on } from './store.js';
 import {
   loadDocs,
   loadPiSettings,
@@ -33,13 +33,9 @@ import {
 } from './list-filters.js';
 import './list-render.js';
 import {
-  saveStoryPoints,
   saveTitle,
   cancelTitleEdit,
-  updateDocSprint,
   updateDocStatus,
-  updateDocTeam,
-  updateDocWorkCategory,
   showList,
   confirmDelete,
   closeDeleteDialog,
@@ -47,18 +43,26 @@ import {
   toggleDropdown,
   closeDropdown,
   closeAllDropdowns,
-  toggleHierarchy,
   toggleOriginal,
   openDoc,
-  loadHierarchy,
+} from './detail.js';
+import {
+  saveStoryPoints,
+  updateDocSprint,
+  updateDocTeam,
+  updateDocWorkCategory,
   addDocComment,
   startCommentEdit,
   cancelCommentEdit,
   saveCommentEdit,
   deleteDocComment,
+} from './detail-fields.js';
+import {
+  toggleHierarchy,
+  loadHierarchy,
   linkExistingChildren,
   toggleHierarchyChild,
-} from './detail.js';
+} from './detail-links.js';
 import { toggleUpgradePanel, executeUpgrade } from './upgrade.js';
 import {
   saveDraft,
@@ -73,18 +77,18 @@ import {
   jiraSelectAll,
   jiraSelectCancel,
   jiraSelectConfirm,
-  syncPreviewSelectAll,
-  syncPreviewCancel,
-  syncPreviewConfirm,
-  pullFromJira,
-  pushToJira,
-  checkAllJira,
   searchJira,
   downloadSelected,
   pullByKey,
-  submitUpdateFromJiraKey,
   toggleJiraItem,
-} from './jira.js';
+} from './jira-import.js';
+import {
+  syncPreviewSelectAll,
+  syncPreviewCancel,
+  syncPreviewConfirm,
+  pushToJira,
+} from './jira-push.js';
+import { pullFromJira, checkAllJira, submitUpdateFromJiraKey } from './jira-pull.js';
 import {
   openBugModal,
   closeBugModal,
@@ -167,6 +171,14 @@ import {
   toggleRoadmapPanel,
   filterRoadmapEpics,
   focusEpic,
+  addDepLink,
+  addParallelLink,
+  removeDepLink,
+  closeDepModal,
+  closeSplitModal,
+  executeSplit,
+} from './roadmap.js';
+import {
   pushSprintsToJira,
   closeSprintPushModal,
   toggleSprintPushFilter,
@@ -182,19 +194,15 @@ import {
   pullSprintSelectAllItems,
   _pullSprintUpdateCount,
   confirmPullSprint,
-  addDepLink,
-  addParallelLink,
-  removeDepLink,
-  closeDepModal,
-  closeSplitModal,
-  executeSplit,
+} from './roadmap-jira-sync.js';
+import {
   handleEpicContextMenu,
   handleStoryContextMenu,
   rmCtxOpenEpic,
   rmCtxMoveEpic,
   rmCtxMoveStory,
   rmCtxSetSprint,
-} from './roadmap.js';
+} from './roadmap-context-menus.js';
 import {
   handleRoadmapCardClick,
   handleRoadmapEpicClick,
@@ -211,6 +219,14 @@ import {
   handleSkillSSE,
 } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
+import {
+  toggleModelSection,
+  loadModelSetting,
+  onProviderChange,
+  refreshProviders,
+  updateModelSetting,
+} from './provider-settings.js';
+import { _connectSSE } from './sse-client.js';
 import {
   loadBugsDashboard,
   refreshBugsDashboard,
@@ -442,11 +458,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
   }
 });
 
-// ── Model / Provider settings ─────────────────────────────────
-function toggleModelSection(): void {
-  toggleSection('model-section-body', 'model-chevron');
-}
-
+// ── App config & metadata ─────────────────────────────────────
 async function loadAppConfig(): Promise<void> {
   try {
     const cfg = (await fetchJSON('/api/config')) as { jiraBase?: string };
@@ -549,122 +561,6 @@ function _renderWorkCatFilterPills(cats: string[]): void {
   }
 }
 
-interface ProviderModel {
-  id: string;
-  name: string;
-}
-
-interface Provider {
-  id: string;
-  name: string;
-  models: ProviderModel[];
-}
-
-let _availableProviders: Provider[] = [];
-
-async function loadModelSetting(): Promise<void> {
-  try {
-    const [providersData, modelData] = await Promise.all([
-      fetchJSON('/api/settings/providers') as Promise<{ providers: Provider[] }>,
-      fetchJSON('/api/settings/model') as Promise<{ model: string; provider: string }>,
-    ]);
-    _availableProviders = (providersData as { providers: Provider[] }).providers || [];
-    const { model, provider } = modelData as { model: string; provider: string };
-    _renderProviderDropdown(provider || 'claude-cli');
-    _renderModelDropdown(provider || 'claude-cli', model || '');
-  } catch (e) {
-    console.warn('Failed to load model setting:', (e as Error).message);
-  }
-}
-
-function _renderProviderDropdown(selectedProvider: string): void {
-  const sel = document.getElementById('provider-select') as HTMLSelectElement | null;
-  if (!sel) return;
-  sel.innerHTML = '';
-  for (const p of _availableProviders) {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = p.name;
-    if (p.id === selectedProvider) opt.selected = true;
-    sel.appendChild(opt);
-  }
-}
-
-function _renderModelDropdown(providerId: string, selectedModel: string): void {
-  const sel = document.getElementById('model-select') as HTMLSelectElement | null;
-  if (!sel) return;
-  const provider = _availableProviders.find((p) => p.id === providerId);
-  sel.innerHTML = '';
-  if (!provider) return;
-  for (const m of provider.models) {
-    const opt = document.createElement('option');
-    opt.value = m.id;
-    opt.textContent = m.name;
-    if (m.id === selectedModel) opt.selected = true;
-    sel.appendChild(opt);
-  }
-}
-
-async function onProviderChange(providerId: string): Promise<void> {
-  _renderModelDropdown(providerId, '');
-  await _saveModelSetting(providerId, '');
-}
-
-async function refreshProviders(): Promise<void> {
-  const btn = document.getElementById('provider-refresh-btn') as HTMLButtonElement | null;
-  if (btn) btn.disabled = true;
-  try {
-    const data = (await fetchJSON('/api/settings/providers')) as { providers: Provider[] };
-    _availableProviders = data.providers || [];
-    const providerSel = document.getElementById('provider-select') as HTMLSelectElement | null;
-    const currentProvider = providerSel ? providerSel.value : 'claude-cli';
-    const modelSel = document.getElementById('model-select') as HTMLSelectElement | null;
-    const currentModel = modelSel ? modelSel.value : '';
-    _renderProviderDropdown(currentProvider);
-    _renderModelDropdown(currentProvider, currentModel);
-  } catch (e) {
-    console.warn('Failed to refresh providers:', (e as Error).message);
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-async function updateModelSetting(model: string): Promise<void> {
-  const providerSel = document.getElementById('provider-select') as HTMLSelectElement | null;
-  const providerId = providerSel ? providerSel.value : 'claude-cli';
-  await _saveModelSetting(providerId, model);
-}
-
-async function _saveModelSetting(provider: string, model: string): Promise<void> {
-  const statusEl = document.getElementById('model-status');
-  try {
-    await putJSON('/api/settings/model', { provider: provider || null, model: model || null });
-    if (statusEl) {
-      statusEl.className = 'model-status show success';
-      const pName = (_availableProviders.find((p) => p.id === provider) || { name: provider }).name;
-      statusEl.textContent = model ? `Using ${pName} / ${model}` : `Using ${pName} default`;
-      setTimeout(() => {
-        statusEl.className = 'model-status';
-      }, 3000);
-    }
-  } catch {
-    if (statusEl) {
-      statusEl.className = 'model-status show error';
-      statusEl.textContent = 'Failed to save';
-    }
-  }
-}
-
-// ── SSE payload type ──────────────────────────────────────────
-interface SSEPayload {
-  type?: string;
-  doc?: DocEntry;
-  filename?: string;
-  currentPi?: string | null;
-  nextPi?: string | null;
-  splitThreshold?: number;
-}
-
 // ── Store subscriptions ───────────────────────────────────────
 // Subscribe to domain event so any mutation (upsertDoc, removeDoc, setDocs,
 // or direct allDocs assignment via window) triggers applyFilters.
@@ -684,97 +580,6 @@ on('docs:changed', ({ docs }: { docs: DocEntry[] }) => applyFilters(docs));
 })();
 initDragDrop();
 updateSplitMode();
-
-const _loadDocsDebounced = debounce(loadDocs, 100);
-
-// ── SSE with exponential backoff reconnection ─────────────────
-let _sseRetryDelay = 1_000;
-const SSE_MAX_DELAY = 30_000;
-
-function _handleSSEMessage(payload: SSEPayload): void {
-  // Granular in-memory update when server includes the full DocEntry.
-  // Avoids a round-trip GET /api/docs for single-document operations.
-  // upsertDoc / removeDoc emit domain events that trigger subscribers.
-  if (payload.doc) {
-    upsertDoc(payload.doc);
-    return;
-  }
-
-  if (payload.type === 'doc_deleted' && payload.filename) {
-    removeDoc(payload.filename);
-    return;
-  }
-
-  if (
-    [
-      'feature_created',
-      'epic_created',
-      'story_created',
-      'spike_created',
-      'bug_created',
-      'status_updated',
-      'title_updated',
-      'doc_deleted',
-      'batch_deleted',
-      'batch_fix_version_updated',
-      'batch_field_updated',
-      'link_updated',
-    ].includes(payload.type ?? '')
-  ) {
-    _loadDocsDebounced();
-  }
-  if (payload.type === 'pi_settings_updated') {
-    setPiSettings({ currentPi: payload.currentPi ?? null, nextPi: payload.nextPi ?? null });
-    loadAllSprintConfigs().then(() => {
-      _loadDocsDebounced();
-      refreshRoadmapView();
-    });
-  }
-  if (payload.type === 'sprint_settings_updated') {
-    loadAllSprintConfigs().then(() => {
-      _loadDocsDebounced();
-      refreshRoadmapView();
-    });
-  }
-  if (payload.type === 'batch_sprint_updated') {
-    _loadDocsDebounced();
-    refreshRoadmapView();
-  }
-  if (payload.type === 'split_threshold_updated') {
-    splitThreshold = payload.splitThreshold ?? splitThreshold;
-    const el = document.getElementById('split-threshold-input') as HTMLInputElement | null;
-    if (el) el.value = String(splitThreshold);
-    refreshRoadmapView();
-  }
-  if (
-    payload.type === 'skill_updated' ||
-    payload.type === 'skill_reset' ||
-    payload.type === 'product_context_updated' ||
-    payload.type === 'product_context_reset'
-  ) {
-    handleSkillSSE(payload);
-  }
-}
-
-function _connectSSE(): void {
-  const es = new EventSource('/api/events');
-  es.onopen = () => {
-    _sseRetryDelay = 1_000;
-  };
-  es.onmessage = (e: MessageEvent) => {
-    try {
-      _handleSSEMessage(JSON.parse(e.data as string) as SSEPayload);
-    } catch (err) {
-      console.warn('SSE handler error:', (err as Error).message);
-    }
-  };
-  es.onerror = () => {
-    es.close();
-    const jitter = Math.random() * 500;
-    setTimeout(_connectSSE, Math.min(_sseRetryDelay + jitter, SSE_MAX_DELAY));
-    _sseRetryDelay = Math.min(_sseRetryDelay * 2, SSE_MAX_DELAY);
-  };
-}
 
 _connectSSE();
 

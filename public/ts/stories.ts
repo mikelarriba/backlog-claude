@@ -1,7 +1,7 @@
 // ── Stories: stream reset ──────────────────────────────────────
 import { streamSSE } from './state.js';
 import { loadDocs } from './list.js';
-import { loadHierarchy } from './detail.js';
+import { loadHierarchy } from './detail-links.js';
 import { buildCanvasGraph } from './refine-canvas.js';
 
 interface StoryFile {

@@ -1,7 +1,8 @@
 // ── Save Draft (no AI) ────────────────────────────────────────
 import { postJSON, setStatus, setBtnState, TYPE_LABEL, showJiraToast } from './state.js';
 import { loadDocs } from './list.js';
-import { openDoc, loadHierarchy } from './detail.js';
+import { openDoc } from './detail.js';
+import { loadHierarchy } from './detail-links.js';
 export async function saveDraft() {
   const title = document.getElementById('doc-title').value.trim();
   const idea = document.getElementById('idea').value.trim();
