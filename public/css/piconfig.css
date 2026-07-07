@@ -137,6 +137,108 @@
   font-style: italic;
 }
 
+/* ── JIRA sprint auto-suggestion banner (#352) ─────────────── */
+.pi-config-jira-banner:empty {
+  display: none;
+}
+.pi-config-jira-banner.show {
+  margin-bottom: 8px;
+}
+
+.pi-config-jira-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.pi-config-jira-banner-inner.info {
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent);
+  color: var(--text);
+}
+
+.pi-config-jira-banner-inner.success {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success-text);
+}
+
+.pi-config-jira-banner-inner.hint {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-style: italic;
+}
+
+.pi-config-jira-banner-text {
+  flex: 1;
+}
+
+.pi-config-jira-banner-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pi-config-jira-banner-btn {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition:
+    border-color 0.12s,
+    background 0.12s,
+    color 0.12s;
+}
+.pi-config-jira-banner-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+[data-theme='light'] .pi-config-jira-banner-btn:hover {
+  color: var(--accent);
+}
+
+.pi-config-jira-banner-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.pi-config-jira-banner-btn.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #fff;
+}
+
+.pi-config-jira-banner-dismiss {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--success-text);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.12s;
+}
+.pi-config-jira-banner-dismiss:hover {
+  opacity: 1;
+}
+
 /* Sprint rows */
 .pi-config-sprints {
   display: flex;

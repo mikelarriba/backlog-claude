@@ -145,20 +145,104 @@ export async function selectPiConfigTab(piName) {
 export async function loadSprintConfigForPi(piName) {
   try {
     const data = await fetchJSON(`/api/settings/pi/sprints/${encodeURIComponent(piName)}`);
-    const sprints =
-      data.sprints && data.sprints.length
-        ? data.sprints
-        : [
-            { name: 'Sprint 1', capacity: 40 },
-            { name: 'Sprint 2', capacity: 40 },
-            { name: 'Sprint 3', capacity: 40 },
-            { name: 'Sprint 4', capacity: 40 },
-          ];
+    const sprints = data.sprints || [];
     _setSprintsFor(piName, sprints);
     renderSprintRows(sprints);
+    if (sprints.length) {
+      hideJiraImportBanner();
+      return;
+    }
+    // No sprints configured for this PI — offer to auto-suggest them from the
+    // JIRA board (#352). This checks board-sprints eagerly (rather than only
+    // on an "Import" click) so the boardNotConfigured fallback can go straight
+    // to the static hint without a banner-then-skip round trip.
+    await offerJiraSprintImport(piName);
   } catch {
     renderSprintRows([]);
+    hideJiraImportBanner();
   }
+}
+// ── Sprint auto-suggestion from JIRA board (#352) ─────────────
+// Sprints found on the JIRA board, offered for import into the currently
+// empty grid. Cached from the eager board-sprints check so the "Import"
+// button click doesn't need to re-fetch.
+let _jiraImportCandidates = [];
+const JIRA_IMPORT_DEFAULT_CAPACITY = 70;
+function _jiraImportBannerEl() {
+  return document.getElementById('pi-config-jira-banner');
+}
+async function offerJiraSprintImport(piName) {
+  let boardData;
+  try {
+    boardData = await fetchJSON('/api/jira/board-sprints');
+  } catch {
+    boardData = null;
+  }
+  // The user may have switched PI tabs while this fetch was in flight.
+  if (_piConfigActivePi !== piName) return;
+  const candidates = boardData?.sprints || [];
+  if (!boardData || boardData.boardNotConfigured || !candidates.length) {
+    _jiraImportCandidates = [];
+    renderJiraImportHint();
+    return;
+  }
+  _jiraImportCandidates = candidates;
+  renderJiraImportOffer();
+}
+function renderJiraImportOffer() {
+  const el = _jiraImportBannerEl();
+  if (!el) return;
+  el.innerHTML = `
+    <div class="pi-config-jira-banner-inner info">
+      <span class="pi-config-jira-banner-text">No sprints configured for this PI. Import sprint names from JIRA?</span>
+      <div class="pi-config-jira-banner-actions">
+        <button class="pi-config-jira-banner-btn primary" onclick="confirmJiraSprintImport()">Import</button>
+        <button class="pi-config-jira-banner-btn" onclick="skipJiraSprintImport()">Skip</button>
+      </div>
+    </div>`;
+  el.classList.add('show');
+}
+function renderJiraImportConfirmation(count) {
+  const el = _jiraImportBannerEl();
+  if (!el) return;
+  el.innerHTML = `
+    <div class="pi-config-jira-banner-inner success">
+      <span class="pi-config-jira-banner-text">Found ${count} sprint${count !== 1 ? 's' : ''} — they will be added with default capacity (${JIRA_IMPORT_DEFAULT_CAPACITY} SP).</span>
+      <button class="pi-config-jira-banner-dismiss" onclick="dismissJiraImportBanner()" title="Dismiss" aria-label="Dismiss">&times;</button>
+    </div>`;
+  el.classList.add('show');
+}
+function renderJiraImportHint() {
+  const el = _jiraImportBannerEl();
+  if (!el) return;
+  el.innerHTML = `
+    <div class="pi-config-jira-banner-inner hint">
+      <span class="pi-config-jira-banner-text">Add sprints manually using the grid below.</span>
+    </div>`;
+  el.classList.add('show');
+}
+function hideJiraImportBanner() {
+  const el = _jiraImportBannerEl();
+  if (!el) return;
+  el.innerHTML = '';
+  el.classList.remove('show');
+}
+export function confirmJiraSprintImport() {
+  if (!_piConfigActivePi || !_jiraImportCandidates.length) return;
+  const count = _jiraImportCandidates.length;
+  for (const s of _jiraImportCandidates) {
+    addSprintRow(s.name, JIRA_IMPORT_DEFAULT_CAPACITY);
+  }
+  _jiraImportCandidates = [];
+  renderJiraImportConfirmation(count);
+}
+export function skipJiraSprintImport() {
+  _jiraImportCandidates = [];
+  renderJiraImportHint();
+}
+export function dismissJiraImportBanner() {
+  _jiraImportCandidates = [];
+  hideJiraImportBanner();
 }
 export function renderSprintRows(sprints) {
   const container = document.getElementById('pi-config-sprints');
@@ -182,11 +266,13 @@ export function renderSprintRows(sprints) {
     )
     .join('');
 }
-export function addSprintRow() {
+// name/capacity let callers pre-fill a row (e.g. JIRA sprint import, #352)
+// instead of always appending a blank "Sprint N" row.
+export function addSprintRow(name, capacity) {
   if (!_piConfigActivePi) return;
   const sprints = _sprintsFor(_piConfigActivePi);
   const nextNum = sprints.length + 1;
-  sprints.push({ name: `Sprint ${nextNum}`, capacity: 40 });
+  sprints.push({ name: name || `Sprint ${nextNum}`, capacity: capacity ?? 40 });
   _setSprintsFor(_piConfigActivePi, sprints);
   renderSprintRows(sprints);
 }
