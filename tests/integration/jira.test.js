@@ -116,6 +116,37 @@ describe('GET /api/jira/by-fix-version/:version — request validation', () => {
   });
 });
 
+// ── GET /api/jira/board-sprints — no token ───────────────────────────────────
+describe('GET /api/jira/board-sprints — no token configured', () => {
+  test('returns 503 when JIRA_API_TOKEN is not set', async () => {
+    const { status, data } = await api('GET', '/api/jira/board-sprints');
+    assert.equal(status, 503);
+    assert.equal(data.code, 'JIRA_NOT_CONFIGURED');
+  });
+});
+
+// ── GET /api/jira/board-sprints — no board configured ────────────────────────
+describe('GET /api/jira/board-sprints — no board configured', () => {
+  before(() => {
+    // Token present so the 503 guard is bypassed and the board-not-configured
+    // branch (a normal, expected 200 — not an error) is exercised instead.
+    // JIRA_BOARD_ID is never set anywhere in this test file/process, so it
+    // stays at its config default of '' for every test here.
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+  });
+
+  after(() => {
+    delete process.env.JIRA_API_TOKEN;
+  });
+
+  test('returns 200 with an empty sprints array and boardNotConfigured: true', async () => {
+    const { status, data } = await api('GET', '/api/jira/board-sprints');
+    assert.equal(status, 200);
+    assert.deepEqual(data.sprints, []);
+    assert.equal(data.boardNotConfigured, true);
+  });
+});
+
 // ── POST /api/jira/sync-status — no token ─────────────────────────────────────
 describe('POST /api/jira/sync-status — no token configured', () => {
   test('returns 503 when JIRA_API_TOKEN is not set', async () => {
