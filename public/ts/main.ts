@@ -158,6 +158,9 @@ import {
   renderPiConfigTabs,
   _updatePiFromConfig,
   syncPiFromJira,
+  confirmJiraSprintImport,
+  skipJiraSprintImport,
+  dismissJiraImportBanner,
 } from './piconfig.js';
 import {
   openDistributionModal,
@@ -748,6 +751,9 @@ const _globals: Record<string, unknown> = {
   saveSplitThreshold,
   _updatePiFromConfig,
   syncPiFromJira,
+  confirmJiraSprintImport,
+  skipJiraSprintImport,
+  dismissJiraImportBanner,
   // distribution.js
   openDistributionModal,
   closeDistributionModal,
