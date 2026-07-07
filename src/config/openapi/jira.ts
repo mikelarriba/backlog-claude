@@ -35,6 +35,17 @@ export function registerJiraPaths(registry: OpenAPIRegistry): void {
 
   registry.registerPath({
     method: 'get',
+    path: '/jira/by-fix-version/{version}',
+    tags: ['Jira'],
+    summary: 'Find Jira issues by fix version, including ones not yet imported locally',
+    request: {
+      params: z.object({ version: z.string().openapi({ description: 'Jira fix version name' }) }),
+    },
+    responses: { ...ok('Issues for the fix version'), ...errorResponses },
+  });
+
+  registry.registerPath({
+    method: 'get',
     path: '/jira/children/{key}',
     tags: ['Jira'],
     summary: 'Get child issues of a Jira issue',
