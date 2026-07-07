@@ -22,7 +22,7 @@ const SP_HEIGHTS: Record<number, number> = {
   13: 132,
   21: 160,
 };
-function spCardHeight(sp: number): number {
+export function spCardHeight(sp: number): number {
   const n = Number(sp) || 0;
   const keys = Object.keys(SP_HEIGHTS).map(Number);
   const closest = keys.reduce((p, c) => (Math.abs(c - n) < Math.abs(p - n) ? c : p));

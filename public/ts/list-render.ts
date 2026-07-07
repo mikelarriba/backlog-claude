@@ -29,7 +29,9 @@ export function _rankSortFn(a: DocEntry, b: DocEntry): number {
   return b.filename.localeCompare(a.filename); // default: date-desc
 }
 
-export function computeRankPositions(docs: DocEntry[]): void {
+export function computeRankPositions(
+  docs: DocEntry[]
+): Map<string, { index: number; total: number }> {
   _rankPositions.clear();
   const byType: Record<string, DocEntry[]> = {};
   for (const d of docs) {
@@ -40,6 +42,7 @@ export function computeRankPositions(docs: DocEntry[]): void {
     const sorted = [...group].sort(_rankSortFn);
     sorted.forEach((d, i) => _rankPositions.set(d.filename, { index: i, total: sorted.length }));
   }
+  return _rankPositions;
 }
 
 interface TreeOrderEntry {
@@ -47,7 +50,10 @@ interface TreeOrderEntry {
   indent: number;
 }
 
-export function buildTreeOrder(docs: DocEntry[]): {
+export function buildTreeOrder(
+  docs: DocEntry[],
+  collapsed: Set<string> = _collapsedItems
+): {
   ordered: TreeOrderEntry[];
   childrenMap: Map<string, DocEntry[]>;
 } {
@@ -61,7 +67,7 @@ export function buildTreeOrder(docs: DocEntry[]): {
     if (placed.has(key(doc))) return;
     placed.add(key(doc));
     ordered.push({ doc, indent });
-    if (_collapsedItems.has(doc.filename)) return; // skip children when collapsed
+    if (collapsed.has(doc.filename)) return; // skip children when collapsed
     const children = childrenMap.get(doc.filename) || [];
     children.forEach((child) => place(child, indent + 1));
   }
@@ -80,7 +86,10 @@ export function buildTreeOrder(docs: DocEntry[]): {
 }
 
 // ── Swimlane rendering ────────────────────────────────────────
-export function categorizeDocs(docs: DocEntry[]): {
+export function categorizeDocs(
+  docs: DocEntry[],
+  pi: { currentPi: string | null; nextPi: string | null } = piSettings
+): {
   currentPi: DocEntry[];
   nextPi: DocEntry[];
   backlog: DocEntry[];
@@ -90,9 +99,9 @@ export function categorizeDocs(docs: DocEntry[]): {
   const backlog: DocEntry[] = [];
 
   for (const d of docs) {
-    if (d.fixVersion && piSettings.currentPi && d.fixVersion === piSettings.currentPi) {
+    if (d.fixVersion && pi.currentPi && d.fixVersion === pi.currentPi) {
       currentPi.push(d);
-    } else if (d.fixVersion && piSettings.nextPi && d.fixVersion === piSettings.nextPi) {
+    } else if (d.fixVersion && pi.nextPi && d.fixVersion === pi.nextPi) {
       nextPi.push(d);
     } else {
       backlog.push(d);

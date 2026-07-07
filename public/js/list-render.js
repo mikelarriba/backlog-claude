@@ -20,8 +20,9 @@ export function computeRankPositions(docs) {
     const sorted = [...group].sort(_rankSortFn);
     sorted.forEach((d, i) => _rankPositions.set(d.filename, { index: i, total: sorted.length }));
   }
+  return _rankPositions;
 }
-export function buildTreeOrder(docs) {
+export function buildTreeOrder(docs, collapsed = _collapsedItems) {
   const key = (d) => `${d.docType}:${d.filename}`;
   const byFilename = new Map(docs.map((d) => [d.filename, d]));
   const childrenMap = buildChildrenMap(docs);
@@ -31,7 +32,7 @@ export function buildTreeOrder(docs) {
     if (placed.has(key(doc))) return;
     placed.add(key(doc));
     ordered.push({ doc, indent });
-    if (_collapsedItems.has(doc.filename)) return; // skip children when collapsed
+    if (collapsed.has(doc.filename)) return; // skip children when collapsed
     const children = childrenMap.get(doc.filename) || [];
     children.forEach((child) => place(child, indent + 1));
   }
@@ -47,14 +48,14 @@ export function buildTreeOrder(docs) {
   return { ordered, childrenMap };
 }
 // ── Swimlane rendering ────────────────────────────────────────
-export function categorizeDocs(docs) {
+export function categorizeDocs(docs, pi = piSettings) {
   const currentPi = [];
   const nextPi = [];
   const backlog = [];
   for (const d of docs) {
-    if (d.fixVersion && piSettings.currentPi && d.fixVersion === piSettings.currentPi) {
+    if (d.fixVersion && pi.currentPi && d.fixVersion === pi.currentPi) {
       currentPi.push(d);
-    } else if (d.fixVersion && piSettings.nextPi && d.fixVersion === piSettings.nextPi) {
+    } else if (d.fixVersion && pi.nextPi && d.fixVersion === pi.nextPi) {
       nextPi.push(d);
     } else {
       backlog.push(d);
