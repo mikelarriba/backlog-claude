@@ -490,7 +490,7 @@
   transition: width 0.3s ease;
 }
 .roadmap-capacity-bar.warn .roadmap-capacity-fill {
-  background: #f59e0b;
+  background: var(--warning);
 }
 .roadmap-capacity-bar.over .roadmap-capacity-fill {
   background: var(--error-text);
@@ -613,11 +613,11 @@
 .rm-badge.rm-priority-critical,
 .rm-badge.rm-priority-major {
   background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  color: var(--error, #ef4444);
 }
 .rm-badge.rm-priority-high {
   background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  color: var(--warning);
 }
 .rm-badge.rm-priority-medium {
   background: var(--surface2);
@@ -639,7 +639,7 @@
 
 .rm-badge.rm-no-sp {
   background: rgba(245, 158, 11, 0.12);
-  color: #f59e0b;
+  color: var(--warning);
   font-style: italic;
 }
 
@@ -832,7 +832,7 @@
 }
 .dep-blocked {
   background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  color: var(--error, #ef4444);
 }
 .dep-blocks {
   background: rgba(59, 130, 246, 0.12);
@@ -977,7 +977,7 @@
 /* Unestimated cards — dashed border to flag missing story points */
 .roadmap-card.rm-no-estimate {
   border-style: dashed;
-  border-color: #f59e0b;
+  border-color: var(--warning);
 }
 
 /* ── In-column drag zones ───────────────────────────────────── */
@@ -1296,7 +1296,7 @@
 }
 .sprint-push-badge-remove {
   background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  color: var(--error, #ef4444);
 }
 
 /* Sprint selector step */

@@ -579,8 +579,8 @@
 
 .btn-toolbar-danger {
   color: #fff;
-  background: #dc2626;
-  border-color: #dc2626;
+  background: var(--error);
+  border-color: var(--error);
   border-radius: 6px;
 }
 .btn-toolbar-danger:hover:not(:disabled) {
@@ -1188,5 +1188,5 @@
 }
 
 .danger-text {
-  color: var(--danger, #ef4444);
+  color: var(--error);
 }

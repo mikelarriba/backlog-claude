@@ -93,7 +93,7 @@
   transition: width 0.3s ease;
 }
 .distribution-capacity-bar.warn .distribution-capacity-fill {
-  background: #f59e0b;
+  background: var(--warning);
 }
 .distribution-capacity-bar.over .distribution-capacity-fill {
   background: var(--error-text);
@@ -198,11 +198,11 @@
 .dist-badge.priority-critical,
 .dist-badge.priority-major {
   background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  color: var(--error);
 }
 .dist-badge.priority-high {
   background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  color: var(--warning);
 }
 .dist-badge.priority-medium {
   background: var(--surface2);
@@ -224,7 +224,7 @@
 
 .dist-badge.no-sp {
   background: rgba(245, 158, 11, 0.12);
-  color: #f59e0b;
+  color: var(--warning);
   font-style: italic;
 }
 
@@ -278,7 +278,7 @@
 .distribution-msg.warning {
   background: rgba(245, 158, 11, 0.1);
   border: 1px solid rgba(245, 158, 11, 0.25);
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .distribution-msg.suggestion {
