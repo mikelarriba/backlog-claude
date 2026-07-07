@@ -41,6 +41,48 @@
   border-color: var(--accent);
 }
 
+/* "↓ Sync from JIRA" — imports new issues for the PI's fix version */
+.btn-pi-sync-jira {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: -2px;
+  margin-bottom: 4px;
+  transition:
+    border-color 0.12s,
+    color 0.12s,
+    background 0.12s,
+    opacity 0.12s;
+}
+.btn-pi-sync-jira:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+  background: var(--accent-subtle);
+}
+[data-theme='light'] .btn-pi-sync-jira:hover:not(:disabled) {
+  color: var(--accent);
+}
+.btn-pi-sync-jira:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-pi-sync-jira .spinner {
+  width: 11px;
+  height: 11px;
+  border-width: 2px;
+}
+
 .pi-config-tab-bar {
   display: flex;
   gap: 4px;

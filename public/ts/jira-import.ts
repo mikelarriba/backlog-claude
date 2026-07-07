@@ -19,7 +19,12 @@ let _jiraSelectItems: JiraSelectItem[] = [];
 export function showJiraSelectModal(
   title: string,
   items: JiraSelectItem[],
-  confirmLabel?: string
+  confirmLabel?: string,
+  // Callers that only want to *import new* issues (e.g. the PI Config "Sync from
+  // JIRA" flow) pass a label here so already-local items render as informational
+  // (unchecked, distinct badge) instead of the default "select to update" behavior
+  // used by the conflict/children-download flows below.
+  localExistsLabel?: string
 ): Promise<JiraSelectItem[]> {
   return new Promise(function (resolve) {
     _jiraSelectResolve = resolve;
@@ -42,11 +47,18 @@ export function showJiraSelectModal(
             '</span>'
           : '';
         const localHtml = item.localExists
-          ? '<span class="jira-badge local-update">↺ Update</span>'
+          ? '<span class="jira-badge local-update">' +
+            escHtml(localExistsLabel || '↺ Update') +
+            '</span>'
           : '<span class="jira-badge local-new">+ New</span>';
+        // Default-check everything, except already-local items in "new issues
+        // only" mode (localExistsLabel set) — those are informational by default.
+        const preChecked = !(item.localExists && localExistsLabel);
         return (
           '<label class="jira-select-item">' +
-          '<input type="checkbox" checked data-idx="' +
+          '<input type="checkbox" ' +
+          (preChecked ? 'checked ' : '') +
+          'data-idx="' +
           i +
           '" />' +
           '<div class="jira-select-item-body">' +
