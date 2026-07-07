@@ -15,7 +15,7 @@ import {
   SECTION_LABELS,
 } from './state.js';
 import type { DocEntry } from './state.js';
-import { loadHierarchy } from './detail.js';
+import { loadHierarchy } from './detail-links.js';
 import { clearSelection, itemKey, getSelectedDocs, applyFilters } from './list-filters.js';
 import { _rankSortFn } from './list-render.js';
 
