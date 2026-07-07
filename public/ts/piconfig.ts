@@ -1,6 +1,7 @@
 // ── PI Sprint Configuration ────────────────────────────────────
-import { fetchJSON, putJSON, escHtml, toggleSection } from './state.js';
+import { fetchJSON, putJSON, escHtml, toggleSection, showJiraToast } from './state.js';
 import { refreshRoadmapView } from './roadmap.js';
+import { showJiraSelectModal, performJiraPull } from './jira-import.js';
 import type { PISettings } from './state.js';
 
 // _piConfigActivePi is a store-backed global in state.js (referenced from HTML onclick)
@@ -31,6 +32,25 @@ interface SprintsResponse {
 interface SplitThresholdResponse {
   splitThreshold?: number;
 }
+
+// Response shape of GET /api/jira/by-fix-version/:version (see #349)
+interface JiraByFixVersionIssue {
+  key: string;
+  summary: string;
+  issuetype: string;
+  status: string;
+  priority: string;
+  localExists: boolean;
+  localFilename: string | null;
+}
+
+interface JiraByFixVersionResponse {
+  fixVersion: string;
+  total: number;
+  issues: JiraByFixVersionIssue[];
+}
+
+type PiSectionKey = 'currentPi' | 'nextPi';
 
 function _sprintsFor(piName: string): Sprint[] {
   const cfg = sprintConfig as unknown as Record<string, Sprint[]>;
@@ -74,6 +94,9 @@ export function renderPiConfigTabs(): void {
         )}
       </select>
     </div>
+    <button class="btn-pi-sync-jira" id="pi-config-sync-btn-currentPi" onclick="syncPiFromJira('currentPi')">
+      <span class="pi-config-sync-btn-label">↓ Sync from JIRA</span>
+    </button>
     <div class="pi-config-version-row">
       <label class="pi-config-version-label">Next PI</label>
       <select class="pi-config-version-select" onchange="_updatePiFromConfig('nextPi', this.value)">
@@ -84,6 +107,9 @@ export function renderPiConfigTabs(): void {
         )}
       </select>
     </div>
+    <button class="btn-pi-sync-jira" id="pi-config-sync-btn-nextPi" onclick="syncPiFromJira('nextPi')">
+      <span class="pi-config-sync-btn-label">↓ Sync from JIRA</span>
+    </button>
     <div class="pi-config-tab-bar">${_renderPiTabButtons()}</div>`;
 
   const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
@@ -122,6 +148,69 @@ export async function _updatePiFromConfig(sectionKey: string, versionName: strin
     refreshRoadmapView();
   } catch (e) {
     setPiConfigStatus('error', 'Failed to update PI: ' + (e as Error).message);
+  }
+}
+
+// ── Sync PI from JIRA ────────────────────────────────────────
+// Imports JIRA issues for the PI's fix version that don't exist locally yet.
+// Distinct from the "Check JIRA" button (jira-pull.ts), which only refreshes
+// issues that already have a local file.
+export async function syncPiFromJira(sectionKey: PiSectionKey): Promise<void> {
+  const versionName = sectionKey === 'currentPi' ? piSettings.currentPi : piSettings.nextPi;
+  if (!versionName) {
+    showJiraToast('error', 'Select a fix version for this PI before syncing from JIRA.');
+    return;
+  }
+
+  const btn = document.getElementById(
+    `pi-config-sync-btn-${sectionKey}`
+  ) as HTMLButtonElement | null;
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML =
+      '<span class="spinner"></span><span class="pi-config-sync-btn-label">Syncing…</span>';
+  }
+
+  try {
+    const data = (await fetchJSON(
+      `/api/jira/by-fix-version/${encodeURIComponent(versionName)}`
+    )) as JiraByFixVersionResponse;
+
+    const issues = data.issues || [];
+    if (!issues.length) {
+      showJiraToast('success', `No JIRA issues found for fix version "${versionName}".`);
+      return;
+    }
+
+    const items = issues.map((issue) => ({
+      key: issue.key,
+      summary: issue.summary,
+      type: issue.issuetype,
+      localExists: issue.localExists,
+    }));
+
+    const selected = await showJiraSelectModal(
+      `${issues.length} JIRA issue(s) for fix version "${versionName}"`,
+      items,
+      'Import selected',
+      '✓ Already imported'
+    );
+
+    if (!selected.length) return;
+
+    const newKeys = selected.filter((s) => !s.localExists).map((s) => s.key!);
+    const overwriteKeys = selected.filter((s) => s.localExists).map((s) => s.key!);
+
+    await performJiraPull([...newKeys, ...overwriteKeys], overwriteKeys, []);
+    showJiraToast('success', `Synced ${selected.length} issue(s) from JIRA for "${versionName}".`);
+  } catch (e) {
+    showJiraToast('error', (e as Error).message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
   }
 }
 

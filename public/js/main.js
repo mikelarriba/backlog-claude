@@ -156,6 +156,7 @@ import {
   loadAllSprintConfigs,
   renderPiConfigTabs,
   _updatePiFromConfig,
+  syncPiFromJira,
 } from './piconfig.js';
 import {
   openDistributionModal,
@@ -687,6 +688,7 @@ const _globals = {
   saveSprintConfig,
   saveSplitThreshold,
   _updatePiFromConfig,
+  syncPiFromJira,
   // distribution.js
   openDistributionModal,
   closeDistributionModal,
