@@ -111,11 +111,11 @@
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18);
 }
 .readiness-dot.ready-amber {
-  background: #f59e0b;
+  background: var(--warning);
   box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.18);
 }
 .readiness-dot.ready-red {
-  background: #ef4444;
+  background: var(--error);
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18);
 }
 .epic-item:hover .readiness-dot {
@@ -477,7 +477,7 @@
   border-left-color: #fca5a5;
 }
 .epic-item.dep-cascade:hover {
-  border-left-color: #ef4444;
+  border-left-color: var(--error);
 }
 
 /* ── Dep hover highlight (list + roadmap) ────────────────────── */
@@ -498,7 +498,7 @@
   overflow: visible;
 }
 .dep-connector-line {
-  stroke: #ef4444;
+  stroke: var(--error);
   stroke-width: 1.5;
   stroke-dasharray: 5 3;
   opacity: 0.65;

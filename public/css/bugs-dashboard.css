@@ -185,7 +185,7 @@
 
 .bugs-status-open {
   background: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
+  color: var(--error);
 }
 
 .bugs-status-in-progress {
@@ -215,11 +215,11 @@
 
 /* Priority colors */
 .bugs-priority-critical {
-  color: #dc2626;
+  color: var(--error);
   font-weight: 600;
 }
 .bugs-priority-high {
-  color: #f59e0b;
+  color: var(--warning);
 }
 .bugs-priority-medium {
   color: var(--text-muted);
@@ -349,7 +349,7 @@
 .bugs-error-title {
   font-weight: 600;
   font-size: 0.85rem;
-  color: #dc2626;
+  color: var(--error);
   margin-bottom: 4px;
 }
 
@@ -372,7 +372,7 @@
 }
 
 .bugs-error {
-  color: #dc2626;
+  color: var(--error);
   text-align: center;
   padding: 24px;
   font-size: 0.85rem;

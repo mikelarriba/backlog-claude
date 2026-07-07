@@ -539,7 +539,7 @@
 }
 
 .sync-preview-item--delete {
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid var(--error);
 }
 
 .sync-preview-item-title {

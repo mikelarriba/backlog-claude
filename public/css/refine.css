@@ -534,7 +534,7 @@
 .canvas-card.no-estimate,
 .fp-card.no-estimate {
   border-style: dashed;
-  border-color: #f59e0b;
+  border-color: var(--warning, #f59e0b);
 }
 
 /* ── SVG edge labels ─────────────────────────────────────────── */
@@ -545,7 +545,7 @@
 }
 
 .canvas-edge-label--blocks {
-  fill: #ef4444;
+  fill: var(--error, #ef4444);
   font-weight: 600;
 }
 
@@ -632,11 +632,15 @@
 }
 
 .canvas-link-popup-danger {
-  color: #ef4444 !important;
-  border-color: #ef444440 !important;
+  color: var(--error, #ef4444) !important;
+  /* Alpha-channel exception: encodes transparency (~25%), not just the base
+     color, so it's expressed as a color-mix() of the token rather than a
+     bare var() reference. */
+  border-color: color-mix(in srgb, var(--error, #ef4444) 25%, transparent) !important;
 }
 .canvas-link-popup-danger:hover {
-  background: #ef444412 !important;
+  /* Alpha-channel exception: ~7% transparency, see border-color above. */
+  background: color-mix(in srgb, var(--error, #ef4444) 7%, transparent) !important;
 }
 
 /* ── Refine panel dependency section ─────────────────────────── */
