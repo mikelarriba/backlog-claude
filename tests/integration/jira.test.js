@@ -86,6 +86,36 @@ describe('GET /api/jira/children/:key — no token configured', () => {
   });
 });
 
+// ── GET /api/jira/by-fix-version/:version — no token ─────────────────────────
+describe('GET /api/jira/by-fix-version/:version — no token configured', () => {
+  test('returns 503 when JIRA_API_TOKEN is not set', async () => {
+    const { status, data } = await api(
+      'GET',
+      `/api/jira/by-fix-version/${encodeURIComponent('Digi PI2026.2')}`
+    );
+    assert.equal(status, 503);
+    assert.equal(data.code, 'JIRA_NOT_CONFIGURED');
+  });
+});
+
+// ── GET /api/jira/by-fix-version/:version — request validation ───────────────
+describe('GET /api/jira/by-fix-version/:version — request validation', () => {
+  before(() => {
+    // Token must be present so the 400 check (not the 503 guard) is exercised.
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+  });
+
+  after(() => {
+    delete process.env.JIRA_API_TOKEN;
+  });
+
+  test('returns 400 for a blank version param', async () => {
+    const { status, data } = await api('GET', '/api/jira/by-fix-version/%20');
+    assert.equal(status, 400);
+    assert.equal(data.code, 'INVALID_VERSION');
+  });
+});
+
 // ── POST /api/jira/sync-status — no token ─────────────────────────────────────
 describe('POST /api/jira/sync-status — no token configured', () => {
   test('returns 503 when JIRA_API_TOKEN is not set', async () => {
@@ -243,6 +273,129 @@ describe('GET /api/jira/children/:key — happy path (JIRA fetch mocked)', () =>
     assert.ok(Array.isArray(data.children));
     assert.ok(data.children.some((c) => c.key === 'EAMDM-42'));
     assert.equal(data.children.find((c) => c.key === 'EAMDM-42').summary, 'Child story');
+  });
+});
+
+// ── GET /api/jira/by-fix-version/:version — happy path (JIRA fetch mocked) ──
+describe('GET /api/jira/by-fix-version/:version — happy path (JIRA fetch mocked)', () => {
+  let existingFilename;
+  const originalFetch = globalThis.fetch;
+
+  before(async () => {
+    // Create a local epic and give it a real JIRA_ID via the push flow (rather
+    // than writing frontmatter straight to disk) so docIndex — which is only
+    // ever updated through docIndex.invalidate on API writes — actually knows
+    // about it. That lets findByJiraId('EAMDM-9000') resolve for real below.
+    const { data: doc } = await api('POST', '/api/generate', {
+      idea: 'Existing epic already imported for a fix version',
+      type: 'epic',
+    });
+    existingFilename = doc.filename;
+
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      if (typeof url === 'string' && url.includes('/rest/api/')) {
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ key: 'EAMDM-9000', id: '9000' }),
+          text: async () => JSON.stringify({ key: 'EAMDM-9000' }),
+        };
+      }
+      return originalFetch(url, opts);
+    });
+    await api('POST', `/api/jira/push/epic/${encodeURIComponent(existingFilename)}`);
+    mock.restoreAll();
+
+    // Stub JIRA's paged search endpoint: page 1 is a full 100-issue page
+    // (including the already-imported EAMDM-9000) so jiraPagedRequest is
+    // forced to fetch a second, short page before it stops.
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      if (typeof url === 'string' && url.includes('/rest/api/2/search')) {
+        const startAt = Number(new URL(url).searchParams.get('startAt'));
+        if (startAt === 0) {
+          const issues = Array.from({ length: 100 }, (_, i) => ({
+            key: i === 0 ? 'EAMDM-9000' : `EAMDM-9${String(100 + i).padStart(3, '0')}`,
+            fields: {
+              summary: i === 0 ? 'Already imported epic' : `Issue ${i}`,
+              issuetype: { name: 'Story' },
+              status: { name: 'To Do' },
+              priority: { name: 'Medium' },
+            },
+          }));
+          const body = { issues, total: 101 };
+          return {
+            ok: true,
+            status: 200,
+            json: async () => body,
+            text: async () => JSON.stringify(body),
+          };
+        }
+        const body = {
+          issues: [
+            {
+              key: 'EAMDM-9423',
+              fields: {
+                summary: 'Support Structured Lists',
+                issuetype: { name: 'Epic' },
+                status: { name: 'In Progress' },
+                priority: { name: 'Major' },
+              },
+            },
+          ],
+          total: 101,
+        };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => body,
+          text: async () => JSON.stringify(body),
+        };
+      }
+      return originalFetch(url, opts);
+    });
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+  });
+
+  test('collapses multiple JIRA pages into one response with matching total', async () => {
+    const { status, data } = await api(
+      'GET',
+      `/api/jira/by-fix-version/${encodeURIComponent('Digi PI2026.2')}`
+    );
+    assert.equal(status, 200);
+    assert.equal(data.fixVersion, 'Digi PI2026.2');
+    assert.equal(data.total, 101);
+    assert.equal(data.issues.length, 101);
+  });
+
+  test('flags an issue with a local file as localExists: true', async () => {
+    const { data } = await api(
+      'GET',
+      `/api/jira/by-fix-version/${encodeURIComponent('Digi PI2026.2')}`
+    );
+    const existingIssue = data.issues.find((i) => i.key === 'EAMDM-9000');
+    assert.ok(existingIssue);
+    assert.equal(existingIssue.localExists, true);
+    assert.equal(existingIssue.localFilename, existingFilename);
+  });
+
+  test('flags an issue with no local file as localExists: false', async () => {
+    const { data } = await api(
+      'GET',
+      `/api/jira/by-fix-version/${encodeURIComponent('Digi PI2026.2')}`
+    );
+    const newIssue = data.issues.find((i) => i.key === 'EAMDM-9423');
+    assert.ok(newIssue);
+    assert.equal(newIssue.localExists, false);
+    assert.equal(newIssue.localFilename, null);
+    assert.equal(newIssue.summary, 'Support Structured Lists');
+    assert.equal(newIssue.issuetype, 'Epic');
+    assert.equal(newIssue.status, 'In Progress');
+    assert.equal(newIssue.priority, 'Major');
   });
 });
 

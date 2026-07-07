@@ -150,6 +150,63 @@ export default function jiraSearchRoutes({
     }
   });
 
+  // ── GET /api/jira/by-fix-version/:version ───────────────────────────────────
+  // Discovers JIRA issues for a fix version that may not exist locally yet —
+  // distinct from the "Check JIRA" sync flow, which only refreshes issues that
+  // already have a local file. Backend foundation for the future "Sync PI from
+  // JIRA" button (#350); Done issues are intentionally included so the user can
+  // decide whether to import them.
+  router.get('/api/jira/by-fix-version/:version', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN)
+      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+    const version = String(req.params.version || '').trim();
+    if (!version) {
+      return sendError(res, 400, 'INVALID_VERSION', 'Fix version must not be blank');
+    }
+
+    try {
+      const jql = `fixVersion = "${version.replace(/"/g, '')}" AND project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} ORDER BY issuetype ASC`;
+      const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`;
+      type JiraByFixVersionIssue = {
+        key: string;
+        fields: Record<string, unknown> & {
+          summary?: string;
+          issuetype?: { name?: string };
+          status?: { name?: string };
+          priority?: { name?: string };
+        };
+      };
+      const rawIssues = (await jiraPagedRequest(jql, fields, {
+        maxResults: 100,
+        maxTotal: 500,
+      })) as JiraByFixVersionIssue[];
+
+      const issues = rawIssues.map((issue) => {
+        const existing = docIndex.findByJiraId(issue.key);
+        return {
+          key: issue.key,
+          summary: String(issue.fields.summary || ''),
+          issuetype: issue.fields.issuetype?.name || '',
+          status: issue.fields.status?.name || '',
+          priority: issue.fields.priority?.name || '',
+          localExists: !!existing,
+          localFilename: existing?.filename || null,
+        };
+      });
+
+      res.json({ fixVersion: version, total: rawIssues.length, issues });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError(
+        'GET /api/jira/by-fix-version/:version',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
   // ── GET /api/jira/children/:key ─────────────────────────────────────────────
   router.get('/api/jira/children/:key', async (req, res) => {
     if (!process.env.JIRA_API_TOKEN)
