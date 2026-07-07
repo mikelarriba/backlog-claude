@@ -10,7 +10,7 @@ import {
   normalizeType,
 } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
-import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
+import { LOCAL_TO_JIRA_TYPE, fetchBoardSprints } from '../services/jiraService.js';
 import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 import type { JiraRouteContext } from '../types.js';
 
@@ -18,11 +18,13 @@ export default function jiraSearchRoutes({
   TYPE_CONFIG,
   JIRA_PROJECT,
   JIRA_LABEL,
+  JIRA_BOARD_ID,
   FIELD_EPIC_NAME,
   FIELD_EPIC_LINK,
   FIELD_STORY_POINTS,
   jiraRequest,
   jiraPagedRequest,
+  jiraAgileRequest,
   findLocalFileByJiraId,
   jiraIssueToMarkdown,
   broadcast,
@@ -200,6 +202,41 @@ export default function jiraSearchRoutes({
       const apiErr = parseApiError(err);
       logError(
         'GET /api/jira/by-fix-version/:version',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── GET /api/jira/board-sprints ─────────────────────────────────────────────
+  // Exposes the JIRA board's active/future sprints (full objects, not just the
+  // name→id map ensureSprintCache keeps for jira-push-sprints) so the frontend
+  // can auto-suggest sprint names when a PI has no sprints configured (#352).
+  router.get('/api/jira/board-sprints', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN)
+      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+    // Unlike the missing-token case, a missing board is an expected, normal
+    // state the frontend should handle gracefully — so 200, not 503/400.
+    if (!JIRA_BOARD_ID) {
+      return res.json({ sprints: [], boardNotConfigured: true });
+    }
+
+    try {
+      const rawSprints = await fetchBoardSprints(jiraAgileRequest, JIRA_BOARD_ID);
+      const sprints = rawSprints.map((s) => ({
+        id: s.id,
+        name: s.name,
+        state: s.state,
+        startDate: s.startDate,
+        endDate: s.endDate,
+      }));
+      res.json({ sprints });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError(
+        'GET /api/jira/board-sprints',
         apiErr.message,
         apiErr.details as Record<string, unknown> | undefined
       );

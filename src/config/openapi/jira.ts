@@ -46,6 +46,14 @@ export function registerJiraPaths(registry: OpenAPIRegistry): void {
 
   registry.registerPath({
     method: 'get',
+    path: '/jira/board-sprints',
+    tags: ['Jira'],
+    summary: 'List active/future sprints on the configured Jira board',
+    responses: { ...ok('Board sprints'), ...errorResponses },
+  });
+
+  registry.registerPath({
+    method: 'get',
     path: '/jira/children/{key}',
     tags: ['Jira'],
     summary: 'Get child issues of a Jira issue',

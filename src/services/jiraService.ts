@@ -53,6 +53,41 @@ export interface JiraServiceInstance {
 // disagreeing copies.
 let _sprintCache: { map: Map<string, number>; fetchedAt: number } | null = null;
 
+export interface JiraBoardSprint {
+  id: number;
+  name: string;
+  state?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+// Fetches the full, paginated list of active+future sprints for a board. This
+// is the shared pagination loop behind both ensureSprintCache (which reduces
+// it to a name→id Map for jira-push-sprints' lookup needs) and the
+// GET /api/jira/board-sprints endpoint (which needs the full sprint objects —
+// id, name, state, startDate, endDate — for frontend auto-suggest). Not cached
+// itself; ensureSprintCache layers its own TTL cache on top for its
+// high-frequency caller.
+export async function fetchBoardSprints(
+  jiraAgileRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>,
+  boardId: string
+): Promise<JiraBoardSprint[]> {
+  const sprints: JiraBoardSprint[] = [];
+  let startAt = 0;
+  const maxResults = 50;
+  while (true) {
+    const data = (await jiraAgileRequest(
+      'GET',
+      `/board/${boardId}/sprint?state=active,future&maxResults=${maxResults}&startAt=${startAt}`
+    )) as Record<string, unknown>;
+    const page = (data.values as JiraBoardSprint[]) || [];
+    sprints.push(...page);
+    if (data.isLast !== false || page.length < maxResults) break;
+    startAt += page.length;
+  }
+  return sprints;
+}
+
 export async function ensureSprintCache(
   jiraAgileRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>,
   boardId: string,
@@ -61,20 +96,10 @@ export async function ensureSprintCache(
   if (_sprintCache && Date.now() - _sprintCache.fetchedAt < ttlMs) {
     return _sprintCache.map;
   }
+  const rawSprints = await fetchBoardSprints(jiraAgileRequest, boardId);
   const map = new Map<string, number>();
-  let startAt = 0;
-  const maxResults = 50;
-  while (true) {
-    const data = (await jiraAgileRequest(
-      'GET',
-      `/board/${boardId}/sprint?state=active,future&maxResults=${maxResults}&startAt=${startAt}`
-    )) as Record<string, unknown>;
-    const sprints = (data.values as Array<{ name?: string; id?: number }>) || [];
-    for (const s of sprints) {
-      if (s.name && s.id) map.set(s.name, s.id);
-    }
-    if (data.isLast !== false || sprints.length < maxResults) break;
-    startAt += sprints.length;
+  for (const s of rawSprints) {
+    if (s.name && s.id) map.set(s.name, s.id);
   }
   _sprintCache = { map, fetchedAt: Date.now() };
   return map;
