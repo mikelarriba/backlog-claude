@@ -101,3 +101,15 @@
 .fab-tab-content.active {
   display: block;
 }
+
+/* ── FAB sub-views (main vs. bug creation) ───────────────────── */
+#fab-view-main.hidden {
+  display: none;
+}
+
+#fab-view-bug {
+  display: none;
+}
+#fab-view-bug.open {
+  display: block;
+}

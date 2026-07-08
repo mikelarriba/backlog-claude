@@ -89,8 +89,8 @@ import {
 } from './jira-push.js';
 import { pullFromJira, checkAllJira, submitUpdateFromJiraKey } from './jira-pull.js';
 import {
-  openBugModal,
-  closeBugModal,
+  openBugForm,
+  closeBugForm,
   onBugFilesSelected,
   submitBugReport,
   removeBugFile,
@@ -370,6 +370,7 @@ function openFab() {
 function closeFab() {
   document.getElementById('fab-panel')?.classList.remove('open');
   document.getElementById('fab-btn')?.classList.remove('open');
+  closeBugForm();
 }
 function toggleFab() {
   const panel = document.getElementById('fab-panel');
@@ -630,8 +631,8 @@ const _globals = {
   submitUpdateFromJiraKey,
   toggleJiraItem,
   // bugcreate.js
-  openBugModal,
-  closeBugModal,
+  openBugForm,
+  closeBugForm,
   submitBugReport,
   onBugFilesSelected,
   removeBugFile,

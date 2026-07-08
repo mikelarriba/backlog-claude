@@ -1,4 +1,4 @@
-// ── Bug Report Creation Modal ─────────────────────────────────
+// ── Bug Report Creation (in-panel sub-view) ────────────────────
 import { fetchJSON, escHtml, showJiraToast } from './state.js';
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
@@ -10,7 +10,7 @@ interface BugCreateResponse {
 
 let _bugFiles: File[] = [];
 
-export function openBugModal(): void {
+export function openBugForm(): void {
   _bugFiles = [];
   (document.getElementById('bug-id') as HTMLInputElement).value = '';
   (document.getElementById('bug-title') as HTMLInputElement).value = '';
@@ -23,13 +23,23 @@ export function openBugModal(): void {
     'Drop files here or click to browse';
   (document.getElementById('bug-submit-btn') as HTMLButtonElement).disabled = false;
   (document.getElementById('bug-submit-label') as HTMLElement).textContent = 'Create Bug';
-  document.getElementById('bug-modal-overlay')!.classList.add('show');
+  setBugStatus('hidden');
+  document.getElementById('fab-view-main')!.classList.add('hidden');
+  document.getElementById('fab-view-bug')!.classList.add('open');
   (document.getElementById('bug-id') as HTMLInputElement).focus();
 }
 
-export function closeBugModal(): void {
-  document.getElementById('bug-modal-overlay')!.classList.remove('show');
+export function closeBugForm(): void {
+  document.getElementById('fab-view-bug')!.classList.remove('open');
+  document.getElementById('fab-view-main')!.classList.remove('hidden');
   _bugFiles = [];
+}
+
+function setBugStatus(type: string, message?: string): void {
+  const el = document.getElementById('bug-status');
+  if (!el) return;
+  el.className = `status ${type === 'hidden' ? '' : type + ' show'}`;
+  el.textContent = message || '';
 }
 
 // ── File handling ─────────────────────────────────────────────
@@ -107,14 +117,17 @@ export async function submitBugReport(): Promise<void> {
   const desc = (document.getElementById('bug-description') as HTMLTextAreaElement).value.trim();
 
   if (!id) {
+    setBugStatus('error', '❌ An ID is required');
     (document.getElementById('bug-id') as HTMLInputElement).focus();
     return;
   }
   if (!title) {
+    setBugStatus('error', '❌ A title is required');
     (document.getElementById('bug-title') as HTMLInputElement).focus();
     return;
   }
 
+  setBugStatus('hidden');
   const btn = document.getElementById('bug-submit-btn') as HTMLButtonElement;
   const label = document.getElementById('bug-submit-label') as HTMLElement;
   btn.disabled = true;
@@ -139,7 +152,7 @@ export async function submitBugReport(): Promise<void> {
       body: formData,
     })) as BugCreateResponse;
 
-    closeBugModal();
+    closeBugForm();
     showJiraToast('success', `✅ Bug created: ${data.title}`);
     await loadDocs();
     openDoc(data.filename, 'bug');

@@ -1,9 +1,9 @@
-// ── Bug Report Creation Modal ─────────────────────────────────
+// ── Bug Report Creation (in-panel sub-view) ────────────────────
 import { fetchJSON, escHtml, showJiraToast } from './state.js';
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
 let _bugFiles = [];
-export function openBugModal() {
+export function openBugForm() {
   _bugFiles = [];
   document.getElementById('bug-id').value = '';
   document.getElementById('bug-title').value = '';
@@ -15,12 +15,21 @@ export function openBugModal() {
   document.getElementById('bug-dropzone-label').textContent = 'Drop files here or click to browse';
   document.getElementById('bug-submit-btn').disabled = false;
   document.getElementById('bug-submit-label').textContent = 'Create Bug';
-  document.getElementById('bug-modal-overlay').classList.add('show');
+  setBugStatus('hidden');
+  document.getElementById('fab-view-main').classList.add('hidden');
+  document.getElementById('fab-view-bug').classList.add('open');
   document.getElementById('bug-id').focus();
 }
-export function closeBugModal() {
-  document.getElementById('bug-modal-overlay').classList.remove('show');
+export function closeBugForm() {
+  document.getElementById('fab-view-bug').classList.remove('open');
+  document.getElementById('fab-view-main').classList.remove('hidden');
   _bugFiles = [];
+}
+function setBugStatus(type, message) {
+  const el = document.getElementById('bug-status');
+  if (!el) return;
+  el.className = `status ${type === 'hidden' ? '' : type + ' show'}`;
+  el.textContent = message || '';
 }
 // ── File handling ─────────────────────────────────────────────
 export function onBugFilesSelected(fileList) {
@@ -90,13 +99,16 @@ export async function submitBugReport() {
   const title = document.getElementById('bug-title').value.trim();
   const desc = document.getElementById('bug-description').value.trim();
   if (!id) {
+    setBugStatus('error', '❌ An ID is required');
     document.getElementById('bug-id').focus();
     return;
   }
   if (!title) {
+    setBugStatus('error', '❌ A title is required');
     document.getElementById('bug-title').focus();
     return;
   }
+  setBugStatus('hidden');
   const btn = document.getElementById('bug-submit-btn');
   const label = document.getElementById('bug-submit-label');
   btn.disabled = true;
@@ -117,7 +129,7 @@ export async function submitBugReport() {
       method: 'POST',
       body: formData,
     });
-    closeBugModal();
+    closeBugForm();
     showJiraToast('success', `✅ Bug created: ${data.title}`);
     await loadDocs();
     openDoc(data.filename, 'bug');
