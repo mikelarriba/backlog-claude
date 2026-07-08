@@ -90,8 +90,8 @@ import {
 } from './jira-push.js';
 import { pullFromJira, checkAllJira, submitUpdateFromJiraKey } from './jira-pull.js';
 import {
-  openBugModal,
-  closeBugModal,
+  openBugForm,
+  closeBugForm,
   onBugFilesSelected,
   submitBugReport,
   removeBugFile,
@@ -404,6 +404,7 @@ function openFab(): void {
 function closeFab(): void {
   document.getElementById('fab-panel')?.classList.remove('open');
   document.getElementById('fab-btn')?.classList.remove('open');
+  closeBugForm();
 }
 
 function toggleFab(): void {
@@ -689,8 +690,8 @@ const _globals: Record<string, unknown> = {
   submitUpdateFromJiraKey,
   toggleJiraItem,
   // bugcreate.js
-  openBugModal,
-  closeBugModal,
+  openBugForm,
+  closeBugForm,
   submitBugReport,
   onBugFilesSelected,
   removeBugFile,

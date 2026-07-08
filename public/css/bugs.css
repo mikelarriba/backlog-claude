@@ -28,45 +28,27 @@
   font-size: 1rem;
 }
 
-/* ── Bug Modal ───────────────────────────────────────────────── */
-.bug-modal {
-  width: 520px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.bug-modal-header {
+/* ── FAB Bug Sub-view ────────────────────────────────────────── */
+.fab-back-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
-.bug-modal-header h3 {
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.bug-modal-close {
-  font-size: 1.4rem;
-  padding: 2px 8px;
-  color: var(--muted);
-}
-
-.bug-modal-close:hover {
+.fab-back-btn {
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--text);
+  padding: 4px 6px;
 }
 
-.bug-modal-body {
-  overflow-y: auto;
-  flex: 1;
+.fab-back-btn:hover {
+  color: var(--accent);
 }
 
-.bug-modal-body textarea {
-  min-height: 100px;
+.fab-bug-form textarea {
+  min-height: 80px;
 }
 
 /* ── Dropzone ────────────────────────────────────────────────── */
@@ -141,14 +123,10 @@
 }
 
 /* ── Footer ──────────────────────────────────────────────────── */
-.bug-modal-footer {
-  margin-top: 16px;
-}
-
 .bug-modal-hint {
   font-size: 0.72rem;
   color: var(--muted);
-  margin-bottom: 12px;
+  margin: 12px 0;
   line-height: 1.4;
 }
 
