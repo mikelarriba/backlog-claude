@@ -7,6 +7,10 @@ import {
 } from '../services/claudeService.js';
 import { createEventService } from '../services/eventService.js';
 import { createJiraService, type JiraServiceInstance } from '../services/jiraService.js';
+import {
+  createConfluenceService,
+  type ConfluenceServiceInstance,
+} from '../services/confluenceService.js';
 import { createDocIndex } from '../services/docIndex.js';
 import { validateJiraConfig } from '../services/jiraValidator.js';
 import { watchInbox } from '../services/inboxWatcher.js';
@@ -16,12 +20,13 @@ import { isoDate, slugify } from '../utils/transforms.js';
 import { createLogger } from '../utils/logger.js';
 import { ensureDir } from '../utils/routeHelpers.js';
 import { createCircuitBreaker, type CircuitBreaker } from '../utils/circuitBreaker.js';
-import type { RouteContext, JiraRouteContext } from '../types.js';
+import type { RouteContext, JiraRouteContext, ConfluenceRouteContext } from '../types.js';
 import type { Request, Response } from 'express';
 
 export interface AppContext {
   shared: RouteContext;
   jiraShared: JiraRouteContext;
+  confluenceShared: ConfluenceRouteContext;
   handleEvents: (req: Request, res: Response) => void;
   DOCS_ROOT: string;
   INBOX_DIR: string;
@@ -63,6 +68,25 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
     isoDate,
     slugify,
   });
+
+  const CONFLUENCE_BASE = config.CONFLUENCE_BASE_URL.replace(/\/$/, '');
+  const CONFLUENCE_TOKEN = config.CONFLUENCE_API_TOKEN;
+  const CONFLUENCE_EMAIL = config.CONFLUENCE_EMAIL;
+  const CONFLUENCE_SPACE_KEY = config.CONFLUENCE_SPACE_KEY;
+
+  const confluenceService: ConfluenceServiceInstance = createConfluenceService({
+    CONFLUENCE_BASE,
+    CONFLUENCE_TOKEN,
+    CONFLUENCE_EMAIL,
+    CONFLUENCE_SPACE_KEY,
+  });
+  const {
+    getSpace: confluenceGetSpace,
+    getPageByTitle: confluenceGetPageByTitle,
+    createPage: confluenceCreatePage,
+    updatePage: confluenceUpdatePage,
+    deletePage: confluenceDeletePage,
+  } = confluenceService;
 
   const jiraCircuit = createCircuitBreaker({
     failureThreshold: config.JIRA_CIRCUIT_FAILURE_THRESHOLD,
@@ -138,6 +162,17 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
     extractJiraSummary,
   };
 
+  const confluenceShared: ConfluenceRouteContext = {
+    ...jiraShared,
+    CONFLUENCE_BASE,
+    CONFLUENCE_SPACE_KEY,
+    confluenceGetSpace,
+    confluenceGetPageByTitle,
+    confluenceCreatePage,
+    confluenceUpdatePage,
+    confluenceDeletePage,
+  };
+
   function runStartup(port: number): void {
     for (const [key, val, msg] of [
       ['JIRA_BASE_URL', JIRA_BASE, 'JIRA base URL is not set'],
@@ -147,6 +182,16 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
         'JIRA API token is not configured; JIRA endpoints will return 503',
       ],
       ['JIRA_PROJECT', JIRA_PROJECT, 'JIRA project key is not set'],
+      [
+        'CONFLUENCE_BASE_URL',
+        CONFLUENCE_BASE,
+        'Confluence base URL is not set; Confluence endpoints will return 503',
+      ],
+      [
+        'CONFLUENCE_API_TOKEN',
+        CONFLUENCE_TOKEN,
+        'Confluence API token is not configured; Confluence endpoints will return 503',
+      ],
     ] as [string, string, string][]) {
       if (val) logInfo('startup', `${key} configured`);
       else logWarn('startup', msg);
@@ -189,6 +234,7 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
   return {
     shared,
     jiraShared,
+    confluenceShared,
     handleEvents,
     DOCS_ROOT,
     INBOX_DIR,

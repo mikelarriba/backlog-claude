@@ -210,3 +210,66 @@ describe('POST /api/confluence/analyze — AI returns unparseable content', () =
     assert.match(data.error, /unparseable|not valid JSON/i);
   });
 });
+
+// ── GET /api/confluence/test (connection test, added by #373) ────────────────
+// The route reads process.env.CONFLUENCE_BASE_URL / CONFLUENCE_API_TOKEN
+// directly (same pattern as the JIRA_API_TOKEN check above), so these env
+// vars can be toggled mid-suite without needing a fresh startTestApp().
+describe('GET /api/confluence/test — not configured', () => {
+  test('returns 503 CONFLUENCE_NOT_CONFIGURED when env vars are unset', async () => {
+    const { status, data } = await api('GET', '/api/confluence/test');
+    assert.equal(status, 503);
+    assert.equal(data.code, 'CONFLUENCE_NOT_CONFIGURED');
+  });
+});
+
+describe('GET /api/confluence/test — configured, Confluence reachable', () => {
+  before(() => {
+    process.env.CONFLUENCE_BASE_URL = 'https://example.atlassian.net';
+    process.env.CONFLUENCE_API_TOKEN = 'fake-confluence-token';
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (!urlStr.includes('/wiki/')) return originalFetch(url, opts);
+      return jsonRes({ id: '10', key: 'MIDAS' });
+    });
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.CONFLUENCE_BASE_URL;
+    delete process.env.CONFLUENCE_API_TOKEN;
+  });
+
+  test('returns 200 with {ok:true, spaceKey}', async () => {
+    const { status, data } = await api('GET', '/api/confluence/test');
+    assert.equal(status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.spaceKey, 'MIDAS');
+  });
+});
+
+describe('GET /api/confluence/test — configured, Confluence unreachable', () => {
+  before(() => {
+    process.env.CONFLUENCE_BASE_URL = 'https://example.atlassian.net';
+    process.env.CONFLUENCE_API_TOKEN = 'fake-confluence-token';
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (!urlStr.includes('/wiki/')) return originalFetch(url, opts);
+      return { ok: false, status: 401, text: async () => 'Unauthorized' };
+    });
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.CONFLUENCE_BASE_URL;
+    delete process.env.CONFLUENCE_API_TOKEN;
+  });
+
+  test('returns 503 with {ok:false, error}', async () => {
+    const { status, data } = await api('GET', '/api/confluence/test');
+    assert.equal(status, 503);
+    assert.equal(data.ok, false);
+    assert.ok(data.error);
+    assert.match(data.error, /401/);
+  });
+});

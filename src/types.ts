@@ -1,6 +1,7 @@
 // ── Shared TypeScript type definitions ────────────────────────────────────────────
 
 import type { Logger } from './utils/logger.js';
+import type { ConfluencePage, ConfluenceSpace } from './services/confluenceService.js';
 
 // Re-export frontend-shared types not defined below (PISettings, SprintConfig, etc.)
 export type { PISettings, SprintConfig, SwimlaneCollapsed, PanelState } from './shared/types.js';
@@ -169,6 +170,25 @@ export interface JiraRouteContext extends RouteContext {
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
   jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };
   extractJiraSummary: (content: string) => string;
+}
+
+// ── Confluence route context ─────────────────────────────────────────────────────────────
+// Extends JiraRouteContext because POST /api/confluence/analyze (from #371)
+// needs jiraRequest/callClaude, and GET /api/confluence/test (this issue)
+// needs the confluence* bound functions below — both live on the same router.
+export interface ConfluenceRouteContext extends JiraRouteContext {
+  CONFLUENCE_BASE: string;
+  CONFLUENCE_SPACE_KEY: string;
+  confluenceGetSpace: () => Promise<ConfluenceSpace>;
+  confluenceGetPageByTitle: (title: string) => Promise<ConfluencePage | null>;
+  confluenceCreatePage: (title: string, body: string) => Promise<ConfluencePage>;
+  confluenceUpdatePage: (
+    id: string,
+    version: number,
+    title: string,
+    body: string
+  ) => Promise<ConfluencePage>;
+  confluenceDeletePage: (id: string) => Promise<void>;
 }
 
 // ── Settings route context ──────────────────────────────────────────────────────────────
