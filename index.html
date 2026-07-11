@@ -943,6 +943,48 @@
             <!-- Results list -->
             <div id="doc-issues-list"></div>
             <div class="doc-pagination" id="doc-pagination"></div>
+
+            <!-- AI Analysis Results (#372) -->
+            <div class="doc-results-panel" id="doc-results-panel" style="display: none">
+              <div class="doc-results-header">AI Suggestions</div>
+
+              <!-- Loading (reuses the JIRA-search loading styles) -->
+              <div class="doc-loading" id="doc-results-loading" style="display: none">
+                <div class="doc-loading-spinner"></div>
+                <div class="doc-loading-message">Analyzing documentation impact…</div>
+              </div>
+
+              <!-- Error banner (reuses the JIRA-search error banner styles) -->
+              <div class="doc-error-banner" id="doc-results-error-banner" style="display: none">
+                <div class="doc-error-icon">⚠</div>
+                <div class="doc-error-content">
+                  <div class="doc-error-title" id="doc-results-error-title">AI analysis failed</div>
+                  <div class="doc-error-detail" id="doc-results-error-detail"></div>
+                </div>
+                <button class="btn-secondary" onclick="askAI()">Retry</button>
+              </div>
+
+              <!-- Toolbar: select all/none + selection count + Modify Documentation -->
+              <div class="doc-toolbar" id="doc-results-toolbar" style="display: none">
+                <button class="btn-ghost btn-xs" onclick="selectAllSuggestions()">
+                  Select All
+                </button>
+                <button class="btn-ghost btn-xs" onclick="deselectAllSuggestions()">
+                  Deselect All
+                </button>
+                <span class="doc-selection-count" id="doc-results-selection-count"></span>
+                <button
+                  class="btn-primary"
+                  id="doc-modify-btn"
+                  onclick="modifyDocumentation()"
+                  disabled
+                >
+                  Modify Documentation
+                </button>
+              </div>
+
+              <div id="doc-results-list"></div>
+            </div>
           </div>
         </div>
         <div id="bugs-view" class="view-panel">

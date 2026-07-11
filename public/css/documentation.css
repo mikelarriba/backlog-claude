@@ -330,6 +330,184 @@
   font-size: 0.85rem;
 }
 
+/* ── AI Analysis Results (#372) ──────────────────────────────────────── */
+.doc-results-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.doc-results-header {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+#doc-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.doc-suggestion-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.doc-suggestion-row.selected {
+  border-color: var(--accent);
+}
+
+.doc-suggestion-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.doc-suggestion-row.selected .doc-suggestion-header {
+  background: var(--accent-subtle);
+}
+
+.doc-suggestion-header input[type='checkbox'] {
+  margin-top: 3px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.doc-suggestion-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doc-suggestion-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.doc-suggestion-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.doc-suggestion-path {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.doc-suggestion-chevron {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+
+.doc-suggestion-row.expanded .doc-suggestion-chevron {
+  transform: rotate(180deg);
+}
+
+/* Action badges: green = Create, blue = Update, red = Delete */
+.doc-action-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.doc-action-create {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+.doc-action-update {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+.doc-action-delete {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--error);
+}
+[data-theme='light'] .doc-action-create {
+  color: #047857;
+}
+[data-theme='light'] .doc-action-update {
+  color: #1d4ed8;
+}
+[data-theme='light'] .doc-action-delete {
+  color: #b91c1c;
+}
+
+/* Collapsible diff body: animates open/closed via grid-template-rows so it
+   works for diffs of any length without guessing a max-height. */
+.doc-diff-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.doc-suggestion-row.expanded .doc-diff-body {
+  grid-template-rows: 1fr;
+}
+
+.doc-diff-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.doc-diff-content {
+  border-top: 1px solid var(--border);
+  padding: 8px 0;
+  font-family: monospace;
+  font-size: 0.78rem;
+}
+
+.doc-diff-empty {
+  padding: 8px 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.diff-line {
+  display: flex;
+  gap: 8px;
+  padding: 1px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.diff-marker {
+  flex-shrink: 0;
+  width: 1ch;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.diff-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.diff-add {
+  background: rgba(16, 185, 129, 0.1);
+}
+.diff-remove {
+  background: rgba(220, 38, 38, 0.1);
+}
+.diff-context {
+  color: var(--text-muted);
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .doc-filter-bar {

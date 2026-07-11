@@ -1,9 +1,10 @@
 // ── Documentation panel: JIRA issue filter & selector ───────────────────────
 // Lets the user search/filter JIRA issues (free text, fix version, issue type),
 // multi-select from a paginated results list, then hand the selection off to
-// an "Ask AI" action. The AI call itself is out of scope for this module
-// (see #371/#372) — askAI() is a stub the later work will replace.
-import { fetchJSON } from './state.js';
+// an "Ask AI" action, which POSTs to /api/confluence/analyze (see #371) and
+// renders the returned suggestions (see the "AI Analysis Results" section
+// below, #372).
+import { fetchJSON, postJSON } from './state.js';
 
 export interface DocIssue {
   key: string;
@@ -212,10 +213,259 @@ function _updateSelectionCount(): void {
   if (askBtn) askBtn.disabled = count === 0;
 }
 
-// ── Ask AI (stub — implemented in #371/#372) ─────────────────────────────────
-export function askAI(): void {
+// ── Ask AI ───────────────────────────────────────────────────────────────────
+export async function askAI(): Promise<void> {
   if (_selectedKeys.size === 0) return;
-  console.log('askAI: stub — selected JIRA issues:', [..._selectedKeys]);
+
+  const panel = document.getElementById('doc-results-panel') as HTMLElement | null;
+  const loadingEl = document.getElementById('doc-results-loading');
+  const errorEl = document.getElementById('doc-results-error-banner') as HTMLElement | null;
+  const toolbarEl = document.getElementById('doc-results-toolbar') as HTMLElement | null;
+  const listEl = document.getElementById('doc-results-list');
+
+  if (panel) panel.style.display = '';
+  if (loadingEl) loadingEl.style.display = '';
+  if (errorEl) errorEl.style.display = 'none';
+  if (toolbarEl) toolbarEl.style.display = 'none';
+  if (listEl) listEl.innerHTML = '';
+
+  _suggestions = [];
+  _selectedSuggestionIndexes.clear();
+  _expandedSuggestionIndexes.clear();
+
+  try {
+    const data = (await postJSON('/api/confluence/analyze', { jiraIds: [..._selectedKeys] })) as {
+      suggestions?: ConfluenceSuggestion[];
+    };
+    _suggestions = data.suggestions || [];
+    renderAnalysisResults();
+  } catch (err) {
+    _showResultsError(err);
+  } finally {
+    if (loadingEl) loadingEl.style.display = 'none';
+  }
+}
+
+// ── AI Analysis Results ──────────────────────────────────────────────────────
+// Renders the ConfluenceSuggestion[] returned by POST /api/confluence/analyze
+// (see src/routes/confluence.ts, #371) as a collapsible list with per-item
+// selection and a unified-diff style expanded view. "Modify Documentation"
+// is wired to a stub — the actual Confluence write happens in #373/#374.
+export interface ConfluenceSuggestion {
+  pageTitle: string;
+  hierarchyPath: string;
+  action: 'Create' | 'Update' | 'Delete';
+  currentContent: string;
+  proposedContent: string;
+}
+
+interface DiffLine {
+  type: 'add' | 'remove' | 'context';
+  text: string;
+}
+
+// Above this many (current-lines × proposed-lines) cells, the O(n*m) LCS
+// table would get too large to build cheaply in a browser tab — fall back to
+// a naive "all removed, then all added" diff instead of true LCS.
+const LCS_CELL_LIMIT = 250_000;
+
+let _suggestions: ConfluenceSuggestion[] = [];
+const _selectedSuggestionIndexes = new Set<number>();
+const _expandedSuggestionIndexes = new Set<number>();
+
+export function renderAnalysisResults(): void {
+  const listEl = document.getElementById('doc-results-list');
+  const toolbarEl = document.getElementById('doc-results-toolbar') as HTMLElement | null;
+  if (!listEl) return;
+
+  if (!_suggestions.length) {
+    listEl.innerHTML =
+      '<p class="doc-empty">No documentation changes were suggested for the selected issues.</p>';
+    if (toolbarEl) toolbarEl.style.display = 'none';
+    _updateSuggestionSelectionState();
+    return;
+  }
+
+  if (toolbarEl) toolbarEl.style.display = '';
+  listEl.innerHTML = _suggestions.map((s, i) => _renderSuggestionRow(s, i)).join('');
+  _updateSuggestionSelectionState();
+}
+
+export function toggleSuggestionRow(index: number): void {
+  if (_expandedSuggestionIndexes.has(index)) _expandedSuggestionIndexes.delete(index);
+  else _expandedSuggestionIndexes.add(index);
+
+  const row = document.querySelector(`.doc-suggestion-row[data-index="${index}"]`);
+  if (row) row.classList.toggle('expanded', _expandedSuggestionIndexes.has(index));
+}
+
+export function toggleSuggestionCheck(index: number, checked: boolean): void {
+  if (checked) _selectedSuggestionIndexes.add(index);
+  else _selectedSuggestionIndexes.delete(index);
+
+  const row = document.querySelector(`.doc-suggestion-row[data-index="${index}"]`);
+  if (row) row.classList.toggle('selected', checked);
+
+  _updateSuggestionSelectionState();
+}
+
+export function selectAllSuggestions(): void {
+  _suggestions.forEach((_, i) => _selectedSuggestionIndexes.add(i));
+  renderAnalysisResults();
+}
+
+export function deselectAllSuggestions(): void {
+  _selectedSuggestionIndexes.clear();
+  renderAnalysisResults();
+}
+
+// ── Modify Documentation (stub — Confluence writes land in #373/#374) ────────
+export function modifyDocumentation(): void {
+  if (_selectedSuggestionIndexes.size === 0) return;
+  console.log(
+    'modifyDocumentation: stub — selected suggestions:',
+    [..._selectedSuggestionIndexes].map((i) => _suggestions[i])
+  );
+}
+
+// ── Diff rendering ───────────────────────────────────────────────────────────
+// No diff library exists in this codebase's dependencies (and adding one is
+// out of scope for #372), so this is a small self-contained LCS-based line
+// diff: lines common to both sides (in order) are context, lines only in
+// "current" are removed, lines only in "proposed" are added. It doesn't need
+// to be a perfect diff algorithm — just visually correct for review purposes.
+function _computeLineDiff(current: string, proposed: string): DiffLine[] {
+  const a = current.split('\n');
+  const b = proposed.split('\n');
+  const n = a.length;
+  const m = b.length;
+
+  if (n * m > LCS_CELL_LIMIT) {
+    return [
+      ...a.map((text): DiffLine => ({ type: 'remove', text })),
+      ...b.map((text): DiffLine => ({ type: 'add', text })),
+    ];
+  }
+
+  // Standard bottom-up LCS length table over lines.
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const lines: DiffLine[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      lines.push({ type: 'context', text: a[i] });
+      i++;
+      j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      lines.push({ type: 'remove', text: a[i] });
+      i++;
+    } else {
+      lines.push({ type: 'add', text: b[j] });
+      j++;
+    }
+  }
+  while (i < n) {
+    lines.push({ type: 'remove', text: a[i] });
+    i++;
+  }
+  while (j < m) {
+    lines.push({ type: 'add', text: b[j] });
+    j++;
+  }
+  return lines;
+}
+
+function _diffLinesForSuggestion(s: ConfluenceSuggestion): DiffLine[] {
+  if (s.action === 'Create') {
+    return (s.proposedContent || '').split('\n').map((text): DiffLine => ({ type: 'add', text }));
+  }
+  if (s.action === 'Delete') {
+    return (s.currentContent || '').split('\n').map((text): DiffLine => ({ type: 'remove', text }));
+  }
+  return _computeLineDiff(s.currentContent || '', s.proposedContent || '');
+}
+
+function _renderDiffHtml(s: ConfluenceSuggestion): string {
+  const lines = _diffLinesForSuggestion(s);
+  if (!lines.length) return '<div class="doc-diff-empty">No content to compare.</div>';
+
+  return lines
+    .map((line) => {
+      const cls =
+        line.type === 'add' ? 'diff-add' : line.type === 'remove' ? 'diff-remove' : 'diff-context';
+      const marker = line.type === 'add' ? '+' : line.type === 'remove' ? '−' : ' ';
+      return `<div class="diff-line ${cls}"><span class="diff-marker">${marker}</span><span class="diff-text">${_esc(line.text)}</span></div>`;
+    })
+    .join('');
+}
+
+function _renderSuggestionRow(s: ConfluenceSuggestion, index: number): string {
+  const checked = _selectedSuggestionIndexes.has(index) ? 'checked' : '';
+  const rowClasses = [
+    'doc-suggestion-row',
+    _selectedSuggestionIndexes.has(index) ? 'selected' : '',
+    _expandedSuggestionIndexes.has(index) ? 'expanded' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const actionClass = `doc-action-${s.action.toLowerCase()}`;
+
+  return `<div class="${rowClasses}" data-index="${index}">
+    <div class="doc-suggestion-header" onclick="toggleSuggestionRow(${index})">
+      <input type="checkbox" ${checked} onclick="event.stopPropagation()" onchange="toggleSuggestionCheck(${index},this.checked)" />
+      <div class="doc-suggestion-body">
+        <div class="doc-suggestion-top">
+          <span class="doc-suggestion-title">${_esc(s.pageTitle)}</span>
+          <span class="doc-action-badge ${actionClass}">${_esc(s.action)}</span>
+        </div>
+        <div class="doc-suggestion-path">${_esc(s.hierarchyPath)}</div>
+      </div>
+      <span class="doc-suggestion-chevron">▾</span>
+    </div>
+    <div class="doc-diff-body">
+      <div class="doc-diff-inner">
+        <div class="doc-diff-content">${_renderDiffHtml(s)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _updateSuggestionSelectionState(): void {
+  const countEl = document.getElementById('doc-results-selection-count');
+  const modifyBtn = document.getElementById('doc-modify-btn') as HTMLButtonElement | null;
+  const count = _selectedSuggestionIndexes.size;
+  if (countEl) {
+    countEl.textContent = _suggestions.length ? `${count} of ${_suggestions.length} selected` : '';
+  }
+  if (modifyBtn) modifyBtn.disabled = count === 0;
+}
+
+function _showResultsError(err: unknown): void {
+  const banner = document.getElementById('doc-results-error-banner') as HTMLElement | null;
+  const titleEl = document.getElementById('doc-results-error-title');
+  const detailEl = document.getElementById('doc-results-error-detail');
+  if (!banner) return;
+
+  const message = (err as Error)?.message || String(err);
+  let title = 'AI analysis failed';
+  if (message.includes('JIRA_NOT_CONFIGURED') || message.includes('JIRA_API_TOKEN')) {
+    title = 'JIRA not configured';
+  } else if (message.includes('Could not fetch') && message.includes('JIRA issue')) {
+    title = 'Could not fetch selected JIRA issues';
+  } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+    title = 'Network error';
+  }
+
+  if (titleEl) titleEl.textContent = title;
+  if (detailEl) detailEl.textContent = message;
+  banner.style.display = '';
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
