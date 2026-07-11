@@ -254,6 +254,7 @@ import {
   selectAllSuggestions,
   deselectAllSuggestions,
   modifyDocumentation,
+  undoChanges,
 } from './documentation.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -807,6 +808,7 @@ const _globals = {
   selectAllSuggestions,
   deselectAllSuggestions,
   modifyDocumentation,
+  undoChanges,
 };
 Object.assign(window, _globals);
 //# sourceMappingURL=main.js.map

@@ -984,6 +984,18 @@
               </div>
 
               <div id="doc-results-list"></div>
+
+              <!-- Undo button (#374 undo endpoint) — hidden until >=1 operation
+                   succeeds; auto-hides after a 60s countdown (see undoChanges()
+                   / _showUndoButton() in documentation.ts). -->
+              <button
+                class="btn-secondary doc-undo-btn"
+                id="doc-undo-btn"
+                onclick="undoChanges()"
+                style="display: none"
+              >
+                ↩ Undo all changes
+              </button>
             </div>
           </div>
         </div>
