@@ -15,6 +15,7 @@ import jiraPushSprintsRoutes from '../routes/jira-push-sprints.js';
 import jiraPushRankRoutes from '../routes/jira-push-rank.js';
 import jiraSyncRoutes from '../routes/jira-sync.js';
 import jiraSearchRoutes from '../routes/jira-search.js';
+import confluenceRoutes from '../routes/confluence.js';
 import settingsRoutes from '../routes/settings.js';
 import bugRoutes from '../routes/bugs.js';
 import canvasRoutes from '../routes/canvas.js';
@@ -109,6 +110,7 @@ export function registerRoutes(app: Express, ctx: AppContext, rootDir: string): 
   app.use(jiraPushRankRoutes(jiraShared));
   app.use(jiraSyncRoutes(jiraShared));
   app.use(jiraSearchRoutes(jiraShared));
+  app.use(confluenceRoutes(jiraShared));
   app.use(
     settingsRoutes({
       rootDir,
