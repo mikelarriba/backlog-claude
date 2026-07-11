@@ -58,7 +58,7 @@ export default function jiraSearchRoutes({
       if (!process.env.JIRA_API_TOKEN)
         return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
-      const { type = 'all', text = '' } = req.query;
+      const { type = 'all', text = '', fixVersion = '' } = req.query;
       if (type !== 'all' && !TYPE_CONFIG[normalizeType(type)]) {
         return sendError(res, 400, 'INVALID_TYPE', 'Invalid JIRA filter type', {
           allowed: ['all', ...Object.keys(TYPE_CONFIG)],
@@ -76,7 +76,12 @@ export default function jiraSearchRoutes({
 
       // @ts-expect-error — Express query values are string | string[] | ParsedQs; text is always string here
       const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
-      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause} ORDER BY updated DESC`;
+      // @ts-expect-error — Express query values are string | string[] | ParsedQs; fixVersion is always string here
+      const fixVersionClause = fixVersion.trim()
+        ? // @ts-expect-error — see above
+          ` AND fixVersion = "${fixVersion.trim().replace(/"/g, '')}"`
+        : '';
+      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause}${fixVersionClause} ORDER BY updated DESC`;
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
       type JiraSearchIssue = {
         key: string;
@@ -85,6 +90,7 @@ export default function jiraSearchRoutes({
           issuetype?: { name?: string };
           status?: { name?: string };
           priority?: { name?: string };
+          fixVersions?: Array<{ name?: string }>;
         };
       };
       const rawIssues = (await jiraPagedRequest(jql, fields, {
@@ -103,6 +109,7 @@ export default function jiraSearchRoutes({
             issuetype: iss.fields.issuetype?.name || '',
             status: iss.fields.status?.name || '',
             priority: iss.fields.priority?.name || '',
+            fixVersions: (iss.fields.fixVersions || []).map((v) => v.name || '').filter(Boolean),
             localExists: !!existing,
             localFilename: existing?.filename || null,
             localDocType: existing?.docType || null,

@@ -239,6 +239,17 @@ import {
   bugToggleAll,
   toggleClosedBugs,
 } from './bugs-dashboard.js';
+import {
+  loadDocumentationView,
+  docFilterInput,
+  docSetTypeFilter,
+  docSetFixVersion,
+  searchDocumentationIssues,
+  docSetPage,
+  docRowClick,
+  docToggleKey,
+  askAI,
+} from './documentation.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
@@ -345,6 +356,7 @@ function navigateTo(viewName) {
       break;
     case 'documentation':
       document.getElementById('documentation-view')?.classList.add('show');
+      void loadDocumentationView();
       break;
     case 'bugs':
       document.getElementById('bugs-view')?.classList.add('show');
@@ -775,6 +787,16 @@ const _globals = {
   bugToggleKey,
   bugToggleAll,
   toggleClosedBugs,
+  // documentation.js
+  loadDocumentationView,
+  docFilterInput,
+  docSetTypeFilter,
+  docSetFixVersion,
+  searchDocumentationIssues,
+  docSetPage,
+  docRowClick,
+  docToggleKey,
+  askAI,
 };
 Object.assign(window, _globals);
 //# sourceMappingURL=main.js.map

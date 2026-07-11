@@ -36,6 +36,7 @@
     <link rel="stylesheet" href="/public/css/swimlanes.css" />
     <link rel="stylesheet" href="/public/css/fab.css" />
     <link rel="stylesheet" href="/public/css/sidebar.css" />
+    <link rel="stylesheet" href="/public/css/documentation.css" />
   </head>
   <body>
     <div class="app" id="app-root">
@@ -879,10 +880,70 @@
             <!-- Populated dynamically by skills.js -->
           </div>
         </div>
-        <div id="documentation-view" class="placeholder-view">
-          <div class="icon">📄</div>
-          <h2>Documentation</h2>
-          <p>Product and technical docs coming soon.</p>
+        <div id="documentation-view" class="view-panel">
+          <div class="doc-header">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <button class="btn-ghost" onclick="navigateTo('backlog')">← Back</button>
+              <span class="doc-title">📄 Documentation</span>
+            </div>
+          </div>
+          <div class="doc-body">
+            <!-- Filter bar -->
+            <div class="doc-filter-bar">
+              <input
+                type="text"
+                id="doc-filter-text"
+                class="doc-filter-text"
+                placeholder="Search JIRA issues…"
+                oninput="docFilterInput(this.value)"
+              />
+              <select id="doc-filter-version" onchange="docSetFixVersion(this.value)">
+                <option value="">All fix versions</option>
+              </select>
+              <div class="doc-type-chips" id="doc-type-chips">
+                <button class="doc-chip active" data-type="all" onclick="docSetTypeFilter('all')">
+                  All
+                </button>
+                <button class="doc-chip" data-type="epic" onclick="docSetTypeFilter('epic')">
+                  Epic
+                </button>
+                <button class="doc-chip" data-type="story" onclick="docSetTypeFilter('story')">
+                  Story
+                </button>
+                <button class="doc-chip" data-type="bug" onclick="docSetTypeFilter('bug')">
+                  Bug
+                </button>
+              </div>
+            </div>
+
+            <!-- Toolbar: selection count + Ask AI -->
+            <div class="doc-toolbar">
+              <span class="doc-selection-count" id="doc-selection-count"></span>
+              <button class="btn-primary" id="doc-ask-ai-btn" onclick="askAI()" disabled>
+                ✨ Ask AI
+              </button>
+            </div>
+
+            <!-- Loading -->
+            <div class="doc-loading" id="doc-loading" style="display: none">
+              <div class="doc-loading-spinner"></div>
+              <div class="doc-loading-message">Searching JIRA…</div>
+            </div>
+
+            <!-- Error banner -->
+            <div class="doc-error-banner" id="doc-error-banner" style="display: none">
+              <div class="doc-error-icon">⚠</div>
+              <div class="doc-error-content">
+                <div class="doc-error-title" id="doc-error-title">Failed to load JIRA issues</div>
+                <div class="doc-error-detail" id="doc-error-detail"></div>
+              </div>
+              <button class="btn-secondary" onclick="searchDocumentationIssues()">Retry</button>
+            </div>
+
+            <!-- Results list -->
+            <div id="doc-issues-list"></div>
+            <div class="doc-pagination" id="doc-pagination"></div>
+          </div>
         </div>
         <div id="bugs-view" class="view-panel">
           <div class="bugs-dash-header">

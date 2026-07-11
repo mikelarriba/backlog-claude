@@ -1,0 +1,345 @@
+/* ── Documentation panel ─────────────────────────────────────────── */
+#documentation-view {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+}
+#documentation-view.show {
+  display: flex;
+}
+
+.doc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.doc-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.doc-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Filter bar */
+.doc-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.doc-filter-text {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.doc-filter-text:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.doc-filter-bar select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Type chips */
+.doc-type-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.doc-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.doc-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.doc-chip.active {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Toolbar */
+.doc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.doc-selection-count {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+/* Results list */
+#doc-issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.doc-issue-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--surface);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.doc-issue-row:hover {
+  border-color: var(--accent);
+}
+
+.doc-issue-row.selected {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.doc-issue-row input[type='checkbox'] {
+  margin-top: 3px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.doc-issue-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doc-issue-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.doc-issue-key {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.doc-issue-title {
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Type badges (reuse the shared type-color palette from base.css) */
+.doc-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.doc-type-epic {
+  background: var(--type-epic-bg);
+  color: var(--type-epic-color);
+}
+.doc-type-story,
+.doc-type-improvement {
+  background: var(--type-story-bg);
+  color: var(--type-story-color);
+}
+.doc-type-bug {
+  background: var(--type-bug-bg);
+  color: var(--type-bug-color);
+}
+.doc-type-new-feature {
+  background: var(--type-feature-bg);
+  color: var(--type-feature-color);
+}
+.doc-type-task {
+  background: var(--type-spike-bg);
+  color: var(--type-spike-color);
+}
+
+/* Status badges */
+.doc-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(107, 114, 128, 0.12);
+  color: var(--text-muted);
+}
+
+.doc-local-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+[data-theme='light'] .doc-local-badge {
+  color: #047857;
+}
+
+/* Pagination */
+.doc-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.doc-page-info {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Loading */
+.doc-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 20px;
+}
+
+.doc-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: doc-spin 0.8s linear infinite;
+}
+
+@keyframes doc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.doc-loading-message {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Error banner */
+.doc-error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(220, 38, 38, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 10px;
+}
+
+.doc-error-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.doc-error-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-error-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--error);
+  margin-bottom: 4px;
+}
+
+[data-theme='light'] .doc-error-title {
+  color: #b91c1c;
+}
+
+.doc-error-detail {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.doc-empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 24px;
+  font-size: 0.85rem;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .doc-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .doc-filter-text {
+    min-width: 0;
+  }
+  .doc-issue-title {
+    white-space: normal;
+  }
+}

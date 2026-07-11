@@ -241,6 +241,17 @@ import {
   bugToggleAll,
   toggleClosedBugs,
 } from './bugs-dashboard.js';
+import {
+  loadDocumentationView,
+  docFilterInput,
+  docSetTypeFilter,
+  docSetFixVersion,
+  searchDocumentationIssues,
+  docSetPage,
+  docRowClick,
+  docToggleKey,
+  askAI,
+} from './documentation.js';
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -375,6 +386,7 @@ function navigateTo(viewName: ViewName): void {
       break;
     case 'documentation':
       document.getElementById('documentation-view')?.classList.add('show');
+      void loadDocumentationView();
       break;
     case 'bugs':
       document.getElementById('bugs-view')?.classList.add('show');
@@ -834,6 +846,16 @@ const _globals: Record<string, unknown> = {
   bugToggleKey,
   bugToggleAll,
   toggleClosedBugs,
+  // documentation.js
+  loadDocumentationView,
+  docFilterInput,
+  docSetTypeFilter,
+  docSetFixVersion,
+  searchDocumentationIssues,
+  docSetPage,
+  docRowClick,
+  docToggleKey,
+  askAI,
 };
 
 Object.assign(window, _globals);
