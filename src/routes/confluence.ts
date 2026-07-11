@@ -8,7 +8,7 @@ import { sendError, parseApiError } from '../utils/routeHelpers.js';
 import { normalizeOutput } from '../services/claudeService.js';
 import { buildConfluenceAnalysisPrompt } from '../services/aiPromptBuilder.js';
 import { jiraToMarkdown } from '../utils/transforms.js';
-import type { JiraRouteContext } from '../types.js';
+import type { ConfluenceRouteContext } from '../types.js';
 
 export interface ConfluenceSuggestion {
   pageTitle: string;
@@ -65,7 +65,12 @@ export function parseConfluenceSuggestions(raw: string): ConfluenceSuggestion[] 
   });
 }
 
-export default function confluenceRoutes({ jiraRequest, callClaude, logError }: JiraRouteContext) {
+export default function confluenceRoutes({
+  jiraRequest,
+  callClaude,
+  logError,
+  confluenceGetSpace,
+}: ConfluenceRouteContext) {
   const router = Router();
 
   // ── POST /api/confluence/analyze ────────────────────────────────────────────
@@ -139,6 +144,30 @@ export default function confluenceRoutes({ jiraRequest, callClaude, logError }: 
         apiErr.details as Record<string, unknown> | undefined
       );
       sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── GET /api/confluence/test ────────────────────────────────────────────────
+  // Connection test used to verify Confluence credentials (env vars only — no
+  // Settings UI, see #373). Reads process.env directly (rather than a
+  // startup-baked config value) so it always reflects the current environment,
+  // mirroring the /api/confluence/analyze JIRA-token check above. Returns
+  // `{ok:false, error}` with a 503 on failure (not the standard sendError
+  // envelope) — the frontend treats this endpoint specially as a live probe.
+  router.get('/api/confluence/test', async (req, res) => {
+    if (!process.env.CONFLUENCE_BASE_URL || !process.env.CONFLUENCE_API_TOKEN) {
+      return sendError(
+        res,
+        503,
+        'CONFLUENCE_NOT_CONFIGURED',
+        'Confluence credentials not configured'
+      );
+    }
+    try {
+      const space = await confluenceGetSpace();
+      res.json({ ok: true, spaceKey: space.key });
+    } catch (err) {
+      res.status(503).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   });
 

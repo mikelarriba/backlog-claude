@@ -26,7 +26,7 @@ import { healthHandler } from '../routes/health.js';
 import type { AppContext } from './context.js';
 
 export function registerRoutes(app: Express, ctx: AppContext, rootDir: string): void {
-  const { shared, jiraShared, handleEvents } = ctx;
+  const { shared, jiraShared, confluenceShared, handleEvents } = ctx;
 
   app.get('/api/events', handleEvents);
 
@@ -110,7 +110,7 @@ export function registerRoutes(app: Express, ctx: AppContext, rootDir: string): 
   app.use(jiraPushRankRoutes(jiraShared));
   app.use(jiraSyncRoutes(jiraShared));
   app.use(jiraSearchRoutes(jiraShared));
-  app.use(confluenceRoutes(jiraShared));
+  app.use(confluenceRoutes(confluenceShared));
   app.use(
     settingsRoutes({
       rootDir,

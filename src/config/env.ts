@@ -47,6 +47,16 @@ const EnvSchema = z.object({
   JIRA_SPRINT_CACHE_TTL_MS: z.coerce.number().default(5 * 60 * 1000),
   JIRA_LINKTYPE_CACHE_TTL_MS: z.coerce.number().default(30 * 60 * 1000),
 
+  // ── Confluence connection ────────────────────────────────────────────────
+  // All optional/defaulted — Confluence integration is opt-in, so a missing
+  // value only triggers a startup warning (see runStartup in app/context.ts),
+  // never a hard exit.
+  CONFLUENCE_BASE_URL: z.string().default(''),
+  CONFLUENCE_API_TOKEN: z.string().default(''),
+  CONFLUENCE_EMAIL: z.string().default(''),
+  CONFLUENCE_SPACE_KEY: z.string().default(''),
+  CONFLUENCE_TIMEOUT_MS: z.coerce.number().default(30_000),
+
   // ── Rate limiting ──────────────────────────────────────────────────────────
   RATE_LIMIT_API: z.coerce.number().default(300),
   RATE_LIMIT_AI: z.coerce.number().default(20),
