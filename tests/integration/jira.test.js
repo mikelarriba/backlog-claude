@@ -430,6 +430,59 @@ describe('GET /api/jira/by-fix-version/:version — happy path (JIRA fetch mocke
   });
 });
 
+// ── GET /api/jira/search — fixVersion filter (JIRA fetch mocked) ─────────────
+describe('GET /api/jira/search — fixVersion filter (JIRA fetch mocked)', () => {
+  const originalFetch = globalThis.fetch;
+  let capturedUrl;
+
+  before(() => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      if (typeof url === 'string' && url.includes('/rest/api/2/search')) {
+        capturedUrl = url;
+        const body = {
+          issues: [
+            {
+              key: 'EAMDM-9500',
+              fields: {
+                summary: 'Issue scoped to a fix version',
+                issuetype: { name: 'Story' },
+                status: { name: 'To Do' },
+                priority: { name: 'Medium' },
+                fixVersions: [{ name: 'Digi PI2026.2' }],
+              },
+            },
+          ],
+          total: 1,
+        };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => body,
+          text: async () => JSON.stringify(body),
+        };
+      }
+      return originalFetch(url, opts);
+    });
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+  });
+
+  test('includes a fixVersion JQL clause and returns fixVersions on each issue', async () => {
+    const { status, data } = await api(
+      'GET',
+      `/api/jira/search?fixVersion=${encodeURIComponent('Digi PI2026.2')}`
+    );
+    assert.equal(status, 200);
+    assert.ok(capturedUrl.includes(encodeURIComponent('fixVersion = "Digi PI2026.2"')));
+    assert.equal(data.issues.length, 1);
+    assert.deepEqual(data.issues[0].fixVersions, ['Digi PI2026.2']);
+  });
+});
+
 // ── POST /api/jira/sync-status — happy path (JIRA fetch mocked) ──────────────
 describe('POST /api/jira/sync-status — happy path (JIRA fetch mocked)', () => {
   let epicFilename;
