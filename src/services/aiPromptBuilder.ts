@@ -55,6 +55,49 @@ Command template to improve:
 ${content}`;
 }
 
+export interface ConfluenceAnalysisIssue {
+  key: string;
+  summary: string;
+  description: string;
+}
+
+export function buildConfluenceAnalysisPrompt(opts: { issues: ConfluenceAnalysisIssue[] }): string {
+  const { issues } = opts;
+  const issuesBlock = issues
+    .map(
+      (i) =>
+        `### ${i.key}: ${i.summary || '(no summary)'}\n${i.description.trim() || '_No description provided._'}`
+    )
+    .join('\n\n');
+
+  return `You are a documentation analyst for the MIDAS product team. Given the JIRA issues below, identify which Confluence documentation pages need to change as a result of this work.
+
+JIRA issues:
+---
+${issuesBlock}
+---
+
+Confluence read access is not yet implemented, so you cannot see existing page content. For "Update" or "Delete" actions, set "currentContent" to an empty string (or a short note that current content is unavailable) — do not invent existing content. Put your effort into "proposedContent": your best proposal for what the page should contain (or, for "Delete", why it should be removed) after this change.
+
+For each impacted Confluence page, decide one action:
+- "Create" — a new page is needed that does not exist yet
+- "Update" — an existing page's content needs to change
+- "Delete" — an existing page is no longer needed and should be removed
+
+Output ONLY a JSON array — no prose, no markdown code fences, no commentary before or after — matching exactly this schema:
+[
+  {
+    "pageTitle": string,
+    "hierarchyPath": string,
+    "action": "Create" | "Update" | "Delete",
+    "currentContent": string,
+    "proposedContent": string
+  }
+]
+
+If no Confluence changes are needed, output an empty JSON array: []`;
+}
+
 export function buildSplitStoryPrompt(opts: {
   content: string;
   count: number;
