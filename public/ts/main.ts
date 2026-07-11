@@ -256,6 +256,7 @@ import {
   selectAllSuggestions,
   deselectAllSuggestions,
   modifyDocumentation,
+  undoChanges,
 } from './documentation.js';
 
 if ('serviceWorker' in navigator) {
@@ -866,6 +867,7 @@ const _globals: Record<string, unknown> = {
   selectAllSuggestions,
   deselectAllSuggestions,
   modifyDocumentation,
+  undoChanges,
 };
 
 Object.assign(window, _globals);

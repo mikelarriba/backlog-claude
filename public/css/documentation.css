@@ -508,6 +508,67 @@
   color: var(--text-muted);
 }
 
+/* ── Per-row execute status (#375) ───────────────────────────────────── */
+/* Spinner reuses the same border-spin technique as .doc-loading-spinner /
+   .bugs-loading-spinner, just sized down for inline use next to the badge. */
+.doc-suggestion-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.doc-suggestion-status:empty {
+  min-width: 0;
+}
+
+.doc-suggestion-status.spinner {
+  width: 13px;
+  height: 13px;
+  min-width: 13px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: doc-spin 0.8s linear infinite;
+}
+
+.doc-suggestion-status.success {
+  color: var(--success-text);
+}
+
+.doc-suggestion-status.error {
+  color: var(--error-text);
+  cursor: help;
+}
+
+.doc-suggestion-error-text {
+  font-size: 0.75rem;
+  color: var(--error-text);
+  line-height: 1.4;
+}
+
+.doc-suggestion-error-text:empty {
+  display: none;
+}
+
+/* ── Undo button (#375) ──────────────────────────────────────────────── */
+.doc-undo-btn {
+  align-self: flex-start;
+}
+
+.doc-undo-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.doc-undo-btn.doc-undo-btn-loading {
+  position: relative;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .doc-filter-bar {

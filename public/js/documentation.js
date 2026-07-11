@@ -4,7 +4,7 @@
 // an "Ask AI" action, which POSTs to /api/confluence/analyze (see #371) and
 // renders the returned suggestions (see the "AI Analysis Results" section
 // below, #372).
-import { fetchJSON, postJSON } from './state.js';
+import { fetchJSON, postJSON, showJiraToast } from './state.js';
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 let _allIssues = [];
@@ -231,13 +231,140 @@ export function deselectAllSuggestions() {
   _selectedSuggestionIndexes.clear();
   renderAnalysisResults();
 }
-// ── Modify Documentation (stub — Confluence writes land in #373/#374) ────────
+const UNDO_WINDOW_SECONDS = 60;
+let _undoSnapshotId = null;
+let _undoCountdownInterval;
+let _undoRemainingSeconds = 0;
 export function modifyDocumentation() {
+  void executeChanges();
+}
+async function executeChanges() {
   if (_selectedSuggestionIndexes.size === 0) return;
-  console.log(
-    'modifyDocumentation: stub — selected suggestions:',
-    [..._selectedSuggestionIndexes].map((i) => _suggestions[i])
-  );
+  const modifyBtn = document.getElementById('doc-modify-btn');
+  if (modifyBtn) modifyBtn.disabled = true;
+  // A fresh execute run supersedes any previous undo window.
+  _hideUndoButton();
+  const selectedIndexes = [..._selectedSuggestionIndexes];
+  const selectedSuggestions = selectedIndexes.map((i) => _suggestions[i]);
+  selectedIndexes.forEach((i) => _setSuggestionStatus(i, 'spinner'));
+  try {
+    const data = await postJSON('/api/confluence/execute', {
+      suggestions: selectedSuggestions,
+    });
+    const results = data.results || [];
+    selectedIndexes.forEach((i) => {
+      const suggestion = _suggestions[i];
+      const result = results.find((r) => r.pageTitle === suggestion.pageTitle);
+      if (result) {
+        _setSuggestionStatus(i, result.success ? 'success' : 'error', result.error);
+      } else {
+        _setSuggestionStatus(i, 'error', 'No result returned for this item');
+      }
+    });
+    if (data.snapshotId && results.some((r) => r.success)) {
+      _showUndoButton(data.snapshotId);
+    }
+  } catch (err) {
+    // The whole request failed (network error, or execute itself rejected
+    // e.g. 503 CONFLUENCE_NOT_CONFIGURED / 400 validation) — nothing was
+    // attempted, so reset the rows to pending rather than marking them
+    // individually failed, and surface a banner instead.
+    selectedIndexes.forEach((i) => _setSuggestionStatus(i, 'pending'));
+    _showResultsError(err, 'Modify Documentation failed');
+  }
+}
+export async function undoChanges() {
+  if (!_undoSnapshotId) return;
+  const snapshotId = _undoSnapshotId;
+  const btn = document.getElementById('doc-undo-btn');
+  if (_undoCountdownInterval) {
+    clearInterval(_undoCountdownInterval);
+    _undoCountdownInterval = undefined;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('doc-undo-btn-loading');
+    btn.textContent = 'Undoing…';
+  }
+  try {
+    await postJSON(`/api/confluence/undo/${encodeURIComponent(snapshotId)}`, {});
+    showJiraToast('success', 'Changes reverted');
+    _hideUndoButton();
+    renderAnalysisResults();
+  } catch (err) {
+    const message = err?.message || String(err);
+    if (message.toLowerCase().includes('expired') || message.toLowerCase().includes('not found')) {
+      showJiraToast('error', 'Undo window expired');
+      _hideUndoButton();
+    } else {
+      showJiraToast('error', `Undo failed: ${message}`);
+      // The snapshot may still be valid server-side — re-enable the button
+      // and resume the countdown from where it left off rather than losing
+      // the undo window on a transient error.
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('doc-undo-btn-loading');
+      }
+      if (_undoSnapshotId) {
+        _updateUndoButtonLabel();
+        _startUndoCountdownTimer();
+      }
+    }
+  }
+}
+function _showUndoButton(snapshotId) {
+  _undoSnapshotId = snapshotId;
+  _undoRemainingSeconds = UNDO_WINDOW_SECONDS;
+  const btn = document.getElementById('doc-undo-btn');
+  if (!btn) return;
+  btn.style.display = '';
+  btn.disabled = false;
+  btn.classList.remove('doc-undo-btn-loading');
+  _updateUndoButtonLabel();
+  _startUndoCountdownTimer();
+}
+function _hideUndoButton() {
+  if (_undoCountdownInterval) {
+    clearInterval(_undoCountdownInterval);
+    _undoCountdownInterval = undefined;
+  }
+  _undoSnapshotId = null;
+  const btn = document.getElementById('doc-undo-btn');
+  if (btn) {
+    btn.style.display = 'none';
+    btn.disabled = false;
+    btn.classList.remove('doc-undo-btn-loading');
+    btn.textContent = '↩ Undo all changes';
+  }
+}
+function _startUndoCountdownTimer() {
+  if (_undoCountdownInterval) clearInterval(_undoCountdownInterval);
+  _undoCountdownInterval = setInterval(() => {
+    _undoRemainingSeconds -= 1;
+    if (_undoRemainingSeconds <= 0) {
+      _hideUndoButton();
+      return;
+    }
+    _updateUndoButtonLabel();
+  }, 1000);
+}
+function _updateUndoButtonLabel() {
+  const btn = document.getElementById('doc-undo-btn');
+  if (!btn) return;
+  btn.textContent = `↩ Undo all changes (${_undoRemainingSeconds}s)`;
+}
+function _setSuggestionStatus(index, status, message) {
+  const statusEl = document.querySelector(`.doc-suggestion-status[data-index="${index}"]`);
+  const errorEl = document.querySelector(`.doc-suggestion-error-text[data-index="${index}"]`);
+  if (statusEl) {
+    statusEl.className = `doc-suggestion-status ${status}`;
+    statusEl.textContent = status === 'success' ? '✓' : status === 'error' ? '✗' : '';
+    if (status === 'error' && message) statusEl.title = message;
+    else statusEl.removeAttribute('title');
+  }
+  if (errorEl) {
+    errorEl.textContent = status === 'error' && message ? message : '';
+  }
 }
 // ── Diff rendering ───────────────────────────────────────────────────────────
 // No diff library exists in this codebase's dependencies (and adding one is
@@ -327,8 +454,10 @@ function _renderSuggestionRow(s, index) {
         <div class="doc-suggestion-top">
           <span class="doc-suggestion-title">${_esc(s.pageTitle)}</span>
           <span class="doc-action-badge ${actionClass}">${_esc(s.action)}</span>
+          <span class="doc-suggestion-status" data-index="${index}"></span>
         </div>
         <div class="doc-suggestion-path">${_esc(s.hierarchyPath)}</div>
+        <div class="doc-suggestion-error-text" data-index="${index}"></div>
       </div>
       <span class="doc-suggestion-chevron">▾</span>
     </div>
@@ -348,17 +477,19 @@ function _updateSuggestionSelectionState() {
   }
   if (modifyBtn) modifyBtn.disabled = count === 0;
 }
-function _showResultsError(err) {
+function _showResultsError(err, defaultTitle = 'AI analysis failed') {
   const banner = document.getElementById('doc-results-error-banner');
   const titleEl = document.getElementById('doc-results-error-title');
   const detailEl = document.getElementById('doc-results-error-detail');
   if (!banner) return;
   const message = err?.message || String(err);
-  let title = 'AI analysis failed';
+  let title = defaultTitle;
   if (message.includes('JIRA_NOT_CONFIGURED') || message.includes('JIRA_API_TOKEN')) {
     title = 'JIRA not configured';
   } else if (message.includes('Could not fetch') && message.includes('JIRA issue')) {
     title = 'Could not fetch selected JIRA issues';
+  } else if (message.includes('Confluence') && message.includes('not configured')) {
+    title = 'Confluence not configured';
   } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
     title = 'Network error';
   }
