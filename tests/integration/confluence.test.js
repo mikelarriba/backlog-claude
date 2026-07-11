@@ -273,3 +273,249 @@ describe('GET /api/confluence/test — configured, Confluence unreachable', () =
     assert.match(data.error, /401/);
   });
 });
+
+// ── POST /api/confluence/execute + POST /api/confluence/undo/:snapshotId ─────
+// (added by #374). A small in-memory "Confluence" is modeled as a
+// title-keyed Map so create/update/delete/get-by-title round-trip through the
+// same fake state a real space would — this lets the undo tests assert the
+// reversal actually restores prior content/version, not just that the right
+// endpoints were hit. Every confluence*() call in src/services/confluenceService.ts
+// goes through a URL containing '/wiki/', matching this file's existing mock
+// convention (see the GET /api/confluence/test blocks above).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function makeConfluenceFetchMock(pages) {
+  let nextId = 1000;
+  return async (url, opts) => {
+    const urlStr = String(url);
+    if (!urlStr.includes('/wiki/')) return originalFetch(url, opts);
+    const method = opts?.method || 'GET';
+
+    if (urlStr.includes('/wiki/rest/api/space/')) {
+      return jsonRes({ id: '10', key: 'MIDAS' });
+    }
+
+    if (urlStr.includes('/wiki/rest/api/content')) {
+      const titleParam = decodeURIComponent(urlStr.match(/title=([^&]+)/)?.[1] || '');
+      const page = pages.get(titleParam);
+      if (!page) return jsonRes({ results: [] });
+      return jsonRes({
+        results: [
+          {
+            id: page.id,
+            title: page.title,
+            version: { number: page.version },
+            body: { storage: { value: page.body } },
+            space: { key: 'MIDAS' },
+          },
+        ],
+      });
+    }
+
+    if (method === 'POST' && urlStr.endsWith('/wiki/api/v2/pages')) {
+      const body = JSON.parse(opts.body);
+      const id = String(nextId++);
+      pages.set(body.title, { id, title: body.title, version: 1, body: body.body.value });
+      return jsonRes({
+        id,
+        title: body.title,
+        version: { number: 1 },
+        body: { storage: { value: body.body.value } },
+        space: { key: 'MIDAS' },
+      });
+    }
+
+    const idMatch = urlStr.match(/\/wiki\/api\/v2\/pages\/([^/?]+)/);
+    if (method === 'PUT' && idMatch) {
+      const id = decodeURIComponent(idMatch[1]);
+      const body = JSON.parse(opts.body);
+      let updated = null;
+      for (const page of pages.values()) {
+        if (page.id === id) {
+          page.version = body.version.number;
+          page.body = body.body.value;
+          page.title = body.title;
+          updated = page;
+        }
+      }
+      return jsonRes({
+        id,
+        title: body.title,
+        version: { number: updated?.version ?? body.version.number },
+        body: { storage: { value: body.body.value } },
+        space: { key: 'MIDAS' },
+      });
+    }
+
+    if (method === 'DELETE' && idMatch) {
+      const id = decodeURIComponent(idMatch[1]);
+      for (const [title, page] of pages) {
+        if (page.id === id) pages.delete(title);
+      }
+      return jsonRes({});
+    }
+
+    return jsonRes({});
+  };
+}
+
+describe('POST /api/confluence/execute — validation', () => {
+  test('returns 400 when suggestions is missing', async () => {
+    const { status, data } = await api('POST', '/api/confluence/execute', {});
+    assert.equal(status, 400);
+    assert.equal(data.code, 'VALIDATION_ERROR');
+  });
+
+  test('returns 400 when suggestions is an empty array', async () => {
+    const { status, data } = await api('POST', '/api/confluence/execute', { suggestions: [] });
+    assert.equal(status, 400);
+    assert.equal(data.code, 'VALIDATION_ERROR');
+  });
+
+  test('returns 400 when a suggestion has an invalid action', async () => {
+    const { status, data } = await api('POST', '/api/confluence/execute', {
+      suggestions: [{ pageTitle: 'Page A', action: 'Archive', proposedContent: '' }],
+    });
+    assert.equal(status, 400);
+    assert.equal(data.code, 'VALIDATION_ERROR');
+  });
+
+  test('returns 400 when a suggestion is missing pageTitle', async () => {
+    const { status, data } = await api('POST', '/api/confluence/execute', {
+      suggestions: [{ action: 'Create', proposedContent: '' }],
+    });
+    assert.equal(status, 400);
+    assert.equal(data.code, 'VALIDATION_ERROR');
+  });
+});
+
+describe('POST /api/confluence/execute — not configured', () => {
+  test('returns 503 once suggestions pass validation', async () => {
+    const { status, data } = await api('POST', '/api/confluence/execute', {
+      suggestions: [{ pageTitle: 'Page A', action: 'Create', proposedContent: '<p>hi</p>' }],
+    });
+    assert.equal(status, 503);
+    assert.equal(data.code, 'CONFLUENCE_NOT_CONFIGURED');
+  });
+});
+
+describe('POST /api/confluence/execute + undo — happy path (Create/Update/Delete, then full reversal)', () => {
+  let pages;
+
+  before(() => {
+    process.env.CONFLUENCE_BASE_URL = 'https://example.atlassian.net';
+    process.env.CONFLUENCE_API_TOKEN = 'fake-confluence-token';
+    pages = new Map([
+      [
+        'Existing Update Page',
+        { id: '1', title: 'Existing Update Page', version: 1, body: '<p>old</p>' },
+      ],
+      [
+        'Existing Delete Page',
+        { id: '2', title: 'Existing Delete Page', version: 1, body: '<p>bye</p>' },
+      ],
+    ]);
+    mock.method(globalThis, 'fetch', makeConfluenceFetchMock(pages));
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.CONFLUENCE_BASE_URL;
+    delete process.env.CONFLUENCE_API_TOKEN;
+  });
+
+  let snapshotId;
+
+  test('execute applies Create/Update/Delete and returns a snapshotId', async () => {
+    const { status, data } = await api('POST', '/api/confluence/execute', {
+      suggestions: [
+        { pageTitle: 'New Page', action: 'Create', proposedContent: '<p>new</p>' },
+        { pageTitle: 'Existing Update Page', action: 'Update', proposedContent: '<p>updated</p>' },
+        { pageTitle: 'Existing Delete Page', action: 'Delete', proposedContent: '' },
+      ],
+    });
+    assert.equal(status, 200);
+    assert.match(data.snapshotId, UUID_RE);
+    assert.equal(data.results.length, 3);
+    assert.ok(data.results.every((r) => r.success === true));
+
+    // Confluence-side state actually changed.
+    assert.ok(pages.has('New Page'));
+    assert.equal(pages.get('Existing Update Page').body, '<p>updated</p>');
+    assert.equal(pages.get('Existing Update Page').version, 1); // updatePage called with version=1 (page's version at execute time)
+    assert.ok(!pages.has('Existing Delete Page'));
+
+    snapshotId = data.snapshotId;
+  });
+
+  test('undo reverses all three operations in reverse order', async () => {
+    const { status, data } = await api('POST', `/api/confluence/undo/${snapshotId}`);
+    assert.equal(status, 200);
+    assert.equal(data.results.length, 3);
+    assert.ok(data.results.every((r) => r.success === true));
+    // Reverse order: Delete-undo (re-create) resolves first, then Update-undo, then Create-undo.
+    assert.equal(data.results[0].pageTitle, 'Existing Delete Page');
+    assert.equal(data.results[1].pageTitle, 'Existing Update Page');
+    assert.equal(data.results[2].pageTitle, 'New Page');
+
+    // Confluence-side state fully reversed.
+    assert.ok(!pages.has('New Page'), 'created page should be deleted by undo');
+    assert.equal(pages.get('Existing Update Page').body, '<p>old</p>');
+    assert.ok(pages.has('Existing Delete Page'), 'deleted page should be re-created by undo');
+    assert.equal(pages.get('Existing Delete Page').body, '<p>bye</p>');
+  });
+
+  test('the snapshot is single-use — a second undo returns 404', async () => {
+    const { status, data } = await api('POST', `/api/confluence/undo/${snapshotId}`);
+    assert.equal(status, 404);
+    assert.equal(data.code, 'SNAPSHOT_NOT_FOUND');
+  });
+});
+
+describe('POST /api/confluence/execute — partial failure (one target page not found)', () => {
+  let pages;
+
+  before(() => {
+    process.env.CONFLUENCE_BASE_URL = 'https://example.atlassian.net';
+    process.env.CONFLUENCE_API_TOKEN = 'fake-confluence-token';
+    pages = new Map();
+    mock.method(globalThis, 'fetch', makeConfluenceFetchMock(pages));
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.CONFLUENCE_BASE_URL;
+    delete process.env.CONFLUENCE_API_TOKEN;
+  });
+
+  test('still returns a snapshotId and processes the remaining suggestions', async () => {
+    const { status, data } = await api('POST', '/api/confluence/execute', {
+      suggestions: [
+        { pageTitle: 'Page B', action: 'Create', proposedContent: '<p>b</p>' },
+        { pageTitle: 'Missing Page', action: 'Update', proposedContent: '<p>x</p>' },
+      ],
+    });
+    assert.equal(status, 200);
+    assert.match(data.snapshotId, UUID_RE);
+    assert.equal(data.results.length, 2);
+
+    const created = data.results.find((r) => r.pageTitle === 'Page B');
+    assert.equal(created.success, true);
+    assert.ok(created.pageId);
+
+    const missing = data.results.find((r) => r.pageTitle === 'Missing Page');
+    assert.equal(missing.success, false);
+    assert.match(missing.error, /not found/i);
+  });
+});
+
+describe('POST /api/confluence/undo/:snapshotId — unknown snapshot', () => {
+  test('returns 404 SNAPSHOT_NOT_FOUND for an id that was never issued', async () => {
+    const { status, data } = await api(
+      'POST',
+      '/api/confluence/undo/00000000-0000-0000-0000-000000000000'
+    );
+    assert.equal(status, 404);
+    assert.equal(data.code, 'SNAPSHOT_NOT_FOUND');
+  });
+});

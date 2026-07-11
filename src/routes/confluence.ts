@@ -8,6 +8,12 @@ import { sendError, parseApiError } from '../utils/routeHelpers.js';
 import { normalizeOutput } from '../services/claudeService.js';
 import { buildConfluenceAnalysisPrompt } from '../services/aiPromptBuilder.js';
 import { jiraToMarkdown } from '../utils/transforms.js';
+import {
+  createSnapshot,
+  getSnapshot,
+  deleteSnapshot,
+  type SnapshotOperation,
+} from '../services/confluenceSnapshotStore.js';
 import type { ConfluenceRouteContext } from '../types.js';
 
 export interface ConfluenceSuggestion {
@@ -65,11 +71,39 @@ export function parseConfluenceSuggestions(raw: string): ConfluenceSuggestion[] 
   });
 }
 
+export interface ConfluenceExecuteResult {
+  pageTitle: string;
+  action: ConfluenceSuggestion['action'];
+  pageId: string | null;
+  success: boolean;
+  error?: string;
+}
+
+export interface ConfluenceUndoResult {
+  pageTitle: string;
+  action: ConfluenceSuggestion['action'];
+  success: boolean;
+  error?: string;
+}
+
+// Confluence credentials are read from process.env directly (not from the
+// context's CONFLUENCE_BASE/CONFLUENCE_SPACE_KEY, which are captured once at
+// server startup) so this guard — like GET /api/confluence/test's — always
+// reflects the *current* environment. This also lets integration tests toggle
+// CONFLUENCE_BASE_URL/CONFLUENCE_API_TOKEN mid-suite without restarting the app.
+function confluenceNotConfigured(): boolean {
+  return !process.env.CONFLUENCE_BASE_URL || !process.env.CONFLUENCE_API_TOKEN;
+}
+
 export default function confluenceRoutes({
   jiraRequest,
   callClaude,
   logError,
   confluenceGetSpace,
+  confluenceGetPageByTitle,
+  confluenceCreatePage,
+  confluenceUpdatePage,
+  confluenceDeletePage,
 }: ConfluenceRouteContext) {
   const router = Router();
 
@@ -168,6 +202,222 @@ export default function confluenceRoutes({
       res.json({ ok: true, spaceKey: space.key });
     } catch (err) {
       res.status(503).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // ── POST /api/confluence/execute ────────────────────────────────────────────
+  // Applies the user's selected suggestions (from /analyze) against Confluence.
+  // Each suggestion is applied independently — a failure on one (e.g. its
+  // target page can't be found) is recorded as `success:false` and does NOT
+  // abort the rest of the batch (acceptance criteria: partial success). Only
+  // successfully-applied operations are recorded in the undo snapshot; a
+  // failed/skipped suggestion never happened, so there's nothing to reverse.
+  router.post('/api/confluence/execute', async (req, res) => {
+    try {
+      const { suggestions } = req.body;
+      if (!Array.isArray(suggestions) || suggestions.length === 0) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'suggestions must be a non-empty array');
+      }
+      for (const s of suggestions) {
+        const item = s as Record<string, unknown> | null;
+        if (
+          !item ||
+          typeof item !== 'object' ||
+          typeof item.pageTitle !== 'string' ||
+          !item.pageTitle.trim() ||
+          typeof item.action !== 'string' ||
+          !VALID_ACTIONS.has(item.action)
+        ) {
+          return sendError(
+            res,
+            400,
+            'VALIDATION_ERROR',
+            'Each suggestion must have a non-empty pageTitle and a valid action (Create, Update, Delete)'
+          );
+        }
+      }
+
+      if (confluenceNotConfigured()) {
+        return sendError(
+          res,
+          503,
+          'CONFLUENCE_NOT_CONFIGURED',
+          'Confluence credentials not configured'
+        );
+      }
+
+      const results: ConfluenceExecuteResult[] = [];
+      const operations: SnapshotOperation[] = [];
+
+      for (const suggestion of suggestions as ConfluenceSuggestion[]) {
+        const { pageTitle, action, proposedContent } = suggestion;
+        try {
+          if (action === 'Create') {
+            const page = await confluenceCreatePage(pageTitle, proposedContent);
+            results.push({ pageTitle, action, pageId: page.id, success: true });
+            operations.push({
+              action: 'Create',
+              pageTitle,
+              pageId: page.id,
+              previousContent: null,
+              previousVersion: null,
+            });
+          } else if (action === 'Update') {
+            const page = await confluenceGetPageByTitle(pageTitle);
+            if (!page) {
+              results.push({
+                pageTitle,
+                action,
+                pageId: null,
+                success: false,
+                error: `Page not found: ${pageTitle}`,
+              });
+              continue;
+            }
+            const updated = await confluenceUpdatePage(
+              page.id,
+              page.version,
+              pageTitle,
+              proposedContent
+            );
+            results.push({ pageTitle, action, pageId: updated.id, success: true });
+            operations.push({
+              action: 'Update',
+              pageTitle,
+              pageId: page.id,
+              previousContent: page.body,
+              previousVersion: page.version,
+            });
+          } else {
+            // action === 'Delete'
+            const page = await confluenceGetPageByTitle(pageTitle);
+            if (!page) {
+              results.push({
+                pageTitle,
+                action,
+                pageId: null,
+                success: false,
+                error: `Page not found: ${pageTitle}`,
+              });
+              continue;
+            }
+            await confluenceDeletePage(page.id);
+            results.push({ pageTitle, action, pageId: page.id, success: true });
+            operations.push({
+              action: 'Delete',
+              pageTitle,
+              pageId: page.id,
+              previousContent: page.body,
+              previousVersion: page.version,
+            });
+          }
+        } catch (err) {
+          const apiErr = parseApiError(err);
+          results.push({ pageTitle, action, pageId: null, success: false, error: apiErr.message });
+        }
+      }
+
+      const snapshotId = createSnapshot(operations);
+      res.json({ snapshotId, results });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError(
+        'POST /api/confluence/execute',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── POST /api/confluence/undo/:snapshotId ───────────────────────────────────
+  // Reverses a prior /execute call using its stored snapshot, applying the
+  // inverse of each operation in *reverse* order. Like execute, each reversal
+  // is applied independently (partial success) — one failure doesn't stop the
+  // rest. The snapshot is removed after the attempt regardless of how many
+  // individual reversals succeeded, per the issue spec (a snapshot is a
+  // single-use undo window, not a retryable queue).
+  router.post('/api/confluence/undo/:snapshotId', async (req, res) => {
+    try {
+      const { snapshotId } = req.params;
+      const snapshot = getSnapshot(snapshotId);
+      if (!snapshot) {
+        return sendError(
+          res,
+          404,
+          'SNAPSHOT_NOT_FOUND',
+          'Undo window expired or snapshot not found'
+        );
+      }
+
+      if (confluenceNotConfigured()) {
+        return sendError(
+          res,
+          503,
+          'CONFLUENCE_NOT_CONFIGURED',
+          'Confluence credentials not configured'
+        );
+      }
+
+      const results: ConfluenceUndoResult[] = [];
+      const reversed = [...snapshot.operations].reverse();
+
+      for (const op of reversed) {
+        try {
+          if (op.action === 'Create') {
+            if (!op.pageId) throw new Error('Snapshot is missing the created page id');
+            await confluenceDeletePage(op.pageId);
+          } else if (op.action === 'Update') {
+            if (!op.pageId || op.previousContent === null || op.previousVersion === null) {
+              throw new Error('Snapshot is missing data needed to undo this update');
+            }
+            // The context only exposes getPageByTitle (no get-by-id), and the
+            // title is stable across the original update, so re-fetch by
+            // title to get the page's *actual current* version rather than
+            // trusting op.previousVersion + 2 (original version, +1 for
+            // execute's update, +1 again for this undo) — anything could have
+            // changed the page's version between execute and undo (e.g. a
+            // manual edit), so re-reading it right before the call is safer
+            // than assuming no drift.
+            const current = await confluenceGetPageByTitle(op.pageTitle);
+            const currentVersion = current ? current.version : op.previousVersion + 1;
+            await confluenceUpdatePage(
+              op.pageId,
+              currentVersion + 1,
+              op.pageTitle,
+              op.previousContent
+            );
+          } else {
+            // Undo Delete → re-create the page. Best-effort: this creates the
+            // page at the space root — the original hierarchy/parent-page
+            // placement is not restored (same caveat as the issue spec).
+            if (op.previousContent === null) {
+              throw new Error('Snapshot is missing data needed to undo this delete');
+            }
+            await confluenceCreatePage(op.pageTitle, op.previousContent);
+          }
+          results.push({ pageTitle: op.pageTitle, action: op.action, success: true });
+        } catch (err) {
+          const apiErr = parseApiError(err);
+          results.push({
+            pageTitle: op.pageTitle,
+            action: op.action,
+            success: false,
+            error: apiErr.message,
+          });
+        }
+      }
+
+      deleteSnapshot(snapshotId);
+      res.json({ results });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError(
+        'POST /api/confluence/undo',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
     }
   });
 
