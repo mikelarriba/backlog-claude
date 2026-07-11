@@ -249,6 +249,11 @@ import {
   docRowClick,
   docToggleKey,
   askAI,
+  toggleSuggestionRow,
+  toggleSuggestionCheck,
+  selectAllSuggestions,
+  deselectAllSuggestions,
+  modifyDocumentation,
 } from './documentation.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -797,6 +802,11 @@ const _globals = {
   docRowClick,
   docToggleKey,
   askAI,
+  toggleSuggestionRow,
+  toggleSuggestionCheck,
+  selectAllSuggestions,
+  deselectAllSuggestions,
+  modifyDocumentation,
 };
 Object.assign(window, _globals);
 //# sourceMappingURL=main.js.map

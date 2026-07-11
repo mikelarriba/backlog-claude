@@ -251,6 +251,11 @@ import {
   docRowClick,
   docToggleKey,
   askAI,
+  toggleSuggestionRow,
+  toggleSuggestionCheck,
+  selectAllSuggestions,
+  deselectAllSuggestions,
+  modifyDocumentation,
 } from './documentation.js';
 
 if ('serviceWorker' in navigator) {
@@ -856,6 +861,11 @@ const _globals: Record<string, unknown> = {
   docRowClick,
   docToggleKey,
   askAI,
+  toggleSuggestionRow,
+  toggleSuggestionCheck,
+  selectAllSuggestions,
+  deselectAllSuggestions,
+  modifyDocumentation,
 };
 
 Object.assign(window, _globals);
