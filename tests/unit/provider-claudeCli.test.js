@@ -9,6 +9,7 @@ import {
   loadProductContext,
   loadCommand,
   loadCommandRaw,
+  buildArgs,
 } from '../../src/services/providers/claudeCli.js';
 
 describe('normalizeOutput', () => {
@@ -81,6 +82,45 @@ describe('loadCommand', () => {
     assert.ok(result.includes('Command body'), 'body should be present');
     assert.ok(!result.includes('---'), 'frontmatter should be stripped');
     fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
+describe('buildArgs', () => {
+  test('always includes -p and the prompt', () => {
+    assert.deepEqual(buildArgs('hello', ''), ['-p', 'hello']);
+  });
+
+  test('appends --model when a model is provided', () => {
+    assert.deepEqual(buildArgs('hello', 'claude-sonnet-5'), [
+      '-p',
+      'hello',
+      '--model',
+      'claude-sonnet-5',
+    ]);
+  });
+
+  test('appends --effort when an effort level is provided', () => {
+    assert.deepEqual(buildArgs('hello', '', 'high'), ['-p', 'hello', '--effort', 'high']);
+  });
+
+  test('appends both --model and --effort when both are provided', () => {
+    assert.deepEqual(buildArgs('hello', 'claude-opus-4-8', 'max'), [
+      '-p',
+      'hello',
+      '--model',
+      'claude-opus-4-8',
+      '--effort',
+      'max',
+    ]);
+  });
+
+  test('omits --effort when effort is an empty string', () => {
+    assert.deepEqual(buildArgs('hello', 'claude-sonnet-5', ''), [
+      '-p',
+      'hello',
+      '--model',
+      'claude-sonnet-5',
+    ]);
   });
 });
 

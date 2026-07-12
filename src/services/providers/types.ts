@@ -2,6 +2,9 @@ export interface ProviderCallOpts {
   rootDir: string;
   model: string;
   timeoutMs: number;
+  // Reasoning-effort level (low/medium/high/xhigh/max). Only honored by the
+  // claude-cli provider, which forwards it as `--effort <level>`.
+  effort?: string;
 }
 
 export interface AIProvider {

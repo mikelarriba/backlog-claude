@@ -39,6 +39,8 @@ mock.module('../../src/services/claudeService.ts', {
     getModelOverride: () => null,
     setProviderOverride: () => {},
     getProviderOverride: () => null,
+    setEffortOverride: () => {},
+    getEffortOverride: () => null,
     getAvailableProviders: () => [],
   },
 });

@@ -14,6 +14,8 @@ import {
   getModelOverride,
   setProviderOverride,
   getProviderOverride,
+  setEffortOverride,
+  getEffortOverride,
   getAvailableProviders,
   normalizeOutput,
   _resetOllamaCache,
@@ -159,6 +161,27 @@ describe('provider override', () => {
   });
 });
 
+// ── effort override ───────────────────────────────────────────────────────────
+describe('effort override', () => {
+  after(() => setEffortOverride(null));
+
+  test('defaults to null', () => {
+    setEffortOverride(null);
+    assert.equal(getEffortOverride(), null);
+  });
+
+  test('setEffortOverride stores the effort level', () => {
+    setEffortOverride('high');
+    assert.equal(getEffortOverride(), 'high');
+  });
+
+  test('setEffortOverride with empty string resets to null', () => {
+    setEffortOverride('high');
+    setEffortOverride('');
+    assert.equal(getEffortOverride(), null);
+  });
+});
+
 // ── getAvailableProviders ─────────────────────────────────────────────────────
 describe('getAvailableProviders', () => {
   const origToken = process.env.GITHUB_MODELS_TOKEN;
@@ -223,6 +246,41 @@ describe('getAvailableProviders', () => {
     const claudeProvider = providers.find((p) => p.id === 'claude-cli');
     assert.ok(claudeProvider);
     assert.ok(Array.isArray(claudeProvider.models) && claudeProvider.models.length > 0);
+  });
+
+  test('claude-cli provider offers the current Claude model generation', async () => {
+    delete process.env.GITHUB_MODELS_TOKEN;
+    _resetOllamaCache();
+    const providers = await getAvailableProviders();
+    const claudeProvider = providers.find((p) => p.id === 'claude-cli');
+    const ids = claudeProvider.models.map((m) => m.id);
+    assert.ok(ids.includes('claude-sonnet-5'), 'should offer Sonnet 5');
+    assert.ok(ids.includes('claude-opus-4-8'), 'should offer Opus 4.8');
+    assert.ok(ids.includes('claude-haiku-4-5-20251001'), 'should offer Haiku 4.5');
+    assert.ok(
+      !ids.includes('claude-sonnet-4-6') &&
+        !ids.includes('claude-opus-4-6') &&
+        !ids.includes('claude-haiku-4-5'),
+      'stale 4.6-era model ids should be removed'
+    );
+  });
+
+  test('claude-cli provider exposes reasoning-effort levels', async () => {
+    delete process.env.GITHUB_MODELS_TOKEN;
+    _resetOllamaCache();
+    const providers = await getAvailableProviders();
+    const claudeProvider = providers.find((p) => p.id === 'claude-cli');
+    assert.deepEqual(claudeProvider.effortLevels, ['low', 'medium', 'high', 'xhigh', 'max']);
+  });
+
+  test('non-claude-cli providers do not expose effortLevels', async () => {
+    process.env.GITHUB_MODELS_TOKEN = 'ghp_test_token';
+    _resetOllamaCache();
+    const providers = await getAvailableProviders();
+    const ghProvider = providers.find((p) => p.id === 'github-models');
+    assert.ok(ghProvider);
+    assert.equal(ghProvider.effortLevels, undefined);
+    delete process.env.GITHUB_MODELS_TOKEN;
   });
 
   test('github-models provider has expected models', async () => {

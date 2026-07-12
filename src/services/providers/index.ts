@@ -14,23 +14,35 @@ export function createProvider(name: string): AIProvider {
   }
 }
 
+// Reasoning-effort levels accepted by `claude --effort <level>`. Only the
+// claude-cli provider supports this flag.
+export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
 export async function getAvailableProviders(): Promise<
-  Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }>
+  Array<{
+    id: string;
+    name: string;
+    models: Array<{ id: string; name: string }>;
+    effortLevels?: readonly string[];
+  }>
 > {
   const providers: Array<{
     id: string;
     name: string;
     models: Array<{ id: string; name: string }>;
+    effortLevels?: readonly string[];
   }> = [
     {
       id: 'claude-cli',
       name: 'Claude (Anthropic)',
       models: [
-        { id: '', name: 'Default (Sonnet)' },
-        { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6' },
-        { id: 'claude-haiku-4-5', name: 'Haiku 4.5' },
-        { id: 'claude-opus-4-6', name: 'Opus 4.6' },
+        { id: '', name: 'Default (Sonnet 5)' },
+        { id: 'claude-sonnet-5', name: 'Sonnet 5' },
+        { id: 'claude-opus-4-8', name: 'Opus 4.8' },
+        { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5' },
+        { id: 'claude-fable-5', name: 'Fable 5' },
       ],
+      effortLevels: EFFORT_LEVELS,
     },
   ];
 
