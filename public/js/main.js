@@ -227,6 +227,7 @@ import {
   onProviderChange,
   refreshProviders,
   updateModelSetting,
+  updateEffortSetting,
 } from './provider-settings.js';
 import { _connectSSE } from './sse-client.js';
 import {
@@ -782,6 +783,7 @@ const _globals = {
   toggleModelSection,
   refreshProviders,
   updateModelSetting,
+  updateEffortSetting,
   onProviderChange,
   isSplitMode,
   updateSplitMode,

@@ -57,20 +57,21 @@ export function loadCommandRaw(
   return { content: fs.readFileSync(resolved.path, 'utf-8'), source: resolved.source };
 }
 
-function buildArgs(prompt: string, model: string): string[] {
+export function buildArgs(prompt: string, model: string, effort?: string): string[] {
   const args = ['-p', prompt];
   if (model) args.push('--model', model);
+  if (effort) args.push('--effort', effort);
   return args;
 }
 
 export const claudeCliProvider: AIProvider = {
   name: 'claude-cli',
 
-  call(prompt: string, { rootDir, model, timeoutMs }: ProviderCallOpts): Promise<string> {
+  call(prompt: string, { rootDir, model, timeoutMs, effort }: ProviderCallOpts): Promise<string> {
     return new Promise((resolve, reject) => {
       let out = '';
       let err = '';
-      const proc = spawn('claude', buildArgs(prompt, model), {
+      const proc = spawn('claude', buildArgs(prompt, model, effort), {
         cwd: rootDir,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -90,12 +91,12 @@ export const claudeCliProvider: AIProvider = {
 
   stream(
     prompt: string,
-    { rootDir, model, timeoutMs }: ProviderCallOpts,
+    { rootDir, model, timeoutMs, effort }: ProviderCallOpts,
     onChunk: (chunk: string) => void
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       let err = '';
-      const proc = spawn('claude', buildArgs(prompt, model), {
+      const proc = spawn('claude', buildArgs(prompt, model, effort), {
         cwd: rootDir,
         stdio: ['ignore', 'pipe', 'pipe'],
       });

@@ -86,6 +86,7 @@ const NO_RETRY_PATTERNS = [
 
 let _modelOverride: string | null = null;
 let _providerOverride: string | null = null;
+let _effortOverride: string | null = null;
 
 export function setModelOverride(model: string | null | undefined): void {
   _modelOverride = model || null;
@@ -101,6 +102,14 @@ export function setProviderOverride(provider: string | null | undefined): void {
 
 export function getProviderOverride(): string | null {
   return _providerOverride;
+}
+
+export function setEffortOverride(effort: string | null | undefined): void {
+  _effortOverride = effort || null;
+}
+
+export function getEffortOverride(): string | null {
+  return _effortOverride;
 }
 
 /**
@@ -127,6 +136,7 @@ export async function callClaude(
           rootDir,
           model,
           timeoutMs: CALL_TIMEOUT_MS,
+          effort: _effortOverride || undefined,
         });
         logInfo(
           'callClaude',
@@ -166,7 +176,11 @@ export async function streamClaude(
   try {
     const provider = createProvider(_providerOverride || 'claude-cli');
     const model = _modelOverride || '';
-    await provider.stream(prompt, { rootDir, model, timeoutMs: STREAM_TIMEOUT_MS }, onChunk);
+    await provider.stream(
+      prompt,
+      { rootDir, model, timeoutMs: STREAM_TIMEOUT_MS, effort: _effortOverride || undefined },
+      onChunk
+    );
     logInfo(
       'streamClaude',
       `provider=${provider.name} model=${model || '(default)'} duration=${Date.now() - t}ms`

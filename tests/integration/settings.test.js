@@ -245,4 +245,36 @@ describe('GET/PUT /api/settings/model', () => {
     assert.equal(data.model, null);
     assert.equal(data.provider, 'claude-cli');
   });
+
+  test('GET returns an effort field', async () => {
+    const { status, data } = await api('GET', '/api/settings/model');
+    assert.equal(status, 200);
+    assert.ok('effort' in data);
+  });
+
+  test('PUT sets effort and GET reflects it', async () => {
+    const { status, data } = await api('PUT', '/api/settings/model', { effort: 'high' });
+    assert.equal(status, 200);
+    assert.equal(data.effort, 'high');
+
+    const { data: read } = await api('GET', '/api/settings/model');
+    assert.equal(read.effort, 'high');
+  });
+
+  test('PUT with null effort clears it', async () => {
+    const { data } = await api('PUT', '/api/settings/model', { effort: null });
+    assert.equal(data.effort, null);
+  });
+
+  test('PUT rejects an invalid effort level with 400', async () => {
+    const { status } = await api('PUT', '/api/settings/model', { effort: 'ultra' });
+    assert.equal(status, 400);
+  });
+
+  test('claude-cli provider entry exposes effortLevels', async () => {
+    const { data } = await api('GET', '/api/settings/providers');
+    const claudeProvider = data.providers.find((p) => p.id === 'claude-cli');
+    assert.ok(claudeProvider);
+    assert.deepEqual(claudeProvider.effortLevels, ['low', 'medium', 'high', 'xhigh', 'max']);
+  });
 });

@@ -42,5 +42,8 @@ export const ModelSchema = z
   .object({
     model: z.string().nullable().optional().openapi({ description: 'AI model identifier' }),
     provider: z.string().nullable().optional().openapi({ description: 'AI provider name' }),
+    effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional().openapi({
+      description: 'Reasoning-effort level for the claude-cli provider (low/medium/high/xhigh/max)',
+    }),
   })
   .openapi('Model');

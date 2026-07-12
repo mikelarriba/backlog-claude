@@ -7,6 +7,8 @@ import {
   getModelOverride,
   setProviderOverride,
   getProviderOverride,
+  setEffortOverride,
+  getEffortOverride,
   getAvailableProviders,
 } from '../services/claudeService.js';
 import { validateBody } from '../utils/validateMiddleware.js';
@@ -49,13 +51,14 @@ export default function settingsRoutes({
     await fs.promises.writeFile(PI_SETTINGS_PATH, JSON.stringify(settings, null, 2));
   }
 
-  // Apply saved model and provider on startup (async read, fires before first request)
+  // Apply saved model, provider, and effort on startup (async read, fires before first request)
   void (async () => {
     try {
       if (fs.existsSync(MODEL_SETTINGS_PATH)) {
         const saved = JSON.parse(await fs.promises.readFile(MODEL_SETTINGS_PATH, 'utf-8'));
         if (saved.model) setModelOverride(saved.model);
         if (saved.provider) setProviderOverride(saved.provider);
+        if (saved.effort) setEffortOverride(saved.effort);
       }
     } catch {
       /* no-op */
@@ -137,23 +140,29 @@ export default function settingsRoutes({
 
   // ── Model settings ─────────────────────────────────────────────────────────
   router.get('/api/settings/model', (req, res) => {
-    res.json({ model: getModelOverride(), provider: getProviderOverride() || 'claude-cli' });
+    res.json({
+      model: getModelOverride(),
+      provider: getProviderOverride() || 'claude-cli',
+      effort: getEffortOverride(),
+    });
   });
 
   router.put('/api/settings/model', validateBody(ModelSchema), async (req, res) => {
-    const { model, provider } = req.body;
+    const { model, provider, effort } = req.body;
     setModelOverride(model || null);
     setProviderOverride(provider || null);
-    const saved = { model: model || null, provider: provider || null };
+    setEffortOverride(effort || null);
+    const saved = { model: model || null, provider: provider || null, effort: effort || null };
     await fs.promises.writeFile(MODEL_SETTINGS_PATH, JSON.stringify(saved, null, 2));
     logInfo(
       'PUT /api/settings/model',
-      `Provider: ${provider || 'claude-cli'}, Model: ${model || 'default'}`
+      `Provider: ${provider || 'claude-cli'}, Model: ${model || 'default'}, Effort: ${effort || 'default'}`
     );
     res.json({
       success: true,
       model: getModelOverride(),
       provider: getProviderOverride() || 'claude-cli',
+      effort: getEffortOverride(),
     });
   });
 
