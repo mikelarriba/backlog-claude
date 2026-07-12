@@ -9,10 +9,19 @@ import { clearDocsDir, rebuildServerIndex } from './fixtures.js';
 
 test.beforeAll(async () => {
   clearDocsDir();
-  await rebuildServerIndex();
+  // rebuild-index is a test-only endpoint (only registered when MOCK_CLAUDE=1).
+  // Tolerate 404 when a dev server without that env var is reused locally.
+  try {
+    await rebuildServerIndex();
+  } catch {
+    // not available on the local dev server — safe to ignore since all
+    // network calls in this file are mocked via page.route()
+  }
 });
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
+const SPRINTS_FIXTURE = [{ id: 1, name: 'Sprint 1', state: 'active' }];
+
 const VERSIONS_FIXTURE = [
   { id: '1', name: 'v1.0', released: false, archived: false },
   { id: '2', name: 'v2.0', released: false, archived: false },
@@ -145,6 +154,7 @@ function filterIssues(issues, { type, text, fixVersion }) {
 async function mockDocumentationRoutes(
   page,
   {
+    sprints = SPRINTS_FIXTURE,
     versions = VERSIONS_FIXTURE,
     issues = ISSUE_FIXTURES,
     suggestions = SUGGESTIONS_FIXTURE,
@@ -156,6 +166,14 @@ async function mockDocumentationRoutes(
     undoGate = null,
   } = {}
 ) {
+  await page.route('**/api/jira/board-sprints', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ sprints }),
+    })
+  );
+
   await page.route('**/api/jira/versions', (route) =>
     route.fulfill({
       status: 200,
@@ -217,6 +235,18 @@ async function openDocView(page) {
   await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
 }
 
+// Load all issues by selecting a sprint — needed because the redesigned panel
+// (#384/#386) no longer auto-searches on open. Sprint mode pre-selects all
+// returned issues; tests that need to work on individual rows should call
+// this first then manipulate checkboxes as needed.
+async function loadIssuesViaSprint(page) {
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+    page.locator('#doc-sprint-select').selectOption('Sprint 1'),
+  ]);
+  await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
+}
+
 async function selectIssue(page, key) {
   await page.locator(`.doc-issue-row[data-key="${key}"] input[type=checkbox]`).check();
 }
@@ -232,29 +262,44 @@ async function selectSuggestion(page, index) {
 
 // ── Filter & selection ───────────────────────────────────────────────────────
 test.describe('Documentation — navigation & filter panel', () => {
-  test('clicking Documentation in the sidebar shows the filter panel, not a placeholder', async ({
+  test('clicking Documentation in the sidebar shows the mode-switcher tabs and placeholder', async ({
     page,
   }) => {
+    // After #384/#386: panel opens in "By Sprint" mode with a placeholder —
+    // no auto-search. Issues only load after the user picks a sprint/version or
+    // clicks Search.
     await mockDocumentationRoutes(page);
     await openDocView(page);
 
-    await expect(page.locator('#doc-filter-text')).toBeVisible();
-    await expect(page.locator('#doc-filter-version')).toBeVisible();
-    await expect(page.locator('#doc-type-chips')).toBeVisible();
+    await expect(page.locator('.doc-mode-switcher')).toBeVisible();
+    await expect(page.locator('.doc-mode-tab[data-mode="sprint"]')).toBeVisible();
+    await expect(page.locator('#doc-placeholder')).toBeVisible();
+    await expect(page.locator('.doc-issue-row')).toHaveCount(0);
+  });
+
+  test('selecting a sprint loads all issues into the panel', async ({ page }) => {
+    await mockDocumentationRoutes(page);
+    await openDocView(page);
+    await loadIssuesViaSprint(page);
+
     await expect(page.locator('.doc-issue-row')).toHaveCount(ISSUE_FIXTURES.length);
   });
 });
 
 test.describe('Documentation — JIRA search & filtering', () => {
-  test('typing in the search input calls JIRA search and populates the list', async ({ page }) => {
+  test('Search Issues mode: typing + clicking Search populates the list', async ({ page }) => {
+    // After #384: search must be explicitly triggered (no debounce auto-fire).
+    // Switch to "Search Issues" tab first, then type and click Search.
     await mockDocumentationRoutes(page);
     await openDocView(page);
 
+    await page.locator('.doc-mode-tab[data-mode="search"]').click();
+    await page.locator('#doc-filter-text').fill('redirect');
     await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes('/api/jira/search') && r.url().includes('text=redirect')
       ),
-      page.locator('#doc-filter-text').fill('redirect'),
+      page.locator('.doc-search-btn').click(),
     ]);
 
     await expect(page.locator('.doc-issue-row')).toHaveCount(1);
@@ -262,10 +307,12 @@ test.describe('Documentation — JIRA search & filtering', () => {
     await expect(page.locator('#doc-issues-list')).not.toContainText('DOC-101');
   });
 
-  test('fix-version filter narrows the results', async ({ page }) => {
+  test('By Fix Version mode: selecting a fix version narrows the results', async ({ page }) => {
+    // After #386: fix-version selection lives in its own tab panel.
     await mockDocumentationRoutes(page);
     await openDocView(page);
 
+    await page.locator('.doc-mode-tab[data-mode="fixversion"]').click();
     await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes('/api/jira/search') && r.url().includes('fixVersion=v1.0')
@@ -284,6 +331,14 @@ test.describe('Documentation — issue selection', () => {
   test('checking a row enables the "Ask AI" button', async ({ page }) => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
+    // Sprint mode pre-selects all rows; uncheck all first to start from zero.
+    await loadIssuesViaSprint(page);
+    await page.locator('.doc-issue-row input[type=checkbox]').evaluateAll((els) =>
+      els.forEach((el) => {
+        el.checked = false;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      })
+    );
 
     await expect(page.locator('#doc-ask-ai-btn')).toBeDisabled();
     await selectIssue(page, 'DOC-101');
@@ -293,11 +348,16 @@ test.describe('Documentation — issue selection', () => {
   test('unchecking all rows disables the "Ask AI" button', async ({ page }) => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
-
-    await selectIssue(page, 'DOC-101');
+    await loadIssuesViaSprint(page);
+    // All rows are pre-selected — Ask AI should already be enabled.
     await expect(page.locator('#doc-ask-ai-btn')).toBeEnabled();
 
-    await page.locator('.doc-issue-row[data-key="DOC-101"] input[type=checkbox]').uncheck();
+    // Uncheck every row one by one.
+    const checkboxes = page.locator('.doc-issue-row input[type=checkbox]');
+    const count = await checkboxes.count();
+    for (let i = 0; i < count; i++) {
+      await checkboxes.nth(i).uncheck();
+    }
     await expect(page.locator('#doc-ask-ai-btn')).toBeDisabled();
   });
 });
@@ -311,6 +371,7 @@ test.describe('Documentation — Ask AI loading state', () => {
     });
     await mockDocumentationRoutes(page, { analyzeGate: gate });
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
 
     await page.locator('#doc-ask-ai-btn').click();
@@ -328,6 +389,7 @@ test.describe('Documentation — AI analysis results', () => {
   }) => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
 
@@ -339,6 +401,7 @@ test.describe('Documentation — AI analysis results', () => {
   }) => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
 
@@ -360,6 +423,7 @@ test.describe('Documentation — AI analysis results', () => {
   }) => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
 
@@ -384,6 +448,7 @@ test.describe('Documentation — AI analysis results', () => {
   test('diff view shows red (removed) and green (added) lines', async ({ page }) => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
 
@@ -405,6 +470,7 @@ test.describe('Documentation — AI results selection controls', () => {
   test('"Select All" checks all suggestion rows; "Deselect All" unchecks all', async ({ page }) => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
 
@@ -441,6 +507,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
     });
     await mockDocumentationRoutes(page, { executeGate: gate, executeResult: EXECUTE_SUCCESS });
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
@@ -459,6 +526,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
   test('after execution, each row shows a success or error status icon', async ({ page }) => {
     await mockDocumentationRoutes(page, { executeResult: EXECUTE_MIXED });
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
@@ -481,6 +549,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
   test('"Modify Documentation" button is disabled after execution', async ({ page }) => {
     await mockDocumentationRoutes(page, { executeResult: EXECUTE_SUCCESS });
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
@@ -498,6 +567,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
   }) => {
     await mockDocumentationRoutes(page, { executeResult: EXECUTE_MIXED });
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
@@ -513,6 +583,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
 // ── Undo ─────────────────────────────────────────────────────────────────────
 async function executeAndReachUndo(page, executeResult = EXECUTE_SUCCESS) {
   await openDocView(page);
+  await loadIssuesViaSprint(page);
   await selectIssue(page, 'DOC-101');
   await askAIAndWaitResults(page);
   await selectSuggestion(page, 0);
@@ -609,6 +680,12 @@ test.describe('Documentation — edge cases', () => {
   test('zero JIRA results shows an empty state in the filter list', async ({ page }) => {
     await mockDocumentationRoutes(page, { issues: [] });
     await openDocView(page);
+    // Trigger a load via sprint mode — the empty fixture means 0 results.
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.locator('#doc-sprint-select').selectOption('Sprint 1'),
+    ]);
+    await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
 
     await expect(page.locator('#doc-issues-list')).toContainText(
       'No JIRA issues match the current filters.'
@@ -619,6 +696,7 @@ test.describe('Documentation — edge cases', () => {
   test('AI returns zero suggestions shows an empty state in the results list', async ({ page }) => {
     await mockDocumentationRoutes(page, { suggestions: [] });
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
 
@@ -644,6 +722,7 @@ test.describe('Documentation — edge cases', () => {
     // fixed here since this issue is test-only. See the final report.
     await mockDocumentationRoutes(page, { executeResult: EXECUTE_ALL_FAIL });
     await openDocView(page);
+    await loadIssuesViaSprint(page);
     await selectIssue(page, 'DOC-101');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
