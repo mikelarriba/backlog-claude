@@ -6,7 +6,6 @@
 // below, #372).
 import { fetchJSON, postJSON, showJiraToast } from './state.js';
 const PAGE_SIZE = 20;
-const SEARCH_DEBOUNCE_MS = 300;
 let _allIssues = [];
 const _selectedKeys = new Set();
 let _searchText = '';
@@ -15,14 +14,16 @@ let _fixVersionFilter = '';
 let _versions = [];
 let _versionsLoaded = false;
 let _currentPage = 1;
-let _debounceTimer;
 let _searchSeq = 0;
 // ── Init ─────────────────────────────────────────────────────────────────────
 export async function loadDocumentationView() {
   if (!_versionsLoaded) {
     await loadDocVersions();
   }
-  await searchDocumentationIssues();
+  const listEl = document.getElementById('doc-issues-list');
+  const placeholderEl = document.getElementById('doc-placeholder');
+  if (listEl) listEl.innerHTML = '';
+  if (placeholderEl) placeholderEl.style.display = '';
 }
 async function loadDocVersions() {
   const select = document.getElementById('doc-filter-version');
@@ -44,10 +45,9 @@ async function loadDocVersions() {
 // ── Search ───────────────────────────────────────────────────────────────────
 export function docFilterInput(value) {
   _searchText = value;
-  if (_debounceTimer) clearTimeout(_debounceTimer);
-  _debounceTimer = setTimeout(() => {
-    void searchDocumentationIssues();
-  }, SEARCH_DEBOUNCE_MS);
+}
+export function docSearch() {
+  void searchDocumentationIssues();
 }
 export function docSetTypeFilter(type) {
   if (_typeFilter === type) return;
@@ -66,9 +66,11 @@ export async function searchDocumentationIssues() {
   const loadingEl = document.getElementById('doc-loading');
   const errorEl = document.getElementById('doc-error-banner');
   const listEl = document.getElementById('doc-issues-list');
+  const placeholderEl = document.getElementById('doc-placeholder');
   if (loadingEl) loadingEl.style.display = '';
   if (errorEl) errorEl.style.display = 'none';
   if (listEl) listEl.innerHTML = '';
+  if (placeholderEl) placeholderEl.style.display = 'none';
   try {
     const params = new URLSearchParams({ type: _typeFilter });
     if (_searchText.trim()) params.set('text', _searchText.trim());
@@ -505,13 +507,15 @@ function _showDocError(err) {
   if (!banner) return;
   const message = err?.message || String(err);
   let title = 'Failed to load JIRA issues';
+  let detail = message;
   if (message.includes('JIRA_NOT_CONFIGURED') || message.includes('JIRA_API_TOKEN')) {
-    title = 'JIRA not configured';
+    title = 'JIRA not connected';
+    detail = 'Check your API token in Settings.';
   } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
     title = 'Network error';
   }
   if (titleEl) titleEl.textContent = title;
-  if (detailEl) detailEl.textContent = message;
+  if (detailEl) detailEl.textContent = detail;
   banner.style.display = '';
 }
 function _esc(str) {
