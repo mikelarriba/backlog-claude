@@ -33,6 +33,69 @@
   flex: 1;
 }
 
+/* ── Mode switcher (#386) ──────────────────────────────────────────────── */
+.doc-mode-switcher {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+.doc-mode-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-family: inherit;
+  white-space: nowrap;
+  transition:
+    color 0.15s,
+    border-bottom-color 0.15s;
+}
+
+.doc-mode-tab:hover {
+  color: var(--text);
+}
+
+.doc-mode-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Per-mode control panels — hidden unless .active */
+.doc-mode-panel {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doc-mode-panel.active {
+  display: flex;
+}
+
+/* Full-width select for sprint and fix-version panels */
+.doc-mode-select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.doc-mode-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* Filter bar */
 .doc-filter-bar {
   display: flex;

@@ -15,11 +15,16 @@ let _versions = [];
 let _versionsLoaded = false;
 let _currentPage = 1;
 let _searchSeq = 0;
+let _mode = 'sprint'; // 'sprint' | 'fixversion' | 'search'
+let _sprintFilter = '';
+let _sprints = [];
+let _sprintsLoaded = false;
 // ── Init ─────────────────────────────────────────────────────────────────────
 export async function loadDocumentationView() {
-  if (!_versionsLoaded) {
-    await loadDocVersions();
-  }
+  await Promise.all([
+    _versionsLoaded ? null : loadDocVersions(),
+    _sprintsLoaded ? null : loadDocSprints(),
+  ]);
   const listEl = document.getElementById('doc-issues-list');
   const placeholderEl = document.getElementById('doc-placeholder');
   if (listEl) listEl.innerHTML = '';
@@ -37,9 +42,100 @@ async function loadDocVersions() {
   if (select) {
     const current = select.value;
     select.innerHTML =
-      '<option value="">All fix versions</option>' +
+      '<option value="">Select a fix version…</option>' +
       _versions.map((v) => `<option value="${_esc(v.name)}">${_esc(v.name)}</option>`).join('');
     select.value = current;
+  }
+}
+async function loadDocSprints() {
+  const select = document.getElementById('doc-sprint-select');
+  try {
+    const data = await fetchJSON('/api/jira/board-sprints');
+    _sprints = data.sprints || [];
+    _sprintsLoaded = true;
+  } catch {
+    _sprints = [];
+  }
+  if (select) {
+    select.innerHTML =
+      '<option value="">Select a sprint…</option>' +
+      _sprints.map((s) => `<option value="${_esc(s.name)}">${_esc(s.name)}</option>`).join('');
+  }
+}
+// ── Mode switcher ─────────────────────────────────────────────────────────────
+export function setDocMode(mode) {
+  if (_mode === mode) return;
+  if (
+    _selectedKeys.size > 0 &&
+    !confirm('Switching mode will clear your current selection. Continue?')
+  ) {
+    return;
+  }
+  _mode = mode;
+  document.querySelectorAll('.doc-mode-tab').forEach((el) => {
+    el.classList.toggle('active', el.dataset.mode === mode);
+  });
+  document.querySelectorAll('.doc-mode-panel').forEach((el) => {
+    el.classList.toggle('active', el.id === `doc-mode-${mode}`);
+  });
+  // Reset all filter state
+  _selectedKeys.clear();
+  _allIssues = [];
+  _currentPage = 1;
+  _sprintFilter = '';
+  _fixVersionFilter = '';
+  _searchText = '';
+  const listEl = document.getElementById('doc-issues-list');
+  const placeholderEl = document.getElementById('doc-placeholder');
+  const pagerEl = document.getElementById('doc-pagination');
+  const errorEl = document.getElementById('doc-error-banner');
+  if (listEl) listEl.innerHTML = '';
+  if (placeholderEl) placeholderEl.style.display = '';
+  if (pagerEl) pagerEl.innerHTML = '';
+  if (errorEl) errorEl.style.display = 'none';
+  const sprintSel = document.getElementById('doc-sprint-select');
+  if (sprintSel) sprintSel.value = '';
+  const versionSel = document.getElementById('doc-filter-version');
+  if (versionSel) versionSel.value = '';
+  const textInput = document.getElementById('doc-filter-text');
+  if (textInput) textInput.value = '';
+  _updateSelectionCount();
+}
+// ── Bulk-select loaders (sprint / fix version modes) ─────────────────────────
+export async function docSetSprint(sprintName) {
+  _sprintFilter = sprintName;
+  if (!sprintName) return;
+  await _loadAndPreselectAll({ sprint: sprintName });
+}
+export async function docSetFixVersionBulk(fixVersion) {
+  _fixVersionFilter = fixVersion;
+  if (!fixVersion) return;
+  await _loadAndPreselectAll({ fixVersion });
+}
+async function _loadAndPreselectAll(extraParams) {
+  const seq = ++_searchSeq;
+  const loadingEl = document.getElementById('doc-loading');
+  const errorEl = document.getElementById('doc-error-banner');
+  const listEl = document.getElementById('doc-issues-list');
+  const placeholderEl = document.getElementById('doc-placeholder');
+  if (loadingEl) loadingEl.style.display = '';
+  if (errorEl) errorEl.style.display = 'none';
+  if (listEl) listEl.innerHTML = '';
+  if (placeholderEl) placeholderEl.style.display = 'none';
+  _selectedKeys.clear();
+  try {
+    const params = new URLSearchParams({ type: 'all', ...extraParams });
+    const data = await fetchJSON(`/api/jira/search?${params}`);
+    if (seq !== _searchSeq) return;
+    _allIssues = data.issues || [];
+    _currentPage = 1;
+    _allIssues.forEach((issue) => _selectedKeys.add(issue.key));
+    renderIssuesList(_allIssues);
+  } catch (err) {
+    if (seq !== _searchSeq) return;
+    _showDocError(err);
+  } finally {
+    if (seq === _searchSeq && loadingEl) loadingEl.style.display = 'none';
   }
 }
 // ── Search ───────────────────────────────────────────────────────────────────
@@ -159,8 +255,15 @@ function _updateSelectionCount() {
   const countEl = document.getElementById('doc-selection-count');
   const askBtn = document.getElementById('doc-ask-ai-btn');
   const count = _selectedKeys.size;
+  const total = _allIssues.length;
   if (countEl) {
-    countEl.textContent = count > 0 ? `${count} of ${_allIssues.length} selected` : '';
+    if (count === 0) {
+      countEl.textContent = '';
+    } else if ((_mode === 'sprint' || _mode === 'fixversion') && count === total && total > 0) {
+      countEl.textContent = `${total} issues loaded — all selected`;
+    } else {
+      countEl.textContent = `${count} of ${total} selected`;
+    }
   }
   if (askBtn) askBtn.disabled = count === 0;
 }
