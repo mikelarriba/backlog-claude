@@ -58,12 +58,18 @@ export default function jiraSearchRoutes({
       if (!process.env.JIRA_API_TOKEN)
         return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
-      const { type = 'all', text = '', fixVersion = '' } = req.query;
+      const { type = 'all', text = '', fixVersion = '', sprint = '' } = req.query;
       if (type !== 'all' && !TYPE_CONFIG[normalizeType(type)]) {
         return sendError(res, 400, 'INVALID_TYPE', 'Invalid JIRA filter type', {
           allowed: ['all', ...Object.keys(TYPE_CONFIG)],
           received: type,
         });
+      }
+
+      const sprintSanitised = String(sprint).trim().replace(/"/g, '');
+      const JQL_INJECTION_RE = /\b(ORDER\s+BY|UNION|DROP|INSERT|UPDATE|DELETE|SELECT)\b/i;
+      if (sprintSanitised && JQL_INJECTION_RE.test(sprintSanitised)) {
+        return sendError(res, 400, 'INVALID_PARAM', 'Invalid sprint parameter');
       }
 
       const typeClause =
@@ -81,7 +87,8 @@ export default function jiraSearchRoutes({
         ? // @ts-expect-error — see above
           ` AND fixVersion = "${fixVersion.trim().replace(/"/g, '')}"`
         : '';
-      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause}${fixVersionClause} ORDER BY updated DESC`;
+      const sprintClause = sprintSanitised ? ` AND sprint = "${sprintSanitised}"` : '';
+      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause}${fixVersionClause}${sprintClause} ORDER BY updated DESC`;
       const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
       type JiraSearchIssue = {
         key: string;
