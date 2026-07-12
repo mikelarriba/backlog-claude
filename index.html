@@ -888,33 +888,45 @@
             </div>
           </div>
           <div class="doc-body">
-            <!-- Filter bar -->
-            <div class="doc-filter-bar">
-              <input
-                type="text"
-                id="doc-filter-text"
-                class="doc-filter-text"
-                placeholder="Search JIRA issues…"
-                oninput="docFilterInput(this.value)"
-                onkeydown="if(event.key==='Enter') docSearch()"
-              />
-              <button class="btn-secondary doc-search-btn" onclick="docSearch()">Search</button>
-              <select id="doc-filter-version" onchange="docSetFixVersion(this.value)">
-                <option value="">All fix versions</option>
+            <!-- Mode switcher (#386) -->
+            <div class="doc-mode-switcher">
+              <button class="doc-mode-tab active" data-mode="sprint" onclick="setDocMode('sprint')">By Sprint</button>
+              <button class="doc-mode-tab" data-mode="fixversion" onclick="setDocMode('fixversion')">By Fix Version</button>
+              <button class="doc-mode-tab" data-mode="search" onclick="setDocMode('search')">Search Issues</button>
+            </div>
+
+            <!-- Sprint mode panel -->
+            <div class="doc-mode-panel active" id="doc-mode-sprint">
+              <select id="doc-sprint-select" class="doc-mode-select" onchange="docSetSprint(this.value)">
+                <option value="">Select a sprint…</option>
               </select>
+            </div>
+
+            <!-- Fix Version mode panel -->
+            <div class="doc-mode-panel" id="doc-mode-fixversion">
+              <select id="doc-filter-version" class="doc-mode-select" onchange="docSetFixVersionBulk(this.value)">
+                <option value="">Select a fix version…</option>
+              </select>
+            </div>
+
+            <!-- Search Issues mode panel -->
+            <div class="doc-mode-panel" id="doc-mode-search">
+              <div class="doc-filter-bar">
+                <input
+                  type="text"
+                  id="doc-filter-text"
+                  class="doc-filter-text"
+                  placeholder="Search JIRA issues…"
+                  oninput="docFilterInput(this.value)"
+                  onkeydown="if(event.key==='Enter') docSearch()"
+                />
+                <button class="btn-secondary doc-search-btn" onclick="docSearch()">Search</button>
+              </div>
               <div class="doc-type-chips" id="doc-type-chips">
-                <button class="doc-chip active" data-type="all" onclick="docSetTypeFilter('all')">
-                  All
-                </button>
-                <button class="doc-chip" data-type="epic" onclick="docSetTypeFilter('epic')">
-                  Epic
-                </button>
-                <button class="doc-chip" data-type="story" onclick="docSetTypeFilter('story')">
-                  Story
-                </button>
-                <button class="doc-chip" data-type="bug" onclick="docSetTypeFilter('bug')">
-                  Bug
-                </button>
+                <button class="doc-chip active" data-type="all" onclick="docSetTypeFilter('all')">All</button>
+                <button class="doc-chip" data-type="epic" onclick="docSetTypeFilter('epic')">Epic</button>
+                <button class="doc-chip" data-type="story" onclick="docSetTypeFilter('story')">Story</button>
+                <button class="doc-chip" data-type="bug" onclick="docSetTypeFilter('bug')">Bug</button>
               </div>
             </div>
 
