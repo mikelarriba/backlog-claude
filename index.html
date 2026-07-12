@@ -37,6 +37,7 @@
     <link rel="stylesheet" href="/public/css/fab.css" />
     <link rel="stylesheet" href="/public/css/sidebar.css" />
     <link rel="stylesheet" href="/public/css/documentation.css" />
+    <link rel="stylesheet" href="/public/css/ai-savings.css" />
   </head>
   <body>
     <div class="app" id="app-root">
@@ -770,6 +771,53 @@
                     <span class="pi-config-split-unit">SP</span>
                   </div>
                   <div class="pi-config-status" id="pi-config-status"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Time Saved -->
+            <div class="collapsible ai-savings-section">
+              <div class="collapsible-header" onclick="toggleAiSavingsSection()">
+                <span class="collapsible-title">⏱ AI Time Saved</span>
+                <span class="collapsible-chevron" id="ai-savings-chevron">▶</span>
+              </div>
+              <div class="collapsible-body" id="ai-savings-section-body">
+                <div class="collapsible-inner">
+                  <div class="ai-savings-filter-tabs">
+                    <button
+                      class="ai-savings-tab"
+                      data-range="week"
+                      onclick="filterAiSavings('week')"
+                    >
+                      This Week
+                    </button>
+                    <button
+                      class="ai-savings-tab"
+                      data-range="month"
+                      onclick="filterAiSavings('month')"
+                    >
+                      This Month
+                    </button>
+                    <button
+                      class="ai-savings-tab active"
+                      data-range="all"
+                      onclick="filterAiSavings('all')"
+                    >
+                      All Time
+                    </button>
+                  </div>
+                  <div class="ai-savings-stats" id="ai-savings-stats">
+                    <p class="ai-savings-empty">No actions logged yet.</p>
+                  </div>
+                  <div class="ai-savings-chart-wrap">
+                    <canvas id="ai-savings-chart"></canvas>
+                  </div>
+                  <div class="ai-savings-export-row">
+                    <button class="btn-secondary" onclick="exportAiSavingsPdf()">Export PDF</button>
+                    <button class="btn-secondary" onclick="exportAiSavingsPptx()">
+                      Export PPTX
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

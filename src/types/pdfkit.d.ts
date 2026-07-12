@@ -26,6 +26,7 @@ declare module 'pdfkit' {
     page: { width: number; height: number };
     fontSize(size: number): this;
     font(name: string): this;
+    fillColor(color: string): this;
     text(text: string, options?: PDFTextOptions): this;
     moveDown(lines?: number): this;
     image(src: Buffer | string, options?: PDFImageOptions): this;

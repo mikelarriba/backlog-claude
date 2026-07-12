@@ -10,6 +10,7 @@ docs/*
 .model-settings.json
 .canvas-layout.json
 .product-context.md
+data/ai-savings.json
 .claude/commands/
 playwright-report/
 test-results/

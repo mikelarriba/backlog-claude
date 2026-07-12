@@ -22,6 +22,7 @@ import canvasRoutes from '../routes/canvas.js';
 import skillsRoutes from '../routes/skills.js';
 import exportRoutes from '../routes/export.js';
 import bugsDashboardRoutes from '../routes/bugs-dashboard.js';
+import aiSavingsRoutes from '../routes/ai-savings.js';
 import { healthHandler } from '../routes/health.js';
 import type { AppContext } from './context.js';
 
@@ -140,6 +141,7 @@ export function registerRoutes(app: Express, ctx: AppContext, rootDir: string): 
   );
   app.use(exportRoutes({ rootDir, TYPE_CONFIG: shared.TYPE_CONFIG, docIndex: shared.docIndex }));
   app.use(bugsDashboardRoutes(jiraShared));
+  app.use(aiSavingsRoutes({ rootDir, logInfo: shared.logInfo, logError: shared.logError }));
 
   const validationErrorHandler: ErrorRequestHandler = (err, _req, res, next) => {
     if (err instanceof ValidationError) {
