@@ -334,7 +334,10 @@ test.describe('Documentation — issue selection', () => {
     // Sprint mode pre-selects all rows; uncheck all first to start from zero.
     await loadIssuesViaSprint(page);
     await page.locator('.doc-issue-row input[type=checkbox]').evaluateAll((els) =>
-      els.forEach((el) => { el.checked = false; el.dispatchEvent(new Event('change', { bubbles: true })); })
+      els.forEach((el) => {
+        el.checked = false;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      })
     );
 
     await expect(page.locator('#doc-ask-ai-btn')).toBeDisabled();
