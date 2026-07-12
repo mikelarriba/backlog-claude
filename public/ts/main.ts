@@ -232,6 +232,13 @@ import {
 } from './provider-settings.js';
 import { _connectSSE } from './sse-client.js';
 import {
+  toggleAiSavingsSection,
+  loadAiSavingsSection,
+  filterAiSavings,
+  exportAiSavingsPdf,
+  exportAiSavingsPptx,
+} from './ai-savings.js';
+import {
   loadBugsDashboard,
   refreshBugsDashboard,
   filterBugsTable,
@@ -385,6 +392,7 @@ function navigateTo(viewName: ViewName): void {
     case 'settings':
       document.getElementById('settings-view')?.classList.add('show');
       renderPiConfigTabs();
+      void loadAiSavingsSection();
       break;
     case 'skills':
       document.getElementById('skills-view')?.classList.add('show');
@@ -843,6 +851,12 @@ const _globals: Record<string, unknown> = {
   closeFab,
   toggleFab,
   switchFabTab,
+  // ai-savings.js
+  toggleAiSavingsSection,
+  loadAiSavingsSection,
+  filterAiSavings,
+  exportAiSavingsPdf,
+  exportAiSavingsPptx,
   // bugs-dashboard.js
   loadBugsDashboard,
   refreshBugsDashboard,

@@ -5,6 +5,7 @@
 // renders the returned suggestions (see the "AI Analysis Results" section
 // below, #372).
 import { fetchJSON, postJSON, showJiraToast } from './state.js';
+import { logAiSaving } from './ai-savings.js';
 const PAGE_SIZE = 20;
 let _allIssues = [];
 const _selectedKeys = new Set();
@@ -287,6 +288,7 @@ export async function askAI() {
     const data = await postJSON('/api/confluence/analyze', { jiraIds: [..._selectedKeys] });
     _suggestions = data.suggestions || [];
     renderAnalysisResults();
+    void logAiSaving('doc_ai_run', 1);
   } catch (err) {
     _showResultsError(err);
   } finally {
@@ -369,6 +371,8 @@ async function executeChanges() {
     if (data.snapshotId && results.some((r) => r.success)) {
       _showUndoButton(data.snapshotId);
     }
+    const successCount = results.filter((r) => r.success).length;
+    if (successCount) void logAiSaving('doc_confluence_modify', successCount);
   } catch (err) {
     // The whole request failed (network error, or execute itself rejected
     // e.g. 503 CONFLUENCE_NOT_CONFIGURED / 400 validation) — nothing was

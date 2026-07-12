@@ -1,0 +1,91 @@
+/* ── AI Time Saved dashboard (Settings) ─────────────────────────────────── */
+.ai-savings-filter-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.ai-savings-tab {
+  flex: 1;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-family: inherit;
+  white-space: nowrap;
+  transition:
+    color 0.15s,
+    border-bottom-color 0.15s;
+}
+
+.ai-savings-tab:hover {
+  color: var(--text);
+}
+
+.ai-savings-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.ai-savings-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ai-savings-stat-card {
+  background: var(--surface-alt, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  text-align: center;
+}
+
+.ai-savings-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.ai-savings-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ai-savings-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  padding: 12px 0;
+}
+
+.ai-savings-chart-wrap {
+  background: var(--surface-alt, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  height: 220px;
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.ai-savings-chart-wrap canvas {
+  width: 100% !important;
+}
+
+.ai-savings-export-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}

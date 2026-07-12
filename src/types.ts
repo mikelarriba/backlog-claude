@@ -226,3 +226,11 @@ export interface SkillsRouteContext {
   callClaude: (prompt: string) => Promise<string>;
   logInfo: Logger['logInfo'];
 }
+
+// ── AI Time Saved route context ────────────────────────────────────────────────────────
+
+export interface AiSavingsRouteContext {
+  rootDir: string;
+  logInfo: Logger['logInfo'];
+  logError: Logger['logError'];
+}

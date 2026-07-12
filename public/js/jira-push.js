@@ -3,6 +3,7 @@
 // here (push) and by the pull/update flow in jira-pull.ts.
 import { fetchJSON, postJSON, escHtml, showJiraToast, TYPE_LABEL } from './state.js';
 import { openDoc, closeAllDropdowns } from './detail.js';
+import { logAiSaving } from './ai-savings.js';
 let _syncPreviewResolve = null;
 let _syncPreviewItems = [];
 export function showSyncPreviewModal(title, items, confirmLabel) {
@@ -309,9 +310,9 @@ export async function pushToJira() {
     try {
       const data = await postJSON(`/api/jira/push/${dt}/${encodeURIComponent(fn)}`, undefined);
       if (data.type === 'multi-story') {
-        for (const r of data.results || []) results.push(r);
+        for (const r of data.results || []) results.push({ ...r, docType: dt });
       } else {
-        results.push({ key: data.key, action: data.action });
+        results.push({ key: data.key, action: data.action, docType: dt });
       }
     } catch (e) {
       console.warn(`Failed to push ${fn}:`, e.message);
@@ -329,5 +330,22 @@ export async function pushToJira() {
   const errorDetail = errorMessages.length ? '\n' + errorMessages.join('\n') : '';
   finishJiraProgress(summaryText + errorDetail, errorMessages.length > 0);
   updateJiraPushBtn();
+  // Log AI-assisted time savings for successfully pushed stories/spikes.
+  const storyResults = results.filter((r) => r.docType === 'story' && r.key);
+  const spikeResults = results.filter((r) => r.docType === 'spike' && r.key);
+  if (storyResults.length) {
+    void logAiSaving(
+      'story_push',
+      storyResults.length,
+      storyResults.map((r) => r.key)
+    );
+  }
+  if (spikeResults.length) {
+    void logAiSaving(
+      'spike_push',
+      spikeResults.length,
+      spikeResults.map((r) => r.key)
+    );
+  }
 }
 //# sourceMappingURL=jira-push.js.map

@@ -2,6 +2,7 @@
 import { fetchJSON, escHtml, showJiraToast } from './state.js';
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
+import { logAiSaving } from './ai-savings.js';
 
 interface BugCreateResponse {
   filename: string;
@@ -154,6 +155,7 @@ export async function submitBugReport(): Promise<void> {
 
     closeBugForm();
     showJiraToast('success', `✅ Bug created: ${data.title}`);
+    void logAiSaving('bug_create', 1);
     await loadDocs();
     openDoc(data.filename, 'bug');
   } catch (e) {
