@@ -896,7 +896,9 @@
                 class="doc-filter-text"
                 placeholder="Search JIRA issues…"
                 oninput="docFilterInput(this.value)"
+                onkeydown="if(event.key==='Enter') docSearch()"
               />
+              <button class="btn-secondary doc-search-btn" onclick="docSearch()">Search</button>
               <select id="doc-filter-version" onchange="docSetFixVersion(this.value)">
                 <option value="">All fix versions</option>
               </select>
@@ -942,6 +944,9 @@
 
             <!-- Results list -->
             <div id="doc-issues-list"></div>
+            <div class="doc-placeholder" id="doc-placeholder">
+              Select a sprint, fix version, or search to load issues.
+            </div>
             <div class="doc-pagination" id="doc-pagination"></div>
 
             <!-- AI Analysis Results (#372) -->

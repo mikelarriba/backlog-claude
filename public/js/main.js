@@ -242,6 +242,7 @@ import {
 import {
   loadDocumentationView,
   docFilterInput,
+  docSearch,
   docSetTypeFilter,
   docSetFixVersion,
   searchDocumentationIssues,
@@ -796,6 +797,7 @@ const _globals = {
   // documentation.js
   loadDocumentationView,
   docFilterInput,
+  docSearch,
   docSetTypeFilter,
   docSetFixVersion,
   searchDocumentationIssues,
