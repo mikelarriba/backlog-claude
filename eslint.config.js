@@ -167,6 +167,20 @@ export default [
     },
   },
 
+  // Service worker — runs in ServiceWorkerGlobalScope, not browser window
+  {
+    files: ['sw.js'],
+    languageOptions: {
+      globals: {
+        self: 'readonly',
+        caches: 'readonly',
+        fetch: 'readonly',
+        clients: 'readonly',
+        console: 'readonly',
+      },
+    },
+  },
+
   // Test files
   {
     files: ['tests/**/*.js'],
