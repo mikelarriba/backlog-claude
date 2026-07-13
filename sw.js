@@ -1,4 +1,4 @@
-const CACHE_NAME = 'midas-backlog-v10';
+const CACHE_NAME = 'midas-backlog-v11';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -13,8 +13,13 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
       )
+      .then(() => self.clients.claim())
+      .then(() =>
+        self.clients
+          .matchAll({ type: 'window' })
+          .then((clients) => clients.forEach((c) => c.navigate(c.url)))
+      )
   );
-  self.clients.claim();
 });
 
 // Stale-while-revalidate for JS/CSS (consistent with server Cache-Control: max-age=300)
