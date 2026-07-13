@@ -56,6 +56,7 @@ export interface DocIndexInstance {
   getAll: () => DocEntry[];
   get: (filename: string) => DocEntry | null;
   invalidate: (docType: string, filename: string) => Promise<void>;
+  invalidateMany: (filenames: string[]) => Promise<void>;
   invalidateAll: () => Promise<void>;
   findByJiraId: (jiraId: string) => { docType: string; filename: string } | null;
 }

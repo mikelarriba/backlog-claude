@@ -15,6 +15,16 @@ const { logInfo, logWarn } = createLogger('[docIndex]');
 
 export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): DocIndexInstance {
   const _map = new Map<string, DocEntry>();
+  // Secondary index: jiraId → filename for O(1) findByJiraId lookups.
+  const _jiraIndex = new Map<string, string>();
+
+  function _jiraIndexSet(entry: DocEntry): void {
+    if (entry.jiraId) _jiraIndex.set(entry.jiraId, entry.filename);
+  }
+
+  function _jiraIndexDelete(entry: DocEntry): void {
+    if (entry.jiraId) _jiraIndex.delete(entry.jiraId);
+  }
 
   async function _buildEntry(docType: string, dir: string, filename: string): Promise<DocEntry> {
     const content = await fs.promises.readFile(path.join(dir, filename), 'utf-8');
@@ -109,6 +119,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
   async function build(): Promise<DocIndexInstance> {
     const t = Date.now();
     _map.clear();
+    _jiraIndex.clear();
     // Collect all (docType, dir, filename) tuples first so we can yield evenly
     const entries: Array<{ docType: string; dir: string; f: string }> = [];
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
@@ -136,7 +147,10 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
       })
     );
     for (const result of results) {
-      if (result) _map.set(result.f, result.entry);
+      if (result) {
+        _map.set(result.f, result.entry);
+        _jiraIndexSet(result.entry);
+      }
     }
     logInfo('build', `Index built: ${_map.size} docs in ${Date.now() - t}ms`);
     return docIndex;
@@ -155,6 +169,9 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
   // Rebuild a single entry after a write; remove it after a delete.
   async function invalidate(docType: string, filename: string): Promise<void> {
     const cfg = TYPE_CONFIG[docType];
+    // Remove stale jira index entry before updating the map entry.
+    const old = _map.get(filename);
+    if (old) _jiraIndexDelete(old);
     if (!cfg) {
       _map.delete(filename);
       return;
@@ -167,12 +184,72 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     try {
       const entry = await _buildEntry(docType, cfg.dir(), filename);
       _map.set(filename, entry);
+      _jiraIndexSet(entry);
     } catch (err) {
       logWarn('invalidate', `could not rebuild entry for ${filename}`, {
         error: err instanceof Error ? err.message : String(err),
       });
       _map.delete(filename);
     }
+  }
+
+  // Re-read only the specified files and update/remove their index entries.
+  // Use this instead of invalidateAll() when the exact changed filenames are known.
+  async function invalidateMany(filenames: string[]): Promise<void> {
+    if (!filenames.length) return;
+    // Build a reverse lookup: filename → docType so we can call _buildEntry.
+    // Walk TYPE_CONFIG rather than the index so deleted files are also handled.
+    const filenameSet = new Set(filenames);
+    // We need to know the docType for each filename. Build a map from the
+    // existing index first (fast path), then fall back to TYPE_CONFIG dir scan.
+    const docTypeForFile = new Map<string, string>();
+    for (const fn of filenames) {
+      const existing = _map.get(fn);
+      if (existing) docTypeForFile.set(fn, existing.docType);
+    }
+    // For any filename not in the index (new or already deleted), probe dirs.
+    const unknowns = filenames.filter((fn) => !docTypeForFile.has(fn));
+    if (unknowns.length) {
+      for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
+        const dir = cfg.dir();
+        if (!fs.existsSync(dir)) continue;
+        for (const fn of unknowns) {
+          if (!docTypeForFile.has(fn) && fs.existsSync(path.join(dir, fn))) {
+            docTypeForFile.set(fn, docType);
+          }
+        }
+      }
+    }
+
+    await Promise.all(
+      filenames.map(async (fn) => {
+        const docType = docTypeForFile.get(fn);
+        // Remove old jira index entry
+        const old = _map.get(fn);
+        if (old) _jiraIndexDelete(old);
+        if (!docType) {
+          _map.delete(fn);
+          return;
+        }
+        const cfg = TYPE_CONFIG[docType];
+        const filepath = path.join(cfg.dir(), fn);
+        if (!fs.existsSync(filepath)) {
+          _map.delete(fn);
+          return;
+        }
+        try {
+          const entry = await _buildEntry(docType, cfg.dir(), fn);
+          _map.set(fn, entry);
+          _jiraIndexSet(entry);
+        } catch (err) {
+          logWarn('invalidateMany', `could not rebuild entry for ${fn}`, {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          _map.delete(fn);
+        }
+      })
+    );
+    logInfo('invalidateMany', `Refreshed ${filenameSet.size} entries`);
   }
 
   // Full async rebuild — use after batch operations that touch many files.
@@ -182,13 +259,14 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     logInfo('invalidateAll', `Full index rebuild in ${Date.now() - t}ms`);
   }
 
-  // O(1) replacement for the O(n) findLocalFileByJiraId disk scan.
+  // O(1) lookup via secondary jiraId → filename index.
   function findByJiraId(jiraId: string): { docType: string; filename: string } | null {
     if (!jiraId || jiraId === 'TBD') return null;
-    for (const entry of _map.values()) {
-      if (entry.jiraId === jiraId) return { docType: entry.docType, filename: entry.filename };
-    }
-    return null;
+    const filename = _jiraIndex.get(jiraId);
+    if (!filename) return null;
+    const entry = _map.get(filename);
+    if (!entry) return null;
+    return { docType: entry.docType, filename: entry.filename };
   }
 
   let _readyResolve: (() => void) | null = null;
@@ -228,6 +306,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     getAll,
     get,
     invalidate,
+    invalidateMany,
     invalidateAll,
     findByJiraId,
   };

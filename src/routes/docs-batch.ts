@@ -19,6 +19,7 @@ import {
   ApplyDistributionSchema,
   BatchUpdateFieldSchema,
 } from '../schemas/docs.js';
+import { topoSort } from '../utils/topoSort.js';
 import type { RouteContext } from '../types.js';
 
 type DocItem = { type: string; filename: string };
@@ -78,7 +79,12 @@ export default function docsBatchRoutes({
 
       // Always invalidate the index — stale entries must be purged even when
       // the file was already gone from disk (deleted === 0, skipped > 0).
-      await docIndex.invalidateAll();
+      // We know exactly which files were touched, so use incremental invalidation.
+      const allTouched = [
+        ...deleted.map((d) => d.filename),
+        ...skipped.map((s) => s.filename),
+      ];
+      await docIndex.invalidateMany(allTouched);
       broadcast({ type: 'batch_deleted', filenames: deleted.map((d) => d.filename) });
 
       for (const d of deleted) {
@@ -144,7 +150,7 @@ export default function docsBatchRoutes({
         );
 
         if (updated.length) {
-          await docIndex.invalidateAll();
+          await docIndex.invalidateMany(updated.map((u) => u.filename));
           broadcast({
             type: 'batch_fix_version_updated',
             fixVersion: newValue,
@@ -264,7 +270,7 @@ export default function docsBatchRoutes({
       );
 
       if (updated.length) {
-        await docIndex.invalidateAll();
+        await docIndex.invalidateMany(updated);
         broadcast({ type: 'title_updated', docType });
       }
 
@@ -326,7 +332,7 @@ export default function docsBatchRoutes({
       );
 
       if (updated.length) {
-        await docIndex.invalidateAll();
+        await docIndex.invalidateMany(updated);
         broadcast({ type: 'title_updated' });
       }
 
@@ -377,39 +383,52 @@ export default function docsBatchRoutes({
         // Mutable sprint map: filename → sprint
         const typedAssignments = assignments as AssignmentItem[];
         const sprintMap = new Map(typedAssignments.map((a) => [a.filename, a.sprint]));
-        const depWarnings = [];
+        const depWarnings: Array<{ blocker: string; blocked: string; message: string }> = [];
 
         if (sprintOrder.length) {
           const sprintIdx = new Map(sprintOrder.map((s, i) => [s, i]));
-          let changed = true;
-          let iter = 0;
-          while (changed && iter++ < 30) {
-            changed = false;
-            for (const [filename, sprint] of sprintMap) {
-              const entry = docIndex.get(filename);
-              if (!entry?.blocks?.length) continue;
-              const aIdx = sprintIdx.get(sprint) ?? -1;
-              for (const blockedFn of entry.blocks) {
-                if (!sprintMap.has(blockedFn)) continue;
-                const bIdx = sprintIdx.get(sprintMap.get(blockedFn) ?? '') ?? -1;
-                if (aIdx >= bIdx && aIdx !== -1) {
-                  const newIdx = aIdx + 1;
-                  if (newIdx < sprintOrder.length) {
-                    const newSprint = sprintOrder[newIdx];
-                    depWarnings.push({
-                      blocker: filename,
-                      blocked: blockedFn,
-                      message: `Moved ${blockedFn} to ${newSprint} to maintain dependency order`,
-                    });
-                    sprintMap.set(blockedFn, newSprint);
-                    changed = true;
-                  } else {
-                    depWarnings.push({
-                      blocker: filename,
-                      blocked: blockedFn,
-                      message: `Cannot move ${blockedFn} — no later sprint available`,
-                    });
-                  }
+          const assignedFilenames = Array.from(sprintMap.keys());
+
+          // BFS topological sort over the dependency graph to detect cycles and
+          // process blockers before their dependents (no arbitrary iteration cap).
+          const { order: topoOrder, cycle } = topoSort(
+            assignedFilenames,
+            (fn) => (docIndex.get(fn)?.blocks ?? []).filter((b) => sprintMap.has(b))
+          );
+
+          if (cycle) {
+            return sendError(
+              res,
+              400,
+              'CYCLE_DETECTED',
+              'Dependency cycle detected in the selected assignments — cannot enforce ordering'
+            );
+          }
+
+          // Walk in topological order: blockers always come before their dependents.
+          for (const filename of topoOrder) {
+            const entry = docIndex.get(filename);
+            if (!entry?.blocks?.length) continue;
+            const aIdx = sprintIdx.get(sprintMap.get(filename) ?? '') ?? -1;
+            for (const blockedFn of entry.blocks) {
+              if (!sprintMap.has(blockedFn)) continue;
+              const bIdx = sprintIdx.get(sprintMap.get(blockedFn) ?? '') ?? -1;
+              if (aIdx >= bIdx && aIdx !== -1) {
+                const newIdx = aIdx + 1;
+                if (newIdx < sprintOrder.length) {
+                  const newSprint = sprintOrder[newIdx];
+                  depWarnings.push({
+                    blocker: filename,
+                    blocked: blockedFn,
+                    message: `Moved ${blockedFn} to ${newSprint} to maintain dependency order`,
+                  });
+                  sprintMap.set(blockedFn, newSprint);
+                } else {
+                  depWarnings.push({
+                    blocker: filename,
+                    blocked: blockedFn,
+                    message: `Cannot move ${blockedFn} — no later sprint available`,
+                  });
                 }
               }
             }
@@ -465,7 +484,7 @@ export default function docsBatchRoutes({
         }));
 
         if (updated.length) {
-          await docIndex.invalidateAll();
+          await docIndex.invalidateMany(updated.map((u) => u.filename));
           broadcast({ type: 'batch_sprint_updated', filenames: updated.map((u) => u.filename) });
         }
 
@@ -559,7 +578,7 @@ export default function docsBatchRoutes({
         );
 
         if (updated.length) {
-          await docIndex.invalidateAll();
+          await docIndex.invalidateMany(updated.map((u) => u.filename));
           broadcast({
             type: 'batch_field_updated',
             field,
