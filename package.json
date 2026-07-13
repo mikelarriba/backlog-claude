@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx --watch server.ts",
-    "test": "tsx --test --experimental-test-module-mocks tests/unit/*.test.js tests/integration/*.test.js",
+    "test": "tsx --test --experimental-test-module-mocks --experimental-test-coverage tests/unit/*.test.js tests/integration/*.test.js",
     "test:unit": "tsx --test --experimental-test-module-mocks tests/unit/*.test.js",
     "test:integration": "tsx --test tests/integration/*.test.js",
     "test:property": "tsx --test tests/unit/transforms.property.test.js",
@@ -32,6 +32,7 @@
     "pdfkit": "^0.18.0",
     "pptxgenjs": "^4.0.1",
     "swagger-ui-dist": "^5.32.7",
+    "tsx": "^4.22.2",
     "zod": "^4.4.3"
   },
   "lint-staged": {
@@ -44,14 +45,13 @@
     "@types/express": "^5.0.6",
     "@types/js-yaml": "^4.0.9",
     "@types/multer": "^2.1.0",
-    "@types/node": "^25.9.0",
+    "@types/node": "^20.0.0",
     "eslint": "^10.4.1",
     "eslint-config-prettier": "^10.1.8",
     "fast-check": "^4.8.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.0",
     "prettier": "^3.8.3",
-    "tsx": "^4.22.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.0"
   }
