@@ -61,7 +61,7 @@ export default function skillsRoutes({
   });
 
   // ── Save / update a skill ────────────────────────────────────────────────
-  router.put('/api/skills/:name', validateBody(SkillSaveSchema), (req, res) => {
+  router.put('/api/skills/:name', validateBody(SkillSaveSchema), async (req, res, next) => {
     const parsed = SkillNameSchema.safeParse(req.params.name);
     if (!parsed.success)
       return sendError(res, 400, 'VALIDATION_ERROR', `Unknown skill: ${req.params.name}`);
@@ -69,20 +69,24 @@ export default function skillsRoutes({
     const skillName = parsed.data;
     const { content } = req.body as { content: string };
 
-    // Ensure commands directory exists
-    fs.mkdirSync(commandsDir, { recursive: true });
-    const filePath = path.join(commandsDir, `${skillName}.md`);
-    fs.writeFileSync(filePath, content, 'utf-8');
+    try {
+      // Ensure commands directory exists
+      await fs.promises.mkdir(commandsDir, { recursive: true });
+      const filePath = path.join(commandsDir, `${skillName}.md`);
+      await fs.promises.writeFile(filePath, content, 'utf-8');
 
-    broadcast({ type: 'skill_updated', name: skillName });
-    logInfo('PUT /api/skills', `Saved skill: ${skillName}`);
+      broadcast({ type: 'skill_updated', name: skillName });
+      logInfo('PUT /api/skills', `Saved skill: ${skillName}`);
 
-    const { description } = parseFrontmatter(content);
-    res.json({ success: true, name: skillName, description, source: 'custom' });
+      const { description } = parseFrontmatter(content);
+      res.json({ success: true, name: skillName, description, source: 'custom' });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // ── Reset a skill (delete custom, revert to example) ─────────────────────
-  router.delete('/api/skills/:name', (req, res) => {
+  router.delete('/api/skills/:name', async (req, res, next) => {
     const parsed = SkillNameSchema.safeParse(req.params.name);
     if (!parsed.success)
       return sendError(res, 400, 'VALIDATION_ERROR', `Unknown skill: ${req.params.name}`);
@@ -90,18 +94,23 @@ export default function skillsRoutes({
     const skillName = parsed.data;
     const filePath = path.join(commandsDir, `${skillName}.md`);
 
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    try {
+      await fs.promises.unlink(filePath).catch((e: NodeJS.ErrnoException) => {
+        // ENOENT is expected when the custom file doesn't exist — ignore it
+        if (e.code !== 'ENOENT') throw e;
+      });
+
+      broadcast({ type: 'skill_reset', name: skillName });
+      logInfo('DELETE /api/skills', `Reset skill to example: ${skillName}`);
+
+      // Return the example template content
+      const raw = loadCommandRaw(rootDir, skillName);
+      const content = raw?.content ?? '';
+      const { description } = parseFrontmatter(content);
+      res.json({ success: true, name: skillName, description, content, source: 'example' });
+    } catch (err) {
+      next(err);
     }
-
-    broadcast({ type: 'skill_reset', name: skillName });
-    logInfo('DELETE /api/skills', `Reset skill to example: ${skillName}`);
-
-    // Return the example template content
-    const raw = loadCommandRaw(rootDir, skillName);
-    const content = raw?.content ?? '';
-    const { description } = parseFrontmatter(content);
-    res.json({ success: true, name: skillName, description, content, source: 'example' });
   });
 
   // ── AI Improve a skill ───────────────────────────────────────────────────
@@ -132,27 +141,35 @@ export default function skillsRoutes({
   router.put(
     '/api/settings/product-context',
     validateBody(ProductContextSaveSchema),
-    (req, res) => {
+    async (req, res, next) => {
       const { content } = req.body as { content: string };
       const filePath = path.join(rootDir, '.product-context.md');
-      fs.writeFileSync(filePath, content, 'utf-8');
+      try {
+        await fs.promises.writeFile(filePath, content, 'utf-8');
 
-      broadcast({ type: 'product_context_updated' });
-      logInfo('PUT /api/settings/product-context', 'Saved product context');
-      res.json({ success: true, source: 'custom' });
+        broadcast({ type: 'product_context_updated' });
+        logInfo('PUT /api/settings/product-context', 'Saved product context');
+        res.json({ success: true, source: 'custom' });
+      } catch (err) {
+        next(err);
+      }
     }
   );
 
-  router.delete('/api/settings/product-context', (_req, res) => {
+  router.delete('/api/settings/product-context', async (_req, res, next) => {
     const filePath = path.join(rootDir, '.product-context.md');
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-    broadcast({ type: 'product_context_reset' });
-    logInfo('DELETE /api/settings/product-context', 'Reset product context to example');
+    try {
+      await fs.promises.unlink(filePath).catch((e: NodeJS.ErrnoException) => {
+        if (e.code !== 'ENOENT') throw e;
+      });
+      broadcast({ type: 'product_context_reset' });
+      logInfo('DELETE /api/settings/product-context', 'Reset product context to example');
 
-    const ctx = loadProductContext(rootDir);
-    res.json({ success: true, content: ctx.content, source: 'example' });
+      const ctx = loadProductContext(rootDir);
+      res.json({ success: true, content: ctx.content, source: 'example' });
+    } catch (err) {
+      next(err);
+    }
   });
 
   return router;

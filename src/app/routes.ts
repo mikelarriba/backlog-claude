@@ -151,4 +151,21 @@ export function registerRoutes(app: Express, ctx: AppContext, rootDir: string): 
     next(err);
   };
   app.use(validationErrorHandler);
+
+  // ── Catch-all error handler ──────────────────────────────────────────────────
+  // Must be the last middleware registered. Normalises any unhandled synchronous
+  // throw or rejected promise (forwarded via next(err)) into the standard
+  // { error, code } JSON shape so callers never receive an HTML error page.
+  const catchAllErrorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+    const status =
+      typeof (err as { status?: unknown }).status === 'number'
+        ? (err as { status: number }).status
+        : typeof (err as { statusCode?: unknown }).statusCode === 'number'
+          ? (err as { statusCode: number }).statusCode
+          : 500;
+    const message =
+      err instanceof Error ? err.message : typeof err === 'string' ? err : 'Internal server error';
+    sendError(res, status, 'INTERNAL_ERROR', message);
+  };
+  app.use(catchAllErrorHandler);
 }

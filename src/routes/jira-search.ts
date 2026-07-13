@@ -12,6 +12,9 @@ import {
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { LOCAL_TO_JIRA_TYPE, fetchBoardSprints } from '../services/jiraService.js';
 import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
+import { findExistingByJiraId } from '../utils/docHelpers.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import { JiraPullSchema } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraSearchRoutes({
@@ -34,23 +37,15 @@ export default function jiraSearchRoutes({
 }: JiraRouteContext) {
   const router = Router();
 
-  // docIndex.findByJiraId is the primary, O(1) lookup — it's built at startup and
-  // kept in sync via docIndex.invalidate on every write, so it should never miss
-  // an entry that findLocalFileByJiraId's O(n) disk scan would find. Fall back to
-  // the scan only as a last-resort safety net, and log loudly when it fires so a
-  // docIndex staleness bug doesn't go unnoticed.
-  async function findExistingByJiraId(jiraId: string) {
-    const existing = docIndex.findByJiraId(jiraId);
-    if (existing) return existing;
-    const fallback = await findLocalFileByJiraId(jiraId);
-    if (fallback) {
-      logWarn(
-        'jira/search',
-        `docIndex missed ${jiraId} that a full disk scan found — check docIndex sync`
-      );
-    }
-    return fallback;
-  }
+  // Bound helper — threads context dependencies into the shared utility.
+  const _findExistingByJiraId = (jiraId: string) =>
+    findExistingByJiraId(
+      jiraId,
+      (id) => docIndex.findByJiraId(id),
+      findLocalFileByJiraId,
+      logWarn,
+      'jira/search'
+    );
 
   // ── GET /api/jira/search ───────────────────────────────────────────────────
   router.get('/api/jira/search', async (req, res) => {
@@ -108,7 +103,7 @@ export default function jiraSearchRoutes({
       const issues = await Promise.all(
         rawIssues.map(async (issue) => {
           const iss = issue;
-          const existing = await findExistingByJiraId(iss.key);
+          const existing = await _findExistingByJiraId(iss.key);
           return {
             key: iss.key,
             summary: String(iss.fields.summary || ''),
@@ -287,7 +282,7 @@ export default function jiraSearchRoutes({
       async function addChild(child: JiraChildIssue) {
         if (seen.has(child.key)) return;
         seen.add(child.key);
-        const existing = await findExistingByJiraId(child.key);
+        const existing = await _findExistingByJiraId(child.key);
         children.push({
           key: child.key,
           summary: child.fields?.summary || '',
@@ -331,24 +326,12 @@ export default function jiraSearchRoutes({
   });
 
   // ── POST /api/jira/pull ────────────────────────────────────────────────────
-  router.post('/api/jira/pull', async (req, res) => {
+  router.post('/api/jira/pull', validateBody(JiraPullSchema), async (req, res) => {
     try {
-      const { keys = [], overwriteKeys = [], parentLink = null } = req.body;
-      if (!Array.isArray(keys))
-        return sendError(res, 400, 'VALIDATION_ERROR', 'keys must be an array');
-      if (!keys.length) return sendError(res, 400, 'VALIDATION_ERROR', 'No keys provided');
+      const { keys, overwriteKeys = [], parentLink = null } = req.body;
 
-      if (parentLink !== null && parentLink !== undefined) {
-        if (parentLink.docType !== 'epic' && parentLink.docType !== 'feature') {
-          return sendError(
-            res,
-            400,
-            'VALIDATION_ERROR',
-            "parentLink.docType must be 'epic' or 'feature'"
-          );
-        }
-        assertFilename(parentLink.filename);
-      }
+      // Validate parentLink.filename format (allow-list pattern — prevents path traversal)
+      if (parentLink?.filename) assertFilename(parentLink.filename);
 
       if (!process.env.JIRA_API_TOKEN)
         return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
@@ -365,7 +348,7 @@ export default function jiraSearchRoutes({
       const conflicts = [];
 
       for (const key of keys) {
-        const existing = await findExistingByJiraId(key);
+        const existing = await _findExistingByJiraId(key);
         if (existing && !overwriteKeys.includes(key)) {
           conflicts.push({
             key,

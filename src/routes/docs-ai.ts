@@ -28,6 +28,7 @@ import {
 } from '../utils/transforms.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { GenerateDocSchema, SplitStorySchema, SplitEpicSchema } from '../schemas/docs.js';
+import { stripControls } from '../utils/docHelpers.js';
 import type { RouteContext } from '../types.js';
 
 export default function docsAiRoutes({
@@ -59,10 +60,6 @@ export default function docsAiRoutes({
         workCategory,
         pi,
       } = req.body;
-      // Strip control characters (except \t and \n which are valid in body text)
-      // to prevent prompt injection via crafted null bytes or escape sequences.
-      // eslint-disable-next-line no-control-regex
-      const stripControls = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
       const title = rawTitle ? stripControls(rawTitle) : rawTitle;
       const idea = stripControls(rawIdea);
 
@@ -448,8 +445,6 @@ TBD
       }
 
       // Step 2: Generate new epic via AI
-      // eslint-disable-next-line no-control-regex
-      const stripControls = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
       const idea = stripControls(
         `${description.trim()}\n\n---\nContext from original epic:\n${epicContent}`
       );
