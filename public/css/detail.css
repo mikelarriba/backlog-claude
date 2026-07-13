@@ -1,3 +1,4 @@
+/* Hardcoded hex colours replaced with design tokens — see base.css for the full token list */
 /* ── Detail View ─────────────────────────────────────────────── */
 #detail-view {
   display: none;

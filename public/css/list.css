@@ -1,3 +1,4 @@
+/* Hardcoded hex colours replaced with design tokens — see base.css for the full token list */
 /* ── List View ───────────────────────────────────────────────── */
 #list-view {
   display: flex;
@@ -107,7 +108,7 @@
   transition: box-shadow 0.15s;
 }
 .readiness-dot.ready-green {
-  background: #22c55e;
+  background: var(--success);
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18);
 }
 .readiness-dot.ready-amber {
@@ -474,7 +475,7 @@
 /* Applied post-render by applyDepCascade() to all siblings from  */
 /* the earliest blocked item onwards within the same parent epic.  */
 .epic-item.dep-cascade {
-  border-left-color: #fca5a5;
+  border-left-color: var(--error-text);
 }
 .epic-item.dep-cascade:hover {
   border-left-color: var(--error);

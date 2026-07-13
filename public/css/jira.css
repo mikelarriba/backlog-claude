@@ -1,3 +1,4 @@
+/* Hardcoded hex colours replaced with design tokens — see base.css for the full token list */
 /* ── JIRA Import section ─────────────────────────────────────── */
 .jira-search-row {
   display: grid;
@@ -705,7 +706,7 @@
   font-weight: 500;
 }
 .sync-progress-summary.success {
-  color: #22c55e;
+  color: var(--success);
 }
 .sync-progress-summary.error {
   color: var(--error-text, #ef4444);
