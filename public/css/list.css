@@ -793,3 +793,13 @@
   content: '';
   margin-left: auto;
 }
+
+/* ── Large-screen density ─────────────────────────────────────── */
+@media (min-width: 1400px) {
+  .epic-item {
+    padding: 11px 28px;
+  }
+  .epic-title-text {
+    font-size: var(--text-base);
+  }
+}

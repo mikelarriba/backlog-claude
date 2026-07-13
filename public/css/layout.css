@@ -160,6 +160,11 @@
 }
 #bugs-view.show {
   display: flex;
+  width: 100%;
+}
+
+#documentation-view.show {
+  width: 100%;
 }
 
 .settings-header {

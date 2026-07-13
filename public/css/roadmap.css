@@ -289,8 +289,8 @@
 }
 
 .rm-name-col-header {
-  width: 300px;
-  min-width: 300px;
+  width: 340px;
+  min-width: 340px;
   flex-shrink: 0;
   padding: 6px 12px;
   font-size: 0.65rem;
@@ -356,8 +356,8 @@
 }
 
 .rm-epic-name-col {
-  width: 300px;
-  min-width: 300px;
+  width: 340px;
+  min-width: 340px;
   flex-shrink: 0;
   padding: 8px 12px;
   display: flex;
@@ -428,8 +428,8 @@
 /* ── Story panel: sprint columns ──────────────────────────── */
 .rm-story-columns {
   display: flex;
-  gap: 10px;
-  padding: 12px;
+  gap: var(--space-3);
+  padding: var(--space-4);
   overflow-x: auto;
   align-items: flex-start;
   min-height: 100%;
@@ -437,8 +437,8 @@
 
 /* ── Shared column (reused from old roadmap) ──────────────── */
 .roadmap-column {
-  min-width: 220px;
-  max-width: 280px;
+  min-width: 240px;
+  max-width: 340px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -526,7 +526,7 @@
 .roadmap-card {
   padding: 7px 9px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: var(--bg);
   cursor: grab;
   transition:
