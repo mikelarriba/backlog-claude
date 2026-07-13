@@ -23,10 +23,18 @@ export async function startTestApp() {
   process.env.TEST_INBOX_DIR = inboxDir;
   process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'error';
   process.env.MOCK_CLAUDE = '1';
-  // Ensure .env does not inject real JIRA credentials into tests.
-  // Empty strings are intentional; server guards check for truthy values.
+  // Ensure .env does not inject a real JIRA token into tests.
+  // The empty string is intentional; server guards check for truthy values.
   process.env.JIRA_API_TOKEN = '';
-  process.env.JIRA_BOARD_ID = '';
+  // Only blank JIRA_BOARD_ID if the test file has not already set it explicitly.
+  // Tests that need a real board ID (e.g. jira-board-sprints-mocked.test.js) set
+  // process.env.JIRA_BOARD_ID at module scope before calling startTestApp() so
+  // the server captures the right value at startup; we must not clobber it.
+  // Tests that do NOT set it get '' here, preventing the real .env value (which
+  // may contain a live board ID) from bleeding into guard-clause tests.
+  if (!process.env.JIRA_BOARD_ID) {
+    process.env.JIRA_BOARD_ID = '';
+  }
 
   // Dynamic import: env vars must be set before server.js module-level code runs.
   // Each test file runs in its own process (node --test), so the module cache is
