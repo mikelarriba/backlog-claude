@@ -235,8 +235,11 @@
 }
 
 .doc-issue-row input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
   margin-top: 3px;
   flex-shrink: 0;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -265,8 +268,11 @@
 .doc-issue-title {
   font-size: 0.85rem;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* Type badges (reuse the shared type-color palette from base.css) */
@@ -462,8 +468,11 @@
 }
 
 .doc-suggestion-header input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
   margin-top: 3px;
   flex-shrink: 0;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -667,8 +676,5 @@
   }
   .doc-search-btn {
     width: 100%;
-  }
-  .doc-issue-title {
-    white-space: normal;
   }
 }
