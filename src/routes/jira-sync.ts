@@ -3,6 +3,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
+import { pMap } from '../utils/pMap.js';
 import {
   setFrontmatterField,
   extractFrontmatterField,
@@ -487,87 +488,93 @@ export default function jiraSyncRoutes({
         return res.json({ changed: [], skipped: [], errors: [], total: 0 });
 
       const fields = `summary,issuetype,status,description,${FIELD_STORY_POINTS}`;
-      const changed = [];
-      const skipped = [];
-      const errors = [];
+      const changed: unknown[] = [];
+      const skipped: string[] = [];
+      const errors: unknown[] = [];
 
-      for (const doc of linkedDocs) {
-        try {
-          type JiraCheckIssue = {
-            fields?: Record<string, unknown> & { summary?: string; description?: string };
-          };
-          const issue = (await jiraRequest(
-            'GET',
-            `/issue/${doc.jiraId}?fields=${fields}`
-          )) as JiraCheckIssue;
-          const jiraSummary = String(issue.fields?.summary || '')
-            .replace(/[\r\n]+/g, ' ')
-            .trim();
-          const jiraSp = issue.fields?.[FIELD_STORY_POINTS] ?? null;
-          const jiraDesc = jiraToMarkdown(String(issue.fields?.description || '')).trim();
-
-          // Read local content for accurate comparison
-          let localTitle = '';
-          let localDesc = '';
-          let localSp = null;
+      await pMap(
+        linkedDocs,
+        async (doc) => {
           try {
-            const raw = await fs.promises.readFile(
-              path.join(TYPE_CONFIG[doc.docType].dir(), doc.filename),
-              'utf-8'
-            );
-            // Extract heading text directly — avoids extractJiraSummary's template-detection
-            // logic which misfires on headings like "## Stable Title" (treats any heading
-            // ending in "Title" as a placeholder and reads the next line instead).
-            const headingMatch = raw.match(/^## (.+)$/m);
-            localTitle = (headingMatch ? headingMatch[1].trim() : '') || localTitle;
-            localDesc = _extractBodyText(raw);
-            const spRaw = extractFrontmatterField(raw, 'Story_Points');
-            localSp = spRaw && spRaw !== 'TBD' ? Number(spRaw) : null;
-          } catch (err) {
-            logWarn('jira/sync', `unreadable file for ${doc.filename}, using index values`, {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
+            type JiraCheckIssue = {
+              fields?: Record<string, unknown> & { summary?: string; description?: string };
+            };
+            const issue = (await jiraRequest(
+              'GET',
+              `/issue/${doc.jiraId}?fields=${fields}`
+            )) as JiraCheckIssue;
+            const jiraSummary = String(issue.fields?.summary || '')
+              .replace(/[\r\n]+/g, ' ')
+              .trim();
+            const jiraSp = issue.fields?.[FIELD_STORY_POINTS] ?? null;
+            const jiraDesc = jiraToMarkdown(String(issue.fields?.description || '')).trim();
 
-          const summaryChanged = jiraSummary && jiraSummary !== localTitle;
-          const spChanged = jiraSp !== null && jiraSp !== localSp;
-          const descChanged = jiraDesc !== localDesc;
+            // Read local content for accurate comparison
+            let localTitle = '';
+            let localDesc = '';
+            let localSp = null;
+            try {
+              const raw = await fs.promises.readFile(
+                path.join(TYPE_CONFIG[doc.docType].dir(), doc.filename),
+                'utf-8'
+              );
+              // Extract heading text directly — avoids extractJiraSummary's template-detection
+              // logic which misfires on headings like "## Stable Title" (treats any heading
+              // ending in "Title" as a placeholder and reads the next line instead).
+              const headingMatch = raw.match(/^## (.+)$/m);
+              localTitle = (headingMatch ? headingMatch[1].trim() : '') || localTitle;
+              localDesc = _extractBodyText(raw);
+              const spRaw = extractFrontmatterField(raw, 'Story_Points');
+              localSp = spRaw && spRaw !== 'TBD' ? Number(spRaw) : null;
+            } catch (err) {
+              logWarn('jira/sync', `unreadable file for ${doc.filename}, using index values`, {
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
 
-          if (summaryChanged || spChanged || descChanged) {
-            changed.push({
+            const summaryChanged = jiraSummary && jiraSummary !== localTitle;
+            const spChanged = jiraSp !== null && jiraSp !== localSp;
+            const descChanged = jiraDesc !== localDesc;
+
+            if (summaryChanged || spChanged || descChanged) {
+              changed.push({
+                jiraId: doc.jiraId,
+                jiraKey: doc.jiraId,
+                jiraTitle: jiraSummary,
+                filename: doc.filename,
+                docType: doc.docType,
+                localDocType: doc.docType,
+                title: localTitle,
+                action: 'update',
+                // Object format for test assertions
+                changes: {
+                  summary: summaryChanged ? { local: localTitle, jira: jiraSummary } : null,
+                  storyPoints: spChanged ? { local: localSp, jira: jiraSp } : null,
+                  description: descChanged ? { changed: true } : null,
+                },
+                // Array format for showSyncPreviewModal
+                changesArray: [
+                  ...(summaryChanged
+                    ? [{ field: 'title', from: localTitle, to: jiraSummary }]
+                    : []),
+                  ...(descChanged ? [{ field: 'description', changed: true }] : []),
+                  ...(spChanged ? [{ field: 'storyPoints', from: localSp, to: jiraSp }] : []),
+                ],
+              });
+            } else {
+              skipped.push(doc.jiraId);
+            }
+          } catch (e) {
+            errors.push({
               jiraId: doc.jiraId,
-              jiraKey: doc.jiraId,
-              jiraTitle: jiraSummary,
               filename: doc.filename,
               docType: doc.docType,
-              localDocType: doc.docType,
-              title: localTitle,
-              action: 'update',
-              // Object format for test assertions
-              changes: {
-                summary: summaryChanged ? { local: localTitle, jira: jiraSummary } : null,
-                storyPoints: spChanged ? { local: localSp, jira: jiraSp } : null,
-                description: descChanged ? { changed: true } : null,
-              },
-              // Array format for showSyncPreviewModal
-              changesArray: [
-                ...(summaryChanged ? [{ field: 'title', from: localTitle, to: jiraSummary }] : []),
-                ...(descChanged ? [{ field: 'description', changed: true }] : []),
-                ...(spChanged ? [{ field: 'storyPoints', from: localSp, to: jiraSp }] : []),
-              ],
+              error: e instanceof Error ? e.message : String(e),
             });
-          } else {
-            skipped.push(doc.jiraId);
           }
-        } catch (e) {
-          errors.push({
-            jiraId: doc.jiraId,
-            filename: doc.filename,
-            docType: doc.docType,
-            error: e instanceof Error ? e.message : String(e),
-          });
-        }
-      }
+        },
+        { concurrency: 5 }
+      );
 
       logInfo(
         'POST /api/jira/check-all',

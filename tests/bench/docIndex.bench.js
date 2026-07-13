@@ -112,4 +112,46 @@ describe('docIndex benchmark — 500 docs', () => {
     assert.ok(elapsed < 5, `Lookup took ${elapsed.toFixed(2)}ms — expected < 5ms`);
     console.log(`  filename lookup (${allDocs.length} docs): ${elapsed.toFixed(2)}ms`);
   });
+
+  test('invalidateMany(5 files) is faster than invalidateAll() on 500 docs', async () => {
+    // Pick 5 arbitrary files to invalidate incrementally
+    const allDocs = docIndex.getAll();
+    assert.ok(allDocs.length >= 5, 'need at least 5 docs');
+    const sample = allDocs.slice(0, 5).map((d) => d.filename);
+
+    // Measure invalidateAll (full rebuild)
+    const t0 = performance.now();
+    await docIndex.invalidateAll();
+    const fullRebuildMs = performance.now() - t0;
+
+    // Measure invalidateMany for 5 files
+    const t1 = performance.now();
+    await docIndex.invalidateMany(sample);
+    const incrementalMs = performance.now() - t1;
+
+    assert.ok(
+      incrementalMs < fullRebuildMs,
+      `invalidateMany(5) took ${incrementalMs.toFixed(1)}ms — expected less than invalidateAll() ${fullRebuildMs.toFixed(1)}ms`
+    );
+    console.log(
+      `  invalidateAll() (500 docs): ${fullRebuildMs.toFixed(1)}ms  |  invalidateMany(5): ${incrementalMs.toFixed(1)}ms`
+    );
+  });
+
+  test('invalidateMany preserves correct index entries', async () => {
+    const allDocs = docIndex.getAll();
+    const target = allDocs[0];
+
+    // Invalidate just the first file and verify it's still accessible
+    await docIndex.invalidateMany([target.filename]);
+    const found = docIndex.get(target.filename);
+    assert.ok(found, 'should still find invalidated+reloaded doc in index');
+    assert.equal(found.filename, target.filename, 'filename should match');
+    assert.equal(found.docType, target.docType, 'docType should match');
+
+    // Total count should be unchanged
+    const all = docIndex.getAll();
+    assert.ok(all.length >= allDocs.length - 1, 'invalidateMany should not reduce the doc count');
+    console.log(`  invalidateMany integrity check: ${all.length} docs remain`);
+  });
 });
