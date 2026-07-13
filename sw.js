@@ -1,4 +1,4 @@
-const CACHE_NAME = 'midas-backlog-v9';
+const CACHE_NAME = 'midas-backlog-v10';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
