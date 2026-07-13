@@ -1,7 +1,5 @@
 // ── Hierarchy & linking routes ────────────────────────────────────────────────
 import { Router } from 'express';
-import fs from 'fs';
-import path from 'path';
 import {
   sendError,
   parseApiError,
@@ -9,13 +7,15 @@ import {
   assertFilename,
   normalizeType,
 } from '../utils/routeHelpers.js';
-import {
-  setFrontmatterField,
-  extractFrontmatterField,
-  removeFrontmatterField,
-} from '../utils/transforms.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { CreateLinkSchema, DeleteLinkSchema } from '../schemas/links.js';
+import {
+  applyHierarchyLink,
+  applyBlocksLink,
+  applyParallelLink,
+  removeBlocksLink,
+  removeParallelLink,
+} from '../services/linksService.js';
 import type { RouteContext } from '../types.js';
 
 export default function linksRoutes({
@@ -30,6 +30,18 @@ export default function linksRoutes({
   docIndex,
 }: RouteContext) {
   const router = Router();
+
+  const linksCtx = {
+    TYPE_CONFIG,
+    FEATURES_DIR,
+    EPICS_DIR,
+    STORIES_DIR,
+    SPIKES_DIR,
+    BUGS_DIR,
+    broadcast,
+    logInfo,
+    docIndex,
+  };
 
   // ── GET /api/links/:type/:filename ─────────────────────────────────────────
   router.get('/api/links/:type/:filename', (req, res) => {
@@ -53,7 +65,6 @@ export default function linksRoutes({
       }> = [];
 
       if (docType === 'epic') {
-        // Resolve parent feature from the index
         const epicEntry = docIndex.get(filename);
         if (epicEntry?.parentFilename) {
           const parentEntry = docIndex.get(epicEntry.parentFilename);
@@ -68,7 +79,6 @@ export default function linksRoutes({
           }
         }
 
-        // Resolve children (stories, spikes, bugs) from the index
         children = docIndex
           .getAll()
           .filter(
@@ -82,7 +92,6 @@ export default function linksRoutes({
             status: e.status || 'Draft',
           }));
       } else if (docType === 'feature') {
-        // Resolve children (epics) from the index
         children = docIndex
           .getAll()
           .filter((e) => e.docType === 'epic' && e.parentFilename === filename)
@@ -95,7 +104,6 @@ export default function linksRoutes({
           }));
       }
 
-      // Resolve block dependencies from the index
       const entry = docIndex.get(filename);
       const blocks = (entry?.blocks || []).map((fn) => {
         const e = docIndex.get(fn);
@@ -124,8 +132,6 @@ export default function linksRoutes({
   });
 
   // ── GET /api/links/feature/:filename/deep ─────────────────────────────────
-  // Returns the full feature → epics → children hierarchy in one call,
-  // eliminating N+1 fetches from the multi-panel view.
   router.get('/api/links/feature/:filename/deep', (req, res) => {
     try {
       const filename = assertFilename(req.params.filename);
@@ -200,226 +206,37 @@ export default function linksRoutes({
 
   // ── POST /api/link ─────────────────────────────────────────────────────────
   router.post('/api/link', validateBody(CreateLinkSchema), async (req, res) => {
-    const LINK_RULES: Record<
-      string,
-      { field: string; sourceDir: () => string; targetDir: () => string }
-    > = {
-      'epic→feature': {
-        field: 'Feature_ID',
-        sourceDir: () => EPICS_DIR,
-        targetDir: () => FEATURES_DIR,
-      },
-      'story→epic': { field: 'Epic_ID', sourceDir: () => STORIES_DIR, targetDir: () => EPICS_DIR },
-      'spike→epic': { field: 'Epic_ID', sourceDir: () => SPIKES_DIR, targetDir: () => EPICS_DIR },
-      'bug→epic': { field: 'Epic_ID', sourceDir: () => BUGS_DIR, targetDir: () => EPICS_DIR },
-    };
-
     try {
       const { sourceType, sourceFilename, targetType, targetFilename, linkType } = req.body;
 
       const srcFile = assertFilename(sourceFilename);
       const tgtFile = assertFilename(targetFilename);
 
-      // ── Blocks link (dependency) ────────────────────────────────────────────
+      let result;
+
       if (linkType === 'blocks') {
         const srcType = normalizeType(sourceType);
         const tgtType = normalizeType(targetType);
-        const srcCfg = TYPE_CONFIG[srcType];
-        const tgtCfg = TYPE_CONFIG[tgtType];
-        if (!srcCfg) return sendError(res, 400, 'INVALID_TYPE', `Unknown type: ${sourceType}`);
-        if (!tgtCfg) return sendError(res, 400, 'INVALID_TYPE', `Unknown type: ${targetType}`);
-        if (srcFile === tgtFile)
-          return sendError(res, 400, 'INVALID_LINK', 'A story cannot block itself');
-
-        const srcPath = path.join(srcCfg.dir(), srcFile);
-        const tgtPath = path.join(tgtCfg.dir(), tgtFile);
-        if (!fs.existsSync(srcPath))
-          return sendError(res, 404, 'NOT_FOUND', 'Source document not found');
-        if (!fs.existsSync(tgtPath))
-          return sendError(res, 404, 'NOT_FOUND', 'Target document not found');
-
-        // Cycle detection: BFS from tgtFile following Blocks links; error if we reach srcFile
-        const visited = new Set();
-        const queue = [tgtFile];
-        while (queue.length) {
-          const fn = queue.shift() as string;
-          if (fn === srcFile) {
-            return sendError(
-              res,
-              400,
-              'CYCLE_DETECTED',
-              `Adding this dependency would create a cycle: ${tgtFile} already (directly or transitively) blocks ${srcFile}`
-            );
-          }
-          if (visited.has(fn)) continue;
-          visited.add(fn);
-          for (const blocked of docIndex.get(fn)?.blocks || []) queue.push(blocked);
-        }
-
-        // Append tgtFile to source's Blocks field
-        const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
-        const existingBlocks = extractFrontmatterField(srcContent, 'Blocks');
-        const blocksArr = existingBlocks
-          ? existingBlocks
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [];
-        if (!blocksArr.includes(tgtFile)) {
-          blocksArr.push(tgtFile);
-          await fs.promises.writeFile(
-            srcPath,
-            setFrontmatterField(srcContent, 'Blocks', blocksArr.join(', '))
-          );
-          await docIndex.invalidate(srcType, srcFile);
-        }
-
-        // Append srcFile to target's Blocked_By field
-        const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
-        const existingBlockedBy = extractFrontmatterField(tgtContent, 'Blocked_By');
-        const blockedByArr = existingBlockedBy
-          ? existingBlockedBy
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [];
-        if (!blockedByArr.includes(srcFile)) {
-          blockedByArr.push(srcFile);
-          await fs.promises.writeFile(
-            tgtPath,
-            setFrontmatterField(tgtContent, 'Blocked_By', blockedByArr.join(', '))
-          );
-          await docIndex.invalidate(tgtType, tgtFile);
-        }
-
-        broadcast({
-          type: 'link_updated',
-          linkType: 'blocks',
-          sourceFilename: srcFile,
-          targetFilename: tgtFile,
-        });
-        logInfo('POST /api/link', `${srcFile} blocks ${tgtFile}`);
-        return res.json({
-          success: true,
-          linkType: 'blocks',
-          sourceFilename: srcFile,
-          targetFilename: tgtFile,
-        });
-      }
-
-      // ── Parallel link ─────────────────────────────────────────────────────
-      if (linkType === 'parallel') {
+        result = await applyBlocksLink(srcType, srcFile, tgtType, tgtFile, linksCtx);
+      } else if (linkType === 'parallel') {
         const srcType = normalizeType(sourceType);
         const tgtType = normalizeType(targetType);
-        const leafTypes = new Set(['story', 'spike', 'bug']);
-        if (!leafTypes.has(srcType))
-          return sendError(
-            res,
-            400,
-            'INVALID_LINK',
-            'Only leaf types (story, spike, bug) can have parallel links'
-          );
-        if (!leafTypes.has(tgtType))
-          return sendError(
-            res,
-            400,
-            'INVALID_LINK',
-            'Only leaf types (story, spike, bug) can have parallel links'
-          );
-        if (srcFile === tgtFile)
-          return sendError(res, 400, 'INVALID_LINK', 'A story cannot be parallel with itself');
-
-        const srcCfg = TYPE_CONFIG[srcType];
-        const tgtCfg = TYPE_CONFIG[tgtType];
-        const srcPath = path.join(srcCfg.dir(), srcFile);
-        const tgtPath = path.join(tgtCfg.dir(), tgtFile);
-        if (!fs.existsSync(srcPath))
-          return sendError(res, 404, 'NOT_FOUND', 'Source document not found');
-        if (!fs.existsSync(tgtPath))
-          return sendError(res, 404, 'NOT_FOUND', 'Target document not found');
-
-        // Append tgtFile to source's Parallel field
-        const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
-        const existingParallelSrc = extractFrontmatterField(srcContent, 'Parallel');
-        const parallelSrcArr = existingParallelSrc
-          ? existingParallelSrc
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [];
-        if (!parallelSrcArr.includes(tgtFile)) {
-          parallelSrcArr.push(tgtFile);
-          await fs.promises.writeFile(
-            srcPath,
-            setFrontmatterField(srcContent, 'Parallel', parallelSrcArr.join(', '))
-          );
-          await docIndex.invalidate(srcType, srcFile);
-        }
-
-        // Append srcFile to target's Parallel field (symmetric)
-        const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
-        const existingParallelTgt = extractFrontmatterField(tgtContent, 'Parallel');
-        const parallelTgtArr = existingParallelTgt
-          ? existingParallelTgt
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [];
-        if (!parallelTgtArr.includes(srcFile)) {
-          parallelTgtArr.push(srcFile);
-          await fs.promises.writeFile(
-            tgtPath,
-            setFrontmatterField(tgtContent, 'Parallel', parallelTgtArr.join(', '))
-          );
-          await docIndex.invalidate(tgtType, tgtFile);
-        }
-
-        broadcast({
-          type: 'link_updated',
-          linkType: 'parallel',
-          sourceFilename: srcFile,
-          targetFilename: tgtFile,
-        });
-        logInfo('POST /api/link', `${srcFile} parallel ${tgtFile}`);
-        return res.json({
-          success: true,
-          linkType: 'parallel',
-          sourceFilename: srcFile,
-          targetFilename: tgtFile,
-        });
+        result = await applyParallelLink(srcType, srcFile, tgtType, tgtFile, linksCtx);
+      } else {
+        result = await applyHierarchyLink(
+          normalizeType(sourceType),
+          srcFile,
+          normalizeType(targetType),
+          tgtFile,
+          linksCtx
+        );
       }
 
-      // ── Hierarchy link ────────────────────────────────────────────────────
-      const key = `${normalizeType(sourceType)}→${normalizeType(targetType)}`;
-      const rule = LINK_RULES[key];
-      if (!rule) {
-        return sendError(res, 400, 'INVALID_LINK', `Cannot link ${sourceType} → ${targetType}`, {
-          allowed: Object.keys(LINK_RULES),
-        });
+      if ('status' in result) {
+        return sendError(res, result.status, result.code, result.message, result.details);
       }
 
-      const srcPath = path.join(rule.sourceDir(), srcFile);
-      const tgtPath = path.join(rule.targetDir(), tgtFile);
-
-      if (!fs.existsSync(srcPath))
-        return sendError(res, 404, 'NOT_FOUND', 'Source document not found');
-      if (!fs.existsSync(tgtPath))
-        return sendError(res, 404, 'NOT_FOUND', 'Target document not found');
-
-      const content = await fs.promises.readFile(srcPath, 'utf-8');
-      const updated = setFrontmatterField(content, rule.field, tgtFile);
-      await fs.promises.writeFile(srcPath, updated);
-      await docIndex.invalidate(normalizeType(sourceType), srcFile);
-
-      broadcast({
-        type: 'link_updated',
-        sourceType,
-        sourceFilename: srcFile,
-        targetType,
-        targetFilename: tgtFile,
-      });
-      logInfo('POST /api/link', `${srcFile} → ${tgtFile} (${rule.field})`);
-      res.json({ success: true, field: rule.field, targetFilename: tgtFile });
+      return res.json(result);
     } catch (err) {
       const apiErr = parseApiError(err);
       sendError(
@@ -441,85 +258,13 @@ export default function linksRoutes({
       const tgtType = normalizeType(targetType || 'story');
       const srcFile = assertFilename(sourceFilename);
       const tgtFile = assertFilename(targetFilename);
-      const srcCfg = TYPE_CONFIG[srcType];
-      const tgtCfg = TYPE_CONFIG[tgtType];
-
-      const srcPath = srcCfg ? path.join(srcCfg.dir(), srcFile) : null;
-      const tgtPath = tgtCfg ? path.join(tgtCfg.dir(), tgtFile) : null;
 
       if (linkType === 'parallel') {
-        // Remove tgt from source's Parallel field
-        if (srcPath && fs.existsSync(srcPath)) {
-          const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
-          const existing = extractFrontmatterField(srcContent, 'Parallel') || '';
-          const filtered = existing
-            .split(',')
-            .map((s) => s.trim())
-            .filter((s) => s && s !== tgtFile && s !== 'TBD');
-          const updated = filtered.length
-            ? setFrontmatterField(srcContent, 'Parallel', filtered.join(', '))
-            : removeFrontmatterField(srcContent, 'Parallel');
-          await fs.promises.writeFile(srcPath, updated);
-          await docIndex.invalidate(srcType, srcFile);
-        }
-        // Remove src from target's Parallel field
-        if (tgtPath && fs.existsSync(tgtPath)) {
-          const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
-          const existing = extractFrontmatterField(tgtContent, 'Parallel') || '';
-          const filtered = existing
-            .split(',')
-            .map((s) => s.trim())
-            .filter((s) => s && s !== srcFile && s !== 'TBD');
-          const updated = filtered.length
-            ? setFrontmatterField(tgtContent, 'Parallel', filtered.join(', '))
-            : removeFrontmatterField(tgtContent, 'Parallel');
-          await fs.promises.writeFile(tgtPath, updated);
-          await docIndex.invalidate(tgtType, tgtFile);
-        }
-        broadcast({
-          type: 'link_updated',
-          linkType: 'parallel',
-          sourceFilename: srcFile,
-          targetFilename: tgtFile,
-        });
-        logInfo('DELETE /api/link', `removed parallel: ${srcFile} ↔ ${tgtFile}`);
+        await removeParallelLink(srcType, srcFile, tgtType, tgtFile, linksCtx);
       } else {
-        // Remove from Blocks on source
-        if (srcPath && fs.existsSync(srcPath)) {
-          const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
-          const existing = extractFrontmatterField(srcContent, 'Blocks') || '';
-          const filtered = existing
-            .split(',')
-            .map((s) => s.trim())
-            .filter((s) => s && s !== tgtFile && s !== 'TBD');
-          const updated = filtered.length
-            ? setFrontmatterField(srcContent, 'Blocks', filtered.join(', '))
-            : removeFrontmatterField(srcContent, 'Blocks');
-          await fs.promises.writeFile(srcPath, updated);
-          await docIndex.invalidate(srcType, srcFile);
-        }
-        // Remove from Blocked_By on target
-        if (tgtPath && fs.existsSync(tgtPath)) {
-          const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
-          const existing = extractFrontmatterField(tgtContent, 'Blocked_By') || '';
-          const filtered = existing
-            .split(',')
-            .map((s) => s.trim())
-            .filter((s) => s && s !== srcFile && s !== 'TBD');
-          const updated = filtered.length
-            ? setFrontmatterField(tgtContent, 'Blocked_By', filtered.join(', '))
-            : removeFrontmatterField(tgtContent, 'Blocked_By');
-          await fs.promises.writeFile(tgtPath, updated);
-          await docIndex.invalidate(tgtType, tgtFile);
-        }
-        broadcast({
-          type: 'link_updated',
-          linkType: 'blocks',
-          sourceFilename: srcFile,
-          targetFilename: tgtFile,
-        });
-        logInfo('DELETE /api/link', `removed blocks: ${srcFile} → ${tgtFile}`);
+        await removeBlocksLink(srcType, srcFile, tgtType, tgtFile, linksCtx);
       }
+
       res.json({ success: true });
     } catch (err) {
       const apiErr = parseApiError(err);

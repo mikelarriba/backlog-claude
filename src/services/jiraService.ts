@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { jiraToMarkdown, extractFrontmatterField } from '../utils/transforms.js';
-import type { TypeConfig } from '../types.js';
+import { jiraToMarkdown, extractFrontmatterField, stripFrontmatter } from '../utils/transforms.js';
+import type { TypeConfig, DocIndexInstance } from '../types.js';
 import type { Logger } from '../utils/logger.js';
 import { config } from '../config/env.js';
 
@@ -392,4 +392,126 @@ ${description || '_No description in JIRA._'}
     jiraIssueToMarkdown,
     extractJiraSummary,
   };
+}
+
+// ── Shared helpers for jira-sync routes ──────────────────────────────────────
+
+/**
+ * Appends a JIRA description change history note to the inbox file.
+ * Creates the inbox file if it doesn't exist yet.
+ */
+export async function appendDescriptionHistory(
+  inboxPath: string,
+  oldBody: string,
+  newBody: string
+): Promise<void> {
+  const ts = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const note = `\n\n---\n\n## JIRA Description Update — ${ts}\n\n**Previous description:**\n${oldBody || '_empty_'}\n\n**New description from JIRA:**\n${newBody || '_empty_'}\n`;
+  if (fs.existsSync(inboxPath)) {
+    await fs.promises.appendFile(inboxPath, note);
+  } else {
+    await fs.promises.mkdir(path.dirname(inboxPath), { recursive: true });
+    await fs.promises.writeFile(inboxPath, note.trimStart());
+  }
+}
+
+/**
+ * Extracts the body text from a markdown document (strips frontmatter, first heading, and
+ * any trailing ## Comments section).
+ */
+export function extractBodyText(content: string): string {
+  const body = stripFrontmatter(content);
+  return body
+    .replace(/^## .+\n?/m, '')
+    .replace(/\n## Comments\b[\s\S]*$/, '')
+    .trim();
+}
+
+export type JiraPreviewIssue = {
+  key: string;
+  fields?: Record<string, unknown> & {
+    summary?: string;
+    issuetype?: { name?: string };
+    description?: string;
+    issuelinks?: Array<{ inwardIssue?: { key: string } }>;
+  };
+};
+
+export type PreviewItem = {
+  jiraKey: string;
+  jiraTitle: string;
+  jiraType: string;
+  localFilename: string | null;
+  localDocType: string;
+  action: string;
+  changes: Record<string, unknown>[];
+};
+
+interface BuildPreviewItemContext {
+  TYPE_CONFIG: TypeConfig;
+  FIELD_STORY_POINTS: string;
+  docIndex: DocIndexInstance;
+  findExistingByJiraIdFn: (jiraId: string) => Promise<{ filename: string; docType: string } | null>;
+  extractJiraSummaryFn: (content: string) => string;
+  logWarn: Logger['logWarn'];
+}
+
+/**
+ * Builds a preview item describing what would change if the given JIRA issue were pulled locally.
+ */
+export async function buildPreviewItem(
+  iss: JiraPreviewIssue,
+  {
+    TYPE_CONFIG,
+    FIELD_STORY_POINTS,
+    findExistingByJiraIdFn,
+    extractJiraSummaryFn,
+    logWarn,
+  }: BuildPreviewItemContext
+): Promise<PreviewItem> {
+  const existing = await findExistingByJiraIdFn(iss.key);
+  const jiraTitle = String(iss.fields?.summary || '').trim();
+  const jiraSP = iss.fields?.[FIELD_STORY_POINTS] ?? null;
+  const jiraTypeName = iss.fields?.issuetype?.name || '';
+  const localType = JIRA_TO_LOCAL_TYPE[jiraTypeName] || 'story';
+
+  const changes: Record<string, unknown>[] = [];
+  const item: PreviewItem = {
+    jiraKey: iss.key,
+    jiraTitle,
+    jiraType: jiraTypeName,
+    localFilename: existing?.filename || null,
+    localDocType: existing?.docType || localType,
+    action: existing ? 'update' : 'create',
+    changes,
+  };
+
+  if (existing) {
+    try {
+      const localContent = await fs.promises.readFile(
+        path.join(TYPE_CONFIG[existing.docType].dir(), existing.filename),
+        'utf-8'
+      );
+      const localTitle = extractJiraSummaryFn(localContent);
+      const localSPRaw = extractFrontmatterField(localContent, 'Story_Points');
+      const localSP = localSPRaw && localSPRaw !== 'TBD' ? Number(localSPRaw) : null;
+      const localBody = extractBodyText(localContent);
+      const jiraDesc = jiraToMarkdown(iss.fields?.description || '').trim();
+
+      if (jiraTitle !== localTitle)
+        changes.push({ field: 'title', from: localTitle, to: jiraTitle });
+      if (jiraDesc !== localBody) changes.push({ field: 'description', changed: true });
+      if (jiraSP !== localSP) changes.push({ field: 'storyPoints', from: localSP, to: jiraSP });
+    } catch (err) {
+      logWarn('jira/sync', `could not compare local content for preview`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      changes.push({ field: 'description', changed: true });
+    }
+  } else {
+    if (jiraTitle) changes.push({ field: 'title', to: jiraTitle });
+    changes.push({ field: 'description', changed: true });
+    if (jiraSP !== null) changes.push({ field: 'storyPoints', to: jiraSP });
+  }
+  return item;
 }
