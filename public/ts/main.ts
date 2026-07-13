@@ -569,8 +569,9 @@ function _renderTeamFilterPills(teams: string[]): void {
     const btn = document.createElement('button');
     btn.className = 'pill';
     btn.dataset.team = t;
+    btn.dataset.action = 'setTeamFilter';
+    btn.dataset.filterValue = t;
     btn.textContent = t;
-    btn.setAttribute('onclick', `setTeamFilter('${t}')`);
     container.appendChild(btn);
   }
 }
@@ -587,8 +588,9 @@ function _renderWorkCatFilterPills(cats: string[]): void {
     const btn = document.createElement('button');
     btn.className = 'pill';
     btn.dataset.workcat = c;
+    btn.dataset.action = 'setWorkCatFilter';
+    btn.dataset.filterValue = c;
     btn.textContent = WORKCAT_SHORT_LABELS[c] || c;
-    btn.setAttribute('onclick', `setWorkCatFilter('${c}')`);
     container.appendChild(btn);
   }
 }
@@ -629,28 +631,482 @@ if (splitOverlay) {
   });
 }
 
+// ── Delegated click handler ───────────────────────────────────
+// Replaces the ~150 inline onclick attributes that previously called
+// into the _globals bridge. Each element now carries data-action="fn"
+// (and optional data-* argument attributes). The FAB outside-click
+// handler is merged in here too.
 document.addEventListener('click', (e: MouseEvent) => {
+  // FAB outside-click: close if clicking outside the fab container
   const fabContainer = document.getElementById('fab-container');
   if (fabContainer && !fabContainer.contains(e.target as Node)) {
     closeFab();
   }
+
+  const target = e.target as HTMLElement;
+  const btn = target.closest('[data-action]') as HTMLElement | null;
+  if (!btn) return;
+
+  const action = btn.dataset.action ?? '';
+
+  switch (action) {
+    // ── Sidebar navigation ──────────────────────────────────
+    case 'navigateTo':
+      navigateTo(btn.dataset.viewName as ViewName);
+      break;
+
+    // ── Theme ───────────────────────────────────────────────
+    case 'setTheme':
+      if (typeof window.setTheme === 'function') window.setTheme(btn.dataset.themeName ?? '');
+      break;
+
+    // ── List toolbar ────────────────────────────────────────
+    case 'collapseAll':
+      collapseAll();
+      break;
+    case 'expandAll':
+      expandAll();
+      break;
+    case 'checkAllJira':
+      checkAllJira();
+      break;
+
+    // ── Type / Status / Team / WorkCat filter pills ─────────
+    case 'setTypeFilter':
+      setTypeFilter(btn.dataset.filterValue ?? '');
+      break;
+    case 'setStatusFilter':
+      setStatusFilter(btn.dataset.filterValue ?? '');
+      break;
+    case 'setTeamFilter':
+      setTeamFilter(btn.dataset.filterValue ?? '');
+      break;
+    case 'setWorkCatFilter':
+      setWorkCatFilter(btn.dataset.filterValue ?? '');
+      break;
+
+    // ── Detail view ─────────────────────────────────────────
+    case 'showList':
+      showList();
+      break;
+    case 'toggleUpgradePanel':
+      toggleUpgradePanel();
+      break;
+    case 'executeUpgrade':
+      executeUpgrade();
+      break;
+    case 'toggleDropdown':
+      toggleDropdown(btn.dataset.dropdownId ?? '');
+      break;
+    case 'toggleQuickCreateAndClose': {
+      toggleQuickCreate(btn.dataset.doctype ?? '');
+      closeDropdown(btn.dataset.closeDropdown ?? '');
+      break;
+    }
+    case 'generateStoriesAndClose':
+      generateStories();
+      closeDropdown(btn.dataset.closeDropdown ?? '');
+      break;
+    case 'openManualRefineAndClose': {
+      const cf = store.get('currentFilename') as string | null;
+      const cdt = store.get('currentDocType') as string | null;
+      openManualRefine(cf ?? '', cdt ?? '');
+      closeDropdown(btn.dataset.closeDropdown ?? '');
+      break;
+    }
+    case 'pushToJiraAndClose':
+      pushToJira();
+      closeDropdown(btn.dataset.closeDropdown ?? '');
+      break;
+    case 'pullFromJira':
+      pullFromJira();
+      break;
+    case 'exportEpicToPdfCurrent': {
+      const cf = store.get('currentFilename') as string | null;
+      const cdt = store.get('currentDocType') as string | null;
+      exportEpicToPdf(cf ?? '', cdt ?? '');
+      break;
+    }
+    case 'confirmDelete':
+      confirmDelete();
+      break;
+    case 'closeDeleteDialog':
+      closeDeleteDialog();
+      break;
+    case 'executeDelete':
+      executeDelete();
+      break;
+    case 'executeQuickCreate':
+      executeQuickCreate();
+      break;
+    case 'closeQuickCreate':
+      closeQuickCreate();
+      break;
+    case 'toggleOriginal':
+      toggleOriginal();
+      break;
+    case 'toggleHierarchy':
+      toggleHierarchy();
+      break;
+
+    // ── Refine view ─────────────────────────────────────────
+    case 'closeRefineView':
+      closeRefineView();
+      break;
+    case 'resetCanvasLayoutCanvas':
+      resetCanvasLayout(_canvasEpicFilename ?? '');
+      break;
+    case 'exportEpicToPdfCanvas':
+      exportEpicToPdf(_canvasEpicFilename ?? '', _canvasDocType ?? '');
+      break;
+
+    // ── Settings view ────────────────────────────────────────
+    case 'closeSettingsView':
+      closeSettingsView();
+      break;
+    case 'toggleModelSection':
+      toggleModelSection();
+      break;
+    case 'refreshProviders':
+      refreshProviders();
+      break;
+    case 'togglePiConfigSection':
+      togglePiConfigSection();
+      break;
+    case 'addSprintRow':
+      addSprintRow();
+      break;
+    case 'saveSprintConfig':
+      saveSprintConfig();
+      break;
+    case 'openDistributionModalPiConfig':
+      openDistributionModal(_piConfigActivePi ?? '');
+      break;
+    case 'toggleAiSavingsSection':
+      toggleAiSavingsSection();
+      break;
+    case 'filterAiSavings':
+      filterAiSavings((btn.dataset.filterValue ?? 'all') as 'week' | 'month' | 'all');
+      break;
+    case 'exportAiSavingsPdf':
+      exportAiSavingsPdf();
+      break;
+    case 'exportAiSavingsPptx':
+      exportAiSavingsPptx();
+      break;
+
+    // ── Roadmap view ─────────────────────────────────────────
+    case 'closeRoadmapView':
+      closeRoadmapView();
+      break;
+    case 'openDistributionModalRoadmap':
+      openDistributionModal([..._roadmapVisiblePis][0] ?? '');
+      break;
+    case 'pushSprintsToJira':
+      pushSprintsToJira();
+      break;
+    case 'pullFromJiraSprints':
+      pullFromJiraSprints();
+      break;
+    case 'openRoadmapExportDialog':
+      openRoadmapExportDialog();
+      break;
+    case 'toggleRoadmapPanel':
+      toggleRoadmapPanel(btn.dataset.panel ?? '');
+      break;
+
+    // ── FAB ──────────────────────────────────────────────────
+    case 'toggleFab':
+      toggleFab();
+      break;
+    case 'closeFab':
+      closeFab();
+      break;
+    case 'switchFabTab':
+      switchFabTab(btn.dataset.tabName ?? '');
+      break;
+    case 'clearForm':
+      clearForm();
+      break;
+    case 'saveDraft':
+      saveDraft();
+      break;
+    case 'generateDoc':
+      generateDoc();
+      break;
+    case 'openBugForm':
+      openBugForm();
+      break;
+    case 'searchJira':
+      searchJira();
+      break;
+    case 'downloadSelected':
+      downloadSelected();
+      break;
+    case 'pullByKey':
+      pullByKey();
+      break;
+
+    // ── Bug form ─────────────────────────────────────────────
+    case 'closeBugForm':
+      closeBugForm();
+      break;
+    case 'submitBugReport':
+      submitBugReport();
+      break;
+    case 'triggerBugFileInput':
+      document.getElementById('bug-files')?.click();
+      break;
+
+    // ── Delete / Bulk assign dialog ──────────────────────────
+    case 'closeBulkAssignDialog':
+      closeBulkAssignDialog();
+      break;
+
+    // ── Sync preview modal ───────────────────────────────────
+    case 'syncPreviewSelectAll':
+      syncPreviewSelectAll(btn.dataset.selectAll === 'true');
+      break;
+    case 'syncPreviewCancel':
+      syncPreviewCancel();
+      break;
+    case 'syncPreviewConfirm':
+      syncPreviewConfirm();
+      break;
+
+    // ── JIRA select modal ─────────────────────────────────────
+    case 'jiraSelectAll':
+      jiraSelectAll(btn.dataset.selectAll === 'true');
+      break;
+    case 'jiraSelectCancel':
+      jiraSelectCancel();
+      break;
+    case 'jiraSelectConfirm':
+      jiraSelectConfirm();
+      break;
+
+    // ── Split modal ───────────────────────────────────────────
+    case 'closeSplitModal':
+      closeSplitModal();
+      break;
+    case 'executeSplit':
+      executeSplit();
+      break;
+
+    // ── Distribution modal ────────────────────────────────────
+    case 'closeDistributionModal':
+      closeDistributionModal();
+      break;
+    case 'applyDistribution':
+      applyDistribution();
+      break;
+
+    // ── Sprint push modal ─────────────────────────────────────
+    case 'closeSprintPushModal':
+      closeSprintPushModal();
+      break;
+    case 'sprintPushToggleAllSprints':
+      sprintPushToggleAllSprints(btn.dataset.selectAll === 'true');
+      break;
+    case 'startSprintPushPreview':
+      startSprintPushPreview();
+      break;
+    case 'confirmSprintPush':
+      confirmSprintPush();
+      break;
+    case 'toggleSprintPushFilter':
+      toggleSprintPushFilter(btn.dataset.filterValue ?? '');
+      break;
+    case 'sprintPushSelectAll':
+      sprintPushSelectAll(btn.dataset.selectAll === 'true');
+      break;
+
+    // ── Pull sprint modal ─────────────────────────────────────
+    case 'closePullSprintModal':
+      closePullSprintModal();
+      break;
+    case 'pullSprintToggleAll':
+      pullSprintToggleAll(btn.dataset.selectAll === 'true');
+      break;
+    case 'startPullSprintPreview':
+      startPullSprintPreview();
+      break;
+    case 'confirmPullSprint':
+      confirmPullSprint();
+      break;
+
+    // ── Roadmap export dialog ─────────────────────────────────
+    case 'closeRoadmapExportDialog':
+      closeRoadmapExportDialog();
+      break;
+    case 'rexpToggleAllSprints':
+      rexpToggleAllSprints(btn.dataset.selectAll === 'true');
+      break;
+    case 'rexpToggleAllTeams':
+      rexpToggleAllTeams(btn.dataset.selectAll === 'true');
+      break;
+    case 'executeRoadmapExport':
+      executeRoadmapExport();
+      break;
+
+    // ── Dependency modal ──────────────────────────────────────
+    case 'closeDepModal':
+      closeDepModal();
+      break;
+    case 'addDepLink':
+      addDepLink();
+      break;
+    case 'addParallelLink':
+      addParallelLink();
+      break;
+
+    // ── Issue split modal (list view) ─────────────────────────
+    case 'closeIssueSplitModal':
+      closeIssueSplitModal();
+      break;
+    case 'executeSplitIssue':
+      executeSplitIssue();
+      break;
+
+    // ── Documentation view ─────────────────────────────────────
+    case 'setDocMode': {
+      const fn = (window as unknown as Record<string, unknown>)['setDocMode'];
+      if (typeof fn === 'function') (fn as (v: string) => void)(btn.dataset.filterValue ?? '');
+      break;
+    }
+    case 'docSearch': {
+      const fn = (window as unknown as Record<string, unknown>)['docSearch'];
+      if (typeof fn === 'function') (fn as () => void)();
+      break;
+    }
+    case 'docSetTypeFilter':
+      docSetTypeFilter(btn.dataset.filterValue as 'all' | 'epic' | 'story' | 'bug');
+      break;
+    case 'askAI':
+      void askAI();
+      break;
+    case 'selectAllSuggestions':
+      selectAllSuggestions();
+      break;
+    case 'deselectAllSuggestions':
+      deselectAllSuggestions();
+      break;
+    case 'modifyDocumentation':
+      modifyDocumentation();
+      break;
+    case 'undoChanges':
+      void undoChanges();
+      break;
+    case 'searchDocumentationIssues':
+      void searchDocumentationIssues();
+      break;
+
+    // ── Bugs view ─────────────────────────────────────────────
+    case 'refreshBugsDashboard':
+      refreshBugsDashboard();
+      break;
+    case 'analyzeBugs':
+      analyzeBugs();
+      break;
+    case 'closeBugsAnalysis':
+      closeBugsAnalysis();
+      break;
+
+    default:
+      break;
+  }
 });
 
-// ── Expose functions for HTML onclick attributes ──────────────
-// Using Object.assign to attach all handler functions to window without
-// requiring verbose Window interface augmentation.
-const _globals: Record<string, unknown> = {
-  // list-filters.js
+// ── Delegated input handler ───────────────────────────────────
+document.addEventListener('input', (e: Event) => {
+  const target = e.target as HTMLElement;
+  const inputAction = target.dataset.inputAction;
+  if (!inputAction) return;
+  const inputEl = target as HTMLInputElement;
+
+  switch (inputAction) {
+    case 'applyFiltersDebounced':
+      applyFiltersDebounced();
+      break;
+    case 'onCanvasSearchInput':
+      onCanvasSearch(inputEl.value);
+      break;
+    case 'filterRoadmapEpicsInput':
+      filterRoadmapEpics(inputEl.value);
+      break;
+    case 'docFilterInputAction':
+      docFilterInput(inputEl.value);
+      break;
+    default:
+      break;
+  }
+});
+
+// ── Delegated change handler ──────────────────────────────────
+document.addEventListener('change', (e: Event) => {
+  const target = e.target as HTMLElement;
+  const changeAction = target.dataset.changeAction;
+  if (!changeAction) return;
+  const selectEl = target as HTMLSelectElement;
+  const inputEl = target as HTMLInputElement;
+
+  switch (changeAction) {
+    case 'updateDocStatus':
+      updateDocStatus(selectEl.value);
+      break;
+    case 'updateDocTeam':
+      updateDocTeam(selectEl.value);
+      break;
+    case 'updateDocSprint':
+      updateDocSprint(selectEl.value);
+      break;
+    case 'updateDocWorkCategory':
+      updateDocWorkCategory(selectEl.value);
+      break;
+    case 'onProviderChange':
+      onProviderChange(selectEl.value);
+      break;
+    case 'updateModelSetting':
+      updateModelSetting(selectEl.value);
+      break;
+    case 'updateEffortSetting':
+      updateEffortSetting(selectEl.value);
+      break;
+    case 'saveSplitThreshold':
+      saveSplitThreshold(selectEl.value);
+      break;
+    case 'filterBugsTable':
+      filterBugsTable();
+      break;
+    case 'toggleClosedBugsChange':
+      toggleClosedBugs(inputEl.checked);
+      break;
+    case 'docSetSprint': {
+      const fn = (window as unknown as Record<string, unknown>)['docSetSprint'];
+      if (typeof fn === 'function') (fn as (v: string) => void)(selectEl.value);
+      break;
+    }
+    case 'docSetFixVersionBulk': {
+      const fn = (window as unknown as Record<string, unknown>)['docSetFixVersionBulk'];
+      if (typeof fn === 'function') (fn as (v: string) => void)(selectEl.value);
+      break;
+    }
+    default:
+      break;
+  }
+});
+
+// ── Window globals for dynamically-generated HTML ─────────────
+// These functions are injected into inline event strings by TypeScript
+// template literals in list-render.ts, roadmap-render.ts, refine.ts,
+// detail-fields.ts, etc. They cannot yet be migrated to delegated
+// listeners without refactoring each template — that is out of scope
+// for this issue.
+const _dynGlobals: Record<string, unknown> = {
+  // list-render.ts / list-filters.ts
   toggleItemCollapse,
-  collapseAll,
-  expandAll,
   toggleSwimlane,
   updatePiVersion,
-  setTypeFilter,
-  setStatusFilter,
-  setTeamFilter,
-  setWorkCatFilter,
-  applyFiltersDebounced,
   handleItemClick,
   handleItemContextMenu,
   showContextMenu,
@@ -658,29 +1114,11 @@ const _globals: Record<string, unknown> = {
   contextMoveToPI,
   contextDeleteSelected,
   contextAssignField,
-  closeBulkAssignDialog,
-  // list.js
   contextSplitItem,
-  closeIssueSplitModal,
-  executeSplitIssue,
-  // detail.js
-  saveStoryPoints,
-  saveTitle,
-  cancelTitleEdit,
-  updateDocSprint,
-  updateDocStatus,
-  updateDocTeam,
-  updateDocWorkCategory,
-  showList,
-  confirmDelete,
-  closeDeleteDialog,
-  executeDelete,
-  toggleDropdown,
-  closeDropdown,
-  closeAllDropdowns,
-  toggleHierarchy,
-  toggleOriginal,
+  openDistributionModal,
+  // detail.js — still used from template-generated HTML (detail-links, etc.)
   openDoc,
+  closeAllDropdowns,
   loadHierarchy,
   addDocComment,
   startCommentEdit,
@@ -689,70 +1127,15 @@ const _globals: Record<string, unknown> = {
   deleteDocComment,
   linkExistingChildren,
   toggleHierarchyChild,
-  // upgrade.js
-  toggleUpgradePanel,
-  executeUpgrade,
-  // quickcreate.js
-  saveDraft,
-  generateDoc,
-  clearForm,
-  toggleQuickCreate,
-  closeQuickCreate,
-  executeQuickCreate,
-  // stories.js
-  generateStories,
-  // jira.js
-  jiraSelectAll,
-  jiraSelectCancel,
-  jiraSelectConfirm,
-  syncPreviewSelectAll,
-  syncPreviewCancel,
-  syncPreviewConfirm,
-  checkAllJira,
-  searchJira,
-  downloadSelected,
-  pullByKey,
-  pullFromJira,
-  pushToJira,
-  submitUpdateFromJiraKey,
-  toggleJiraItem,
-  // bugcreate.js
-  openBugForm,
-  closeBugForm,
-  submitBugReport,
-  onBugFilesSelected,
-  removeBugFile,
-  // refine-canvas.js
-  resetCanvasLayout,
-  // refine-edges.js
-  toggleManageLinks,
-  _closeLinkPopup,
-  _createCanvasLink,
-  _showEdgePopup,
-  _deleteCanvasLink,
-  _changeCanvasLinkType,
-  // refine-nodes.js
-  _fpCreateChild,
-  _executeCanvasSplit,
-  _openCellCreateForm,
-  _executeEmptyCellCreate,
-  _moveCardsToEdge,
-  _openCanvasSplit,
-  _moveCardToEdge,
-  _showCardContextMenu,
-  _showFpCardContextMenu,
-  _showEpicContextMenu,
-  _showEmptyCellMenu,
-  _showMultiCardContextMenu,
-  _fpMoveToEpic,
-  // refine.js
-  onCanvasSearch,
+  // detail-links.ts
+  saveTitle,
+  cancelTitleEdit,
+  saveStoryPoints,
+  // refine.js — rendered in refine-nodes, refine-edges, refine.ts templates
   openManualRefine,
-  closeRefineView,
-  renderFeatureMultiPanel,
-  _toggleEpicPanel,
   closeRefinePanel,
   openRefinePanel,
+  _toggleEpicPanel,
   _removeCanvasLink,
   saveRpTitle,
   cancelRpTitleEdit,
@@ -763,127 +1146,86 @@ const _globals: Record<string, unknown> = {
   confirmRpDelete,
   openCreatePanel,
   executeRpCreate,
-  // export.js
-  exportEpicToPdf,
-  openRoadmapExportDialog,
-  closeRoadmapExportDialog,
-  executeRoadmapExport,
-  rexpToggleAllSprints,
-  rexpToggleAllTeams,
-  // piconfig.js
-  togglePiConfigSection,
-  addSprintRow,
-  removeSprintRow,
-  selectPiConfigTab,
-  saveSprintConfig,
-  saveSplitThreshold,
-  _updatePiFromConfig,
-  syncPiFromJira,
-  confirmJiraSprintImport,
-  skipJiraSprintImport,
-  dismissJiraImportBanner,
-  // distribution.js
-  openDistributionModal,
-  closeDistributionModal,
-  applyDistribution,
-  // roadmap.js
-  openRoadmapView,
-  closeRoadmapView,
-  refreshRoadmapView,
+  // refine-edges.ts
+  _showEdgePopup,
+  _deleteCanvasLink,
+  _changeCanvasLinkType,
+  toggleManageLinks,
+  _closeLinkPopup,
+  _createCanvasLink,
+  // refine-nodes.ts
+  _fpCreateChild,
+  _showCardContextMenu,
+  _showFpCardContextMenu,
+  _fpMoveToEpic,
+  _showEpicContextMenu,
+  _showEmptyCellMenu,
+  _openCellCreateForm,
+  _executeEmptyCellCreate,
+  _showMultiCardContextMenu,
+  _moveCardsToEdge,
+  _openCanvasSplit,
+  _executeCanvasSplit,
+  _moveCardToEdge,
+  // roadmap.ts
   toggleRoadmapPi,
-  toggleRoadmapPanel,
-  filterRoadmapEpics,
-  focusEpic,
-  pushSprintsToJira,
-  closeSprintPushModal,
-  toggleSprintPushFilter,
-  sprintPushSelectAll,
-  sprintPushToggleAllSprints,
-  startSprintPushPreview,
-  confirmSprintPush,
-  _sprintPushUpdateCount,
-  pullFromJiraSprints,
-  closePullSprintModal,
-  pullSprintToggleAll,
-  startPullSprintPreview,
-  pullSprintSelectAllItems,
-  _pullSprintUpdateCount,
-  confirmPullSprint,
-  closeDepModal,
-  addDepLink,
-  addParallelLink,
   removeDepLink,
-  closeSplitModal,
-  executeSplit,
+  // roadmap-render.ts
+  handleRoadmapCardClick,
+  handleRoadmapEpicClick,
+  // roadmap-context-menus.ts
   handleEpicContextMenu,
   handleStoryContextMenu,
   rmCtxOpenEpic,
   rmCtxMoveEpic,
   rmCtxMoveStory,
   rmCtxSetSprint,
-  // roadmap-select.js
-  handleRoadmapCardClick,
-  handleRoadmapEpicClick,
-  clearRoadmapSelection,
-  // skills.js
-  loadSkillsView,
+  // roadmap-jira-sync.ts
+  _sprintPushUpdateCount,
+  pullSprintSelectAllItems,
+  _pullSprintUpdateCount,
+  // piconfig.ts
+  removeSprintRow,
+  selectPiConfigTab,
+  _updatePiFromConfig,
+  syncPiFromJira,
+  confirmJiraSprintImport,
+  skipJiraSprintImport,
+  dismissJiraImportBanner,
+  // jira-import.ts
+  toggleJiraItem,
+  // jira-pull.ts
+  submitUpdateFromJiraKey,
+  // bugcreate.ts
+  onBugFilesSelected,
+  removeBugFile,
+  // skills.ts
   toggleSkillCard,
   saveSkill,
   resetSkill,
   improveSkill,
   saveProductContext,
   resetProductContext,
-  // main.js local functions
-  toggleLeftPanel,
-  toggleModelSection,
-  refreshProviders,
-  updateModelSetting,
-  updateEffortSetting,
-  onProviderChange,
-  isSplitMode,
-  updateSplitMode,
-  highlightSelectedItem,
-  loadAppConfig,
-  loadMetadata,
-  loadModelSetting,
-  openSettingsView,
-  closeSettingsView,
-  navigateTo,
-  openFab,
-  closeFab,
-  toggleFab,
-  switchFabTab,
-  // ai-savings.js
-  toggleAiSavingsSection,
-  loadAiSavingsSection,
-  filterAiSavings,
-  exportAiSavingsPdf,
-  exportAiSavingsPptx,
-  // bugs-dashboard.js
-  loadBugsDashboard,
-  refreshBugsDashboard,
-  filterBugsTable,
-  analyzeBugs,
-  closeBugsAnalysis,
+  // bugs-dashboard.ts
   bugToggleKey,
   bugToggleAll,
-  toggleClosedBugs,
-  // documentation.js
-  loadDocumentationView,
-  docFilterInput,
-  docSetTypeFilter,
-  docSetFixVersion,
-  searchDocumentationIssues,
-  docSetPage,
+  // documentation.ts
   docRowClick,
   docToggleKey,
-  askAI,
+  docSetPage,
   toggleSuggestionRow,
   toggleSuggestionCheck,
-  selectAllSuggestions,
-  deselectAllSuggestions,
-  modifyDocumentation,
-  undoChanges,
+  // onkeydown handlers remaining in index.html inputs
+  searchJira,
+  pullByKey,
+  // modal overlay onclick (overlay backdrop clicks) still in index.html
+  closeSprintPushModal,
+  closePullSprintModal,
+  closeRoadmapExportDialog,
+  closeIssueSplitModal,
+  // Exposed for cross-module calls (also in FRONTEND_GLOBALS eslint list)
+  focusEpic,
+  updateSplitMode,
 };
 
-Object.assign(window, _globals);
+Object.assign(window, _dynGlobals);
