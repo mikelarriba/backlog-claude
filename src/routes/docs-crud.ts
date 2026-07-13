@@ -15,7 +15,7 @@ import { logAudit } from '../utils/auditLog.js';
 import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
 import { VALID_PRIORITIES } from '../utils/validate.js';
 import { validateBody } from '../utils/validateMiddleware.js';
-import { DraftDocSchema } from '../schemas/docs.js';
+import { DraftDocSchema, PatchDocSchema } from '../schemas/docs.js';
 import type { RouteContext } from '../types.js';
 
 export default function docsCrudRoutes({
@@ -58,7 +58,7 @@ export default function docsCrudRoutes({
   });
 
   // ── PATCH /api/doc/:type/:filename ─────────────────────────────────────────
-  router.patch('/api/doc/:type/:filename', async (req, res) => {
+  router.patch('/api/doc/:type/:filename', validateBody(PatchDocSchema), async (req, res) => {
     try {
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
       if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
@@ -75,22 +75,6 @@ export default function docsCrudRoutes({
         priority,
         commentsSection,
       } = req.body;
-
-      const updatableFields = [
-        'status',
-        'title',
-        'fixVersion',
-        'storyPoints',
-        'sprint',
-        'rank',
-        'team',
-        'workCategory',
-        'priority',
-        'commentsSection',
-      ];
-      if (!updatableFields.some((f) => req.body[f] !== undefined)) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'At least one field must be provided');
-      }
 
       let content = await fs.promises.readFile(filepath, 'utf-8');
 

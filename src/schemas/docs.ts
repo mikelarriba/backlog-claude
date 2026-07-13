@@ -77,6 +77,40 @@ export const SplitEpicSchema = z
   })
   .openapi('SplitEpic');
 
+export const PatchDocSchema = z
+  .object({
+    status: z.string().optional().openapi({ description: 'Workflow status' }),
+    title: z.string().optional().openapi({ description: 'Document title' }),
+    fixVersion: z.string().optional().openapi({ description: 'Fix version' }),
+    storyPoints: z
+      .union([z.number(), z.string(), z.null()])
+      .optional()
+      .openapi({ description: 'Story points estimate' }),
+    sprint: z.string().optional().openapi({ description: 'Sprint name' }),
+    rank: z.number().optional().openapi({ description: 'Rank order' }),
+    team: z.string().optional().openapi({ description: 'Team name' }),
+    workCategory: z.string().optional().openapi({ description: 'Work category' }),
+    priority: z.string().optional().openapi({ description: 'Priority level' }),
+    commentsSection: z.string().optional().openapi({ description: 'Comments section content' }),
+  })
+  .refine(
+    (body) =>
+      [
+        'status',
+        'title',
+        'fixVersion',
+        'storyPoints',
+        'sprint',
+        'rank',
+        'team',
+        'workCategory',
+        'priority',
+        'commentsSection',
+      ].some((f) => body[f as keyof typeof body] !== undefined),
+    { message: 'At least one field must be provided' }
+  )
+  .openapi('PatchDoc');
+
 export const BatchDeleteSchema = z
   .object({
     docs: z.array(DocItemSchema).min(1).openapi({ description: 'Documents to delete' }),

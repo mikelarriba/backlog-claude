@@ -13,6 +13,7 @@ import {
 import { JIRA_TO_LOCAL_TYPE } from '../services/jiraService.js';
 import { logAudit } from '../utils/auditLog.js';
 import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
+import { findExistingByJiraId } from '../utils/docHelpers.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraSyncRoutes({
@@ -249,27 +250,19 @@ export default function jiraSyncRoutes({
       issuelinks?: Array<{ inwardIssue?: { key: string } }>;
     };
   };
-  // docIndex.findByJiraId is the primary, O(1) lookup — it's built at startup and
-  // kept in sync via docIndex.invalidate on every write, so it should never miss
-  // an entry that findLocalFileByJiraId's O(n) disk scan would find. Fall back to
-  // the scan only as a last-resort safety net, and log loudly when it fires so a
-  // docIndex staleness bug doesn't go unnoticed.
-  async function findExistingByJiraId(jiraId: string) {
-    const existing = docIndex.findByJiraId(jiraId);
-    if (existing) return existing;
-    const fallback = await findLocalFileByJiraId(jiraId);
-    if (fallback) {
-      logWarn(
-        'jira/sync',
-        `docIndex missed ${jiraId} that a full disk scan found — check docIndex sync`
-      );
-    }
-    return fallback;
-  }
+  // Bound helper — threads context dependencies into the shared utility.
+  const _findExistingByJiraId = (jiraId: string) =>
+    findExistingByJiraId(
+      jiraId,
+      (id) => docIndex.findByJiraId(id),
+      findLocalFileByJiraId,
+      logWarn,
+      'jira/sync'
+    );
 
   // ── Shared helper: build preview item from a JIRA issue ──────
   async function _buildPreviewItem(iss: JiraPreviewIssue) {
-    const existing = await findExistingByJiraId(iss.key);
+    const existing = await _findExistingByJiraId(iss.key);
     const jiraTitle = String(iss.fields?.summary || '').trim();
     const jiraSP = iss.fields?.[FIELD_STORY_POINTS] ?? null;
     const jiraTypeName = iss.fields?.issuetype?.name || '';

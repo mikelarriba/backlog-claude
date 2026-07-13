@@ -45,3 +45,21 @@ export const JiraPushRankSchema = z
     afterKey: z.string().optional().openapi({ description: 'Rank after this issue key' }),
   })
   .openapi('JiraPushRank');
+
+export const JiraPullSchema = z
+  .object({
+    keys: z.array(z.string()).min(1).openapi({ description: 'JIRA issue keys to pull' }),
+    overwriteKeys: z
+      .array(z.string())
+      .optional()
+      .openapi({ description: 'Keys that should overwrite existing local files' }),
+    parentLink: z
+      .object({
+        docType: z.enum(['epic', 'feature']).openapi({ description: 'Parent document type' }),
+        filename: z.string().min(1).openapi({ description: 'Parent document filename' }),
+      })
+      .nullable()
+      .optional()
+      .openapi({ description: 'Optional parent document to link pulled issues under' }),
+  })
+  .openapi('JiraPull');

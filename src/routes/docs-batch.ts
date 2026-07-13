@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
 import { setFrontmatterField } from '../utils/transforms.js';
+import { applyDocPatch } from '../services/docPatch.js';
 import { pMap } from '../utils/pMap.js';
 import { logAudit } from '../utils/auditLog.js';
 import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
@@ -135,9 +136,7 @@ export default function docsBatchRoutes({
                 return;
               }
 
-              const content = await fs.promises.readFile(filepath, 'utf-8');
-              const patched = setFrontmatterField(content, 'Fix_Version', newValue);
-              await fs.promises.writeFile(filepath, patched);
+              await applyDocPatch(filepath, 'Fix_Version', newValue);
               updated.push({ filename, docType });
             } catch (entryErr) {
               skipped.push({
@@ -255,9 +254,7 @@ export default function docsBatchRoutes({
               skipped.push({ filename, reason: 'not found' });
               return;
             }
-            const content = await fs.promises.readFile(filepath, 'utf-8');
-            const patched = setFrontmatterField(content, 'Rank', String(i + 1));
-            await fs.promises.writeFile(filepath, patched);
+            await applyDocPatch(filepath, 'Rank', String(i + 1));
             updated.push(filename);
           } catch (entryErr) {
             skipped.push({
@@ -317,9 +314,7 @@ export default function docsBatchRoutes({
               return;
             }
 
-            const content = await fs.promises.readFile(filepath, 'utf-8');
-            const patched = setFrontmatterField(content, 'Rank', String(item.rank));
-            await fs.promises.writeFile(filepath, patched);
+            await applyDocPatch(filepath, 'Rank', String(item.rank));
             updated.push(filename);
           } catch (entryErr) {
             skipped.push({
@@ -563,9 +558,7 @@ export default function docsBatchRoutes({
                 return;
               }
 
-              const content = await fs.promises.readFile(filepath, 'utf-8');
-              const patched = setFrontmatterField(content, frontmatter, newValue);
-              await fs.promises.writeFile(filepath, patched);
+              await applyDocPatch(filepath, frontmatter, newValue);
               updated.push({ filename, docType });
             } catch (entryErr) {
               skipped.push({
