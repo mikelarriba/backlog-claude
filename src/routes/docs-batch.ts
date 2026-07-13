@@ -1,15 +1,6 @@
 // ── Document batch operation routes ───────────────────────────────────────────
 import { Router } from 'express';
-import fs from 'fs';
-import path from 'path';
-import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
-import { setFrontmatterField } from '../utils/transforms.js';
-import { applyDocPatch } from '../services/docPatch.js';
-import { pMap } from '../utils/pMap.js';
-import { logAudit } from '../utils/auditLog.js';
-import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
-import { proposeDistribution } from '../services/distributionService.js';
-import type { DistributionDoc } from '../services/distributionService.js';
+import { sendError, parseApiError, assertDocType } from '../utils/routeHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import {
   BatchDeleteSchema,
@@ -20,14 +11,25 @@ import {
   ApplyDistributionSchema,
   BatchUpdateFieldSchema,
 } from '../schemas/docs.js';
-import { topoSort } from '../utils/topoSort.js';
+import { TEAMS, WORK_CATEGORIES } from '../config/metadata.js';
+import {
+  batchDelete,
+  batchFixVersion,
+  computeDistribution,
+  runDistribution,
+  batchRerank,
+  batchRerankCanvas,
+  applyDistribution,
+  batchUpdateField,
+} from '../services/batchService.js';
+import type { DocItem, AssignmentItem, RerankItem } from '../services/batchService.js';
 import type { RouteContext } from '../types.js';
 
-type DocItem = { type: string; filename: string };
-type RerankItem = { filename: string; docType: string; rank: number };
-type AssignmentItem = { docType: string; filename: string; sprint: string };
-
-const BATCH_CONCURRENCY = 5;
+const BATCH_FIELD_MAP: Record<string, { frontmatter: string; allowed: string[] | null }> = {
+  sprint: { frontmatter: 'Sprint', allowed: null },
+  team: { frontmatter: 'Team', allowed: TEAMS },
+  workCategory: { frontmatter: 'Work_Category', allowed: WORK_CATEGORIES },
+};
 
 export default function docsBatchRoutes({
   rootDir,
@@ -43,54 +45,12 @@ export default function docsBatchRoutes({
   router.post('/api/docs/batch-delete', validateBody(BatchDeleteSchema), async (req, res) => {
     try {
       const { docs } = req.body;
+      const { deleted, skipped } = await batchDelete(docs as DocItem[], { TYPE_CONFIG, logWarn });
 
-      const deleted: Array<{ filename: string; docType: string }> = [];
-      const skipped: Array<{ filename: string; reason: string }> = [];
-
-      await pMap(
-        docs as DocItem[],
-        async (entry) => {
-          try {
-            const docType = assertDocType(entry.type, TYPE_CONFIG);
-            const filename = assertFilename(entry.filename);
-            const cfg = TYPE_CONFIG[docType];
-            const filepath = path.join(cfg.dir(), filename);
-
-            try {
-              await fs.promises.access(filepath);
-            } catch (err) {
-              logWarn('batch', `skipping ${filename}: file not found`, {
-                error: err instanceof Error ? err.message : String(err),
-              });
-              skipped.push({ filename, reason: 'not found' });
-              return;
-            }
-
-            await fs.promises.unlink(filepath);
-            deleted.push({ filename, docType });
-          } catch (entryErr) {
-            skipped.push({
-              filename: entry.filename,
-              reason: entryErr instanceof Error ? entryErr.message : 'invalid',
-            });
-          }
-        },
-        { concurrency: BATCH_CONCURRENCY }
-      );
-
-      // Always invalidate the index — stale entries must be purged even when
-      // the file was already gone from disk (deleted === 0, skipped > 0).
-      // We know exactly which files were touched, so use incremental invalidation.
-      const allTouched = [
-        ...deleted.map((d) => d.filename),
-        ...skipped.map((s) => s.filename),
-      ];
+      const allTouched = [...deleted.map((d) => d.filename), ...skipped.map((s) => s.filename)];
       await docIndex.invalidateMany(allTouched);
       broadcast({ type: 'batch_deleted', filenames: deleted.map((d) => d.filename) });
 
-      for (const d of deleted) {
-        logAudit({ op: 'delete', docType: d.docType, filename: d.filename, source: 'api' });
-      }
       if (skipped.length) {
         logInfo('POST /api/docs/batch-delete', `Skipped entries: ${JSON.stringify(skipped)}`);
       }
@@ -112,41 +72,11 @@ export default function docsBatchRoutes({
     async (req, res) => {
       try {
         const { fixVersion, docs } = req.body;
-
         const newValue = fixVersion || 'TBD';
-        const updated: Array<{ filename: string; docType: string }> = [];
-        const skipped: Array<{ filename: string; reason: string }> = [];
-
-        await pMap(
-          docs as DocItem[],
-          async (entry) => {
-            try {
-              const docType = assertDocType(entry.type, TYPE_CONFIG);
-              const filename = assertFilename(entry.filename);
-              const cfg = TYPE_CONFIG[docType];
-              const filepath = path.join(cfg.dir(), filename);
-
-              try {
-                await fs.promises.access(filepath);
-              } catch (err) {
-                logWarn('batch', `skipping ${filename}: file not found`, {
-                  error: err instanceof Error ? err.message : String(err),
-                });
-                skipped.push({ filename, reason: 'not found' });
-                return;
-              }
-
-              await applyDocPatch(filepath, 'Fix_Version', newValue);
-              updated.push({ filename, docType });
-            } catch (entryErr) {
-              skipped.push({
-                filename: entry.filename,
-                reason: entryErr instanceof Error ? entryErr.message : 'invalid',
-              });
-            }
-          },
-          { concurrency: BATCH_CONCURRENCY }
-        );
+        const { updated, skipped } = await batchFixVersion(docs as DocItem[], newValue, {
+          TYPE_CONFIG,
+          logWarn,
+        });
 
         if (updated.length) {
           await docIndex.invalidateMany(updated.map((u) => u.filename));
@@ -174,54 +104,13 @@ export default function docsBatchRoutes({
   router.post('/api/docs/distribute', validateBody(DistributeSchema), async (req, res) => {
     try {
       const { piName } = req.body;
+      const computed = await computeDistribution(piName, { rootDir, docIndex, logWarn });
 
-      const piSettingsPath = path.join(rootDir, '.pi-settings.json');
-      let sprintCfg: Array<{ name: string; capacity: number; bufferPct?: number }> = [];
-      try {
-        const raw = await fs.promises.readFile(piSettingsPath, 'utf-8');
-        const settings = JSON.parse(raw);
-        const defaultBufferPct = settings.defaultBufferPct ?? 0;
-        sprintCfg = (settings.sprints && settings.sprints[piName]) || [];
-        // Enrich each sprint with bufferPct
-        sprintCfg = sprintCfg.map((s) => ({
-          ...s,
-          bufferPct: s.bufferPct ?? defaultBufferPct,
-        }));
-      } catch (err) {
-        logWarn('batch/distribute', `could not read PI settings`, {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-      if (!sprintCfg.length)
-        return sendError(res, 400, 'NO_SPRINTS', 'No sprints configured for this PI');
-
-      const leafTypes = new Set(['story', 'spike', 'bug']);
-      const leafDocs: DistributionDoc[] = docIndex
-        .getAll()
-        .filter((e) => leafTypes.has(e.docType) && e.fixVersion === piName)
-        .map((e) => ({
-          filename: e.filename,
-          docType: e.docType,
-          title: e.title,
-          storyPoints: e.storyPoints || 0,
-          hasEstimate: !!e.storyPoints,
-          priority: e.priority || 'Medium',
-          sprint: e.sprint || null,
-          rank: e.rank != null ? e.rank : 9999,
-          parentFilename: e.parentFilename || null,
-          blockedBy: e.blockedBy || [],
-          blocks: e.blocks || [],
-          parallel: e.parallel || [],
-        }));
-
-      const epicRankMap = new Map<string, number>();
-      for (const e of docIndex.getAll()) {
-        if (e.docType === 'epic' || e.docType === 'feature') {
-          epicRankMap.set(e.filename, e.rank != null ? e.rank : 9999);
-        }
+      if ('error' in computed) {
+        return sendError(res, 400, computed.error.code, computed.error.message);
       }
 
-      const result = proposeDistribution(leafDocs, sprintCfg, epicRankMap);
+      const result = runDistribution(computed.leafDocs, computed.sprintCfg, computed.epicRankMap);
       res.json({ piName, ...result });
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -233,38 +122,11 @@ export default function docsBatchRoutes({
   router.post('/api/docs/rerank', validateBody(RerankSchema), async (req, res) => {
     try {
       const { type, orderedFilenames } = req.body;
-
       const docType = assertDocType(type, TYPE_CONFIG);
-      const cfg = TYPE_CONFIG[docType];
-      const updated: string[] = [];
-      const skipped: Array<{ filename: string; reason: string }> = [];
-
-      await pMap(
-        orderedFilenames as string[],
-        async (rawFilename, i) => {
-          try {
-            const filename = assertFilename(rawFilename);
-            const filepath = path.join(cfg.dir(), filename);
-            try {
-              await fs.promises.access(filepath);
-            } catch (err) {
-              logWarn('batch', `skipping ${filename}: file not found`, {
-                error: err instanceof Error ? err.message : String(err),
-              });
-              skipped.push({ filename, reason: 'not found' });
-              return;
-            }
-            await applyDocPatch(filepath, 'Rank', String(i + 1));
-            updated.push(filename);
-          } catch (entryErr) {
-            skipped.push({
-              filename: rawFilename,
-              reason: entryErr instanceof Error ? entryErr.message : 'invalid',
-            });
-          }
-        },
-        { concurrency: BATCH_CONCURRENCY }
-      );
+      const { updated, skipped } = await batchRerank(docType, orderedFilenames as string[], {
+        TYPE_CONFIG,
+        logWarn,
+      });
 
       if (updated.length) {
         await docIndex.invalidateMany(updated);
@@ -292,39 +154,10 @@ export default function docsBatchRoutes({
   router.post('/api/docs/rerank-canvas', validateBody(RerankCanvasSchema), async (req, res) => {
     try {
       const { items } = req.body;
-
-      const updated: string[] = [];
-      const skipped: Array<{ filename: string; reason: string }> = [];
-
-      await pMap(
-        items as RerankItem[],
-        async (item) => {
-          try {
-            const docType = assertDocType(item.docType, TYPE_CONFIG);
-            const filename = assertFilename(item.filename);
-            const cfg = TYPE_CONFIG[docType];
-            const filepath = path.join(cfg.dir(), filename);
-            try {
-              await fs.promises.access(filepath);
-            } catch (err) {
-              logWarn('batch', `skipping ${filename}: file not found`, {
-                error: err instanceof Error ? err.message : String(err),
-              });
-              skipped.push({ filename, reason: 'not found' });
-              return;
-            }
-
-            await applyDocPatch(filepath, 'Rank', String(item.rank));
-            updated.push(filename);
-          } catch (entryErr) {
-            skipped.push({
-              filename: item.filename,
-              reason: entryErr instanceof Error ? entryErr.message : 'invalid',
-            });
-          }
-        },
-        { concurrency: BATCH_CONCURRENCY }
-      );
+      const { updated, skipped } = await batchRerankCanvas(items as RerankItem[], {
+        TYPE_CONFIG,
+        logWarn,
+      });
 
       if (updated.length) {
         await docIndex.invalidateMany(updated);
@@ -355,143 +188,24 @@ export default function docsBatchRoutes({
     async (req, res) => {
       try {
         const { assignments } = req.body;
+        const result = await applyDistribution(assignments as AssignmentItem[], {
+          rootDir,
+          docIndex,
+          TYPE_CONFIG,
+          logWarn,
+        });
 
-        // Build a global sprint order from .pi-settings.json so we can enforce dependency ordering
-        const piSettingsPath = path.join(rootDir, '.pi-settings.json');
-        const sprintOrder: string[] = [];
-        try {
-          const raw = await fs.promises.readFile(piSettingsPath, 'utf-8');
-          const settings = JSON.parse(raw);
-          for (const piSprints of Object.values(settings.sprints || {})) {
-            for (const s of piSprints as Array<{ name: string }>) {
-              if (!sprintOrder.includes(s.name)) sprintOrder.push(s.name);
-            }
-          }
-        } catch (err) {
-          logWarn(
-            'batch/apply-distribution',
-            `could not load PI settings for dependency enforcement`,
-            { error: err instanceof Error ? err.message : String(err) }
-          );
+        if ('error' in result) {
+          return sendError(res, 400, result.error.code, result.error.message);
         }
 
-        // Mutable sprint map: filename → sprint
-        const typedAssignments = assignments as AssignmentItem[];
-        const sprintMap = new Map(typedAssignments.map((a) => [a.filename, a.sprint]));
-        const depWarnings: Array<{ blocker: string; blocked: string; message: string }> = [];
-
-        if (sprintOrder.length) {
-          const sprintIdx = new Map(sprintOrder.map((s, i) => [s, i]));
-          const assignedFilenames = Array.from(sprintMap.keys());
-
-          // BFS topological sort over the dependency graph to detect cycles and
-          // process blockers before their dependents (no arbitrary iteration cap).
-          const { order: topoOrder, cycle } = topoSort(
-            assignedFilenames,
-            (fn) => (docIndex.get(fn)?.blocks ?? []).filter((b) => sprintMap.has(b))
-          );
-
-          if (cycle) {
-            return sendError(
-              res,
-              400,
-              'CYCLE_DETECTED',
-              'Dependency cycle detected in the selected assignments — cannot enforce ordering'
-            );
-          }
-
-          // Walk in topological order: blockers always come before their dependents.
-          for (const filename of topoOrder) {
-            const entry = docIndex.get(filename);
-            if (!entry?.blocks?.length) continue;
-            const aIdx = sprintIdx.get(sprintMap.get(filename) ?? '') ?? -1;
-            for (const blockedFn of entry.blocks) {
-              if (!sprintMap.has(blockedFn)) continue;
-              const bIdx = sprintIdx.get(sprintMap.get(blockedFn) ?? '') ?? -1;
-              if (aIdx >= bIdx && aIdx !== -1) {
-                const newIdx = aIdx + 1;
-                if (newIdx < sprintOrder.length) {
-                  const newSprint = sprintOrder[newIdx];
-                  depWarnings.push({
-                    blocker: filename,
-                    blocked: blockedFn,
-                    message: `Moved ${blockedFn} to ${newSprint} to maintain dependency order`,
-                  });
-                  sprintMap.set(blockedFn, newSprint);
-                } else {
-                  depWarnings.push({
-                    blocker: filename,
-                    blocked: blockedFn,
-                    message: `Cannot move ${blockedFn} — no later sprint available`,
-                  });
-                }
-              }
-            }
-          }
-        }
-
-        type WriteItem = {
-          filepath: string;
-          content: string;
-          filename: string;
-          docType: string;
-          sprint: string | undefined;
-        };
-        const writes: WriteItem[] = [];
-        const skipped: Array<{ filename: string; reason: string }> = [];
-
-        // Phase 1: validate and compute all patches in memory (no writes yet)
-        for (const entry of typedAssignments) {
-          try {
-            const docType = assertDocType(entry.docType, TYPE_CONFIG);
-            const filename = assertFilename(entry.filename);
-            const cfg = TYPE_CONFIG[docType];
-            const filepath = path.join(cfg.dir(), filename);
-            try {
-              await fs.promises.access(filepath);
-            } catch (err) {
-              logWarn('batch', `skipping ${filename}: file not found`, {
-                error: err instanceof Error ? err.message : String(err),
-              });
-              skipped.push({ filename, reason: 'not found' });
-              continue;
-            }
-            const adjustedSprint = sprintMap.get(filename) || entry.sprint;
-            const content = await fs.promises.readFile(filepath, 'utf-8');
-            const patched = setFrontmatterField(content, 'Sprint', adjustedSprint || 'TBD');
-            writes.push({ filepath, content: patched, filename, docType, sprint: adjustedSprint });
-          } catch (entryErr) {
-            skipped.push({
-              filename: entry.filename,
-              reason: entryErr instanceof Error ? entryErr.message : 'invalid',
-            });
-          }
-        }
-
-        // Phase 2: flush all writes atomically — only after all transformations succeeded
-        await Promise.all(
-          writes.map(({ filepath, content }) => fs.promises.writeFile(filepath, content))
-        );
-        const updated = writes.map(({ filename, docType, sprint }) => ({
-          filename,
-          docType,
-          sprint,
-        }));
+        const { updated, skipped, warnings: depWarnings } = result;
 
         if (updated.length) {
           await docIndex.invalidateMany(updated.map((u) => u.filename));
           broadcast({ type: 'batch_sprint_updated', filenames: updated.map((u) => u.filename) });
         }
 
-        for (const u of updated) {
-          logAudit({
-            op: 'update',
-            docType: u.docType,
-            filename: u.filename,
-            fields: { sprint: u.sprint },
-            source: 'api',
-          });
-        }
         logInfo(
           'POST /api/docs/apply-distribution',
           `Assigned ${updated.length} item(s), skipped ${skipped.length}`
@@ -511,12 +225,6 @@ export default function docsBatchRoutes({
   );
 
   // ── POST /api/docs/batch-update-field ── bulk assign sprint/team/category ──
-  const BATCH_FIELD_MAP: Record<string, { frontmatter: string; allowed: string[] | null }> = {
-    sprint: { frontmatter: 'Sprint', allowed: null },
-    team: { frontmatter: 'Team', allowed: TEAMS },
-    workCategory: { frontmatter: 'Work_Category', allowed: WORK_CATEGORIES },
-  };
-
   router.post(
     '/api/docs/batch-update-field',
     validateBody(BatchUpdateFieldSchema),
@@ -536,38 +244,12 @@ export default function docsBatchRoutes({
           );
         }
 
-        const updated: Array<{ filename: string; docType: string }> = [];
-        const skipped: Array<{ filename: string; reason: string }> = [];
-
-        await pMap(
+        const { updated, skipped } = await batchUpdateField(
           docs as DocItem[],
-          async (entry) => {
-            try {
-              const docType = assertDocType(entry.type, TYPE_CONFIG);
-              const filename = assertFilename(entry.filename);
-              const cfg = TYPE_CONFIG[docType];
-              const filepath = path.join(cfg.dir(), filename);
-
-              try {
-                await fs.promises.access(filepath);
-              } catch (err) {
-                logWarn('batch', `skipping ${filename}: file not found`, {
-                  error: err instanceof Error ? err.message : String(err),
-                });
-                skipped.push({ filename, reason: 'not found' });
-                return;
-              }
-
-              await applyDocPatch(filepath, frontmatter, newValue);
-              updated.push({ filename, docType });
-            } catch (entryErr) {
-              skipped.push({
-                filename: entry.filename,
-                reason: entryErr instanceof Error ? entryErr.message : 'invalid',
-              });
-            }
-          },
-          { concurrency: BATCH_CONCURRENCY }
+          frontmatter,
+          newValue,
+          field,
+          { TYPE_CONFIG, logWarn }
         );
 
         if (updated.length) {
@@ -580,15 +262,6 @@ export default function docsBatchRoutes({
           });
         }
 
-        for (const u of updated) {
-          logAudit({
-            op: 'update',
-            docType: u.docType,
-            filename: u.filename,
-            fields: { [field]: newValue },
-            source: 'api',
-          });
-        }
         logInfo(
           'POST /api/docs/batch-update-field',
           `Updated ${updated.length} ${field}→${newValue}, skipped ${skipped.length}`
