@@ -179,10 +179,7 @@ export interface UpgradeDocResult {
 
 export async function upgradeDoc(
   params: UpgradeDocParams,
-  {
-    streamClaude,
-    docIndex,
-  }: Pick<AiServiceContext, 'streamClaude' | 'docIndex'>,
+  { streamClaude, docIndex }: Pick<AiServiceContext, 'streamClaude' | 'docIndex'>,
   onChunk: (chunk: string) => void
 ): Promise<UpgradeDocResult> {
   const { filepath, filename, docType, feedback, INBOX_DIR } = params;
@@ -360,11 +357,11 @@ export async function splitEpic(
   const epicPi = extractFrontmatterField(epicContent, 'PI');
   const epicTeam = extractFrontmatterField(epicContent, 'Team');
   const epicWorkCat = extractFrontmatterField(epicContent, 'Work_Category');
-  let featureId = extractFrontmatterField(epicContent, 'Feature_ID');
+  const featureId = extractFrontmatterField(epicContent, 'Feature_ID');
 
-  let featureFilename: string | null = null;
+  let featureFilename: string | null;
   let featureCreated = false;
-  let featureTitle: string | null = null;
+  let featureTitle: string | null;
 
   // Step 1: Resolve or create the parent Feature
   if (!featureId || featureId === 'TBD') {
@@ -420,7 +417,6 @@ TBD
     await fs.promises.writeFile(epicPath, updated);
     await docIndex.invalidate('epic', epicFilename);
 
-    featureId = featureFilename;
     featureCreated = true;
 
     logInfo(
@@ -482,8 +478,7 @@ ${idea}
     finalContent = setFrontmatterField(finalContent, 'Feature_ID', featureFilename!);
     if (epicFixVer && epicFixVer !== 'TBD')
       finalContent = setFrontmatterField(finalContent, 'Fix_Version', epicFixVer);
-    if (epicPi && epicPi !== 'TBD')
-      finalContent = setFrontmatterField(finalContent, 'PI', epicPi);
+    if (epicPi && epicPi !== 'TBD') finalContent = setFrontmatterField(finalContent, 'PI', epicPi);
     if (epicTeam && epicTeam !== 'TBD')
       finalContent = setFrontmatterField(finalContent, 'Team', epicTeam);
     if (epicWorkCat && epicWorkCat !== 'TBD')

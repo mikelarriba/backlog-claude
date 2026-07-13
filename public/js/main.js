@@ -376,9 +376,6 @@ function navigateTo(viewName) {
   }
 }
 // ── Settings view ─────────────────────────────────────────────
-function openSettingsView() {
-  navigateTo('settings');
-}
 function closeSettingsView() {
   navigateTo('backlog');
 }

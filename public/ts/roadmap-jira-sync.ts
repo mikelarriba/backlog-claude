@@ -3,7 +3,14 @@
 // JIRA sprints into the local backlog. Both are modal-driven flows that
 // stream SSE progress from the server via raw fetch (not the shared
 // fetchJSON/postJSON helpers, which only handle single JSON responses).
-import { escHtml, postJSON, showJiraToast, getErrorMessage, openModal, closeModal } from './state.js';
+import {
+  escHtml,
+  postJSON,
+  showJiraToast,
+  getErrorMessage,
+  openModal,
+  closeModal,
+} from './state.js';
 import type { SprintConfig } from './state.js';
 import { loadDocs } from './list.js';
 import type { RoadmapSprint } from './roadmap.js';
@@ -382,7 +389,6 @@ const JIRA_TYPE_TO_LOCAL: Record<string, string> = {
 };
 
 export function pullFromJiraSprints(): void {
-  const overlay = document.getElementById('pull-sprint-overlay')!;
   // Reset UI state
   (document.getElementById('pull-sprint-select-step') as HTMLElement).style.display = '';
   (document.getElementById('pull-sprint-loading') as HTMLElement).style.display = 'none';

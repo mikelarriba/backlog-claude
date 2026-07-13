@@ -46,7 +46,6 @@ export async function applyHierarchyLink(
   targetType: string,
   targetFilename: string,
   {
-    TYPE_CONFIG,
     FEATURES_DIR,
     EPICS_DIR,
     STORIES_DIR,
@@ -130,10 +129,8 @@ export async function applyBlocksLink(
 ): Promise<LinkResult | LinkError> {
   const srcCfg = TYPE_CONFIG[srcType];
   const tgtCfg = TYPE_CONFIG[tgtType];
-  if (!srcCfg)
-    return { code: 'INVALID_TYPE', message: `Unknown type: ${srcType}`, status: 400 };
-  if (!tgtCfg)
-    return { code: 'INVALID_TYPE', message: `Unknown type: ${tgtType}`, status: 400 };
+  if (!srcCfg) return { code: 'INVALID_TYPE', message: `Unknown type: ${srcType}`, status: 400 };
+  if (!tgtCfg) return { code: 'INVALID_TYPE', message: `Unknown type: ${tgtType}`, status: 400 };
   if (srcFile === tgtFile)
     return { code: 'INVALID_LINK', message: 'A story cannot block itself', status: 400 };
 

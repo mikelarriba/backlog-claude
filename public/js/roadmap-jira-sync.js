@@ -296,7 +296,6 @@ const JIRA_TYPE_TO_LOCAL = {
   Bug: 'bug',
 };
 export function pullFromJiraSprints() {
-  const overlay = document.getElementById('pull-sprint-overlay');
   // Reset UI state
   document.getElementById('pull-sprint-select-step').style.display = '';
   document.getElementById('pull-sprint-loading').style.display = 'none';

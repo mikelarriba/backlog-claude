@@ -19,8 +19,6 @@ export default function docsAiRoutes(ctx: RouteContext) {
   const {
     TYPE_CONFIG,
     broadcast,
-    loadCommand,
-    callClaude,
     streamClaude,
     _apiInFlight,
     logInfo,

@@ -414,10 +414,6 @@ function navigateTo(viewName: ViewName): void {
 }
 
 // ── Settings view ─────────────────────────────────────────────
-function openSettingsView(): void {
-  navigateTo('settings');
-}
-
 function closeSettingsView(): void {
   navigateTo('backlog');
 }
