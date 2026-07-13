@@ -5,6 +5,7 @@
   justify-content: space-between;
   padding: 16px 20px 12px;
   border-bottom: 1px solid var(--border);
+  border-top: 3px solid var(--type-bug-color);
   flex-shrink: 0;
 }
 

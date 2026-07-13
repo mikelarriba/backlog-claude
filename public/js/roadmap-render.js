@@ -128,6 +128,17 @@ export function renderEpicPanel(sprints) {
     return kb.localeCompare(ka);
   });
   document.getElementById('rm-count-epics').textContent = String(sorted.length);
+  if (!sorted.length) {
+    body.innerHTML = `
+      <div class="empty-state-v2">
+        <div class="empty-icon">🗓️</div>
+        <p class="empty-title">No items assigned to sprints yet</p>
+        <p class="empty-body">
+          Add stories to sprints from the Backlog or Detail view to see them appear here.
+        </p>
+      </div>`;
+    return;
+  }
   // Sprint name → index for positioning
   const sprintIdx = new Map(sprints.map((s, i) => [s.name, i]));
   const N = sprints.length;

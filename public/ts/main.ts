@@ -31,7 +31,7 @@ import {
   contextAssignField,
   closeBulkAssignDialog,
 } from './list-filters.js';
-import './list-render.js';
+import { dismissWelcomeBanner } from './list-render.js';
 import {
   saveTitle,
   cancelTitleEdit,
@@ -809,6 +809,11 @@ document.addEventListener('click', (e: MouseEvent) => {
       break;
     case 'toggleRoadmapPanel':
       toggleRoadmapPanel(btn.dataset.panel ?? '');
+      break;
+
+    // ── Welcome banner ───────────────────────────────────────
+    case 'dismissWelcomeBanner':
+      dismissWelcomeBanner();
       break;
 
     // ── FAB ──────────────────────────────────────────────────

@@ -168,7 +168,17 @@ export function renderBugsTable(bugs) {
   const wrap = document.getElementById('bugs-table-wrap');
   if (!wrap) return;
   if (!bugs || bugs.length === 0) {
-    wrap.innerHTML = '<p class="bugs-empty">No bugs match the current filters.</p>';
+    wrap.innerHTML = !_allBugs.length
+      ? `
+      <div class="empty-state-v2">
+        <div class="empty-icon">🐛</div>
+        <p class="empty-title">No bugs tracked</p>
+        <p class="empty-body">
+          When bugs are logged in JIRA they appear here automatically. You can also create
+          bugs manually using the + button.
+        </p>
+      </div>`
+      : '<p class="bugs-empty">No bugs match the current filters.</p>';
     _updateAnalyzeButton();
     return;
   }
