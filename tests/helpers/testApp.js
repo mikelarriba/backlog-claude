@@ -23,9 +23,10 @@ export async function startTestApp() {
   process.env.TEST_INBOX_DIR = inboxDir;
   process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'error';
   process.env.MOCK_CLAUDE = '1';
-  // Ensure .env does not inject a real JIRA token into tests.
-  // The empty string is intentional; the server guards check for a truthy value.
+  // Ensure .env does not inject real JIRA credentials into tests.
+  // Empty strings are intentional; server guards check for truthy values.
   process.env.JIRA_API_TOKEN = '';
+  process.env.JIRA_BOARD_ID = '';
 
   // Dynamic import: env vars must be set before server.js module-level code runs.
   // Each test file runs in its own process (node --test), so the module cache is
@@ -55,6 +56,7 @@ export async function startTestApp() {
     delete process.env.TEST_INBOX_DIR;
     delete process.env.MOCK_CLAUDE;
     delete process.env.JIRA_API_TOKEN;
+    delete process.env.JIRA_BOARD_ID;
   }
 
   return { api, stop, docsRoot, inboxDir, baseUrl: `http://localhost:${port}` };
