@@ -135,7 +135,12 @@ export function renderIssuesList(issues: DocIssue[]): void {
   if (!listEl) return;
 
   if (!issues.length) {
-    listEl.innerHTML = '<p class="doc-empty">No JIRA issues match the current filters.</p>';
+    listEl.innerHTML = `
+      <div class="empty-state-v2">
+        <div class="empty-icon">🔍</div>
+        <p class="empty-title">No items match your filter</p>
+        <p class="empty-body">Try adjusting the type filters or search term above.</p>
+      </div>`;
     if (pagerEl) pagerEl.innerHTML = '';
     _updateSelectionCount();
     return;

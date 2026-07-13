@@ -344,6 +344,46 @@ button:active:not(:disabled) {
   color: var(--error-text);
 }
 
+/* ── Shared empty-state system ────────────────────────────────── */
+.empty-state-v2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-10) var(--space-6);
+  text-align: center;
+  color: var(--muted);
+}
+.empty-state-v2 .empty-icon {
+  width: 56px;
+  height: 56px;
+  background: var(--surface2);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  border: 1px solid var(--border);
+}
+.empty-state-v2 .empty-title {
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text);
+  margin: 0;
+}
+.empty-state-v2 .empty-body {
+  font-size: var(--text-sm);
+  line-height: var(--line-height-relaxed);
+  max-width: 360px;
+  margin: 0;
+}
+.empty-state-v2 .empty-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
 /* ── Collapsible section (shared) ────────────────────────────── */
 .collapsible {
   border: 1px solid var(--border);

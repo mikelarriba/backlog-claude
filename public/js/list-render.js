@@ -63,6 +63,17 @@ export function categorizeDocs(docs, pi = piSettings) {
   }
   return { currentPi, nextPi, backlog };
 }
+const WELCOME_DISMISSED_KEY = 'midas-welcomed';
+export function dismissWelcomeBanner() {
+  localStorage.setItem(WELCOME_DISMISSED_KEY, '1');
+  document.getElementById('welcome-banner')?.classList.add('hidden');
+}
+function updateWelcomeBanner() {
+  const banner = document.getElementById('welcome-banner');
+  if (!banner) return;
+  const shouldShow = !allDocs.length && !localStorage.getItem(WELCOME_DISMISSED_KEY);
+  banner.classList.toggle('hidden', !shouldShow);
+}
 export function renderSwimlanes(docs) {
   // Rebuild global readiness lookup tables from all docs (cross-section)
   _readinessAllDocsMap = new Map(allDocs.map((d) => [d.filename, d]));
@@ -70,12 +81,28 @@ export function renderSwimlanes(docs) {
   const list = document.getElementById('epic-list');
   const count = document.getElementById('epic-count');
   count.textContent = String(docs.length);
+  updateWelcomeBanner();
   if (!docs.length) {
-    list.innerHTML = `
-      <div class="empty-state">
-        <div class="icon">📋</div>
-        Nothing matches the current filters.
-      </div>`;
+    if (!allDocs.length) {
+      list.innerHTML = `
+        <div class="empty-state-v2">
+          <div class="empty-icon">📋</div>
+          <p class="empty-title">Your backlog is empty</p>
+          <p class="empty-body">
+            Start by creating your first Feature, Epic or Story using the + button in the
+            bottom right, or import items from JIRA.
+          </p>
+          <div class="empty-actions">
+            <button class="btn-primary" data-action="toggleFab">Create first item</button>
+          </div>
+        </div>`;
+    } else {
+      list.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          Nothing matches the current filters.
+        </div>`;
+    }
     return;
   }
   // Compute rank positions from the full unfiltered doc set so ↑/↓ buttons
