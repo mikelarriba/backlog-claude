@@ -25,7 +25,9 @@
 }
 
 .bugs-dash-body {
-  padding: 16px 20px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-4) var(--space-6);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -36,14 +38,14 @@
 /* Stats row */
 .bugs-stats-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
 }
 
 .bugs-stat-card {
   background: var(--surface-alt, var(--surface));
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 14px 16px;
   text-align: center;
 }
@@ -69,7 +71,8 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
-  height: 300px;
+  min-height: 300px;
+  height: clamp(300px, 25vh, 440px);
   position: relative;
 }
 
