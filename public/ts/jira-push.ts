@@ -1,7 +1,15 @@
 // ── JIRA push: sync-preview modal + push-to-JIRA flow ───────────
 // The sync-preview confirmation modal is shared infrastructure used both
 // here (push) and by the pull/update flow in jira-pull.ts.
-import { fetchJSON, postJSON, escHtml, showJiraToast, TYPE_LABEL, openModal, closeModal } from './state.js';
+import {
+  fetchJSON,
+  postJSON,
+  escHtml,
+  showJiraToast,
+  TYPE_LABEL,
+  openModal,
+  closeModal,
+} from './state.js';
 import { openDoc, closeAllDropdowns } from './detail.js';
 import { logAiSaving } from './ai-savings.js';
 

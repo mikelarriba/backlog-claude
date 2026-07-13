@@ -300,7 +300,12 @@ export interface ApplyDistributionResult {
 
 export async function applyDistribution(
   assignments: AssignmentItem[],
-  { rootDir, docIndex, TYPE_CONFIG, logWarn }: Pick<BatchContext, 'rootDir' | 'docIndex' | 'TYPE_CONFIG' | 'logWarn'>
+  {
+    rootDir,
+    docIndex,
+    TYPE_CONFIG,
+    logWarn,
+  }: Pick<BatchContext, 'rootDir' | 'docIndex' | 'TYPE_CONFIG' | 'logWarn'>
 ): Promise<ApplyDistributionResult | { error: { code: string; message: string } }> {
   // Build a global sprint order from .pi-settings.json
   const piSettingsPath = path.join(rootDir, '.pi-settings.json');
@@ -314,11 +319,9 @@ export async function applyDistribution(
       }
     }
   } catch (err) {
-    logWarn(
-      'batch/apply-distribution',
-      `could not load PI settings for dependency enforcement`,
-      { error: err instanceof Error ? err.message : String(err) }
-    );
+    logWarn('batch/apply-distribution', `could not load PI settings for dependency enforcement`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const sprintMap = new Map(assignments.map((a) => [a.filename, a.sprint]));
@@ -328,16 +331,16 @@ export async function applyDistribution(
     const sprintIdx = new Map(sprintOrder.map((s, i) => [s, i]));
     const assignedFilenames = Array.from(sprintMap.keys());
 
-    const { order: topoOrder, cycle } = topoSort(
-      assignedFilenames,
-      (fn) => (docIndex.get(fn)?.blocks ?? []).filter((b) => sprintMap.has(b))
+    const { order: topoOrder, cycle } = topoSort(assignedFilenames, (fn) =>
+      (docIndex.get(fn)?.blocks ?? []).filter((b) => sprintMap.has(b))
     );
 
     if (cycle) {
       return {
         error: {
           code: 'CYCLE_DETECTED',
-          message: 'Dependency cycle detected in the selected assignments — cannot enforce ordering',
+          message:
+            'Dependency cycle detected in the selected assignments — cannot enforce ordering',
         },
       };
     }
@@ -410,7 +413,9 @@ export async function applyDistribution(
   }
 
   // Phase 2: flush all writes atomically
-  await Promise.all(writes.map(({ filepath, content }) => fs.promises.writeFile(filepath, content)));
+  await Promise.all(
+    writes.map(({ filepath, content }) => fs.promises.writeFile(filepath, content))
+  );
 
   const updated = writes.map(({ filename, docType, sprint }) => ({ filename, docType, sprint }));
 

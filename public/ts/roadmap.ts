@@ -1,5 +1,13 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
-import { escHtml, postJSON, showJiraToast, fetchJSON, getErrorMessage, openModal, closeModal } from './state.js';
+import {
+  escHtml,
+  postJSON,
+  showJiraToast,
+  fetchJSON,
+  getErrorMessage,
+  openModal,
+  closeModal,
+} from './state.js';
 import type { SprintConfig } from './state.js';
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { clearRoadmapSelection } from './roadmap-select.js';

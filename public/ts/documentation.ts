@@ -64,7 +64,9 @@ async function loadDocVersions(): Promise<void> {
     const current = select.value;
     select.innerHTML =
       '<option value="">All fix versions</option>' +
-      _versions.map((v) => `<option value="${escHtml(v.name)}">${escHtml(v.name)}</option>`).join('');
+      _versions
+        .map((v) => `<option value="${escHtml(v.name)}">${escHtml(v.name)}</option>`)
+        .join('');
     select.value = current;
   }
 }

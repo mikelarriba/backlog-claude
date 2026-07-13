@@ -286,29 +286,71 @@
           <div class="filter-row">
             <div class="filter-group">
               <span class="filter-label">Type</span>
-              <button class="pill active" data-type="all" data-action="setTypeFilter" data-filter-value="all">
+              <button
+                class="pill active"
+                data-type="all"
+                data-action="setTypeFilter"
+                data-filter-value="all"
+              >
                 All
               </button>
-              <button class="pill feature" data-type="feature" data-action="setTypeFilter" data-filter-value="feature">
+              <button
+                class="pill feature"
+                data-type="feature"
+                data-action="setTypeFilter"
+                data-filter-value="feature"
+              >
                 Feature
               </button>
-              <button class="pill epic" data-type="epic" data-action="setTypeFilter" data-filter-value="epic">
+              <button
+                class="pill epic"
+                data-type="epic"
+                data-action="setTypeFilter"
+                data-filter-value="epic"
+              >
                 Epic
               </button>
-              <button class="pill story" data-type="story" data-action="setTypeFilter" data-filter-value="story">
+              <button
+                class="pill story"
+                data-type="story"
+                data-action="setTypeFilter"
+                data-filter-value="story"
+              >
                 Story
               </button>
-              <button class="pill spike" data-type="spike" data-action="setTypeFilter" data-filter-value="spike">
+              <button
+                class="pill spike"
+                data-type="spike"
+                data-action="setTypeFilter"
+                data-filter-value="spike"
+              >
                 Spike
               </button>
-              <button class="pill bug" data-type="bug" data-action="setTypeFilter" data-filter-value="bug">Bug</button>
+              <button
+                class="pill bug"
+                data-type="bug"
+                data-action="setTypeFilter"
+                data-filter-value="bug"
+              >
+                Bug
+              </button>
             </div>
             <div class="filter-group">
               <span class="filter-label">Status</span>
-              <button class="pill active" data-status="all" data-action="setStatusFilter" data-filter-value="all">
+              <button
+                class="pill active"
+                data-status="all"
+                data-action="setStatusFilter"
+                data-filter-value="all"
+              >
                 All
               </button>
-              <button class="pill" data-status="Draft" data-action="setStatusFilter" data-filter-value="Draft">
+              <button
+                class="pill"
+                data-status="Draft"
+                data-action="setStatusFilter"
+                data-filter-value="Draft"
+              >
                 Draft
               </button>
               <button
@@ -319,7 +361,12 @@
               >
                 In JIRA
               </button>
-              <button class="pill" data-status="Archived" data-action="setStatusFilter" data-filter-value="Archived">
+              <button
+                class="pill"
+                data-status="Archived"
+                data-action="setStatusFilter"
+                data-filter-value="Archived"
+              >
                 Archived
               </button>
             </div>
@@ -327,13 +374,23 @@
           <div class="filter-row filter-row-secondary">
             <div class="filter-group">
               <span class="filter-label">Team</span>
-              <button class="pill active" data-team="all" data-action="setTeamFilter" data-filter-value="all">
+              <button
+                class="pill active"
+                data-team="all"
+                data-action="setTeamFilter"
+                data-filter-value="all"
+              >
                 All
               </button>
             </div>
             <div class="filter-group filter-group-workcat">
               <span class="filter-label">Work Category</span>
-              <button class="pill active" data-workcat="all" data-action="setWorkCatFilter" data-filter-value="all">
+              <button
+                class="pill active"
+                data-workcat="all"
+                data-action="setWorkCatFilter"
+                data-filter-value="all"
+              >
                 All
               </button>
             </div>
@@ -763,7 +820,11 @@
                   <div class="pi-config-jira-banner" id="pi-config-jira-banner"></div>
                   <div class="pi-config-sprints" id="pi-config-sprints"></div>
                   <button class="btn-pi-add-sprint" data-action="addSprintRow">+ Add Sprint</button>
-                  <button class="btn-pi-save" id="pi-config-save-btn" data-action="saveSprintConfig">
+                  <button
+                    class="btn-pi-save"
+                    id="pi-config-save-btn"
+                    data-action="saveSprintConfig"
+                  >
                     Save Configuration
                   </button>
                   <button
@@ -834,7 +895,9 @@
                     <canvas id="ai-savings-chart"></canvas>
                   </div>
                   <div class="ai-savings-export-row">
-                    <button class="btn-secondary" data-action="exportAiSavingsPdf">Export PDF</button>
+                    <button class="btn-secondary" data-action="exportAiSavingsPdf">
+                      Export PDF
+                    </button>
                     <button class="btn-secondary" data-action="exportAiSavingsPptx">
                       Export PPTX
                     </button>
@@ -893,7 +956,9 @@
                   data-panel="epics"
                   >▼</span
                 >
-                <span class="rm-panel-label" data-action="toggleRoadmapPanel" data-panel="epics">Epics</span>
+                <span class="rm-panel-label" data-action="toggleRoadmapPanel" data-panel="epics"
+                  >Epics</span
+                >
                 <span
                   class="rm-panel-count"
                   id="rm-count-epics"
@@ -944,7 +1009,9 @@
         <!-- Placeholder views for future sections -->
         <div id="skills-view">
           <div class="settings-header">
-            <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">← Back</button>
+            <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">
+              ← Back
+            </button>
             <span class="settings-title">Skills</span>
           </div>
           <div class="skills-body" id="skills-body">
@@ -954,14 +1021,21 @@
         <div id="documentation-view" class="view-panel">
           <div class="doc-header">
             <div style="display: flex; align-items: center; gap: 12px">
-              <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">← Back</button>
+              <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">
+                ← Back
+              </button>
               <span class="doc-title">📄 Documentation</span>
             </div>
           </div>
           <div class="doc-body">
             <!-- Mode switcher (#386) -->
             <div class="doc-mode-switcher">
-              <button class="doc-mode-tab active" data-mode="sprint" data-action="setDocMode" data-filter-value="sprint">
+              <button
+                class="doc-mode-tab active"
+                data-mode="sprint"
+                data-action="setDocMode"
+                data-filter-value="sprint"
+              >
                 By Sprint
               </button>
               <button
@@ -972,7 +1046,12 @@
               >
                 By Fix Version
               </button>
-              <button class="doc-mode-tab" data-mode="search" data-action="setDocMode" data-filter-value="search">
+              <button
+                class="doc-mode-tab"
+                data-mode="search"
+                data-action="setDocMode"
+                data-filter-value="search"
+              >
                 Search Issues
               </button>
             </div>
@@ -1013,16 +1092,36 @@
                 <button class="btn-secondary doc-search-btn" data-action="docSearch">Search</button>
               </div>
               <div class="doc-type-chips" id="doc-type-chips">
-                <button class="doc-chip active" data-type="all" data-action="docSetTypeFilter" data-filter-value="all">
+                <button
+                  class="doc-chip active"
+                  data-type="all"
+                  data-action="docSetTypeFilter"
+                  data-filter-value="all"
+                >
                   All
                 </button>
-                <button class="doc-chip" data-type="epic" data-action="docSetTypeFilter" data-filter-value="epic">
+                <button
+                  class="doc-chip"
+                  data-type="epic"
+                  data-action="docSetTypeFilter"
+                  data-filter-value="epic"
+                >
                   Epic
                 </button>
-                <button class="doc-chip" data-type="story" data-action="docSetTypeFilter" data-filter-value="story">
+                <button
+                  class="doc-chip"
+                  data-type="story"
+                  data-action="docSetTypeFilter"
+                  data-filter-value="story"
+                >
                   Story
                 </button>
-                <button class="doc-chip" data-type="bug" data-action="docSetTypeFilter" data-filter-value="bug">
+                <button
+                  class="doc-chip"
+                  data-type="bug"
+                  data-action="docSetTypeFilter"
+                  data-filter-value="bug"
+                >
                   Bug
                 </button>
               </div>
@@ -1117,12 +1216,18 @@
         <div id="bugs-view" class="view-panel">
           <div class="bugs-dash-header">
             <div style="display: flex; align-items: center; gap: 12px">
-              <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">← Back</button>
+              <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">
+                ← Back
+              </button>
               <span class="bugs-dash-title">🐛 Bug Dashboard</span>
             </div>
             <div class="bugs-dash-actions">
               <span class="bugs-dash-meta" id="bugs-cached-at"></span>
-              <button class="btn-secondary" id="bugs-refresh-btn" data-action="refreshBugsDashboard">
+              <button
+                class="btn-secondary"
+                id="bugs-refresh-btn"
+                data-action="refreshBugsDashboard"
+              >
                 ↻ Refresh
               </button>
             </div>
@@ -1299,7 +1404,9 @@
                 </div>
                 <div class="actions">
                   <button class="btn-secondary" data-action="clearForm">Clear</button>
-                  <button class="btn-draft" id="draft-btn" data-action="saveDraft">Save Draft</button>
+                  <button class="btn-draft" id="draft-btn" data-action="saveDraft">
+                    Save Draft
+                  </button>
                   <button class="btn-primary" id="generate-btn" data-action="generateDoc">
                     <span id="btn-label">✨ Generate</span>
                   </button>
@@ -1401,11 +1508,7 @@
                 </div>
                 <div class="field">
                   <label>Attachments (max 5)</label>
-                  <div
-                    class="bug-dropzone"
-                    id="bug-dropzone"
-                    data-action="triggerBugFileInput"
-                  >
+                  <div class="bug-dropzone" id="bug-dropzone" data-action="triggerBugFileInput">
                     <input
                       type="file"
                       id="bug-files"
@@ -1438,7 +1541,12 @@
               </div>
             </div>
           </div>
-          <button id="fab-btn" class="fab-btn" data-action="toggleFab" title="Create or import issue">
+          <button
+            id="fab-btn"
+            class="fab-btn"
+            data-action="toggleFab"
+            title="Create or import issue"
+          >
             <span id="fab-icon">＋</span>
           </button>
         </div>
@@ -1481,8 +1589,20 @@
           <h3 id="sync-preview-title">Sync Preview</h3>
           <div class="sync-preview-header-right">
             <div class="sync-preview-bulk">
-              <button class="btn-ghost btn-xs" data-action="syncPreviewSelectAll" data-select-all="true">All</button>
-              <button class="btn-ghost btn-xs" data-action="syncPreviewSelectAll" data-select-all="false">None</button>
+              <button
+                class="btn-ghost btn-xs"
+                data-action="syncPreviewSelectAll"
+                data-select-all="true"
+              >
+                All
+              </button>
+              <button
+                class="btn-ghost btn-xs"
+                data-action="syncPreviewSelectAll"
+                data-select-all="false"
+              >
+                None
+              </button>
             </div>
             <span class="sync-preview-counts" id="sync-preview-counts"></span>
           </div>
@@ -1497,7 +1617,11 @@
         </div>
         <div class="dialog-actions">
           <button class="btn-secondary" data-action="syncPreviewCancel">Cancel</button>
-          <button class="btn-primary" id="sync-preview-confirm-btn" data-action="syncPreviewConfirm">
+          <button
+            class="btn-primary"
+            id="sync-preview-confirm-btn"
+            data-action="syncPreviewConfirm"
+          >
             Confirm
           </button>
         </div>
@@ -1510,8 +1634,12 @@
         <div class="jira-select-header">
           <h3 id="jira-select-title">Select issues</h3>
           <div class="jira-select-bulk">
-            <button class="btn-ghost btn-xs" data-action="jiraSelectAll" data-select-all="true">All</button>
-            <button class="btn-ghost btn-xs" data-action="jiraSelectAll" data-select-all="false">None</button>
+            <button class="btn-ghost btn-xs" data-action="jiraSelectAll" data-select-all="true">
+              All
+            </button>
+            <button class="btn-ghost btn-xs" data-action="jiraSelectAll" data-select-all="false">
+              None
+            </button>
           </div>
         </div>
         <div class="jira-select-list" id="jira-select-list"></div>
@@ -1594,10 +1722,18 @@
           <p class="sprint-push-select-label">Select sprints to compare with JIRA:</p>
           <div class="sprint-push-sprint-list" id="sprint-push-sprint-list"></div>
           <div class="sprint-push-select-btns">
-            <button class="btn-ghost btn-xs" data-action="sprintPushToggleAllSprints" data-select-all="true">
+            <button
+              class="btn-ghost btn-xs"
+              data-action="sprintPushToggleAllSprints"
+              data-select-all="true"
+            >
               Select all
             </button>
-            <button class="btn-ghost btn-xs" data-action="sprintPushToggleAllSprints" data-select-all="false">
+            <button
+              class="btn-ghost btn-xs"
+              data-action="sprintPushToggleAllSprints"
+              data-select-all="false"
+            >
               Select none
             </button>
           </div>
@@ -1647,8 +1783,20 @@
             ↓ Pull <span id="sprint-push-count-pull">0</span>
           </button>
           <span class="sprint-push-select-actions">
-            <button class="btn-ghost btn-xs" data-action="sprintPushSelectAll" data-select-all="true">All</button>
-            <button class="btn-ghost btn-xs" data-action="sprintPushSelectAll" data-select-all="false">None</button>
+            <button
+              class="btn-ghost btn-xs"
+              data-action="sprintPushSelectAll"
+              data-select-all="true"
+            >
+              All
+            </button>
+            <button
+              class="btn-ghost btn-xs"
+              data-action="sprintPushSelectAll"
+              data-select-all="false"
+            >
+              None
+            </button>
           </span>
         </div>
         <div class="sprint-push-error" id="sprint-push-error"></div>
@@ -1680,8 +1828,18 @@
           <p class="sprint-push-select-label">Select sprints to scan for new issues:</p>
           <div class="sprint-push-sprint-list" id="pull-sprint-list"></div>
           <div class="sprint-push-select-btns">
-            <button class="btn-ghost btn-xs" data-action="pullSprintToggleAll" data-select-all="true">Select all</button>
-            <button class="btn-ghost btn-xs" data-action="pullSprintToggleAll" data-select-all="false">
+            <button
+              class="btn-ghost btn-xs"
+              data-action="pullSprintToggleAll"
+              data-select-all="true"
+            >
+              Select all
+            </button>
+            <button
+              class="btn-ghost btn-xs"
+              data-action="pullSprintToggleAll"
+              data-select-all="false"
+            >
               Select none
             </button>
           </div>
@@ -1781,10 +1939,18 @@
             </div>
             <div class="rexp-sprint-list" id="rexp-sprint-list"></div>
             <div class="rexp-sprint-btns">
-              <button class="btn-ghost btn-xs" data-action="rexpToggleAllSprints" data-select-all="true">
+              <button
+                class="btn-ghost btn-xs"
+                data-action="rexpToggleAllSprints"
+                data-select-all="true"
+              >
                 Select all
               </button>
-              <button class="btn-ghost btn-xs" data-action="rexpToggleAllSprints" data-select-all="false">
+              <button
+                class="btn-ghost btn-xs"
+                data-action="rexpToggleAllSprints"
+                data-select-all="false"
+              >
                 Select none
               </button>
             </div>
@@ -1799,10 +1965,18 @@
             </div>
             <div class="rexp-sprint-list" id="rexp-team-list"></div>
             <div class="rexp-sprint-btns">
-              <button class="btn-ghost btn-xs" data-action="rexpToggleAllTeams" data-select-all="true">
+              <button
+                class="btn-ghost btn-xs"
+                data-action="rexpToggleAllTeams"
+                data-select-all="true"
+              >
                 Select all
               </button>
-              <button class="btn-ghost btn-xs" data-action="rexpToggleAllTeams" data-select-all="false">
+              <button
+                class="btn-ghost btn-xs"
+                data-action="rexpToggleAllTeams"
+                data-select-all="false"
+              >
                 Select none
               </button>
             </div>

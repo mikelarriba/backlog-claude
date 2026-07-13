@@ -16,10 +16,7 @@ export interface TopoSortResult {
   cycle: boolean;
 }
 
-export function topoSort(
-  nodes: string[],
-  edgesFn: (node: string) => string[]
-): TopoSortResult {
+export function topoSort(nodes: string[], edgesFn: (node: string) => string[]): TopoSortResult {
   // Build adjacency list and in-degree map restricted to nodes in the set.
   const nodeSet = new Set(nodes);
   const inDegree = new Map<string, number>();
