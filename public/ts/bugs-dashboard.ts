@@ -1,5 +1,5 @@
 // ── Bug Dashboard ────────────────────────────────────────────────────────────
-import { streamSSE } from './state.js';
+import { streamSSE, renderMarkdown } from './state.js';
 
 interface ChartInstance {
   destroy(): void;
@@ -344,7 +344,7 @@ export async function analyzeBugs(): Promise<void> {
       {
         onText: (chunk: string) => {
           markdown += chunk;
-          body.innerHTML = typeof marked !== 'undefined' ? marked.parse(markdown) : _esc(markdown);
+          body.innerHTML = renderMarkdown(markdown);
         },
         onDone: () => {
           if (btn) btn.disabled = false;

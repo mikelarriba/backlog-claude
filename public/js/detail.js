@@ -9,6 +9,7 @@ import {
   showJiraToast,
   toggleSection,
   TYPE_LABEL,
+  renderMarkdown,
 } from './state.js';
 import { upsertDoc } from './store.js';
 import { showJiraSelectModal } from './jira-import.js';
@@ -59,7 +60,7 @@ export function renderDocContent(doc, content) {
   const docTitle = doc?.title || (tplMatch ? tplMatch[1].trim() : h2Match ? h2Match[1].trim() : '');
   titleInput.value = docTitle;
   titleInput.dataset.original = docTitle;
-  document.getElementById('detail-content').innerHTML = marked.parse(stripped);
+  document.getElementById('detail-content').innerHTML = renderMarkdown(stripped);
   // JIRA Status badge (read-only, pulled from JIRA)
   const jiraStatusMatch = content.match(/^JIRA_Status:\s*(.+)$/m);
   updateJiraStatus(jiraStatusMatch ? jiraStatusMatch[1].trim() : null);

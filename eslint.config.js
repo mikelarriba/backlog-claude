@@ -52,6 +52,7 @@ const FRONTEND_GLOBALS = {
   updateSplitMode: 'readonly',
   // Third-party libraries loaded via <script> tags
   marked: 'readonly',
+  DOMPurify: 'readonly',
   // Loop variable used in some files
   child: 'writable',
 };

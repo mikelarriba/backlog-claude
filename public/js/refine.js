@@ -18,6 +18,7 @@ import {
   fetchJSON,
   deleteJSON,
   getErrorMessage,
+  renderMarkdown,
 } from './state.js';
 import { loadDocs } from './list.js';
 import {
@@ -314,7 +315,7 @@ export async function openRefinePanel(filename, docType) {
         <div class="rp-stream" id="rp-upgrade-stream" style="display:none"></div>
       </div>
       <div class="rp-content markdown" id="rp-content">
-        ${marked.parse(stripFrontmatter(content).replace(/\n## Comments\b[\s\S]*$/, ''))}
+        ${renderMarkdown(stripFrontmatter(content).replace(/\n## Comments\b[\s\S]*$/, ''))}
       </div>
       <div class="rp-deps-section" id="rp-deps-section">
         <div class="rp-loading">Loading dependencies…</div>
@@ -522,7 +523,7 @@ export async function executeRpUpgrade(filename, docType) {
     if (result) {
       const content = result.content;
       const rpContent = document.getElementById('rp-content');
-      if (rpContent) rpContent.innerHTML = marked.parse(stripFrontmatter(content));
+      if (rpContent) rpContent.innerHTML = renderMarkdown(stripFrontmatter(content));
       await loadDocs();
       // Update the card title in the canvas
       const updated = allDocs.find((d) => d.filename === filename && d.docType === docType);

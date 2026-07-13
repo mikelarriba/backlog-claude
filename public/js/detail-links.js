@@ -10,6 +10,7 @@ import {
   toggleSection,
   TYPE_LABEL,
   STATUS_LABEL,
+  renderMarkdown,
 } from './state.js';
 import { upsertDoc } from './store.js';
 import { showJiraSelectModal } from './jira-import.js';
@@ -229,7 +230,7 @@ export async function toggleHierarchyChild(rowEl) {
   body.innerHTML = '<div class="hierarchy-loading">Loading…</div>';
   try {
     const { content } = await fetchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
-    body.innerHTML = `<div class="markdown hierarchy-doc-content">${marked.parse(stripFrontmatter(content))}</div>`;
+    body.innerHTML = `<div class="markdown hierarchy-doc-content">${renderMarkdown(stripFrontmatter(content))}</div>`;
     body.dataset.loaded = '1';
   } catch {
     body.innerHTML = '<div class="hierarchy-loading">Failed to load content.</div>';

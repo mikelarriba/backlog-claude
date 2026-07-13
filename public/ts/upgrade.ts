@@ -1,5 +1,5 @@
 // ── Upgrade panel ─────────────────────────────────────────────
-import { streamSSE, stripFrontmatter, TYPE_LABEL } from './state.js';
+import { streamSSE, stripFrontmatter, TYPE_LABEL, renderMarkdown } from './state.js';
 
 export function toggleUpgradePanel(): void {
   const panel = document.getElementById('upgrade-panel');
@@ -70,7 +70,7 @@ export async function executeUpgrade(): Promise<void> {
     );
 
     if (finalContent) {
-      (document.getElementById('detail-content') as HTMLElement).innerHTML = marked.parse(
+      (document.getElementById('detail-content') as HTMLElement).innerHTML = renderMarkdown(
         stripFrontmatter(finalContent)
       );
     }

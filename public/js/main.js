@@ -250,7 +250,6 @@ import {
 import {
   loadDocumentationView,
   docFilterInput,
-  docSearch,
   docSetTypeFilter,
   docSetFixVersion,
   searchDocumentationIssues,
@@ -264,9 +263,6 @@ import {
   deselectAllSuggestions,
   modifyDocumentation,
   undoChanges,
-  setDocMode,
-  docSetSprint,
-  docSetFixVersionBulk,
 } from './documentation.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -816,7 +812,6 @@ const _globals = {
   // documentation.js
   loadDocumentationView,
   docFilterInput,
-  docSearch,
   docSetTypeFilter,
   docSetFixVersion,
   searchDocumentationIssues,
@@ -830,9 +825,6 @@ const _globals = {
   deselectAllSuggestions,
   modifyDocumentation,
   undoChanges,
-  setDocMode,
-  docSetSprint,
-  docSetFixVersionBulk,
 };
 Object.assign(window, _globals);
 //# sourceMappingURL=main.js.map

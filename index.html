@@ -30,6 +30,8 @@
       integrity="sha384-8RA8Ah4c9upJmKfg5nH01OgjZoQ3mRX+ngrKYWXQYj2dHYxFqYz8POSlii33f0wB"
       crossorigin="anonymous"
     ></script>
+    <!-- HTML sanitizer — must load before ES module entry so renderMarkdown() can use it -->
+    <script src="/public/js/vendor/dompurify.min.js"></script>
     <link rel="stylesheet" href="/public/css/bugs-dashboard.css" />
     <link rel="stylesheet" href="/public/css/refine.css" />
     <link rel="stylesheet" href="/public/css/split.css" />

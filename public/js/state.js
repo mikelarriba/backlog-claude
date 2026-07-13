@@ -147,6 +147,13 @@ export function getErrorMessage(errorValue, fallback = 'Request failed') {
 export function stripFrontmatter(content) {
   return content.replace(/^---[\s\S]*?---\n?/, '').trim();
 }
+// ── Safe markdown rendering (XSS-safe) ───────────────────────────────────────
+// Always route marked.parse() through DOMPurify.sanitize() before writing to
+// innerHTML — prevents stored XSS from JIRA-imported or AI-generated content.
+export function renderMarkdown(md) {
+  const raw = marked.parse(md);
+  return DOMPurify.sanitize(raw);
+}
 export function setStatus(type, message) {
   const el = document.getElementById('status');
   if (!el) return;

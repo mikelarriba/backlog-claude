@@ -7,6 +7,7 @@ import type { DocEntry, PISettings, SprintConfig, SwimlaneCollapsed, PanelState 
 declare global {
   // ── CDN globals ────────────────────────────────────────────────────────────
   var marked: { parse: (src: string) => string };
+  var DOMPurify: { sanitize: (dirty: string) => string };
 
   // ── Window-exposed handler functions (set by main.ts via Object.assign) ───
   var openDoc: (filename: string, docType: string) => void;

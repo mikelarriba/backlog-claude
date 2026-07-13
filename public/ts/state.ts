@@ -213,6 +213,14 @@ export function stripFrontmatter(content: string): string {
   return content.replace(/^---[\s\S]*?---\n?/, '').trim();
 }
 
+// ── Safe markdown rendering (XSS-safe) ───────────────────────────────────────
+// Always route marked.parse() through DOMPurify.sanitize() before writing to
+// innerHTML — prevents stored XSS from JIRA-imported or AI-generated content.
+export function renderMarkdown(md: string): string {
+  const raw = marked.parse(md);
+  return DOMPurify.sanitize(raw);
+}
+
 export function setStatus(type: string, message?: string): void {
   const el = document.getElementById('status');
   if (!el) return;

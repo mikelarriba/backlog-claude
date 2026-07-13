@@ -1,5 +1,5 @@
 // ── Bug Dashboard ────────────────────────────────────────────────────────────
-import { streamSSE } from './state.js';
+import { streamSSE, renderMarkdown } from './state.js';
 let _chart = null;
 let _allBugs = [];
 let _filteredBugs = [];
@@ -244,7 +244,7 @@ export async function analyzeBugs() {
       {
         onText: (chunk) => {
           markdown += chunk;
-          body.innerHTML = typeof marked !== 'undefined' ? marked.parse(markdown) : _esc(markdown);
+          body.innerHTML = renderMarkdown(markdown);
         },
         onDone: () => {
           if (btn) btn.disabled = false;
