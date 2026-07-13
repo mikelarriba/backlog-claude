@@ -90,16 +90,30 @@ export function renderDistributionPreview(data: DistributionData): void {
             .map((item, ii) => {
               const alreadyClass = item.wasAlreadyAssigned ? ' already-assigned' : '';
               const priorityClass = (item.priority || 'Medium').toLowerCase();
-              return `
-            <label class="distribution-item${alreadyClass}">
-              <input type="checkbox" ${item.wasAlreadyAssigned ? '' : 'checked'} data-sprint="${si}" data-item="${ii}" />
+              if (item.wasAlreadyAssigned) {
+                return `
+            <div class="distribution-item${alreadyClass}">
+              <span class="already-assigned-icon" title="Already in this sprint">🔒</span>
               <div class="distribution-item-body">
                 <span class="distribution-item-title">${escHtml(item.title)}</span>
                 <div class="distribution-item-meta">
                   <span class="dist-badge type-${item.docType}">${TYPE_LABEL[item.docType] || item.docType}</span>
                   <span class="dist-badge priority-${priorityClass}">${escHtml(item.priority)}</span>
                   ${item.storyPoints ? `<span class="dist-badge sp">${item.storyPoints} SP</span>` : '<span class="dist-badge no-sp">No SP</span>'}
-                  ${item.wasAlreadyAssigned ? '<span class="dist-badge existing">Existing</span>' : ''}
+                  <span class="dist-badge existing">Existing</span>
+                </div>
+              </div>
+            </div>`;
+              }
+              return `
+            <label class="distribution-item">
+              <input type="checkbox" checked data-sprint="${si}" data-item="${ii}" />
+              <div class="distribution-item-body">
+                <span class="distribution-item-title">${escHtml(item.title)}</span>
+                <div class="distribution-item-meta">
+                  <span class="dist-badge type-${item.docType}">${TYPE_LABEL[item.docType] || item.docType}</span>
+                  <span class="dist-badge priority-${priorityClass}">${escHtml(item.priority)}</span>
+                  ${item.storyPoints ? `<span class="dist-badge sp">${item.storyPoints} SP</span>` : '<span class="dist-badge no-sp">No SP</span>'}
                 </div>
               </div>
             </label>`;

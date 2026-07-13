@@ -133,7 +133,22 @@
 }
 
 .distribution-item.already-assigned {
-  opacity: 0.55;
+  opacity: 0.6;
+  cursor: default;
+}
+.distribution-item.already-assigned:hover {
+  background: transparent;
+}
+
+.already-assigned-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+  user-select: none;
 }
 
 .distribution-item input[type='checkbox'] {
