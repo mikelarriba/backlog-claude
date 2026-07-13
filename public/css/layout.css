@@ -1,7 +1,7 @@
 /* ── App Layout ──────────────────────────────────────────────── */
 .app {
   display: grid;
-  grid-template-columns: 160px 1fr;
+  grid-template-columns: 220px 1fr;
   grid-template-rows: 100vh;
   height: 100vh;
   overflow: hidden;
@@ -116,37 +116,6 @@
   overflow: hidden;
   background: var(--bg);
   transition: background 0.2s;
-}
-
-/* ── Responsive breakpoints ──────────────────────────────────── */
-
-/* Medium screens (≤ 1100px): narrower sidebar */
-@media (max-width: 1100px) {
-  .app {
-    grid-template-columns: 64px 1fr;
-  }
-  .sidebar-item {
-    width: 48px;
-    height: 48px;
-  }
-  .sidebar-label {
-    display: none;
-  }
-}
-
-/* Small screens (≤ 820px): sidebar becomes bottom tab bar */
-@media (max-width: 820px) {
-  .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
-  }
-  .left {
-    order: 2;
-  }
-  .right {
-    height: calc(100vh - 56px);
-    order: 1;
-  }
 }
 
 /* ── Detail toolbar wrapping ─────────────────────────────────── */
