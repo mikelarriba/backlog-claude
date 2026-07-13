@@ -664,7 +664,7 @@
 
 /* ── AI Split modal ─────────────────────────────────────────── */
 .split-dialog {
-  width: 560px;
+  width: clamp(460px, 40vw, 640px);
   max-width: 95vw;
   display: flex;
   flex-direction: column;

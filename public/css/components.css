@@ -32,14 +32,15 @@ select {
   width: 100%;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text);
   font-size: 0.9rem;
   padding: 10px 12px;
   font-family: inherit;
   transition:
     border-color 0.15s,
-    background 0.2s;
+    background 0.2s,
+    box-shadow 0.15s;
 }
 
 textarea {
@@ -56,6 +57,8 @@ input:focus,
 select:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+  background: var(--surface);
 }
 select option {
   background: var(--surface);
@@ -75,13 +78,16 @@ select option {
 }
 
 /* ── Buttons ─────────────────────────────────────────────────── */
+/* Consolidated to 4 semantic tiers: primary, secondary, ghost, danger.
+   Legacy class names are kept as selector aliases so no HTML changes
+   are required — see each tier below. */
 button {
   cursor: pointer;
   border: none;
-  border-radius: 8px;
-  font-size: 0.875rem;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   font-weight: 600;
-  padding: 10px 16px;
+  padding: var(--space-2) var(--space-4);
   transition:
     background 0.15s,
     opacity 0.15s,
@@ -111,44 +117,112 @@ button:active:not(:disabled) {
   cursor: not-allowed;
 }
 
-.btn-secondary {
+/* Secondary tier — .btn-draft is a legacy alias, now visually identical */
+.btn-secondary,
+.btn-draft {
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--border);
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover,
+.btn-draft:hover:not(:disabled) {
   border-color: var(--muted);
   color: var(--text);
   background: var(--surface2);
-}
-
-/* Draft button — sits between secondary and primary */
-.btn-draft {
-  background: var(--surface2);
-  color: var(--text);
-  border: 1.5px solid var(--border);
-  flex: 1;
-}
-.btn-draft:hover:not(:disabled) {
-  background: var(--surface);
-  border-color: var(--accent);
-  color: var(--accent);
 }
 .btn-draft:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.btn-ghost {
+/* Secondary + upgrade modifier — .btn-upgrade-run is a legacy alias */
+.btn-secondary.btn--upgrade,
+.btn-upgrade-run {
+  background: var(--upgrade-btn-bg);
+  color: var(--upgrade-color);
+  border-color: var(--upgrade-border);
+}
+.btn-secondary.btn--upgrade:hover:not(:disabled),
+.btn-upgrade-run:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.btn-upgrade-run:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Ghost tier — .btn-toolbar and .btn-toolbar-jira are legacy aliases */
+.btn-ghost,
+.btn-toolbar,
+.btn-toolbar-jira {
   background: transparent;
   color: var(--muted);
   padding: 6px 10px;
   font-size: 0.8rem;
+  border: 1px solid transparent;
 }
 
-.btn-ghost:hover {
+.btn-ghost:hover,
+.btn-toolbar:hover:not(:disabled),
+.btn-toolbar-jira:hover:not(:disabled) {
   color: var(--text);
+  background: var(--surface2);
+}
+.btn-toolbar:disabled,
+.btn-toolbar-jira:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+/* Ghost, small — replaces the old .btn-toolbar 30px-height sizing */
+.btn-ghost--sm {
+  height: 28px;
+  font-size: var(--text-xs);
+  padding: 0 var(--space-3);
+}
+
+/* Ghost + accent modifier — .btn-toolbar-create is a legacy alias */
+.btn-ghost.btn--accent,
+.btn-toolbar-create {
+  background: var(--accent-subtle);
+  color: var(--accent-hover);
+  border-color: rgba(0, 150, 214, 0.3);
+}
+[data-theme='light'] .btn-ghost.btn--accent,
+[data-theme='light'] .btn-toolbar-create {
+  color: var(--accent);
+  border-color: rgba(0, 30, 80, 0.25);
+}
+.btn-ghost.btn--accent:hover:not(:disabled),
+.btn-toolbar-create:hover:not(:disabled) {
+  background: rgba(0, 150, 214, 0.2);
+  border-color: rgba(0, 150, 214, 0.5);
+  color: var(--text);
+}
+[data-theme='light'] .btn-ghost.btn--accent:hover:not(:disabled),
+[data-theme='light'] .btn-toolbar-create:hover:not(:disabled) {
+  background: rgba(0, 30, 80, 0.12);
+  border-color: rgba(0, 30, 80, 0.4);
+}
+
+/* Danger tier — .btn-delete and .btn-toolbar-danger are legacy aliases */
+.btn-danger,
+.btn-delete,
+.btn-toolbar-danger {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border: 1px solid var(--error-border);
+}
+.btn-danger:hover:not(:disabled),
+.btn-delete:hover:not(:disabled),
+.btn-toolbar-danger:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.btn-danger:disabled,
+.btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Status indicator ────────────────────────────────────────── */
@@ -214,10 +288,10 @@ button:active:not(:disabled) {
 .dialog {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 28px 28px 24px;
-  width: 360px;
-  box-shadow: 0 20px 60px var(--shadow);
+  width: clamp(340px, 35vw, 560px);
+  box-shadow: var(--shadow-xl);
 }
 
 .dialog h3 {
@@ -268,28 +342,6 @@ button:active:not(:disabled) {
   background: var(--error-bg);
   border: 1px solid var(--error-border);
   color: var(--error-text);
-}
-
-/* ── Delete button (dialog) ──────────────────────────────────── */
-.btn-delete {
-  background: var(--error-bg);
-  color: var(--error-text);
-  border: 1px solid var(--error-border);
-  border-radius: 8px;
-  padding: 8px 18px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s;
-}
-
-.btn-delete:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-.btn-delete:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ── Collapsible section (shared) ────────────────────────────── */
