@@ -49,7 +49,8 @@
           <button
             class="sidebar-item active"
             data-view="backlog"
-            onclick="navigateTo('backlog')"
+            data-action="navigateTo"
+            data-view-name="backlog"
             title="Backlog"
           >
             <svg
@@ -74,7 +75,8 @@
           <button
             class="sidebar-item"
             data-view="roadmap"
-            onclick="navigateTo('roadmap')"
+            data-action="navigateTo"
+            data-view-name="roadmap"
             title="Roadmap"
           >
             <svg
@@ -97,7 +99,8 @@
           <button
             class="sidebar-item"
             data-view="skills"
-            onclick="navigateTo('skills')"
+            data-action="navigateTo"
+            data-view-name="skills"
             title="Skills"
           >
             <svg
@@ -117,7 +120,8 @@
           <button
             class="sidebar-item"
             data-view="documentation"
-            onclick="navigateTo('documentation')"
+            data-action="navigateTo"
+            data-view-name="documentation"
             title="Documentation"
           >
             <svg
@@ -138,7 +142,13 @@
             </svg>
             <span class="sidebar-label">Docs</span>
           </button>
-          <button class="sidebar-item" data-view="bugs" onclick="navigateTo('bugs')" title="Bugs">
+          <button
+            class="sidebar-item"
+            data-view="bugs"
+            data-action="navigateTo"
+            data-view-name="bugs"
+            title="Bugs"
+          >
             <svg
               width="20"
               height="20"
@@ -164,7 +174,8 @@
           <button
             class="sidebar-item"
             data-view="suggestions"
-            onclick="navigateTo('suggestions')"
+            data-action="navigateTo"
+            data-view-name="suggestions"
             title="Suggestions"
           >
             <svg
@@ -184,7 +195,8 @@
           <button
             class="sidebar-item"
             data-view="settings"
-            onclick="navigateTo('settings')"
+            data-action="navigateTo"
+            data-view-name="settings"
             title="Settings"
           >
             <svg
@@ -208,7 +220,8 @@
             <button
               class="theme-btn"
               data-theme="light"
-              onclick="setTheme('light')"
+              data-action="setTheme"
+              data-theme-name="light"
               title="Light mode"
             >
               ☀
@@ -216,7 +229,8 @@
             <button
               class="theme-btn"
               data-theme="system"
-              onclick="setTheme('system')"
+              data-action="setTheme"
+              data-theme-name="system"
               title="System default"
             >
               ◑
@@ -224,7 +238,8 @@
             <button
               class="theme-btn"
               data-theme="dark"
-              onclick="setTheme('dark')"
+              data-action="setTheme"
+              data-theme-name="dark"
               title="Dark mode"
             >
               ☾
@@ -242,16 +257,16 @@
               <span class="list-title">Backlog</span>
               <span class="epic-count" id="epic-count">0</span>
               <div class="list-header-actions">
-                <button class="btn-toolbar" onclick="collapseAll()" title="Collapse all">
+                <button class="btn-toolbar" data-action="collapseAll" title="Collapse all">
                   ▶ Collapse
                 </button>
-                <button class="btn-toolbar" onclick="expandAll()" title="Expand all">
+                <button class="btn-toolbar" data-action="expandAll" title="Expand all">
                   ▼ Expand
                 </button>
                 <button
                   class="btn-toolbar btn-toolbar-jira"
                   id="jira-check-all-btn"
-                  onclick="checkAllJira()"
+                  data-action="checkAllJira"
                   title="Check all JIRA-linked issues for changes"
                 >
                   ↕ Check JIRA
@@ -264,46 +279,47 @@
                 id="search"
                 type="text"
                 placeholder="Search..."
-                oninput="applyFiltersDebounced()"
+                data-input-action="applyFiltersDebounced"
               />
             </div>
           </div>
           <div class="filter-row">
             <div class="filter-group">
               <span class="filter-label">Type</span>
-              <button class="pill active" data-type="all" onclick="setTypeFilter('all')">
+              <button class="pill active" data-type="all" data-action="setTypeFilter" data-filter-value="all">
                 All
               </button>
-              <button class="pill feature" data-type="feature" onclick="setTypeFilter('feature')">
+              <button class="pill feature" data-type="feature" data-action="setTypeFilter" data-filter-value="feature">
                 Feature
               </button>
-              <button class="pill epic" data-type="epic" onclick="setTypeFilter('epic')">
+              <button class="pill epic" data-type="epic" data-action="setTypeFilter" data-filter-value="epic">
                 Epic
               </button>
-              <button class="pill story" data-type="story" onclick="setTypeFilter('story')">
+              <button class="pill story" data-type="story" data-action="setTypeFilter" data-filter-value="story">
                 Story
               </button>
-              <button class="pill spike" data-type="spike" onclick="setTypeFilter('spike')">
+              <button class="pill spike" data-type="spike" data-action="setTypeFilter" data-filter-value="spike">
                 Spike
               </button>
-              <button class="pill bug" data-type="bug" onclick="setTypeFilter('bug')">Bug</button>
+              <button class="pill bug" data-type="bug" data-action="setTypeFilter" data-filter-value="bug">Bug</button>
             </div>
             <div class="filter-group">
               <span class="filter-label">Status</span>
-              <button class="pill active" data-status="all" onclick="setStatusFilter('all')">
+              <button class="pill active" data-status="all" data-action="setStatusFilter" data-filter-value="all">
                 All
               </button>
-              <button class="pill" data-status="Draft" onclick="setStatusFilter('Draft')">
+              <button class="pill" data-status="Draft" data-action="setStatusFilter" data-filter-value="Draft">
                 Draft
               </button>
               <button
                 class="pill"
                 data-status="Created in JIRA"
-                onclick="setStatusFilter('Created in JIRA')"
+                data-action="setStatusFilter"
+                data-filter-value="Created in JIRA"
               >
                 In JIRA
               </button>
-              <button class="pill" data-status="Archived" onclick="setStatusFilter('Archived')">
+              <button class="pill" data-status="Archived" data-action="setStatusFilter" data-filter-value="Archived">
                 Archived
               </button>
             </div>
@@ -311,13 +327,13 @@
           <div class="filter-row filter-row-secondary">
             <div class="filter-group">
               <span class="filter-label">Team</span>
-              <button class="pill active" data-team="all" onclick="setTeamFilter('all')">
+              <button class="pill active" data-team="all" data-action="setTeamFilter" data-filter-value="all">
                 All
               </button>
             </div>
             <div class="filter-group filter-group-workcat">
               <span class="filter-label">Work Category</span>
-              <button class="pill active" data-workcat="all" onclick="setWorkCatFilter('all')">
+              <button class="pill active" data-workcat="all" data-action="setWorkCatFilter" data-filter-value="all">
                 All
               </button>
             </div>
@@ -342,8 +358,8 @@
           <div class="detail-header">
             <!-- Row 1: back + title + JIRA badge + SP -->
             <div class="detail-row-1">
-              <button class="btn-ghost" onclick="showList()">← Back</button>
-              <button class="detail-close-btn" onclick="showList()" title="Close panel (Esc)">
+              <button class="btn-ghost" data-action="showList">← Back</button>
+              <button class="detail-close-btn" data-action="showList" title="Close panel (Esc)">
                 &times;
               </button>
               <input
@@ -402,7 +418,7 @@
                 <select
                   class="detail-field-select"
                   id="status-select"
-                  onchange="updateDocStatus(this.value)"
+                  data-change-action="updateDocStatus"
                 >
                   <option value="Draft">Draft</option>
                   <option value="Created in JIRA">Created in JIRA</option>
@@ -414,7 +430,7 @@
                 <select
                   class="detail-field-select"
                   id="detail-team-select"
-                  onchange="updateDocTeam(this.value)"
+                  data-change-action="updateDocTeam"
                 >
                   <option value="">No Team</option>
                 </select>
@@ -424,7 +440,7 @@
                 <select
                   class="detail-field-select hidden"
                   id="sprint-select"
-                  onchange="updateDocSprint(this.value)"
+                  data-change-action="updateDocSprint"
                 >
                   <option value="">No Sprint</option>
                 </select>
@@ -434,7 +450,7 @@
                 <select
                   class="detail-field-select"
                   id="detail-workcat-select"
-                  onchange="updateDocWorkCategory(this.value)"
+                  data-change-action="updateDocWorkCategory"
                 >
                   <option value="">No Category</option>
                 </select>
@@ -453,12 +469,13 @@
             <!-- Row 4: action buttons -->
             <div class="detail-row-4">
               <div class="detail-toolbar">
-                <button class="btn-toolbar" onclick="toggleUpgradePanel()">↑ Upgrade</button>
+                <button class="btn-toolbar" data-action="toggleUpgradePanel">↑ Upgrade</button>
 
                 <div class="dropdown-wrap hidden" id="create-dropdown-wrap">
                   <button
                     class="btn-toolbar btn-toolbar-create"
-                    onclick="toggleDropdown('create-dropdown-menu')"
+                    data-action="toggleDropdown"
+                    data-dropdown-id="create-dropdown-menu"
                   >
                     ＋ Create <span class="toolbar-caret">▾</span>
                   </button>
@@ -466,40 +483,36 @@
                     <button
                       id="create-story-btn"
                       class="dropdown-item hidden"
-                      onclick="
-                        toggleQuickCreate('story');
-                        closeDropdown('create-dropdown-menu');
-                      "
+                      data-action="toggleQuickCreateAndClose"
+                      data-doctype="story"
+                      data-close-dropdown="create-dropdown-menu"
                     >
                       <span class="di-badge story">Story</span>User Story
                     </button>
                     <button
                       id="create-spike-btn"
                       class="dropdown-item hidden"
-                      onclick="
-                        toggleQuickCreate('spike');
-                        closeDropdown('create-dropdown-menu');
-                      "
+                      data-action="toggleQuickCreateAndClose"
+                      data-doctype="spike"
+                      data-close-dropdown="create-dropdown-menu"
                     >
                       <span class="di-badge spike">Spike</span>Research Spike
                     </button>
                     <button
                       id="create-bug-btn"
                       class="dropdown-item hidden"
-                      onclick="
-                        toggleQuickCreate('bug');
-                        closeDropdown('create-dropdown-menu');
-                      "
+                      data-action="toggleQuickCreateAndClose"
+                      data-doctype="bug"
+                      data-close-dropdown="create-dropdown-menu"
                     >
                       <span class="di-badge bug">Bug</span>Bug Report
                     </button>
                     <button
                       id="create-epic-btn"
                       class="dropdown-item hidden"
-                      onclick="
-                        toggleQuickCreate('epic');
-                        closeDropdown('create-dropdown-menu');
-                      "
+                      data-action="toggleQuickCreateAndClose"
+                      data-doctype="epic"
+                      data-close-dropdown="create-dropdown-menu"
                     >
                       <span class="di-badge epic">Epic</span>Epic
                     </button>
@@ -507,26 +520,26 @@
                 </div>
 
                 <div class="dropdown-wrap hidden" id="refine-dropdown-wrap">
-                  <button class="btn-toolbar" onclick="toggleDropdown('refine-dropdown-menu')">
+                  <button
+                    class="btn-toolbar"
+                    data-action="toggleDropdown"
+                    data-dropdown-id="refine-dropdown-menu"
+                  >
                     ✨ Refine <span class="toolbar-caret">▾</span>
                   </button>
                   <div class="dropdown-menu" id="refine-dropdown-menu">
                     <button
                       id="stories-btn"
                       class="dropdown-item"
-                      onclick="
-                        generateStories();
-                        closeDropdown('refine-dropdown-menu');
-                      "
+                      data-action="generateStoriesAndClose"
+                      data-close-dropdown="refine-dropdown-menu"
                     >
                       <span class="di-badge story">Auto</span>AI Story Generation
                     </button>
                     <button
                       class="dropdown-item"
-                      onclick="
-                        openManualRefine(currentFilename, currentDocType);
-                        closeDropdown('refine-dropdown-menu');
-                      "
+                      data-action="openManualRefineAndClose"
+                      data-close-dropdown="refine-dropdown-menu"
                     >
                       <span class="di-badge epic">Manual</span>Visual Refinement
                     </button>
@@ -537,24 +550,23 @@
                   <button
                     class="btn-toolbar btn-toolbar-jira"
                     id="jira-push-btn"
-                    onclick="toggleDropdown('jira-dropdown-menu')"
+                    data-action="toggleDropdown"
+                    data-dropdown-id="jira-dropdown-menu"
                   >
                     ✦ JIRA <span class="toolbar-caret">▾</span>
                   </button>
                   <div class="dropdown-menu" id="jira-dropdown-menu">
                     <button
                       class="dropdown-item"
-                      onclick="
-                        pushToJira();
-                        closeDropdown('jira-dropdown-menu');
-                      "
+                      data-action="pushToJiraAndClose"
+                      data-close-dropdown="jira-dropdown-menu"
                     >
                       <span class="di-badge jira">↑</span>Push to JIRA
                     </button>
                     <button
                       class="dropdown-item"
                       id="jira-pull-btn"
-                      onclick="pullFromJira()"
+                      data-action="pullFromJira"
                       title="Update title, description, story points, status and retrieve children from JIRA"
                     >
                       <span class="di-badge">↓</span>Pull from JIRA
@@ -565,13 +577,13 @@
                 <button
                   class="btn-toolbar hidden"
                   id="export-pdf-btn"
-                  onclick="exportEpicToPdf(currentFilename, currentDocType)"
+                  data-action="exportEpicToPdfCurrent"
                   title="Export epic with stories to PDF"
                 >
                   PDF
                 </button>
               </div>
-              <button class="btn-toolbar btn-toolbar-danger" onclick="confirmDelete()">
+              <button class="btn-toolbar btn-toolbar-danger" data-action="confirmDelete">
                 Delete
               </button>
             </div>
@@ -587,10 +599,10 @@
               placeholder="Describe what you'd like to change or improve — e.g. 'Add more detail to the execution steps', 'Split into smaller stories', 'Focus on the Data Engineer persona', 'Add RabbitMQ async flow'…"
             ></textarea>
             <div class="upgrade-actions">
-              <button class="btn-upgrade-run" id="upgrade-run-btn" onclick="executeUpgrade()">
+              <button class="btn-upgrade-run" id="upgrade-run-btn" data-action="executeUpgrade">
                 Regenerate
               </button>
-              <button class="btn-secondary" onclick="toggleUpgradePanel()">Cancel</button>
+              <button class="btn-secondary" data-action="toggleUpgradePanel">Cancel</button>
             </div>
             <div id="upgrade-stream"></div>
           </div>
@@ -610,10 +622,10 @@
               placeholder="Describe the story…"
             ></textarea>
             <div class="quick-create-actions">
-              <button class="btn-quick-run" id="quick-run-btn" onclick="executeQuickCreate()">
+              <button class="btn-quick-run" id="quick-run-btn" data-action="executeQuickCreate">
                 Generate
               </button>
-              <button class="btn-secondary" onclick="closeQuickCreate()">Cancel</button>
+              <button class="btn-secondary" data-action="closeQuickCreate">Cancel</button>
             </div>
             <div id="quick-create-stream"></div>
           </div>
@@ -626,7 +638,7 @@
 
             <!-- Original idea + upgrade history -->
             <div class="original-section hidden" id="original-section">
-              <div class="original-toggle" onclick="toggleOriginal()">
+              <div class="original-toggle" data-action="toggleOriginal">
                 <span class="original-toggle-label">📄 Original idea &amp; upgrade history</span>
                 <span class="original-chevron" id="original-chevron">▼</span>
               </div>
@@ -652,7 +664,7 @@
 
             <!-- Hierarchy panel: parent Feature or child Epics -->
             <div class="hierarchy-section hidden" id="hierarchy-section">
-              <div class="hierarchy-header" onclick="toggleHierarchy()">
+              <div class="hierarchy-header" data-action="toggleHierarchy">
                 <span class="hierarchy-label" id="hierarchy-label">🔗 Linked Issues</span>
                 <span class="hierarchy-chevron" id="hierarchy-chevron">▼</span>
               </div>
@@ -664,7 +676,7 @@
         <!-- Manual Refine View: visual hierarchy editor -->
         <div id="refine-view">
           <div class="refine-header">
-            <button class="btn-ghost" onclick="closeRefineView()">← Back</button>
+            <button class="btn-ghost" data-action="closeRefineView">← Back</button>
             <span class="refine-title">✨ Refine: <span id="refine-epic-title"></span></span>
             <div class="refine-add-btns" id="refine-add-btns"></div>
             <input
@@ -672,19 +684,19 @@
               id="refine-search"
               class="refine-search"
               placeholder="Search cards…"
-              oninput="onCanvasSearch(this.value)"
+              data-input-action="onCanvasSearchInput"
               autocomplete="off"
             />
             <button
               class="btn-ghost btn-xs"
-              onclick="resetCanvasLayout(_canvasEpicFilename)"
+              data-action="resetCanvasLayoutCanvas"
               title="Reset card positions to auto-layout"
             >
               ↺ Reset Layout
             </button>
             <button
               class="btn-ghost btn-xs"
-              onclick="exportEpicToPdf(_canvasEpicFilename, _canvasDocType)"
+              data-action="exportEpicToPdfCanvas"
               title="Export epic to PDF"
             >
               PDF
@@ -699,13 +711,13 @@
         <!-- Settings View -->
         <div id="settings-view">
           <div class="settings-header">
-            <button class="btn-ghost" onclick="closeSettingsView()">← Back</button>
+            <button class="btn-ghost" data-action="closeSettingsView">← Back</button>
             <span class="settings-title">⚙ Settings</span>
           </div>
           <div class="settings-body">
             <!-- Model Settings -->
             <div class="collapsible model-section">
-              <div class="collapsible-header" onclick="toggleModelSection()">
+              <div class="collapsible-header" data-action="toggleModelSection">
                 <span class="collapsible-title">⚙ AI Model</span>
                 <span class="collapsible-chevron" id="model-chevron">▶</span>
               </div>
@@ -714,11 +726,11 @@
                   <div class="field">
                     <label for="provider-select">Provider</label>
                     <div class="provider-select-row">
-                      <select id="provider-select" onchange="onProviderChange(this.value)"></select>
+                      <select id="provider-select" data-change-action="onProviderChange"></select>
                       <button
                         id="provider-refresh-btn"
                         class="provider-refresh-btn"
-                        onclick="refreshProviders()"
+                        data-action="refreshProviders"
                         title="Refresh providers (re-detect Ollama)"
                         aria-label="Refresh providers"
                       >
@@ -728,11 +740,11 @@
                   </div>
                   <div class="field">
                     <label for="model-select">Model</label>
-                    <select id="model-select" onchange="updateModelSetting(this.value)"></select>
+                    <select id="model-select" data-change-action="updateModelSetting"></select>
                   </div>
                   <div class="field" id="effort-field" style="display: none">
                     <label for="effort-select">Thinking Effort</label>
-                    <select id="effort-select" onchange="updateEffortSetting(this.value)"></select>
+                    <select id="effort-select" data-change-action="updateEffortSetting"></select>
                   </div>
                   <div class="model-status" id="model-status"></div>
                 </div>
@@ -741,7 +753,7 @@
 
             <!-- PI Sprint Configuration -->
             <div class="collapsible pi-config-section">
-              <div class="collapsible-header" onclick="togglePiConfigSection()">
+              <div class="collapsible-header" data-action="togglePiConfigSection">
                 <span class="collapsible-title">📊 PI Sprint Config</span>
                 <span class="collapsible-chevron" id="pi-config-chevron">▶</span>
               </div>
@@ -750,14 +762,14 @@
                   <div class="pi-config-tabs" id="pi-config-tabs"></div>
                   <div class="pi-config-jira-banner" id="pi-config-jira-banner"></div>
                   <div class="pi-config-sprints" id="pi-config-sprints"></div>
-                  <button class="btn-pi-add-sprint" onclick="addSprintRow()">+ Add Sprint</button>
-                  <button class="btn-pi-save" id="pi-config-save-btn" onclick="saveSprintConfig()">
+                  <button class="btn-pi-add-sprint" data-action="addSprintRow">+ Add Sprint</button>
+                  <button class="btn-pi-save" id="pi-config-save-btn" data-action="saveSprintConfig">
                     Save Configuration
                   </button>
                   <button
                     class="btn-pi-distribute"
                     id="pi-config-distribute-btn"
-                    onclick="openDistributionModal(_piConfigActivePi)"
+                    data-action="openDistributionModalPiConfig"
                   >
                     Distribute Stories
                   </button>
@@ -772,7 +784,7 @@
                       min="1"
                       max="99"
                       value="8"
-                      onchange="saveSplitThreshold(this.value)"
+                      data-change-action="saveSplitThreshold"
                     />
                     <span class="pi-config-split-unit">SP</span>
                   </div>
@@ -783,7 +795,7 @@
 
             <!-- AI Time Saved -->
             <div class="collapsible ai-savings-section">
-              <div class="collapsible-header" onclick="toggleAiSavingsSection()">
+              <div class="collapsible-header" data-action="toggleAiSavingsSection">
                 <span class="collapsible-title">⏱ AI Time Saved</span>
                 <span class="collapsible-chevron" id="ai-savings-chevron">▶</span>
               </div>
@@ -793,21 +805,24 @@
                     <button
                       class="ai-savings-tab"
                       data-range="week"
-                      onclick="filterAiSavings('week')"
+                      data-action="filterAiSavings"
+                      data-filter-value="week"
                     >
                       This Week
                     </button>
                     <button
                       class="ai-savings-tab"
                       data-range="month"
-                      onclick="filterAiSavings('month')"
+                      data-action="filterAiSavings"
+                      data-filter-value="month"
                     >
                       This Month
                     </button>
                     <button
                       class="ai-savings-tab active"
                       data-range="all"
-                      onclick="filterAiSavings('all')"
+                      data-action="filterAiSavings"
+                      data-filter-value="all"
                     >
                       All Time
                     </button>
@@ -819,8 +834,8 @@
                     <canvas id="ai-savings-chart"></canvas>
                   </div>
                   <div class="ai-savings-export-row">
-                    <button class="btn-secondary" onclick="exportAiSavingsPdf()">Export PDF</button>
-                    <button class="btn-secondary" onclick="exportAiSavingsPptx()">
+                    <button class="btn-secondary" data-action="exportAiSavingsPdf">Export PDF</button>
+                    <button class="btn-secondary" data-action="exportAiSavingsPptx">
                       Export PPTX
                     </button>
                   </div>
@@ -833,35 +848,35 @@
         <!-- PI Roadmap View: sprint board with draggable cards -->
         <div id="roadmap-view">
           <div class="roadmap-header">
-            <button class="btn-ghost" onclick="closeRoadmapView()">← Back</button>
+            <button class="btn-ghost" data-action="closeRoadmapView">← Back</button>
             <span class="roadmap-title">Roadmap</span>
             <span id="rm-selection-badge" class="rm-selection-badge" hidden></span>
             <div class="roadmap-header-right">
               <div id="roadmap-pi-filter" class="rm-pi-checkboxes"></div>
               <button
                 class="btn-toolbar"
-                onclick="openDistributionModal([..._roadmapVisiblePis][0])"
+                data-action="openDistributionModalRoadmap"
                 title="Distribute stories across sprints"
               >
                 Distribute
               </button>
               <button
                 class="btn-toolbar"
-                onclick="pushSprintsToJira()"
+                data-action="pushSprintsToJira"
                 title="Push sprint assignments to JIRA"
               >
                 Push Sprints
               </button>
               <button
                 class="btn-toolbar"
-                onclick="pullFromJiraSprints()"
+                data-action="pullFromJiraSprints"
                 title="Pull new issues from JIRA sprints"
               >
                 Pull from JIRA
               </button>
               <button
                 class="btn-toolbar"
-                onclick="openRoadmapExportDialog()"
+                data-action="openRoadmapExportDialog"
                 title="Export roadmap as PDF"
               >
                 Export PDF
@@ -874,14 +889,16 @@
                 <span
                   class="rm-panel-chevron"
                   id="rm-chevron-epics"
-                  onclick="toggleRoadmapPanel('epics')"
+                  data-action="toggleRoadmapPanel"
+                  data-panel="epics"
                   >▼</span
                 >
-                <span class="rm-panel-label" onclick="toggleRoadmapPanel('epics')">Epics</span>
+                <span class="rm-panel-label" data-action="toggleRoadmapPanel" data-panel="epics">Epics</span>
                 <span
                   class="rm-panel-count"
                   id="rm-count-epics"
-                  onclick="toggleRoadmapPanel('epics')"
+                  data-action="toggleRoadmapPanel"
+                  data-panel="epics"
                   >0</span
                 >
                 <div class="rm-category-legend" onclick="event.stopPropagation()">
@@ -907,14 +924,14 @@
                   id="rm-epic-search"
                   class="rm-epic-search"
                   placeholder="Filter epics…"
-                  oninput="filterRoadmapEpics(this.value)"
+                  data-input-action="filterRoadmapEpicsInput"
                   onclick="event.stopPropagation()"
                 />
               </div>
               <div class="rm-panel-body" id="rm-body-epics"></div>
             </div>
             <div class="rm-panel rm-panel-stories" id="rm-panel-stories">
-              <div class="rm-panel-header" onclick="toggleRoadmapPanel('stories')">
+              <div class="rm-panel-header" data-action="toggleRoadmapPanel" data-panel="stories">
                 <span class="rm-panel-chevron" id="rm-chevron-stories">▼</span>
                 <span class="rm-panel-label">Stories</span>
                 <span class="rm-panel-count" id="rm-count-stories">0</span>
@@ -927,7 +944,7 @@
         <!-- Placeholder views for future sections -->
         <div id="skills-view">
           <div class="settings-header">
-            <button class="btn-ghost" onclick="navigateTo('backlog')">← Back</button>
+            <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">← Back</button>
             <span class="settings-title">Skills</span>
           </div>
           <div class="skills-body" id="skills-body">
@@ -937,24 +954,25 @@
         <div id="documentation-view" class="view-panel">
           <div class="doc-header">
             <div style="display: flex; align-items: center; gap: 12px">
-              <button class="btn-ghost" onclick="navigateTo('backlog')">← Back</button>
+              <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">← Back</button>
               <span class="doc-title">📄 Documentation</span>
             </div>
           </div>
           <div class="doc-body">
             <!-- Mode switcher (#386) -->
             <div class="doc-mode-switcher">
-              <button class="doc-mode-tab active" data-mode="sprint" onclick="setDocMode('sprint')">
+              <button class="doc-mode-tab active" data-mode="sprint" data-action="setDocMode" data-filter-value="sprint">
                 By Sprint
               </button>
               <button
                 class="doc-mode-tab"
                 data-mode="fixversion"
-                onclick="setDocMode('fixversion')"
+                data-action="setDocMode"
+                data-filter-value="fixversion"
               >
                 By Fix Version
               </button>
-              <button class="doc-mode-tab" data-mode="search" onclick="setDocMode('search')">
+              <button class="doc-mode-tab" data-mode="search" data-action="setDocMode" data-filter-value="search">
                 Search Issues
               </button>
             </div>
@@ -964,7 +982,7 @@
               <select
                 id="doc-sprint-select"
                 class="doc-mode-select"
-                onchange="docSetSprint(this.value)"
+                data-change-action="docSetSprint"
               >
                 <option value="">Select a sprint…</option>
               </select>
@@ -975,7 +993,7 @@
               <select
                 id="doc-filter-version"
                 class="doc-mode-select"
-                onchange="docSetFixVersionBulk(this.value)"
+                data-change-action="docSetFixVersionBulk"
               >
                 <option value="">Select a fix version…</option>
               </select>
@@ -989,22 +1007,22 @@
                   id="doc-filter-text"
                   class="doc-filter-text"
                   placeholder="Search JIRA issues…"
-                  oninput="docFilterInput(this.value)"
+                  data-input-action="docFilterInputAction"
                   onkeydown="if (event.key === 'Enter') docSearch();"
                 />
-                <button class="btn-secondary doc-search-btn" onclick="docSearch()">Search</button>
+                <button class="btn-secondary doc-search-btn" data-action="docSearch">Search</button>
               </div>
               <div class="doc-type-chips" id="doc-type-chips">
-                <button class="doc-chip active" data-type="all" onclick="docSetTypeFilter('all')">
+                <button class="doc-chip active" data-type="all" data-action="docSetTypeFilter" data-filter-value="all">
                   All
                 </button>
-                <button class="doc-chip" data-type="epic" onclick="docSetTypeFilter('epic')">
+                <button class="doc-chip" data-type="epic" data-action="docSetTypeFilter" data-filter-value="epic">
                   Epic
                 </button>
-                <button class="doc-chip" data-type="story" onclick="docSetTypeFilter('story')">
+                <button class="doc-chip" data-type="story" data-action="docSetTypeFilter" data-filter-value="story">
                   Story
                 </button>
-                <button class="doc-chip" data-type="bug" onclick="docSetTypeFilter('bug')">
+                <button class="doc-chip" data-type="bug" data-action="docSetTypeFilter" data-filter-value="bug">
                   Bug
                 </button>
               </div>
@@ -1013,7 +1031,7 @@
             <!-- Toolbar: selection count + Ask AI -->
             <div class="doc-toolbar">
               <span class="doc-selection-count" id="doc-selection-count"></span>
-              <button class="btn-primary" id="doc-ask-ai-btn" onclick="askAI()" disabled>
+              <button class="btn-primary" id="doc-ask-ai-btn" data-action="askAI" disabled>
                 ✨ Ask AI
               </button>
             </div>
@@ -1031,7 +1049,7 @@
                 <div class="doc-error-title" id="doc-error-title">Failed to load JIRA issues</div>
                 <div class="doc-error-detail" id="doc-error-detail"></div>
               </div>
-              <button class="btn-secondary" onclick="searchDocumentationIssues()">Retry</button>
+              <button class="btn-secondary" data-action="searchDocumentationIssues">Retry</button>
             </div>
 
             <!-- Results list -->
@@ -1058,22 +1076,22 @@
                   <div class="doc-error-title" id="doc-results-error-title">AI analysis failed</div>
                   <div class="doc-error-detail" id="doc-results-error-detail"></div>
                 </div>
-                <button class="btn-secondary" onclick="askAI()">Retry</button>
+                <button class="btn-secondary" data-action="askAI">Retry</button>
               </div>
 
               <!-- Toolbar: select all/none + selection count + Modify Documentation -->
               <div class="doc-toolbar" id="doc-results-toolbar" style="display: none">
-                <button class="btn-ghost btn-xs" onclick="selectAllSuggestions()">
+                <button class="btn-ghost btn-xs" data-action="selectAllSuggestions">
                   Select All
                 </button>
-                <button class="btn-ghost btn-xs" onclick="deselectAllSuggestions()">
+                <button class="btn-ghost btn-xs" data-action="deselectAllSuggestions">
                   Deselect All
                 </button>
                 <span class="doc-selection-count" id="doc-results-selection-count"></span>
                 <button
                   class="btn-primary"
                   id="doc-modify-btn"
-                  onclick="modifyDocumentation()"
+                  data-action="modifyDocumentation"
                   disabled
                 >
                   Modify Documentation
@@ -1088,7 +1106,7 @@
               <button
                 class="btn-secondary doc-undo-btn"
                 id="doc-undo-btn"
-                onclick="undoChanges()"
+                data-action="undoChanges"
                 style="display: none"
               >
                 ↩ Undo all changes
@@ -1099,12 +1117,12 @@
         <div id="bugs-view" class="view-panel">
           <div class="bugs-dash-header">
             <div style="display: flex; align-items: center; gap: 12px">
-              <button class="btn-ghost" onclick="navigateTo('backlog')">← Back</button>
+              <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">← Back</button>
               <span class="bugs-dash-title">🐛 Bug Dashboard</span>
             </div>
             <div class="bugs-dash-actions">
               <span class="bugs-dash-meta" id="bugs-cached-at"></span>
-              <button class="btn-secondary" id="bugs-refresh-btn" onclick="refreshBugsDashboard()">
+              <button class="btn-secondary" id="bugs-refresh-btn" data-action="refreshBugsDashboard">
                 ↻ Refresh
               </button>
             </div>
@@ -1129,7 +1147,7 @@
                 <div class="bugs-error-title" id="bugs-error-title">Failed to load bugs</div>
                 <div class="bugs-error-detail" id="bugs-error-detail"></div>
               </div>
-              <button class="btn-secondary" onclick="refreshBugsDashboard()">Retry</button>
+              <button class="btn-secondary" data-action="refreshBugsDashboard">Retry</button>
             </div>
             <!-- Stats row -->
             <div class="bugs-stats-row">
@@ -1156,14 +1174,14 @@
             </div>
             <!-- Filter bar -->
             <div class="bugs-filter-bar">
-              <select id="bugs-filter-priority" onchange="filterBugsTable()">
+              <select id="bugs-filter-priority" data-change-action="filterBugsTable">
                 <option value="all">All Priorities</option>
                 <option value="critical">Critical</option>
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
               </select>
-              <select id="bugs-filter-status" onchange="filterBugsTable()">
+              <select id="bugs-filter-status" data-change-action="filterBugsTable">
                 <option value="all">All Statuses</option>
                 <option value="open">Open</option>
                 <option value="in progress">In Progress</option>
@@ -1174,12 +1192,12 @@
                 <input
                   type="checkbox"
                   id="bugs-include-closed"
-                  onchange="toggleClosedBugs(this.checked)"
+                  data-change-action="toggleClosedBugsChange"
                 />
                 Include closed
               </label>
               <span class="bugs-selection-count" id="bugs-selection-count"></span>
-              <button class="btn-primary" id="bugs-analyze-btn" onclick="analyzeBugs()" disabled>
+              <button class="btn-primary" id="bugs-analyze-btn" data-action="analyzeBugs" disabled>
                 ✨ AI Analyze
               </button>
             </div>
@@ -1189,7 +1207,7 @@
             <div class="bugs-analysis-panel" id="bugs-analysis-panel" style="display: none">
               <div class="bugs-analysis-header">
                 <span>✨ AI Analysis</span>
-                <button class="btn-ghost btn-xs" onclick="closeBugsAnalysis()">&times;</button>
+                <button class="btn-ghost btn-xs" data-action="closeBugsAnalysis">&times;</button>
               </div>
               <div class="bugs-analysis-body" id="bugs-analysis-body"></div>
             </div>
@@ -1207,14 +1225,15 @@
             <div id="fab-view-main">
               <div class="fab-panel-header">
                 <span class="fab-panel-title">＋ Issue</span>
-                <button class="btn-ghost btn-xs" onclick="closeFab()">&times;</button>
+                <button class="btn-ghost btn-xs" data-action="closeFab">&times;</button>
               </div>
               <div class="fab-tab-bar">
                 <button
                   class="fab-tab active"
                   id="fab-tab-create-btn"
                   data-tab="create"
-                  onclick="switchFabTab('create')"
+                  data-action="switchFabTab"
+                  data-tab-name="create"
                 >
                   Create
                 </button>
@@ -1222,7 +1241,8 @@
                   class="fab-tab"
                   id="fab-tab-import-btn"
                   data-tab="import"
-                  onclick="switchFabTab('import')"
+                  data-action="switchFabTab"
+                  data-tab-name="import"
                 >
                   Import
                 </button>
@@ -1278,13 +1298,13 @@
                   </div>
                 </div>
                 <div class="actions">
-                  <button class="btn-secondary" onclick="clearForm()">Clear</button>
-                  <button class="btn-draft" id="draft-btn" onclick="saveDraft()">Save Draft</button>
-                  <button class="btn-primary" id="generate-btn" onclick="generateDoc()">
+                  <button class="btn-secondary" data-action="clearForm">Clear</button>
+                  <button class="btn-draft" id="draft-btn" data-action="saveDraft">Save Draft</button>
+                  <button class="btn-primary" id="generate-btn" data-action="generateDoc">
                     <span id="btn-label">✨ Generate</span>
                   </button>
                 </div>
-                <button class="btn-bug-create" onclick="openBugForm()">
+                <button class="btn-bug-create" data-action="openBugForm">
                   <span class="bug-icon">&#128027;</span> Create Bug Report
                 </button>
                 <div class="status" id="status"></div>
@@ -1313,14 +1333,14 @@
                     />
                   </div>
                 </div>
-                <button class="btn-jira-search" id="jira-search-btn" onclick="searchJira()">
+                <button class="btn-jira-search" id="jira-search-btn" data-action="searchJira">
                   Search JIRA
                 </button>
                 <div class="jira-results" id="jira-results"></div>
                 <button
                   class="btn-jira-download hidden"
                   id="jira-download-btn"
-                  onclick="downloadSelected()"
+                  data-action="downloadSelected"
                 >
                   ⬇ Download Selected
                 </button>
@@ -1334,7 +1354,7 @@
                       placeholder="e.g. EAMDM-9969, EAMDM-1234"
                       onkeydown="if (event.key === 'Enter') pullByKey();"
                     />
-                    <button class="btn-jira-key" onclick="pullByKey()">⬇ Import</button>
+                    <button class="btn-jira-key" data-action="pullByKey">⬇ Import</button>
                   </div>
                 </div>
               </div>
@@ -1342,10 +1362,10 @@
             <!-- Bug creation sub-view -->
             <div id="fab-view-bug">
               <div class="fab-back-bar">
-                <button class="btn-ghost btn-xs fab-back-btn" onclick="closeBugForm()">
+                <button class="btn-ghost btn-xs fab-back-btn" data-action="closeBugForm">
                   &larr; Bug Report
                 </button>
-                <button class="btn-ghost btn-xs" onclick="closeFab()">&times;</button>
+                <button class="btn-ghost btn-xs" data-action="closeFab">&times;</button>
               </div>
               <div class="fab-bug-form">
                 <div class="meta-row">
@@ -1384,7 +1404,7 @@
                   <div
                     class="bug-dropzone"
                     id="bug-dropzone"
-                    onclick="document.getElementById('bug-files').click()"
+                    data-action="triggerBugFileInput"
                   >
                     <input
                       type="file"
@@ -1406,11 +1426,11 @@
                   to PDF.
                 </div>
                 <div class="actions">
-                  <button class="btn-secondary" onclick="closeBugForm()">Cancel</button>
+                  <button class="btn-secondary" data-action="closeBugForm">Cancel</button>
                   <button
                     class="btn-primary btn-bug-submit"
                     id="bug-submit-btn"
-                    onclick="submitBugReport()"
+                    data-action="submitBugReport"
                   >
                     <span id="bug-submit-label">Create Bug</span>
                   </button>
@@ -1418,7 +1438,7 @@
               </div>
             </div>
           </div>
-          <button id="fab-btn" class="fab-btn" onclick="toggleFab()" title="Create or import issue">
+          <button id="fab-btn" class="fab-btn" data-action="toggleFab" title="Create or import issue">
             <span id="fab-icon">＋</span>
           </button>
         </div>
@@ -1434,8 +1454,8 @@
         <h3>Delete document?</h3>
         <p id="delete-msg">This will permanently delete the file. This action cannot be undone.</p>
         <div class="dialog-actions">
-          <button class="btn-secondary" onclick="closeDeleteDialog()">Cancel</button>
-          <button class="btn-delete" id="confirm-delete-btn" onclick="executeDelete()">
+          <button class="btn-secondary" data-action="closeDeleteDialog">Cancel</button>
+          <button class="btn-delete" id="confirm-delete-btn" data-action="executeDelete">
             Delete
           </button>
         </div>
@@ -1448,7 +1468,7 @@
         <h3>Bulk assign</h3>
         <p id="bulk-assign-msg"></p>
         <div class="dialog-actions">
-          <button class="btn-secondary" onclick="closeBulkAssignDialog()">Cancel</button>
+          <button class="btn-secondary" data-action="closeBulkAssignDialog">Cancel</button>
           <button class="btn-primary" id="confirm-bulk-assign-btn">Apply</button>
         </div>
       </div>
@@ -1461,8 +1481,8 @@
           <h3 id="sync-preview-title">Sync Preview</h3>
           <div class="sync-preview-header-right">
             <div class="sync-preview-bulk">
-              <button class="btn-ghost btn-xs" onclick="syncPreviewSelectAll(true)">All</button>
-              <button class="btn-ghost btn-xs" onclick="syncPreviewSelectAll(false)">None</button>
+              <button class="btn-ghost btn-xs" data-action="syncPreviewSelectAll" data-select-all="true">All</button>
+              <button class="btn-ghost btn-xs" data-action="syncPreviewSelectAll" data-select-all="false">None</button>
             </div>
             <span class="sync-preview-counts" id="sync-preview-counts"></span>
           </div>
@@ -1476,8 +1496,8 @@
           <div class="sync-progress-summary" id="sync-progress-summary"></div>
         </div>
         <div class="dialog-actions">
-          <button class="btn-secondary" onclick="syncPreviewCancel()">Cancel</button>
-          <button class="btn-primary" id="sync-preview-confirm-btn" onclick="syncPreviewConfirm()">
+          <button class="btn-secondary" data-action="syncPreviewCancel">Cancel</button>
+          <button class="btn-primary" id="sync-preview-confirm-btn" data-action="syncPreviewConfirm">
             Confirm
           </button>
         </div>
@@ -1490,14 +1510,14 @@
         <div class="jira-select-header">
           <h3 id="jira-select-title">Select issues</h3>
           <div class="jira-select-bulk">
-            <button class="btn-ghost btn-xs" onclick="jiraSelectAll(true)">All</button>
-            <button class="btn-ghost btn-xs" onclick="jiraSelectAll(false)">None</button>
+            <button class="btn-ghost btn-xs" data-action="jiraSelectAll" data-select-all="true">All</button>
+            <button class="btn-ghost btn-xs" data-action="jiraSelectAll" data-select-all="false">None</button>
           </div>
         </div>
         <div class="jira-select-list" id="jira-select-list"></div>
         <div class="dialog-actions">
-          <button class="btn-secondary" onclick="jiraSelectCancel()">Cancel</button>
-          <button class="btn-primary" id="jira-select-confirm-btn" onclick="jiraSelectConfirm()">
+          <button class="btn-secondary" data-action="jiraSelectCancel">Cancel</button>
+          <button class="btn-primary" id="jira-select-confirm-btn" data-action="jiraSelectConfirm">
             Confirm
           </button>
         </div>
@@ -1509,7 +1529,7 @@
       <div class="dialog split-dialog">
         <div class="split-dialog-header">
           <h3>Split Story with AI</h3>
-          <button class="btn-ghost btn-xs" onclick="closeSplitModal()">&times;</button>
+          <button class="btn-ghost btn-xs" data-action="closeSplitModal">&times;</button>
         </div>
         <div class="split-dialog-meta">
           <div class="split-meta-title" id="split-modal-title"></div>
@@ -1529,8 +1549,8 @@
         <div class="split-modal-output" id="split-modal-output"></div>
         <div class="split-modal-status" id="split-modal-status"></div>
         <div class="dialog-actions">
-          <button class="btn-secondary" onclick="closeSplitModal()">Cancel</button>
-          <button class="btn-primary" id="split-apply-btn" onclick="executeSplit()">
+          <button class="btn-secondary" data-action="closeSplitModal">Cancel</button>
+          <button class="btn-primary" id="split-apply-btn" data-action="executeSplit">
             Split with AI
           </button>
         </div>
@@ -1542,13 +1562,13 @@
       <div class="dialog distribution-dialog">
         <div class="distribution-header">
           <h3 id="distribution-title">Sprint Distribution</h3>
-          <button class="btn-ghost btn-xs" onclick="closeDistributionModal()">&times;</button>
+          <button class="btn-ghost btn-xs" data-action="closeDistributionModal">&times;</button>
         </div>
         <div class="distribution-body" id="distribution-body"></div>
         <div class="distribution-messages" id="distribution-messages"></div>
         <div class="dialog-actions">
-          <button class="btn-secondary" onclick="closeDistributionModal()">Cancel</button>
-          <button class="btn-primary" id="distribution-apply-btn" onclick="applyDistribution()">
+          <button class="btn-secondary" data-action="closeDistributionModal">Cancel</button>
+          <button class="btn-primary" id="distribution-apply-btn" data-action="applyDistribution">
             Apply Distribution
           </button>
         </div>
@@ -1566,7 +1586,7 @@
           <h3>Push Sprints to JIRA</h3>
           <div class="sprint-push-header-right">
             <span class="sprint-push-stats" id="sprint-push-stats"></span>
-            <button class="btn-ghost btn-xs" onclick="closeSprintPushModal()">&times;</button>
+            <button class="btn-ghost btn-xs" data-action="closeSprintPushModal">&times;</button>
           </div>
         </div>
         <!-- Step 1: Sprint selector -->
@@ -1574,19 +1594,19 @@
           <p class="sprint-push-select-label">Select sprints to compare with JIRA:</p>
           <div class="sprint-push-sprint-list" id="sprint-push-sprint-list"></div>
           <div class="sprint-push-select-btns">
-            <button class="btn-ghost btn-xs" onclick="sprintPushToggleAllSprints(true)">
+            <button class="btn-ghost btn-xs" data-action="sprintPushToggleAllSprints" data-select-all="true">
               Select all
             </button>
-            <button class="btn-ghost btn-xs" onclick="sprintPushToggleAllSprints(false)">
+            <button class="btn-ghost btn-xs" data-action="sprintPushToggleAllSprints" data-select-all="false">
               Select none
             </button>
           </div>
           <div class="dialog-actions">
-            <button class="btn-secondary" onclick="closeSprintPushModal()">Cancel</button>
+            <button class="btn-secondary" data-action="closeSprintPushModal">Cancel</button>
             <button
               class="btn-primary"
               id="sprint-push-preview-btn"
-              onclick="startSprintPushPreview()"
+              data-action="startSprintPushPreview"
             >
               Preview Changes
             </button>
@@ -1605,27 +1625,30 @@
           <button
             class="sprint-push-pill sprint-push-pill-add active"
             data-type="add"
-            onclick="toggleSprintPushFilter('add')"
+            data-action="toggleSprintPushFilter"
+            data-filter-value="add"
           >
             ↑ Push <span id="sprint-push-count-add">0</span>
           </button>
           <button
             class="sprint-push-pill sprint-push-pill-change active"
             data-type="change"
-            onclick="toggleSprintPushFilter('change')"
+            data-action="toggleSprintPushFilter"
+            data-filter-value="change"
           >
             ↺ Changed <span id="sprint-push-count-change">0</span>
           </button>
           <button
             class="sprint-push-pill sprint-push-pill-pull active"
             data-type="pull"
-            onclick="toggleSprintPushFilter('pull')"
+            data-action="toggleSprintPushFilter"
+            data-filter-value="pull"
           >
             ↓ Pull <span id="sprint-push-count-pull">0</span>
           </button>
           <span class="sprint-push-select-actions">
-            <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(true)">All</button>
-            <button class="btn-ghost btn-xs" onclick="sprintPushSelectAll(false)">None</button>
+            <button class="btn-ghost btn-xs" data-action="sprintPushSelectAll" data-select-all="true">All</button>
+            <button class="btn-ghost btn-xs" data-action="sprintPushSelectAll" data-select-all="false">None</button>
           </span>
         </div>
         <div class="sprint-push-error" id="sprint-push-error"></div>
@@ -1634,8 +1657,8 @@
         </div>
         <div class="sprint-push-list" id="sprint-push-list"></div>
         <div class="dialog-actions" id="sprint-push-actions">
-          <button class="btn-secondary" onclick="closeSprintPushModal()">Cancel</button>
-          <button class="btn-primary" id="sprint-push-confirm" onclick="confirmSprintPush()">
+          <button class="btn-secondary" data-action="closeSprintPushModal">Cancel</button>
+          <button class="btn-primary" id="sprint-push-confirm" data-action="confirmSprintPush">
             Sync Changes
           </button>
         </div>
@@ -1651,21 +1674,21 @@
       <div class="dialog sprint-push-dialog">
         <div class="sprint-push-header">
           <h3>Pull from JIRA</h3>
-          <button class="btn-ghost btn-xs" onclick="closePullSprintModal()">&times;</button>
+          <button class="btn-ghost btn-xs" data-action="closePullSprintModal">&times;</button>
         </div>
         <div class="sprint-push-select-step" id="pull-sprint-select-step">
           <p class="sprint-push-select-label">Select sprints to scan for new issues:</p>
           <div class="sprint-push-sprint-list" id="pull-sprint-list"></div>
           <div class="sprint-push-select-btns">
-            <button class="btn-ghost btn-xs" onclick="pullSprintToggleAll(true)">Select all</button>
-            <button class="btn-ghost btn-xs" onclick="pullSprintToggleAll(false)">
+            <button class="btn-ghost btn-xs" data-action="pullSprintToggleAll" data-select-all="true">Select all</button>
+            <button class="btn-ghost btn-xs" data-action="pullSprintToggleAll" data-select-all="false">
               Select none
             </button>
           </div>
           <button
             class="btn-primary"
             id="pull-sprint-preview-btn"
-            onclick="startPullSprintPreview()"
+            data-action="startPullSprintPreview"
           >
             Scan Selected Sprints
           </button>
@@ -1680,8 +1703,8 @@
         </div>
         <div class="sprint-push-list" id="pull-sprint-results"></div>
         <div class="dialog-actions" id="pull-sprint-actions" style="display: none">
-          <button class="btn-secondary" onclick="closePullSprintModal()">Cancel</button>
-          <button class="btn-primary" id="pull-sprint-confirm" onclick="confirmPullSprint()">
+          <button class="btn-secondary" data-action="closePullSprintModal">Cancel</button>
+          <button class="btn-primary" id="pull-sprint-confirm" data-action="confirmPullSprint">
             Pull Selected (0)
           </button>
         </div>
@@ -1697,7 +1720,7 @@
       <div class="dialog roadmap-export-dialog">
         <div class="roadmap-export-header">
           <h3>Export Roadmap Report</h3>
-          <button class="btn-ghost btn-xs" onclick="closeRoadmapExportDialog()">&times;</button>
+          <button class="btn-ghost btn-xs" data-action="closeRoadmapExportDialog">&times;</button>
         </div>
         <div class="roadmap-export-body">
           <p class="roadmap-export-desc">Select sections to include in the PDF report:</p>
@@ -1758,10 +1781,10 @@
             </div>
             <div class="rexp-sprint-list" id="rexp-sprint-list"></div>
             <div class="rexp-sprint-btns">
-              <button class="btn-ghost btn-xs" onclick="rexpToggleAllSprints(true)">
+              <button class="btn-ghost btn-xs" data-action="rexpToggleAllSprints" data-select-all="true">
                 Select all
               </button>
-              <button class="btn-ghost btn-xs" onclick="rexpToggleAllSprints(false)">
+              <button class="btn-ghost btn-xs" data-action="rexpToggleAllSprints" data-select-all="false">
                 Select none
               </button>
             </div>
@@ -1776,18 +1799,18 @@
             </div>
             <div class="rexp-sprint-list" id="rexp-team-list"></div>
             <div class="rexp-sprint-btns">
-              <button class="btn-ghost btn-xs" onclick="rexpToggleAllTeams(true)">
+              <button class="btn-ghost btn-xs" data-action="rexpToggleAllTeams" data-select-all="true">
                 Select all
               </button>
-              <button class="btn-ghost btn-xs" onclick="rexpToggleAllTeams(false)">
+              <button class="btn-ghost btn-xs" data-action="rexpToggleAllTeams" data-select-all="false">
                 Select none
               </button>
             </div>
           </div>
         </div>
         <div class="dialog-actions">
-          <button class="btn-secondary" onclick="closeRoadmapExportDialog()">Cancel</button>
-          <button class="btn-primary" id="roadmap-export-btn" onclick="executeRoadmapExport()">
+          <button class="btn-secondary" data-action="closeRoadmapExportDialog">Cancel</button>
+          <button class="btn-primary" id="roadmap-export-btn" data-action="executeRoadmapExport">
             Export
           </button>
         </div>
@@ -1799,7 +1822,7 @@
       <div class="dialog dep-dialog">
         <div class="dep-header">
           <h3 id="dep-modal-title">Manage Dependencies</h3>
-          <button class="btn-ghost btn-xs" onclick="closeDepModal()">&times;</button>
+          <button class="btn-ghost btn-xs" data-action="closeDepModal">&times;</button>
         </div>
         <div class="dep-modal-body">
           <p class="dep-modal-subtitle" id="dep-modal-subtitle"></p>
@@ -1819,19 +1842,19 @@
             <div class="dep-section-label">Add dependency — this story blocks:</div>
             <div class="dep-add-row">
               <select id="dep-target-select" class="dep-select"></select>
-              <button class="btn-primary btn-sm" onclick="addDepLink()">Add Block</button>
+              <button class="btn-primary btn-sm" data-action="addDepLink">Add Block</button>
             </div>
           </div>
           <div class="dep-section dep-add-section">
             <div class="dep-section-label">Add parallel link — runs in parallel with:</div>
             <div class="dep-add-row">
               <select id="dep-parallel-select" class="dep-select"></select>
-              <button class="btn-primary btn-sm" onclick="addParallelLink()">Add Parallel</button>
+              <button class="btn-primary btn-sm" data-action="addParallelLink">Add Parallel</button>
             </div>
           </div>
         </div>
         <div class="dialog-actions">
-          <button class="btn-secondary" onclick="closeDepModal()">Close</button>
+          <button class="btn-secondary" data-action="closeDepModal">Close</button>
         </div>
       </div>
     </div>
@@ -1853,7 +1876,7 @@
       <div class="dialog" style="max-width: 480px">
         <div class="split-dialog-header">
           <h3>✂ Split Issue</h3>
-          <button class="btn-ghost btn-xs" onclick="closeIssueSplitModal()">&times;</button>
+          <button class="btn-ghost btn-xs" data-action="closeIssueSplitModal">&times;</button>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px">
           <span class="type-badge" id="issue-split-badge"></span>
@@ -1876,8 +1899,8 @@
           id="issue-split-status"
         ></div>
         <div class="dialog-actions" style="margin-top: 12px">
-          <button class="btn-secondary" onclick="closeIssueSplitModal()">Cancel</button>
-          <button class="btn-primary" id="issue-split-generate-btn" onclick="executeSplitIssue()">
+          <button class="btn-secondary" data-action="closeIssueSplitModal">Cancel</button>
+          <button class="btn-primary" id="issue-split-generate-btn" data-action="executeSplitIssue">
             Generate
           </button>
         </div>

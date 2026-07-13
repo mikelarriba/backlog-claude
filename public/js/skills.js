@@ -1,20 +1,20 @@
 // ── Skills view: command template editor ─────────────────────────────────────
 import { fetchJSON, putJSON, deleteJSON, escHtml } from './state.js';
 const DOC_COMMANDS = [
-    'create-features',
-    'create-epics',
-    'create-stories',
-    'create-spikes',
-    'create-bugs',
+  'create-features',
+  'create-epics',
+  'create-stories',
+  'create-spikes',
+  'create-bugs',
 ];
 const UTILITY_COMMANDS = ['refine-epics', 'backlog-analysis-agent'];
 let _skillsCache = [];
 // ── Product Context ──────────────────────────────────────────────────────────
 function renderProductContext(ctx) {
-    const badgeClass = ctx.source === 'custom' ? 'custom' : 'template';
-    const badgeLabel = ctx.source === 'custom' ? 'Custom' : 'Template';
-    const showReset = ctx.source === 'custom';
-    return `
+  const badgeClass = ctx.source === 'custom' ? 'custom' : 'template';
+  const badgeLabel = ctx.source === 'custom' ? 'Custom' : 'Template';
+  const showReset = ctx.source === 'custom';
+  return `
     <div class="skill-card product-context-card" data-skill="product-context">
       <div class="skill-header" onclick="toggleSkillCard('product-context')">
         <span class="skill-chevron" id="skill-chev-product-context">▶</span>
@@ -39,72 +39,64 @@ function renderProductContext(ctx) {
     </div>`;
 }
 export async function saveProductContext() {
-    const ta = document.getElementById('skill-ta-product-context');
-    if (!ta)
-        return;
-    const content = ta.value;
-    if (!content.trim()) {
-        setSkillStatus('product-context', 'error', 'Content cannot be empty.');
-        return;
+  const ta = document.getElementById('skill-ta-product-context');
+  if (!ta) return;
+  const content = ta.value;
+  if (!content.trim()) {
+    setSkillStatus('product-context', 'error', 'Content cannot be empty.');
+    return;
+  }
+  const btn = ta.closest('.skill-inner')?.querySelector('.btn-skill-save');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+  }
+  try {
+    await putJSON('/api/settings/product-context', { content });
+    setSkillStatus('product-context', 'success', 'Saved.');
+    updateSkillBadge('product-context', 'custom');
+    // Ensure reset button is shown
+    const actions = ta.closest('.skill-inner')?.querySelector('.skill-actions');
+    if (actions && !actions.querySelector('.btn-skill-reset')) {
+      const resetBtn = document.createElement('button');
+      resetBtn.className = 'btn-skill-reset';
+      resetBtn.textContent = 'Reset to Template';
+      resetBtn.onclick = () => resetProductContext();
+      actions.insertBefore(resetBtn, actions.querySelector('.skill-status'));
     }
-    const btn = ta
-        .closest('.skill-inner')
-        ?.querySelector('.btn-skill-save');
+  } catch (e) {
+    setSkillStatus('product-context', 'error', e.message);
+  } finally {
     if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Saving…';
+      btn.disabled = false;
+      btn.textContent = 'Save';
     }
-    try {
-        await putJSON('/api/settings/product-context', { content });
-        setSkillStatus('product-context', 'success', 'Saved.');
-        updateSkillBadge('product-context', 'custom');
-        // Ensure reset button is shown
-        const actions = ta.closest('.skill-inner')?.querySelector('.skill-actions');
-        if (actions && !actions.querySelector('.btn-skill-reset')) {
-            const resetBtn = document.createElement('button');
-            resetBtn.className = 'btn-skill-reset';
-            resetBtn.textContent = 'Reset to Template';
-            resetBtn.onclick = () => resetProductContext();
-            actions.insertBefore(resetBtn, actions.querySelector('.skill-status'));
-        }
-    }
-    catch (e) {
-        setSkillStatus('product-context', 'error', e.message);
-    }
-    finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Save';
-        }
-    }
+  }
 }
 export async function resetProductContext() {
-    try {
-        const data = (await deleteJSON('/api/settings/product-context'));
-        const ta = document.getElementById('skill-ta-product-context');
-        if (ta && data?.content)
-            ta.value = data.content;
-        updateSkillBadge('product-context', 'example');
-        setSkillStatus('product-context', 'success', 'Reset to template.');
-        const card = document.querySelector('.product-context-card');
-        const resetBtn = card?.querySelector('.btn-skill-reset');
-        if (resetBtn)
-            resetBtn.remove();
-    }
-    catch (e) {
-        setSkillStatus('product-context', 'error', e.message);
-    }
+  try {
+    const data = await deleteJSON('/api/settings/product-context');
+    const ta = document.getElementById('skill-ta-product-context');
+    if (ta && data?.content) ta.value = data.content;
+    updateSkillBadge('product-context', 'example');
+    setSkillStatus('product-context', 'success', 'Reset to template.');
+    const card = document.querySelector('.product-context-card');
+    const resetBtn = card?.querySelector('.btn-skill-reset');
+    if (resetBtn) resetBtn.remove();
+  } catch (e) {
+    setSkillStatus('product-context', 'error', e.message);
+  }
 }
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderSkillCard(skill) {
-    const badgeClass = skill.source === 'custom' ? 'custom' : 'template';
-    const badgeLabel = skill.source === 'custom' ? 'Custom' : 'Template';
-    const showReset = skill.source === 'custom';
-    const displayName = skill.name
-        .replace(/^create-/, '')
-        .replace(/-/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase());
-    return `
+  const badgeClass = skill.source === 'custom' ? 'custom' : 'template';
+  const badgeLabel = skill.source === 'custom' ? 'Custom' : 'Template';
+  const showReset = skill.source === 'custom';
+  const displayName = skill.name
+    .replace(/^create-/, '')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return `
     <div class="skill-card" data-skill="${escHtml(skill.name)}">
       <div class="skill-header" onclick="toggleSkillCard('${escHtml(skill.name)}')">
         <span class="skill-chevron" id="skill-chev-${escHtml(skill.name)}">▶</span>
@@ -130,188 +122,166 @@ function renderSkillCard(skill) {
     </div>`;
 }
 export async function loadSkillsView() {
-    const container = document.getElementById('skills-body');
-    if (!container)
-        return;
-    let ctxHtml = '';
-    try {
-        const ctx = (await fetchJSON('/api/settings/product-context'));
-        ctxHtml = renderProductContext(ctx);
-    }
-    catch {
-        /* product context is optional */
-    }
-    try {
-        const data = (await fetchJSON('/api/skills'));
-        _skillsCache = data.skills || [];
-    }
-    catch (e) {
-        container.innerHTML = `<p style="color:var(--error-text)">Failed to load skills: ${escHtml(e.message)}</p>`;
-        return;
-    }
-    const docSkills = _skillsCache.filter((s) => DOC_COMMANDS.includes(s.name));
-    const utilSkills = _skillsCache.filter((s) => UTILITY_COMMANDS.includes(s.name));
-    container.innerHTML =
-        '<div class="skills-section-label">Product Context</div>' +
-            ctxHtml +
-            '<div class="skills-section-label">Document Commands</div>' +
-            docSkills.map(renderSkillCard).join('') +
-            '<div class="skills-section-label">Utility Commands</div>' +
-            utilSkills.map(renderSkillCard).join('');
+  const container = document.getElementById('skills-body');
+  if (!container) return;
+  let ctxHtml = '';
+  try {
+    const ctx = await fetchJSON('/api/settings/product-context');
+    ctxHtml = renderProductContext(ctx);
+  } catch {
+    /* product context is optional */
+  }
+  try {
+    const data = await fetchJSON('/api/skills');
+    _skillsCache = data.skills || [];
+  } catch (e) {
+    container.innerHTML = `<p style="color:var(--error-text)">Failed to load skills: ${escHtml(e.message)}</p>`;
+    return;
+  }
+  const docSkills = _skillsCache.filter((s) => DOC_COMMANDS.includes(s.name));
+  const utilSkills = _skillsCache.filter((s) => UTILITY_COMMANDS.includes(s.name));
+  container.innerHTML =
+    '<div class="skills-section-label">Product Context</div>' +
+    ctxHtml +
+    '<div class="skills-section-label">Document Commands</div>' +
+    docSkills.map(renderSkillCard).join('') +
+    '<div class="skills-section-label">Utility Commands</div>' +
+    utilSkills.map(renderSkillCard).join('');
 }
 // ── Toggle ────────────────────────────────────────────────────────────────────
 export function toggleSkillCard(name) {
-    const body = document.getElementById(`skill-body-${name}`);
-    const chevron = document.getElementById(`skill-chev-${name}`);
-    if (!body || !chevron)
-        return;
-    const isOpen = body.classList.toggle('open');
-    chevron.style.transform = isOpen ? 'rotate(90deg)' : '';
+  const body = document.getElementById(`skill-body-${name}`);
+  const chevron = document.getElementById(`skill-chev-${name}`);
+  if (!body || !chevron) return;
+  const isOpen = body.classList.toggle('open');
+  chevron.style.transform = isOpen ? 'rotate(90deg)' : '';
 }
 // ── Save ──────────────────────────────────────────────────────────────────────
 export async function saveSkill(name) {
-    const ta = document.getElementById(`skill-ta-${name}`);
-    if (!ta)
-        return;
-    const content = ta.value;
-    if (!content.trim()) {
-        setSkillStatus(name, 'error', 'Content cannot be empty.');
-        return;
+  const ta = document.getElementById(`skill-ta-${name}`);
+  if (!ta) return;
+  const content = ta.value;
+  if (!content.trim()) {
+    setSkillStatus(name, 'error', 'Content cannot be empty.');
+    return;
+  }
+  const btn = ta.closest('.skill-inner')?.querySelector('.btn-skill-save');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+  }
+  try {
+    await putJSON(`/api/skills/${encodeURIComponent(name)}`, { content });
+    setSkillStatus(name, 'success', 'Saved.');
+    updateSkillBadge(name, 'custom');
+    // Ensure reset button is shown
+    const actions = ta.closest('.skill-inner')?.querySelector('.skill-actions');
+    if (actions && !actions.querySelector('.btn-skill-reset')) {
+      const resetBtn = document.createElement('button');
+      resetBtn.className = 'btn-skill-reset';
+      resetBtn.textContent = 'Reset to Template';
+      resetBtn.onclick = () => resetSkill(name);
+      actions.insertBefore(resetBtn, actions.querySelector('.skill-status'));
     }
-    const btn = ta
-        .closest('.skill-inner')
-        ?.querySelector('.btn-skill-save');
+  } catch (e) {
+    setSkillStatus(name, 'error', e.message);
+  } finally {
     if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Saving…';
+      btn.disabled = false;
+      btn.textContent = 'Save';
     }
-    try {
-        await putJSON(`/api/skills/${encodeURIComponent(name)}`, { content });
-        setSkillStatus(name, 'success', 'Saved.');
-        updateSkillBadge(name, 'custom');
-        // Ensure reset button is shown
-        const actions = ta.closest('.skill-inner')?.querySelector('.skill-actions');
-        if (actions && !actions.querySelector('.btn-skill-reset')) {
-            const resetBtn = document.createElement('button');
-            resetBtn.className = 'btn-skill-reset';
-            resetBtn.textContent = 'Reset to Template';
-            resetBtn.onclick = () => resetSkill(name);
-            actions.insertBefore(resetBtn, actions.querySelector('.skill-status'));
-        }
-    }
-    catch (e) {
-        setSkillStatus(name, 'error', e.message);
-    }
-    finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Save';
-        }
-    }
+  }
 }
 // ── Reset ─────────────────────────────────────────────────────────────────────
 export async function resetSkill(name) {
-    try {
-        const data = (await deleteJSON(`/api/skills/${encodeURIComponent(name)}`));
-        const ta = document.getElementById(`skill-ta-${name}`);
-        if (ta && data?.content)
-            ta.value = data.content;
-        updateSkillBadge(name, 'example');
-        setSkillStatus(name, 'success', 'Reset to template.');
-        // Remove reset button
-        const card = document.querySelector(`.skill-card[data-skill="${name}"]`);
-        const resetBtn = card?.querySelector('.btn-skill-reset');
-        if (resetBtn)
-            resetBtn.remove();
-    }
-    catch (e) {
-        setSkillStatus(name, 'error', e.message);
-    }
+  try {
+    const data = await deleteJSON(`/api/skills/${encodeURIComponent(name)}`);
+    const ta = document.getElementById(`skill-ta-${name}`);
+    if (ta && data?.content) ta.value = data.content;
+    updateSkillBadge(name, 'example');
+    setSkillStatus(name, 'success', 'Reset to template.');
+    // Remove reset button
+    const card = document.querySelector(`.skill-card[data-skill="${name}"]`);
+    const resetBtn = card?.querySelector('.btn-skill-reset');
+    if (resetBtn) resetBtn.remove();
+  } catch (e) {
+    setSkillStatus(name, 'error', e.message);
+  }
 }
 // ── AI Improve ───────────────────────────────────────────────────────────────
 export async function improveSkill(name) {
-    const ta = document.getElementById(`skill-ta-${name}`);
-    if (!ta)
-        return;
-    const content = ta.value;
-    if (!content.trim()) {
-        setSkillStatus(name, 'error', 'Content cannot be empty.');
-        return;
-    }
-    const btn = ta
-        .closest('.skill-inner')
-        ?.querySelector('.btn-skill-improve');
+  const ta = document.getElementById(`skill-ta-${name}`);
+  if (!ta) return;
+  const content = ta.value;
+  if (!content.trim()) {
+    setSkillStatus(name, 'error', 'Content cannot be empty.');
+    return;
+  }
+  const btn = ta.closest('.skill-inner')?.querySelector('.btn-skill-improve');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Improving…';
+  }
+  try {
+    const data = await putJSON(`/api/skills/${encodeURIComponent(name)}/improve`, {
+      content,
+    });
+    ta.value = data.improved;
+    setSkillStatus(name, 'success', 'AI suggestion applied. Review and Save when ready.');
+  } catch (e) {
+    setSkillStatus(name, 'error', e.message);
+  } finally {
     if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Improving…';
+      btn.disabled = false;
+      btn.textContent = 'AI Improve';
     }
-    try {
-        const data = (await putJSON(`/api/skills/${encodeURIComponent(name)}/improve`, {
-            content,
-        }));
-        ta.value = data.improved;
-        setSkillStatus(name, 'success', 'AI suggestion applied. Review and Save when ready.');
-    }
-    catch (e) {
-        setSkillStatus(name, 'error', e.message);
-    }
-    finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'AI Improve';
-        }
-    }
+  }
 }
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function updateSkillBadge(name, source) {
-    const badge = document.getElementById(`skill-badge-${name}`);
-    if (!badge)
-        return;
-    badge.className = `skill-badge ${source === 'custom' ? 'custom' : 'template'}`;
-    badge.textContent = source === 'custom' ? 'Custom' : 'Template';
+  const badge = document.getElementById(`skill-badge-${name}`);
+  if (!badge) return;
+  badge.className = `skill-badge ${source === 'custom' ? 'custom' : 'template'}`;
+  badge.textContent = source === 'custom' ? 'Custom' : 'Template';
 }
 function setSkillStatus(name, type, message) {
-    const el = document.getElementById(`skill-status-${name}`);
-    if (!el)
-        return;
-    el.className = `skill-status${type !== 'hidden' ? ' show ' + type : ''}`;
-    el.textContent = message || '';
-    if (type === 'success') {
-        setTimeout(() => {
-            el.className = 'skill-status';
-        }, 3000);
-    }
+  const el = document.getElementById(`skill-status-${name}`);
+  if (!el) return;
+  el.className = `skill-status${type !== 'hidden' ? ' show ' + type : ''}`;
+  el.textContent = message || '';
+  if (type === 'success') {
+    setTimeout(() => {
+      el.className = 'skill-status';
+    }, 3000);
+  }
 }
 // ── SSE handler ───────────────────────────────────────────────────────────────
 export function handleSkillSSE(payload) {
-    if (payload.type === 'skill_updated' || payload.type === 'skill_reset') {
-        const name = payload.name;
-        if (!name)
-            return;
-        fetchJSON(`/api/skills/${encodeURIComponent(name)}`)
-            .then((skill) => {
-            const s = skill;
-            const ta = document.getElementById(`skill-ta-${name}`);
-            if (ta)
-                ta.value = s.content;
-            updateSkillBadge(name, s.source);
-        })
-            .catch(() => {
-            /* SSE refresh is best-effort */
-        });
-    }
-    if (payload.type === 'product_context_updated' || payload.type === 'product_context_reset') {
-        fetchJSON('/api/settings/product-context')
-            .then((ctx) => {
-            const c = ctx;
-            const ta = document.getElementById('skill-ta-product-context');
-            if (ta)
-                ta.value = c.content;
-            updateSkillBadge('product-context', c.source);
-        })
-            .catch(() => {
-            /* best-effort */
-        });
-    }
+  if (payload.type === 'skill_updated' || payload.type === 'skill_reset') {
+    const name = payload.name;
+    if (!name) return;
+    fetchJSON(`/api/skills/${encodeURIComponent(name)}`)
+      .then((skill) => {
+        const s = skill;
+        const ta = document.getElementById(`skill-ta-${name}`);
+        if (ta) ta.value = s.content;
+        updateSkillBadge(name, s.source);
+      })
+      .catch(() => {
+        /* SSE refresh is best-effort */
+      });
+  }
+  if (payload.type === 'product_context_updated' || payload.type === 'product_context_reset') {
+    fetchJSON('/api/settings/product-context')
+      .then((ctx) => {
+        const c = ctx;
+        const ta = document.getElementById('skill-ta-product-context');
+        if (ta) ta.value = c.content;
+        updateSkillBadge('product-context', c.source);
+      })
+      .catch(() => {
+        /* best-effort */
+      });
+  }
 }
 //# sourceMappingURL=skills.js.map
