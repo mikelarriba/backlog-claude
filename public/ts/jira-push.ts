@@ -1,7 +1,7 @@
 // ── JIRA push: sync-preview modal + push-to-JIRA flow ───────────
 // The sync-preview confirmation modal is shared infrastructure used both
 // here (push) and by the pull/update flow in jira-pull.ts.
-import { fetchJSON, postJSON, escHtml, showJiraToast, TYPE_LABEL } from './state.js';
+import { fetchJSON, postJSON, escHtml, showJiraToast, TYPE_LABEL, openModal, closeModal } from './state.js';
 import { openDoc, closeAllDropdowns } from './detail.js';
 import { logAiSaving } from './ai-savings.js';
 
@@ -171,7 +171,7 @@ export function showSyncPreviewModal(
       })
       .join('');
 
-    document.getElementById('sync-preview-overlay')!.classList.add('show');
+    openModal('sync-preview-overlay');
     document.querySelectorAll('#sync-preview-list .sync-preview-cb').forEach(function (cb) {
       cb.addEventListener('change', _syncPreviewUpdateCount);
     });
@@ -198,7 +198,7 @@ export function syncPreviewSelectAll(checked: boolean): void {
 }
 
 export function syncPreviewCancel(): void {
-  document.getElementById('sync-preview-overlay')!.classList.remove('show');
+  closeModal('sync-preview-overlay');
   if (_syncPreviewResolve) {
     _syncPreviewResolve(null);
     _syncPreviewResolve = null;
@@ -262,8 +262,7 @@ export function finishJiraProgress(summaryText: string, hasError: boolean): void
 }
 
 function _resetSyncProgressModal(): void {
-  const overlay = document.getElementById('sync-preview-overlay');
-  if (overlay) overlay.classList.remove('show');
+  closeModal('sync-preview-overlay');
   const list = document.getElementById('sync-preview-list') as HTMLElement | null;
   if (list) list.style.display = '';
   const actionsEl = document.querySelector<HTMLElement>('#sync-preview-overlay .dialog-actions');

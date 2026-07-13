@@ -11,122 +11,125 @@
 let _rmSelectedItems = new Set(); // "docType:filename" keys
 let _rmLastClicked = null;
 function _rmKey(filename, docType) {
-  return `${docType}:${filename}`;
+    return `${docType}:${filename}`;
 }
 function _getVisibleStoryCards() {
-  return [...document.querySelectorAll('.roadmap-card[data-filename]')].filter(
-    (c) => c.dataset['filename']
-  );
+    return [...document.querySelectorAll('.roadmap-card[data-filename]')].filter((c) => c.dataset['filename']);
 }
 function _getVisibleEpicCards() {
-  return [...document.querySelectorAll('.rm-epic-card[data-filename]')].filter(
-    (c) => c.dataset['filename'] && c.style.display !== 'none'
-  );
+    return [...document.querySelectorAll('.rm-epic-card[data-filename]')].filter((c) => c.dataset['filename'] && c.style.display !== 'none');
 }
 export function clearRoadmapSelection() {
-  _rmSelectedItems.clear();
-  _rmLastClicked = null;
-  syncRoadmapSelectionUI();
+    _rmSelectedItems.clear();
+    _rmLastClicked = null;
+    syncRoadmapSelectionUI();
 }
 export function syncRoadmapSelectionUI() {
-  document
-    .querySelectorAll('.roadmap-card[data-filename], .rm-epic-card[data-filename]')
-    .forEach((el) => {
-      if (!el.dataset['filename']) return;
-      const key = _rmKey(el.dataset['filename'], el.dataset['doctype'] ?? '');
-      el.classList.toggle('rm-multi-selected', _rmSelectedItems.has(key));
+    document
+        .querySelectorAll('.roadmap-card[data-filename], .rm-epic-card[data-filename]')
+        .forEach((el) => {
+        if (!el.dataset['filename'])
+            return;
+        const key = _rmKey(el.dataset['filename'], el.dataset['doctype'] ?? '');
+        el.classList.toggle('rm-multi-selected', _rmSelectedItems.has(key));
     });
-  _rmUpdateSelectionBadge();
+    _rmUpdateSelectionBadge();
 }
 function _rmUpdateSelectionBadge() {
-  const badge = document.getElementById('rm-selection-badge');
-  if (!badge) return;
-  const count = _rmSelectedItems.size;
-  if (count > 0) {
-    badge.textContent = `${count} selected`;
-    badge.hidden = false;
-  } else {
-    badge.hidden = true;
-  }
+    const badge = document.getElementById('rm-selection-badge');
+    if (!badge)
+        return;
+    const count = _rmSelectedItems.size;
+    if (count > 0) {
+        badge.textContent = `${count} selected`;
+        badge.hidden = false;
+    }
+    else {
+        badge.hidden = true;
+    }
 }
 export function handleRoadmapCardClick(e, filename, docType) {
-  const key = _rmKey(filename, docType);
-  const isMeta = e.metaKey || e.ctrlKey;
-  const isShift = e.shiftKey;
-  if (isMeta) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (_rmSelectedItems.has(key)) {
-      _rmSelectedItems.delete(key);
-    } else {
-      _rmSelectedItems.add(key);
+    const key = _rmKey(filename, docType);
+    const isMeta = e.metaKey || e.ctrlKey;
+    const isShift = e.shiftKey;
+    if (isMeta) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (_rmSelectedItems.has(key)) {
+            _rmSelectedItems.delete(key);
+        }
+        else {
+            _rmSelectedItems.add(key);
+        }
+        _rmLastClicked = { filename, docType, panel: 'story' };
+        syncRoadmapSelectionUI();
+        return;
     }
-    _rmLastClicked = { filename, docType, panel: 'story' };
-    syncRoadmapSelectionUI();
-    return;
-  }
-  if (isShift && _rmLastClicked) {
-    e.preventDefault();
-    e.stopPropagation();
-    const cards = _getVisibleStoryCards();
-    const lastIdx = cards.findIndex((c) => c.dataset['filename'] === _rmLastClicked.filename);
-    const curIdx = cards.findIndex((c) => c.dataset['filename'] === filename);
-    if (lastIdx >= 0 && curIdx >= 0) {
-      const start = Math.min(lastIdx, curIdx);
-      const end = Math.max(lastIdx, curIdx);
-      for (let i = start; i <= end; i++) {
-        _rmSelectedItems.add(_rmKey(cards[i].dataset['filename'], cards[i].dataset['doctype']));
-      }
-    } else if (curIdx >= 0) {
-      _rmSelectedItems.add(key);
+    if (isShift && _rmLastClicked) {
+        e.preventDefault();
+        e.stopPropagation();
+        const cards = _getVisibleStoryCards();
+        const lastIdx = cards.findIndex((c) => c.dataset['filename'] === _rmLastClicked.filename);
+        const curIdx = cards.findIndex((c) => c.dataset['filename'] === filename);
+        if (lastIdx >= 0 && curIdx >= 0) {
+            const start = Math.min(lastIdx, curIdx);
+            const end = Math.max(lastIdx, curIdx);
+            for (let i = start; i <= end; i++) {
+                _rmSelectedItems.add(_rmKey(cards[i].dataset['filename'], cards[i].dataset['doctype']));
+            }
+        }
+        else if (curIdx >= 0) {
+            _rmSelectedItems.add(key);
+        }
+        _rmLastClicked = { filename, docType, panel: 'story' };
+        syncRoadmapSelectionUI();
+        return;
     }
-    _rmLastClicked = { filename, docType, panel: 'story' };
-    syncRoadmapSelectionUI();
-    return;
-  }
-  if (_rmSelectedItems.size > 0) {
-    clearRoadmapSelection();
-  }
-  openDoc(filename, docType);
+    if (_rmSelectedItems.size > 0) {
+        clearRoadmapSelection();
+    }
+    openDoc(filename, docType);
 }
 export function handleRoadmapEpicClick(e, filename, docType) {
-  const key = _rmKey(filename, docType);
-  const isMeta = e.metaKey || e.ctrlKey;
-  const isShift = e.shiftKey;
-  if (isMeta) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (_rmSelectedItems.has(key)) {
-      _rmSelectedItems.delete(key);
-    } else {
-      _rmSelectedItems.add(key);
+    const key = _rmKey(filename, docType);
+    const isMeta = e.metaKey || e.ctrlKey;
+    const isShift = e.shiftKey;
+    if (isMeta) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (_rmSelectedItems.has(key)) {
+            _rmSelectedItems.delete(key);
+        }
+        else {
+            _rmSelectedItems.add(key);
+        }
+        _rmLastClicked = { filename, docType, panel: 'epic' };
+        syncRoadmapSelectionUI();
+        return;
     }
-    _rmLastClicked = { filename, docType, panel: 'epic' };
-    syncRoadmapSelectionUI();
-    return;
-  }
-  if (isShift && _rmLastClicked) {
-    e.preventDefault();
-    e.stopPropagation();
-    const cards = _getVisibleEpicCards();
-    const lastIdx = cards.findIndex((c) => c.dataset['filename'] === _rmLastClicked.filename);
-    const curIdx = cards.findIndex((c) => c.dataset['filename'] === filename);
-    if (lastIdx >= 0 && curIdx >= 0) {
-      const start = Math.min(lastIdx, curIdx);
-      const end = Math.max(lastIdx, curIdx);
-      for (let i = start; i <= end; i++) {
-        _rmSelectedItems.add(_rmKey(cards[i].dataset['filename'], cards[i].dataset['doctype']));
-      }
-    } else if (curIdx >= 0) {
-      _rmSelectedItems.add(key);
+    if (isShift && _rmLastClicked) {
+        e.preventDefault();
+        e.stopPropagation();
+        const cards = _getVisibleEpicCards();
+        const lastIdx = cards.findIndex((c) => c.dataset['filename'] === _rmLastClicked.filename);
+        const curIdx = cards.findIndex((c) => c.dataset['filename'] === filename);
+        if (lastIdx >= 0 && curIdx >= 0) {
+            const start = Math.min(lastIdx, curIdx);
+            const end = Math.max(lastIdx, curIdx);
+            for (let i = start; i <= end; i++) {
+                _rmSelectedItems.add(_rmKey(cards[i].dataset['filename'], cards[i].dataset['doctype']));
+            }
+        }
+        else if (curIdx >= 0) {
+            _rmSelectedItems.add(key);
+        }
+        _rmLastClicked = { filename, docType, panel: 'epic' };
+        syncRoadmapSelectionUI();
+        return;
     }
-    _rmLastClicked = { filename, docType, panel: 'epic' };
-    syncRoadmapSelectionUI();
-    return;
-  }
-  if (_rmSelectedItems.size > 0) {
-    clearRoadmapSelection();
-  }
-  focusEpic(filename);
+    if (_rmSelectedItems.size > 0) {
+        clearRoadmapSelection();
+    }
+    focusEpic(filename);
 }
 //# sourceMappingURL=roadmap-select.js.map

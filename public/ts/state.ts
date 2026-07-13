@@ -354,6 +354,16 @@ export async function streamSSE(
   }
 }
 
+// ── Shared modal helpers ──────────────────────────────────────────────────────
+export function openModal(id: string): void {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('show');
+}
+export function closeModal(id: string): void {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('show');
+}
+
 // ── Shared section toggle ─────────────────────────────────────────────────────
 export function toggleSection(bodyId: string, chevronId: string, rotateDeg = 90): void {
   const body = document.getElementById(bodyId);

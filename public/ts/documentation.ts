@@ -4,7 +4,7 @@
 // an "Ask AI" action, which POSTs to /api/confluence/analyze (see #371) and
 // renders the returned suggestions (see the "AI Analysis Results" section
 // below, #372).
-import { fetchJSON, postJSON, showJiraToast } from './state.js';
+import { fetchJSON, postJSON, showJiraToast, escHtml } from './state.js';
 import { logAiSaving } from './ai-savings.js';
 
 export interface DocIssue {
@@ -64,7 +64,7 @@ async function loadDocVersions(): Promise<void> {
     const current = select.value;
     select.innerHTML =
       '<option value="">All fix versions</option>' +
-      _versions.map((v) => `<option value="${_esc(v.name)}">${_esc(v.name)}</option>`).join('');
+      _versions.map((v) => `<option value="${escHtml(v.name)}">${escHtml(v.name)}</option>`).join('');
     select.value = current;
   }
 }
@@ -150,16 +150,16 @@ export function renderIssuesList(issues: DocIssue[]): void {
       const selected = _selectedKeys.has(issue.key) ? 'selected' : '';
       const typeClass = `doc-type-${(issue.issuetype || '').toLowerCase().replace(/\s+/g, '-')}`;
       const statusClass = `doc-status-${(issue.status || '').toLowerCase().replace(/\s+/g, '-')}`;
-      return `<div class="doc-issue-row ${selected}" data-key="${_esc(issue.key)}" onclick="docRowClick(event,'${_esc(issue.key)}')">
-        <input type="checkbox" ${checked} onchange="docToggleKey('${_esc(issue.key)}',this.checked)" onclick="event.stopPropagation()" />
+      return `<div class="doc-issue-row ${selected}" data-key="${escHtml(issue.key)}" onclick="docRowClick(event,'${escHtml(issue.key)}')">
+        <input type="checkbox" ${checked} onchange="docToggleKey('${escHtml(issue.key)}',this.checked)" onclick="event.stopPropagation()" />
         <div class="doc-issue-body">
           <div class="doc-issue-top">
-            <span class="doc-issue-key">${_esc(issue.key)}</span>
-            <span class="doc-type-badge ${typeClass}">${_esc(issue.issuetype)}</span>
-            <span class="doc-status-badge ${statusClass}">${_esc(issue.status)}</span>
+            <span class="doc-issue-key">${escHtml(issue.key)}</span>
+            <span class="doc-type-badge ${typeClass}">${escHtml(issue.issuetype)}</span>
+            <span class="doc-status-badge ${statusClass}">${escHtml(issue.status)}</span>
             ${issue.localExists ? '<span class="doc-local-badge" title="Already imported locally">✓ Local</span>' : ''}
           </div>
-          <div class="doc-issue-title" title="${_esc(issue.summary)}">${_esc(issue.summary)}</div>
+          <div class="doc-issue-title" title="${escHtml(issue.summary)}">${escHtml(issue.summary)}</div>
         </div>
       </div>`;
     })
@@ -581,7 +581,7 @@ function _renderDiffHtml(s: ConfluenceSuggestion): string {
       const cls =
         line.type === 'add' ? 'diff-add' : line.type === 'remove' ? 'diff-remove' : 'diff-context';
       const marker = line.type === 'add' ? '+' : line.type === 'remove' ? '−' : ' ';
-      return `<div class="diff-line ${cls}"><span class="diff-marker">${marker}</span><span class="diff-text">${_esc(line.text)}</span></div>`;
+      return `<div class="diff-line ${cls}"><span class="diff-marker">${marker}</span><span class="diff-text">${escHtml(line.text)}</span></div>`;
     })
     .join('');
 }
@@ -602,11 +602,11 @@ function _renderSuggestionRow(s: ConfluenceSuggestion, index: number): string {
       <input type="checkbox" ${checked} onclick="event.stopPropagation()" onchange="toggleSuggestionCheck(${index},this.checked)" />
       <div class="doc-suggestion-body">
         <div class="doc-suggestion-top">
-          <span class="doc-suggestion-title">${_esc(s.pageTitle)}</span>
-          <span class="doc-action-badge ${actionClass}">${_esc(s.action)}</span>
+          <span class="doc-suggestion-title">${escHtml(s.pageTitle)}</span>
+          <span class="doc-action-badge ${actionClass}">${escHtml(s.action)}</span>
           <span class="doc-suggestion-status" data-index="${index}"></span>
         </div>
-        <div class="doc-suggestion-path">${_esc(s.hierarchyPath)}</div>
+        <div class="doc-suggestion-path">${escHtml(s.hierarchyPath)}</div>
         <div class="doc-suggestion-error-text" data-index="${index}"></div>
       </div>
       <span class="doc-suggestion-chevron">▾</span>
@@ -670,12 +670,4 @@ function _showDocError(err: unknown): void {
   if (titleEl) titleEl.textContent = title;
   if (detailEl) detailEl.textContent = message;
   banner.style.display = '';
-}
-
-function _esc(str: unknown): string {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

@@ -1,5 +1,5 @@
 // ── Bug Dashboard ────────────────────────────────────────────────────────────
-import { streamSSE, renderMarkdown } from './state.js';
+import { streamSSE, renderMarkdown, escHtml } from './state.js';
 
 interface ChartInstance {
   destroy(): void;
@@ -264,13 +264,13 @@ export function renderBugsTable(bugs: BugEntry[]): void {
       const statusClass = _statusClass(b.status);
       const priorityClass = `bugs-priority-${(b.priority || 'medium').toLowerCase()}`;
       const created = b.created ? b.created.slice(0, 10) : '—';
-      return `<tr class="${_selectedKeys.has(b.key) ? 'selected' : ''}" data-key="${_esc(b.key)}">
-        <td><input type="checkbox" ${checked} onchange="bugToggleKey('${_esc(b.key)}',this.checked)" /></td>
-        <td class="bugs-key-cell">${_esc(b.key)}</td>
-        <td class="bugs-summary-cell" title="${_esc(b.summary)}">${_esc(b.summary)}</td>
-        <td><span class="bugs-status-badge ${statusClass}">${_esc(b.status)}</span></td>
-        <td class="${priorityClass}">${_esc(b.priority)}</td>
-        <td>${_esc(b.assignee || '—')}</td>
+      return `<tr class="${_selectedKeys.has(b.key) ? 'selected' : ''}" data-key="${escHtml(b.key)}">
+        <td><input type="checkbox" ${checked} onchange="bugToggleKey('${escHtml(b.key)}',this.checked)" /></td>
+        <td class="bugs-key-cell">${escHtml(b.key)}</td>
+        <td class="bugs-summary-cell" title="${escHtml(b.summary)}">${escHtml(b.summary)}</td>
+        <td><span class="bugs-status-badge ${statusClass}">${escHtml(b.status)}</span></td>
+        <td class="${priorityClass}">${escHtml(b.priority)}</td>
+        <td>${escHtml(b.assignee || '—')}</td>
         <td>${created}</td>
       </tr>`;
     })
@@ -350,13 +350,13 @@ export async function analyzeBugs(): Promise<void> {
           if (btn) btn.disabled = false;
         },
         onError: (err: Error) => {
-          body.innerHTML = `<p class="bugs-error">Analysis failed: ${_esc(err.message)}</p>`;
+          body.innerHTML = `<p class="bugs-error">Analysis failed: ${escHtml(err.message)}</p>`;
           if (btn) btn.disabled = false;
         },
       }
     );
   } catch (err) {
-    body.innerHTML = `<p class="bugs-error">Analysis failed: ${_esc((err as Error).message || String(err))}</p>`;
+    body.innerHTML = `<p class="bugs-error">Analysis failed: ${escHtml((err as Error).message || String(err))}</p>`;
     if (btn) btn.disabled = false;
   }
 }
@@ -412,14 +412,6 @@ function _showError(err: unknown): void {
 function _statusClass(status: string): string {
   const s = (status || '').toLowerCase().replace(/\s+/g, '-');
   return `bugs-status-${s}`;
-}
-
-function _esc(str: unknown): string {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function _syncRowHighlight(key: string, selected: boolean): void {

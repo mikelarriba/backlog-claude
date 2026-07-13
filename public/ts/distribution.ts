@@ -1,5 +1,5 @@
 // ── Sprint Distribution Engine ─────────────────────────────────
-import { postJSON, escHtml, showJiraToast, TYPE_LABEL } from './state.js';
+import { postJSON, escHtml, showJiraToast, TYPE_LABEL, openModal, closeModal } from './state.js';
 
 interface DistributionItem {
   filename: string;
@@ -34,7 +34,6 @@ let _distributionData: DistributionData | null = null;
 
 export async function openDistributionModal(piName: string): Promise<void> {
   if (!piName) return;
-  const overlay = document.getElementById('distribution-overlay') as HTMLElement;
   const body = document.getElementById('distribution-body') as HTMLElement;
   const msgs = document.getElementById('distribution-messages') as HTMLElement;
   const applyBtn = document.getElementById('distribution-apply-btn') as HTMLButtonElement;
@@ -45,7 +44,7 @@ export async function openDistributionModal(piName: string): Promise<void> {
     '<div class="distribution-loading"><div class="spinner"></div> Calculating distribution…</div>';
   msgs.innerHTML = '';
   applyBtn.disabled = true;
-  overlay.classList.add('show');
+  openModal('distribution-overlay');
 
   try {
     const data = (await postJSON('/api/docs/distribute', { piName })) as DistributionData;
@@ -230,6 +229,6 @@ export async function applyDistribution(): Promise<void> {
 }
 
 export function closeDistributionModal(): void {
-  (document.getElementById('distribution-overlay') as HTMLElement).classList.remove('show');
+  closeModal('distribution-overlay');
   _distributionData = null;
 }

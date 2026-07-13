@@ -1,5 +1,5 @@
 // ── PI Sprint Configuration ────────────────────────────────────
-import { fetchJSON, putJSON, escHtml, toggleSection, showJiraToast } from './state.js';
+import { fetchJSON, putJSON, escHtml, toggleSection, showJiraToast, openModal, closeModal } from './state.js';
 import { refreshRoadmapView } from './roadmap.js';
 import { showJiraSelectModal, performJiraPull } from './jira-import.js';
 import type { PISettings } from './state.js';
@@ -306,7 +306,7 @@ function renderJiraImportOffer(): void {
         <button class="pi-config-jira-banner-btn" onclick="skipJiraSprintImport()">Skip</button>
       </div>
     </div>`;
-  el.classList.add('show');
+  openModal('pi-config-jira-banner');
 }
 
 function renderJiraImportConfirmation(count: number): void {
@@ -317,7 +317,7 @@ function renderJiraImportConfirmation(count: number): void {
       <span class="pi-config-jira-banner-text">Found ${count} sprint${count !== 1 ? 's' : ''} — they will be added with default capacity (${JIRA_IMPORT_DEFAULT_CAPACITY} SP).</span>
       <button class="pi-config-jira-banner-dismiss" onclick="dismissJiraImportBanner()" title="Dismiss" aria-label="Dismiss">&times;</button>
     </div>`;
-  el.classList.add('show');
+  openModal('pi-config-jira-banner');
 }
 
 function renderJiraImportHint(): void {
@@ -327,14 +327,14 @@ function renderJiraImportHint(): void {
     <div class="pi-config-jira-banner-inner hint">
       <span class="pi-config-jira-banner-text">Add sprints manually using the grid below.</span>
     </div>`;
-  el.classList.add('show');
+  openModal('pi-config-jira-banner');
 }
 
 function hideJiraImportBanner(): void {
   const el = _jiraImportBannerEl();
   if (!el) return;
   el.innerHTML = '';
-  el.classList.remove('show');
+  closeModal('pi-config-jira-banner');
 }
 
 export function confirmJiraSprintImport(): void {

@@ -3,7 +3,7 @@
 // JIRA sprints into the local backlog. Both are modal-driven flows that
 // stream SSE progress from the server via raw fetch (not the shared
 // fetchJSON/postJSON helpers, which only handle single JSON responses).
-import { escHtml, postJSON, showJiraToast, getErrorMessage } from './state.js';
+import { escHtml, postJSON, showJiraToast, getErrorMessage, openModal, closeModal } from './state.js';
 import type { SprintConfig } from './state.js';
 import { loadDocs } from './list.js';
 import type { RoadmapSprint } from './roadmap.js';
@@ -74,7 +74,7 @@ export function openSprintPushModal(): void {
   // Populate sprint checkboxes from all PIs
   _populateSprintSelector();
 
-  document.getElementById('sprint-push-overlay')!.classList.add('show');
+  openModal('sprint-push-overlay');
 }
 
 function _populateSprintSelector(): void {
@@ -204,7 +204,7 @@ export async function startSprintPushPreview(): Promise<void> {
 }
 
 export function closeSprintPushModal(): void {
-  document.getElementById('sprint-push-overlay')!.classList.remove('show');
+  closeModal('sprint-push-overlay');
 }
 
 function showSprintPushError(msg: string): void {
@@ -276,21 +276,15 @@ function renderSprintPushPreview(preview: { changes?: SprintPushChange[] }): voi
              data-filename="${c.filename || ''}" data-target-sprint="${c.targetSprint || ''}"
              data-doc-type="${c.docType || ''}"
              onchange="_sprintPushUpdateCount()">
-      <span class="sprint-push-item-title" title="${_escHtml(c.title)}">${_escHtml(c.title)}</span>
-      <span class="sprint-push-item-key">${_escHtml(c.jiraId)}</span>
-      <span class="sprint-push-item-arrow">${_escHtml(arrow)}</span>
-      <span class="sprint-push-badge sprint-push-badge-${c.changeType}">${_escHtml(badgeLabel)}</span>
+      <span class="sprint-push-item-title" title="${escHtml(c.title)}">${escHtml(c.title)}</span>
+      <span class="sprint-push-item-key">${escHtml(c.jiraId)}</span>
+      <span class="sprint-push-item-arrow">${escHtml(arrow)}</span>
+      <span class="sprint-push-badge sprint-push-badge-${c.changeType}">${escHtml(badgeLabel)}</span>
     `;
     list.appendChild(row);
   }
 
   _sprintPushUpdateCount();
-}
-
-function _escHtml(s: string | null | undefined): string {
-  const d = document.createElement('div');
-  d.textContent = s || '';
-  return d.innerHTML;
 }
 
 export function toggleSprintPushFilter(type: string): void {
@@ -410,11 +404,11 @@ export function pullFromJiraSprints(): void {
     }
   }
   list.innerHTML = html;
-  overlay.classList.add('show');
+  openModal('pull-sprint-overlay');
 }
 
 export function closePullSprintModal(): void {
-  document.getElementById('pull-sprint-overlay')!.classList.remove('show');
+  closeModal('pull-sprint-overlay');
 }
 
 export function pullSprintToggleAll(checked: boolean): void {

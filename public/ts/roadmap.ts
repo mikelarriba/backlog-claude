@@ -1,5 +1,5 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
-import { escHtml, postJSON, showJiraToast, fetchJSON, getErrorMessage } from './state.js';
+import { escHtml, postJSON, showJiraToast, fetchJSON, getErrorMessage, openModal, closeModal } from './state.js';
 import type { SprintConfig } from './state.js';
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
@@ -191,7 +191,7 @@ export async function openDepModal(filename: string, docType: string): Promise<v
   document.getElementById('dep-blocks-list')!.innerHTML = '<div class="dep-loading">Loading…</div>';
   document.getElementById('dep-blockedby-list')!.innerHTML = '';
 
-  document.getElementById('dep-overlay')!.classList.add('show');
+  openModal('dep-overlay');
 
   try {
     const data = (await fetchJSON(
@@ -408,7 +408,7 @@ export async function removeDepLink(
 }
 
 export function closeDepModal(): void {
-  document.getElementById('dep-overlay')!.classList.remove('show');
+  closeModal('dep-overlay');
   _depModalFilename = null;
   _depModalDocType = null;
 }
@@ -458,11 +458,11 @@ export function openSplitModal(
   applyBtn.disabled = false;
   applyBtn.textContent = 'Split with AI';
 
-  document.getElementById('split-overlay')!.classList.add('show');
+  openModal('split-overlay');
 }
 
 export function closeSplitModal(): void {
-  document.getElementById('split-overlay')!.classList.remove('show');
+  closeModal('split-overlay');
   _splitModalFilename = null;
   _splitModalDocType = null;
 }

@@ -10,6 +10,8 @@ import {
   toggleSection,
   TYPE_LABEL,
   renderMarkdown,
+  openModal,
+  closeModal,
 } from './state.js';
 import type { DocEntry } from './state.js';
 import { upsertDoc } from './store.js';
@@ -314,11 +316,11 @@ export async function confirmDelete(): Promise<void> {
   // Simple delete for leaf items or if children fetch failed
   (document.getElementById('delete-msg') as HTMLElement).textContent =
     `Delete "${currentFilename}"? This will permanently remove the file and cannot be undone.`;
-  document.getElementById('delete-overlay')!.classList.add('show');
+  openModal('delete-overlay');
 }
 
 export function closeDeleteDialog(): void {
-  document.getElementById('delete-overlay')!.classList.remove('show');
+  closeModal('delete-overlay');
   const btn = document.getElementById('confirm-delete-btn') as HTMLButtonElement;
   btn.disabled = false;
   btn.textContent = 'Delete';
