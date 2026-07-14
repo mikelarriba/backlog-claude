@@ -165,7 +165,9 @@ async function _fetchAndRender(extraParams, preSelectAll) {
     }
     _currentPage = 1;
     renderIssuesList(_allIssues);
-    if (!_allIssues.length) _setPlaceholderVisible(true);
+    // Placeholder is the "before any search" state; after a search with 0
+    // results the list renders its own empty-state message instead.
+    _setPlaceholderVisible(false);
   } catch (err) {
     if (seq !== _searchSeq) return;
     _showDocError(err);
@@ -179,7 +181,7 @@ export function renderIssuesList(issues) {
   const pagerEl = document.getElementById('doc-pagination');
   if (!listEl) return;
   if (!issues.length) {
-    listEl.innerHTML = '';
+    listEl.innerHTML = '<p class="doc-empty">No JIRA issues match the current filters.</p>';
     if (pagerEl) pagerEl.innerHTML = '';
     _updateSelectionCount();
     return;
