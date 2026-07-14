@@ -256,6 +256,10 @@ import {
   deselectAllSuggestions,
   modifyDocumentation,
   undoChanges,
+  setDocMode,
+  docSearch,
+  docSetSprint,
+  docSetFixVersionBulk,
 } from './documentation.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -1116,6 +1120,10 @@ const _dynGlobals = {
   bugToggleKey,
   bugToggleAll,
   // documentation.ts
+  setDocMode,
+  docSearch,
+  docSetSprint,
+  docSetFixVersionBulk,
   docRowClick,
   docToggleKey,
   docSetPage,

@@ -1,31 +1,61 @@
-// ── Documentation panel: JIRA issue filter & selector ───────────────────────
-// Lets the user search/filter JIRA issues (free text, fix version, issue type),
-// multi-select from a paginated results list, then hand the selection off to
-// an "Ask AI" action, which POSTs to /api/confluence/analyze (see #371) and
-// renders the returned suggestions (see the "AI Analysis Results" section
-// below, #372).
+// ── Documentation panel: mode-based JIRA issue selector ─────────────────────
+// Three-tab UI introduced in #384/#386:
+//   • By Sprint — loads all issues for a sprint, pre-selects all
+//   • By Fix Version — loads all issues for a version, pre-selects all
+//   • Search Issues — explicit trigger (Enter or Search button), no pre-select
+// Issues are handed off to "Ask AI" → POST /api/confluence/analyze (#371)
+// which returns suggestions rendered as a diff view (#372), then executed
+// via POST /api/confluence/execute (#374) with a 60-second undo window.
 import { fetchJSON, postJSON, showJiraToast, escHtml } from './state.js';
 import { logAiSaving } from './ai-savings.js';
 const PAGE_SIZE = 20;
-const SEARCH_DEBOUNCE_MS = 300;
 let _allIssues = [];
 const _selectedKeys = new Set();
 let _searchText = '';
 let _typeFilter = 'all';
-let _fixVersionFilter = '';
 let _versions = [];
 let _versionsLoaded = false;
+let _sprints = [];
+let _sprintsLoaded = false;
+let _currentMode = 'sprint';
 let _currentPage = 1;
-let _debounceTimer;
 let _searchSeq = 0;
 // ── Init ─────────────────────────────────────────────────────────────────────
 export async function loadDocumentationView() {
-  if (!_versionsLoaded) {
-    await loadDocVersions();
-  }
-  await searchDocumentationIssues();
+  _allIssues = [];
+  _selectedKeys.clear();
+  _currentMode = 'sprint';
+  _currentPage = 1;
+  _clearIssuesList();
+  _setPlaceholderVisible(true);
+  _updateSelectionCount();
+  // Show loading while we hydrate the two dropdowns
+  const loadingEl = document.getElementById('doc-loading');
+  if (loadingEl) loadingEl.style.display = '';
+  await Promise.all([
+    _sprintsLoaded ? Promise.resolve() : _loadDocSprints(),
+    _versionsLoaded ? Promise.resolve() : _loadDocVersions(),
+  ]);
+  if (loadingEl) loadingEl.style.display = 'none';
 }
-async function loadDocVersions() {
+async function _loadDocSprints() {
+  const select = document.getElementById('doc-sprint-select');
+  try {
+    const data = await fetchJSON('/api/jira/board-sprints');
+    _sprints = data.sprints || [];
+    _sprintsLoaded = true;
+  } catch {
+    _sprints = [];
+  }
+  if (select) {
+    select.innerHTML =
+      '<option value="">Select a sprint\u2026</option>' +
+      _sprints
+        .map((s) => `<option value="${escHtml(s.name)}">${escHtml(s.name)}</option>`)
+        .join('');
+  }
+}
+async function _loadDocVersions() {
   const select = document.getElementById('doc-filter-version');
   try {
     const data = await fetchJSON('/api/jira/versions');
@@ -35,22 +65,63 @@ async function loadDocVersions() {
     _versions = [];
   }
   if (select) {
-    const current = select.value;
     select.innerHTML =
-      '<option value="">All fix versions</option>' +
+      '<option value="">Select a fix version\u2026</option>' +
       _versions
         .map((v) => `<option value="${escHtml(v.name)}">${escHtml(v.name)}</option>`)
         .join('');
-    select.value = current;
   }
 }
-// ── Search ───────────────────────────────────────────────────────────────────
+// ── Mode switching ────────────────────────────────────────────────────────────
+export function setDocMode(mode) {
+  if (_selectedKeys.size > 0) {
+    const ok = window.confirm('Switching modes will clear your current selection. Continue?');
+    if (!ok) return;
+  }
+  _currentMode = mode;
+  _allIssues = [];
+  _selectedKeys.clear();
+  document.querySelectorAll('.doc-mode-tab').forEach((el) => {
+    el.classList.toggle('active', el.dataset.mode === mode);
+  });
+  document.querySelectorAll('.doc-mode-panel').forEach((el) => {
+    el.classList.toggle('active', el.id === `doc-mode-${mode}`);
+  });
+  _clearIssuesList();
+  _setPlaceholderVisible(true);
+  _updateSelectionCount();
+}
+// ── Sprint mode ───────────────────────────────────────────────────────────────
+export function docSetSprint(value) {
+  if (!value) {
+    _clearIssuesList();
+    _setPlaceholderVisible(true);
+    return;
+  }
+  void _fetchAndRender({ sprint: value }, true);
+}
+// ── Fix Version mode ──────────────────────────────────────────────────────────
+export function docSetFixVersionBulk(value) {
+  if (!value) {
+    _clearIssuesList();
+    _setPlaceholderVisible(true);
+    return;
+  }
+  void _fetchAndRender({ fixVersion: value }, true);
+}
+// Backwards-compat alias kept for the main.ts import — no longer wired to HTML
+export function docSetFixVersion(value) {
+  docSetFixVersionBulk(value);
+}
+// ── Search mode ───────────────────────────────────────────────────────────────
+export function docSearch() {
+  const params = { type: _typeFilter };
+  if (_searchText.trim()) params.text = _searchText.trim();
+  void _fetchAndRender(params, false);
+}
 export function docFilterInput(value) {
   _searchText = value;
-  if (_debounceTimer) clearTimeout(_debounceTimer);
-  _debounceTimer = setTimeout(() => {
-    void searchDocumentationIssues();
-  }, SEARCH_DEBOUNCE_MS);
+  // No auto-search — user must click Search or press Enter
 }
 export function docSetTypeFilter(type) {
   if (_typeFilter === type) return;
@@ -58,30 +129,43 @@ export function docSetTypeFilter(type) {
   document.querySelectorAll('.doc-chip').forEach((el) => {
     el.classList.toggle('active', el.dataset.type === type);
   });
-  void searchDocumentationIssues();
+  // No auto-search in the new design — user triggers explicitly
 }
-export function docSetFixVersion(value) {
-  _fixVersionFilter = value;
-  void searchDocumentationIssues();
-}
+// ── Retry (error-banner "Retry" button) ───────────────────────────────────────
 export async function searchDocumentationIssues() {
+  if (_currentMode === 'sprint') {
+    const select = document.getElementById('doc-sprint-select');
+    const value = select?.value ?? '';
+    if (value) void _fetchAndRender({ sprint: value }, true);
+  } else if (_currentMode === 'fixversion') {
+    const select = document.getElementById('doc-filter-version');
+    const value = select?.value ?? '';
+    if (value) void _fetchAndRender({ fixVersion: value }, true);
+  } else {
+    docSearch();
+  }
+}
+// ── Shared fetch + render ─────────────────────────────────────────────────────
+async function _fetchAndRender(extraParams, preSelectAll) {
   const seq = ++_searchSeq;
   const loadingEl = document.getElementById('doc-loading');
   const errorEl = document.getElementById('doc-error-banner');
-  const listEl = document.getElementById('doc-issues-list');
+  _clearIssuesList();
+  _setPlaceholderVisible(false);
   if (loadingEl) loadingEl.style.display = '';
   if (errorEl) errorEl.style.display = 'none';
-  if (listEl) listEl.innerHTML = '';
   try {
-    const params = new URLSearchParams({ type: _typeFilter });
-    if (_searchText.trim()) params.set('text', _searchText.trim());
-    if (_fixVersionFilter) params.set('fixVersion', _fixVersionFilter);
+    const params = new URLSearchParams(extraParams);
     const data = await fetchJSON(`/api/jira/search?${params}`);
-    // A slower, earlier request could resolve after a newer one — ignore it.
     if (seq !== _searchSeq) return;
     _allIssues = data.issues || [];
+    _selectedKeys.clear();
+    if (preSelectAll) {
+      _allIssues.forEach((i) => _selectedKeys.add(i.key));
+    }
     _currentPage = 1;
     renderIssuesList(_allIssues);
+    if (!_allIssues.length) _setPlaceholderVisible(true);
   } catch (err) {
     if (seq !== _searchSeq) return;
     _showDocError(err);
@@ -95,12 +179,7 @@ export function renderIssuesList(issues) {
   const pagerEl = document.getElementById('doc-pagination');
   if (!listEl) return;
   if (!issues.length) {
-    listEl.innerHTML = `
-      <div class="empty-state-v2">
-        <div class="empty-icon">🔍</div>
-        <p class="empty-title">No items match your filter</p>
-        <p class="empty-body">Try adjusting the type filters or search term above.</p>
-      </div>`;
+    listEl.innerHTML = '';
     if (pagerEl) pagerEl.innerHTML = '';
     _updateSelectionCount();
     return;
@@ -165,10 +244,44 @@ function _updateSelectionCount() {
   const countEl = document.getElementById('doc-selection-count');
   const askBtn = document.getElementById('doc-ask-ai-btn');
   const count = _selectedKeys.size;
+  const total = _allIssues.length;
   if (countEl) {
-    countEl.textContent = count > 0 ? `${count} of ${_allIssues.length} selected` : '';
+    if (count === 0 || total === 0) {
+      countEl.textContent = '';
+    } else if (count === total) {
+      countEl.textContent = `${total} issues loaded \u2014 all selected`;
+    } else {
+      countEl.textContent = `${count} of ${total} selected`;
+    }
   }
   if (askBtn) askBtn.disabled = count === 0;
+}
+// ── Private helpers ───────────────────────────────────────────────────────────
+function _clearIssuesList() {
+  const listEl = document.getElementById('doc-issues-list');
+  const pagerEl = document.getElementById('doc-pagination');
+  if (listEl) listEl.innerHTML = '';
+  if (pagerEl) pagerEl.innerHTML = '';
+}
+function _setPlaceholderVisible(visible) {
+  const el = document.getElementById('doc-placeholder');
+  if (el) el.style.display = visible ? '' : 'none';
+}
+function _showDocError(err) {
+  const banner = document.getElementById('doc-error-banner');
+  const detailEl = document.getElementById('doc-error-detail');
+  const titleEl = document.getElementById('doc-error-title');
+  if (!banner) return;
+  const message = err?.message || String(err);
+  let title = 'Failed to load JIRA issues';
+  if (message.includes('JIRA_NOT_CONFIGURED') || message.includes('JIRA_API_TOKEN')) {
+    title = 'JIRA not connected';
+  } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+    title = 'Network error';
+  }
+  if (titleEl) titleEl.textContent = title;
+  if (detailEl) detailEl.textContent = message;
+  banner.style.display = '';
 }
 // ── Ask AI ───────────────────────────────────────────────────────────────────
 export async function askAI() {
@@ -197,9 +310,6 @@ export async function askAI() {
     if (loadingEl) loadingEl.style.display = 'none';
   }
 }
-// Above this many (current-lines × proposed-lines) cells, the O(n*m) LCS
-// table would get too large to build cheaply in a browser tab — fall back to
-// a naive "all removed, then all added" diff instead of true LCS.
 const LCS_CELL_LIMIT = 250000;
 let _suggestions = [];
 const _selectedSuggestionIndexes = new Set();
@@ -251,7 +361,6 @@ async function executeChanges() {
   if (_selectedSuggestionIndexes.size === 0) return;
   const modifyBtn = document.getElementById('doc-modify-btn');
   if (modifyBtn) modifyBtn.disabled = true;
-  // A fresh execute run supersedes any previous undo window.
   _hideUndoButton();
   const selectedIndexes = [..._selectedSuggestionIndexes];
   const selectedSuggestions = selectedIndexes.map((i) => _suggestions[i]);
@@ -276,10 +385,6 @@ async function executeChanges() {
     const successCount = results.filter((r) => r.success).length;
     if (successCount) void logAiSaving('doc_confluence_modify', successCount);
   } catch (err) {
-    // The whole request failed (network error, or execute itself rejected
-    // e.g. 503 CONFLUENCE_NOT_CONFIGURED / 400 validation) — nothing was
-    // attempted, so reset the rows to pending rather than marking them
-    // individually failed, and surface a banner instead.
     selectedIndexes.forEach((i) => _setSuggestionStatus(i, 'pending'));
     _showResultsError(err, 'Modify Documentation failed');
   }
@@ -295,7 +400,7 @@ export async function undoChanges() {
   if (btn) {
     btn.disabled = true;
     btn.classList.add('doc-undo-btn-loading');
-    btn.textContent = 'Undoing…';
+    btn.textContent = 'Undoing\u2026';
   }
   try {
     await postJSON(`/api/confluence/undo/${encodeURIComponent(snapshotId)}`, {});
@@ -309,9 +414,6 @@ export async function undoChanges() {
       _hideUndoButton();
     } else {
       showJiraToast('error', `Undo failed: ${message}`);
-      // The snapshot may still be valid server-side — re-enable the button
-      // and resume the countdown from where it left off rather than losing
-      // the undo window on a transient error.
       if (btn) {
         btn.disabled = false;
         btn.classList.remove('doc-undo-btn-loading');
@@ -345,7 +447,7 @@ function _hideUndoButton() {
     btn.style.display = 'none';
     btn.disabled = false;
     btn.classList.remove('doc-undo-btn-loading');
-    btn.textContent = '↩ Undo all changes';
+    btn.textContent = '\u21a9 Undo all changes';
   }
 }
 function _startUndoCountdownTimer() {
@@ -362,7 +464,7 @@ function _startUndoCountdownTimer() {
 function _updateUndoButtonLabel() {
   const btn = document.getElementById('doc-undo-btn');
   if (!btn) return;
-  btn.textContent = `↩ Undo all changes (${_undoRemainingSeconds}s)`;
+  btn.textContent = `\u21a9 Undo all changes (${_undoRemainingSeconds}s)`;
 }
 function _setSuggestionStatus(index, status, message) {
   const statusEl = document.querySelector(`.doc-suggestion-status[data-index="${index}"]`);
@@ -378,11 +480,6 @@ function _setSuggestionStatus(index, status, message) {
   }
 }
 // ── Diff rendering ───────────────────────────────────────────────────────────
-// No diff library exists in this codebase's dependencies (and adding one is
-// out of scope for #372), so this is a small self-contained LCS-based line
-// diff: lines common to both sides (in order) are context, lines only in
-// "current" are removed, lines only in "proposed" are added. It doesn't need
-// to be a perfect diff algorithm — just visually correct for review purposes.
 function _computeLineDiff(current, proposed) {
   const a = current.split('\n');
   const b = proposed.split('\n');
@@ -394,7 +491,6 @@ function _computeLineDiff(current, proposed) {
       ...b.map((text) => ({ type: 'add', text })),
     ];
   }
-  // Standard bottom-up LCS length table over lines.
   const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
@@ -443,7 +539,7 @@ function _renderDiffHtml(s) {
     .map((line) => {
       const cls =
         line.type === 'add' ? 'diff-add' : line.type === 'remove' ? 'diff-remove' : 'diff-context';
-      const marker = line.type === 'add' ? '+' : line.type === 'remove' ? '−' : ' ';
+      const marker = line.type === 'add' ? '+' : line.type === 'remove' ? '\u2212' : ' ';
       return `<div class="diff-line ${cls}"><span class="diff-marker">${marker}</span><span class="diff-text">${escHtml(line.text)}</span></div>`;
     })
     .join('');
@@ -470,7 +566,7 @@ function _renderSuggestionRow(s, index) {
         <div class="doc-suggestion-path">${escHtml(s.hierarchyPath)}</div>
         <div class="doc-suggestion-error-text" data-index="${index}"></div>
       </div>
-      <span class="doc-suggestion-chevron">▾</span>
+      <span class="doc-suggestion-chevron">\u25be</span>
     </div>
     <div class="doc-diff-body">
       <div class="doc-diff-inner">
@@ -501,23 +597,6 @@ function _showResultsError(err, defaultTitle = 'AI analysis failed') {
     title = 'Could not fetch selected JIRA issues';
   } else if (message.includes('Confluence') && message.includes('not configured')) {
     title = 'Confluence not configured';
-  } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
-    title = 'Network error';
-  }
-  if (titleEl) titleEl.textContent = title;
-  if (detailEl) detailEl.textContent = message;
-  banner.style.display = '';
-}
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function _showDocError(err) {
-  const banner = document.getElementById('doc-error-banner');
-  const detailEl = document.getElementById('doc-error-detail');
-  const titleEl = document.getElementById('doc-error-title');
-  if (!banner) return;
-  const message = err?.message || String(err);
-  let title = 'Failed to load JIRA issues';
-  if (message.includes('JIRA_NOT_CONFIGURED') || message.includes('JIRA_API_TOKEN')) {
-    title = 'JIRA not configured';
   } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
     title = 'Network error';
   }
