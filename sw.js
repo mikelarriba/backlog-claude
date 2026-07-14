@@ -1,4 +1,4 @@
-const CACHE_NAME = 'midas-backlog-v13';
+const CACHE_NAME = 'midas-backlog-v14';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -14,11 +14,6 @@ self.addEventListener('activate', (event) => {
         Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
       )
       .then(() => self.clients.claim())
-      .then(() =>
-        self.clients
-          .matchAll({ type: 'window' })
-          .then((clients) => clients.forEach((c) => c.navigate(c.url)))
-      )
   );
 });
 
