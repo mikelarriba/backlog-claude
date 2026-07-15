@@ -141,8 +141,10 @@ export function createJiraPushService({
     const jiraId = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
     const summary = extractJiraSummary(content);
     const _bodyOnly = stripFrontmatter(content)
-      .replace(/^#{1,2}\s+.+\n?/, '')
-      .replace(/\n## Comments\b[\s\S]*$/, '')
+      .replace(/^#{1,2}\s+.+\n?/, '') // strip doc title (first h1/h2)
+      .replace(/^#{2,3}\s+Description\s*$/m, '') // strip redundant "Description" heading
+      .replace(/\n#{2,3}\s+Attachments\b[\s\S]*$/, '') // strip Attachments section (files are uploaded separately)
+      .replace(/\n## Comments\b[\s\S]*$/, '') // strip Comments section
       .trim();
     const description = markdownToJira(_bodyOnly);
     const jiraType = LOCAL_TO_JIRA_TYPE[type] || 'Story';
