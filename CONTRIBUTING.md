@@ -15,7 +15,7 @@ npm start              # starts the server on http://localhost:3000
 ## Running tests
 
 ```bash
-npm test               # unit + integration tests (with coverage output)
+npm test               # unit + integration tests
 npm run test:e2e       # Playwright end-to-end tests
 npm run test:bench     # performance benchmarks
 ```

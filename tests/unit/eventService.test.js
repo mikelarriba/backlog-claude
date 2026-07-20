@@ -1,5 +1,5 @@
 // ── Unit tests: src/services/eventService.js ──────────────────────────────────
-import { test, describe } from 'node:test';
+import { test, describe, mock, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createEventService } from '../../src/services/eventService.js';
 import { EventEmitter } from 'node:events';
@@ -13,6 +13,7 @@ function mockClient() {
     write(data) {
       chunks.push(data);
     },
+    end() {},
     chunks,
   };
   return { req, res, chunks };
@@ -81,5 +82,57 @@ describe('createEventService', () => {
     // Should not throw — bad client is silently removed
     assert.doesNotThrow(() => broadcast({ type: 'test' }));
     assert.equal(good.chunks.length, 2); // connected + broadcast
+  });
+
+  // ── Idle-timeout eviction (#425) ──────────────────────────────────────────
+  // The sweep interval used to update lastWriteAt on every heartbeat write
+  // (unconditionally, every 60s) before checking it against the idle
+  // timeout — so `now - lastWriteAt` was always ~0 and eviction could never
+  // trigger. Idle is now measured against the last real broadcast() write.
+  describe('idle-timeout eviction', () => {
+    before(() => {
+      mock.timers.enable({ apis: ['Date', 'setInterval'] });
+    });
+    after(() => {
+      mock.timers.reset();
+    });
+
+    test('evicts a client that has received no broadcast for SSE_IDLE_TIMEOUT_MS', () => {
+      const { handleEvents, broadcast } = createEventService();
+      const idle = mockClient();
+      handleEvents(idle.req, idle.res);
+
+      // Default SSE_IDLE_TIMEOUT_MS is 300_000ms; advance well past it so a
+      // sweep tick (every 60_000ms) runs with the client past the threshold.
+      mock.timers.tick(360_001);
+
+      const chunksBefore = idle.chunks.length;
+      broadcast({ type: 'after_eviction' });
+      assert.equal(
+        idle.chunks.length,
+        chunksBefore,
+        'evicted client should not receive further broadcasts'
+      );
+    });
+
+    test('a client with a recent broadcast is not evicted', () => {
+      const { handleEvents, broadcast } = createEventService();
+      const active = mockClient();
+      handleEvents(active.req, active.res);
+
+      mock.timers.tick(250_000);
+      broadcast({ type: 'keep-alive-activity' }); // resets lastWriteAt for this client
+      // Total elapsed since connect is now 310_000ms (past the idle timeout),
+      // but only 60_000ms since the broadcast above — still well under it.
+      mock.timers.tick(60_000);
+
+      const chunksBefore = active.chunks.length;
+      broadcast({ type: 'still-connected' });
+      assert.equal(
+        active.chunks.length,
+        chunksBefore + 1,
+        'active client should still receive broadcasts'
+      );
+    });
   });
 });

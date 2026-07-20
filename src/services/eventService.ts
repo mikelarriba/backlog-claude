@@ -50,18 +50,21 @@ export function createEventService(): {
 
         const now = Date.now();
         for (const c of sseClients) {
-          // Heartbeat write
-          try {
-            c.res.write(':\n\n');
-            c.lastWriteAt = now;
-          } catch {
-            sseClients.delete(c);
+          // Idle-timeout eviction — based on the last real broadcast() write,
+          // not this heartbeat. Heartbeats fire on every sweep regardless of
+          // application activity, so updating lastWriteAt here would make a
+          // client that's genuinely idle (no broadcasts, e.g. because nobody
+          // else is using the app) never expire.
+          if (now - c.lastWriteAt > SSE_IDLE_TIMEOUT_MS) {
+            removeClient(c);
             continue;
           }
 
-          // Idle-timeout eviction
-          if (now - c.lastWriteAt > SSE_IDLE_TIMEOUT_MS) {
-            removeClient(c);
+          // Heartbeat write (does not count as activity — see above)
+          try {
+            c.res.write(':\n\n');
+          } catch {
+            sseClients.delete(c);
           }
         }
 
