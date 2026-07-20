@@ -37,8 +37,10 @@ export function applyMiddleware(app: Express, rootDir: string): void {
 
   app.use('/api/', apiLimiter);
   app.use('/api/generate', aiLimiter);
-  app.use('/api/upgrade', aiLimiter);
-  app.use('/api/jira/push', jiraLimiter);
+  app.use('/api/doc/:type/:filename/upgrade', aiLimiter);
+  app.use('/api/docs/split-story', aiLimiter);
+  app.use('/api/split-epic', aiLimiter);
+  app.use('/api/jira', jiraLimiter);
 
   app.use(
     '/public/js',

@@ -14,6 +14,8 @@ import {
 } from '../services/jiraSprintService.js';
 import { JIRA_LABEL_TO_TEAM } from '../config/metadata.js';
 import { config } from '../config/env.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import { JiraPushSprintsPreviewSchema, JiraPushSprintsSchema } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraPushSprintsRoutes({
@@ -32,150 +34,161 @@ export default function jiraPushSprintsRoutes({
   const router = Router();
 
   // ── POST /api/jira/push-sprints-preview ── compare local vs JIRA sprint state (SSE) ─
-  router.post('/api/jira/push-sprints-preview', async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN)
-      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-    if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
+  router.post(
+    '/api/jira/push-sprints-preview',
+    validateBody(JiraPushSprintsPreviewSchema),
+    async (req, res) => {
+      if (!process.env.JIRA_API_TOKEN)
+        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+      if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
 
-    setupSSE(res);
-    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      setupSSE(res);
+      const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-    try {
-      const { items = [], selectedSprints = [] } = req.body as {
-        items: Array<{
-          filename: string;
-          sprint: string | null;
-          jiraId: string;
-          title: string;
-          docType: string;
-        }>;
-        selectedSprints: string[];
-      };
+      try {
+        const { items = [], selectedSprints = [] } = req.body as {
+          items: Array<{
+            filename: string;
+            sprint: string | null;
+            jiraId: string;
+            title: string;
+            docType: string;
+          }>;
+          selectedSprints: string[];
+        };
 
-      send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
-      const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
+        send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
+        const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
 
-      // Build name mapping between local sprint names and JIRA sprint names
-      const { localToJira, jiraToLocal } = buildSprintNameMap(selectedSprints, sprintMap);
+        // Build name mapping between local sprint names and JIRA sprint names
+        const { localToJira, jiraToLocal } = buildSprintNameMap(selectedSprints, sprintMap);
 
-      // Resolve selected sprints to JIRA sprint names/IDs
-      const activeSprintMap = new Map<string, number>(); // jiraName → id
-      for (const localName of selectedSprints) {
-        const jiraName = localToJira.get(localName);
-        if (jiraName) {
-          activeSprintMap.set(jiraName, sprintMap.get(jiraName)!);
+        // Resolve selected sprints to JIRA sprint names/IDs
+        const activeSprintMap = new Map<string, number>(); // jiraName → id
+        for (const localName of selectedSprints) {
+          const jiraName = localToJira.get(localName);
+          if (jiraName) {
+            activeSprintMap.set(jiraName, sprintMap.get(jiraName)!);
+          }
         }
-      }
 
-      if (!activeSprintMap.size) {
-        const jiraNames = [...sprintMap.keys()].slice(0, 5).join(', ');
-        send({
-          type: 'error',
-          message: `No matching JIRA sprints found. Local names: ${selectedSprints.join(', ')}. JIRA names on board: ${jiraNames}…`,
-        });
-        res.end();
-        return;
-      }
-
-      // Filter items to those whose local sprint maps to a selected JIRA sprint (or have no sprint)
-      const filteredItems = items.filter((i) => {
-        if (!i.sprint || i.sprint === 'TBD') return true;
-        return localToJira.has(i.sprint);
-      });
-
-      // ── Step 1: Scan selected sprints from the board (parallel, capped at JIRA_CONCURRENCY) ──
-      const sprintEntries = [...activeSprintMap.entries()];
-      const totalSteps = sprintEntries.length;
-      send({
-        type: 'progress',
-        message: `Scanning ${totalSteps} sprint(s) on JIRA board…`,
-        phase: 1,
-        total: totalSteps,
-      });
-
-      const boardScanResults = await pMap(
-        sprintEntries,
-        async ([sprintName, sprintId], idx) => {
-          const localName = jiraToLocal.get(sprintName) || sprintName;
+        if (!activeSprintMap.size) {
+          const jiraNames = [...sprintMap.keys()].slice(0, 5).join(', ');
           send({
-            type: 'progress',
-            message: `Scanning "${localName}" (${idx + 1}/${totalSteps})…`,
-            phase: 1,
-            current: idx + 1,
-            total: totalSteps,
+            type: 'error',
+            message: `No matching JIRA sprints found. Local names: ${selectedSprints.join(', ')}. JIRA names on board: ${jiraNames}…`,
           });
-          try {
-            const issues = await fetchSprintIssuesOnBoard(
-              jiraAgileRequest,
-              JIRA_BOARD_ID,
-              sprintId
-            );
-            return { sprintName, sprintId, issues };
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            logWarn('jira/push', `board scan for "${sprintName}" failed`, { error: msg });
-            send({ type: 'progress', message: `Warning: could not scan "${localName}" — ${msg}` });
-            return { sprintName, sprintId, issues: [] as Array<{ key: string; summary: string }> };
-          }
-        },
-        { concurrency: config.JIRA_CONCURRENCY }
-      );
+          res.end();
+          return;
+        }
 
-      // Map: jiraId → { sprintName (JIRA), sprintId, summary }
-      // Merged sequentially (in original sprint order) so the "first sprint wins"
-      // tie-break for a duplicate issue key matches the old sequential behavior.
-      const jiraSprintMap = new Map<
-        string,
-        { sprintName: string; sprintId: number; summary: string }
-      >();
-      for (const { sprintName, sprintId, issues } of boardScanResults) {
-        for (const iss of issues) {
-          if (!jiraSprintMap.has(iss.key)) {
-            jiraSprintMap.set(iss.key, { sprintName, sprintId, summary: iss.summary });
+        // Filter items to those whose local sprint maps to a selected JIRA sprint (or have no sprint)
+        const filteredItems = items.filter((i) => {
+          if (!i.sprint || i.sprint === 'TBD') return true;
+          return localToJira.has(i.sprint);
+        });
+
+        // ── Step 1: Scan selected sprints from the board (parallel, capped at JIRA_CONCURRENCY) ──
+        const sprintEntries = [...activeSprintMap.entries()];
+        const totalSteps = sprintEntries.length;
+        send({
+          type: 'progress',
+          message: `Scanning ${totalSteps} sprint(s) on JIRA board…`,
+          phase: 1,
+          total: totalSteps,
+        });
+
+        const boardScanResults = await pMap(
+          sprintEntries,
+          async ([sprintName, sprintId], idx) => {
+            const localName = jiraToLocal.get(sprintName) || sprintName;
+            send({
+              type: 'progress',
+              message: `Scanning "${localName}" (${idx + 1}/${totalSteps})…`,
+              phase: 1,
+              current: idx + 1,
+              total: totalSteps,
+            });
+            try {
+              const issues = await fetchSprintIssuesOnBoard(
+                jiraAgileRequest,
+                JIRA_BOARD_ID,
+                sprintId
+              );
+              return { sprintName, sprintId, issues };
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              logWarn('jira/push', `board scan for "${sprintName}" failed`, { error: msg });
+              send({
+                type: 'progress',
+                message: `Warning: could not scan "${localName}" — ${msg}`,
+              });
+              return {
+                sprintName,
+                sprintId,
+                issues: [] as Array<{ key: string; summary: string }>,
+              };
+            }
+          },
+          { concurrency: config.JIRA_CONCURRENCY }
+        );
+
+        // Map: jiraId → { sprintName (JIRA), sprintId, summary }
+        // Merged sequentially (in original sprint order) so the "first sprint wins"
+        // tie-break for a duplicate issue key matches the old sequential behavior.
+        const jiraSprintMap = new Map<
+          string,
+          { sprintName: string; sprintId: number; summary: string }
+        >();
+        for (const { sprintName, sprintId, issues } of boardScanResults) {
+          for (const iss of issues) {
+            if (!jiraSprintMap.has(iss.key)) {
+              jiraSprintMap.set(iss.key, { sprintName, sprintId, summary: iss.summary });
+            }
           }
         }
+
+        // ── Step 2 & 3: Compare local items vs. the JIRA sprint map, and detect
+        // JIRA-only issues not in the local set (pure diff logic — see service). ──
+        send({
+          type: 'progress',
+          message: `Comparing ${filteredItems.length} local items…`,
+          phase: 2,
+          current: totalSteps,
+          total: totalSteps,
+        });
+
+        const { changes, errors, stats } = buildSprintPushPreview({
+          filteredItems,
+          jiraSprintMap,
+          sprintMap,
+          localToJira,
+          jiraToLocal,
+          findByJiraId: (jiraId) => docIndex.findByJiraId(jiraId),
+          getLocalEntry: (filename) => docIndex.get(filename),
+        });
+
+        logInfo(
+          'POST /api/jira/push-sprints-preview',
+          `${stats.adds} add, ${stats.changes} change, ${stats.pulls} pull, ${stats.unchanged} unchanged, ${errors.length} errors`
+        );
+        send({ type: 'result', changes, errors, stats });
+        res.end();
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        logError(
+          'POST /api/jira/push-sprints-preview',
+          apiErr.message,
+          apiErr.details as Record<string, unknown> | undefined
+        );
+        send({ type: 'error', message: apiErr.message });
+        res.end();
       }
-
-      // ── Step 2 & 3: Compare local items vs. the JIRA sprint map, and detect
-      // JIRA-only issues not in the local set (pure diff logic — see service). ──
-      send({
-        type: 'progress',
-        message: `Comparing ${filteredItems.length} local items…`,
-        phase: 2,
-        current: totalSteps,
-        total: totalSteps,
-      });
-
-      const { changes, errors, stats } = buildSprintPushPreview({
-        filteredItems,
-        jiraSprintMap,
-        sprintMap,
-        localToJira,
-        jiraToLocal,
-        findByJiraId: (jiraId) => docIndex.findByJiraId(jiraId),
-        getLocalEntry: (filename) => docIndex.get(filename),
-      });
-
-      logInfo(
-        'POST /api/jira/push-sprints-preview',
-        `${stats.adds} add, ${stats.changes} change, ${stats.pulls} pull, ${stats.unchanged} unchanged, ${errors.length} errors`
-      );
-      send({ type: 'result', changes, errors, stats });
-      res.end();
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/push-sprints-preview',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      send({ type: 'error', message: apiErr.message });
-      res.end();
     }
-  });
+  );
 
   // ── POST /api/jira/push-sprints ── push/pull sprint assignments ─────────────
-  router.post('/api/jira/push-sprints', async (req, res) => {
+  router.post('/api/jira/push-sprints', validateBody(JiraPushSprintsSchema), async (req, res) => {
     if (!process.env.JIRA_API_TOKEN)
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');

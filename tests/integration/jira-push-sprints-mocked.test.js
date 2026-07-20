@@ -230,16 +230,21 @@ Test.
   });
 
   describe('POST /api/jira/push-sprints-preview', () => {
+    // NOTE: storyAFilename/storyEFilename are assigned in the outer before()
+    // hook, which has not run yet when this describe() body executes (describe
+    // callbacks run synchronously at registration time). Use the literal
+    // filenames the outer before() assigns rather than the (still-undefined at
+    // this point) variables.
     const previewItems = [
       {
-        filename: storyAFilename,
+        filename: '2026-01-01-story-a.md',
         sprint: 'Sprint 100',
         jiraId: 'EAMDM-1',
         title: 'Story A',
         docType: 'story',
       },
       {
-        filename: storyEFilename,
+        filename: '2026-01-01-story-e.md',
         sprint: 'Sprint 200',
         jiraId: 'EAMDM-5',
         title: 'Story E',
@@ -325,7 +330,7 @@ Test.
 
     test('returns an error event when no local sprint names match any JIRA sprint', async () => {
       const { events } = await ssePost(baseUrl, '/api/jira/push-sprints-preview', {
-        items: [],
+        items: previewItems,
         selectedSprints: ['Nonexistent Sprint'],
       });
       const errEvent = events.find((e) => e.type === 'error');

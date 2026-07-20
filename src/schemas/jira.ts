@@ -19,9 +19,22 @@ export const JiraPushPreviewSchema = z
   })
   .openapi('JiraPushPreview');
 
+const JiraSprintPreviewItemSchema = z
+  .object({
+    filename: z.string().min(1).openapi({ description: 'Document filename' }),
+    sprint: z.string().nullable().openapi({ description: 'Local sprint name, or null' }),
+    jiraId: z.string().openapi({ description: 'JIRA issue key, or empty if not yet pushed' }),
+    title: z.string().openapi({ description: 'Local document title' }),
+    docType: z.string().min(1).openapi({ description: 'Document type' }),
+  })
+  .openapi('JiraSprintPreviewItem');
+
 export const JiraPushSprintsPreviewSchema = z
   .object({
-    items: z.array(JiraItemSchema).min(1).openapi({ description: 'Items to push sprint data for' }),
+    items: z
+      .array(JiraSprintPreviewItemSchema)
+      .min(1)
+      .openapi({ description: 'Items to push sprint data for' }),
     selectedSprints: z
       .array(z.string())
       .optional()
@@ -29,10 +42,26 @@ export const JiraPushSprintsPreviewSchema = z
   })
   .openapi('JiraPushSprintsPreview');
 
+const JiraSprintPushItemSchema = z
+  .object({
+    filename: z.string().min(1).openapi({ description: 'Document filename' }),
+    sprint: z.string().nullable().openapi({ description: 'Target local sprint name, or null' }),
+    changeType: z.string().min(1).openapi({ description: 'One of "push", "pull", or "remove"' }),
+    jiraId: z
+      .string()
+      .optional()
+      .openapi({ description: 'JIRA issue key (resolved from the index if omitted)' }),
+    docType: z
+      .string()
+      .optional()
+      .openapi({ description: 'Document type (resolved from the index if omitted)' }),
+  })
+  .openapi('JiraSprintPushItem');
+
 export const JiraPushSprintsSchema = z
   .object({
     items: z
-      .array(JiraItemSchema)
+      .array(JiraSprintPushItemSchema)
       .min(1)
       .openapi({ description: 'Items to push sprint assignments for' }),
   })

@@ -2,13 +2,15 @@
 // Handles POST /api/jira/push-rank — syncs local rank order to JIRA backlog.
 import { Router } from 'express';
 import { sendError, parseApiError } from '../utils/routeHelpers.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import { JiraPushRankSchema } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraPushRankRoutes({ jiraRequest, logInfo, logError }: JiraRouteContext) {
   const router = Router();
 
   // ── POST /api/jira/push-rank ── sync local rank order to JIRA backlog ────────
-  router.post('/api/jira/push-rank', async (req, res) => {
+  router.post('/api/jira/push-rank', validateBody(JiraPushRankSchema), async (req, res) => {
     if (!process.env.JIRA_API_TOKEN)
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     try {

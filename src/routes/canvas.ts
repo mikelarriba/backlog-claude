@@ -10,17 +10,21 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
 
   const CANVAS_LAYOUT_PATH = path.join(rootDir, '.canvas-layout.json');
 
+  // Null-prototype object: an epicFilename of "__proto__" then becomes a plain
+  // own property instead of reassigning this object's prototype chain.
   async function loadLayout(): Promise<Record<string, unknown>> {
     try {
-      if (fs.existsSync(CANVAS_LAYOUT_PATH))
-        return JSON.parse(await fs.promises.readFile(CANVAS_LAYOUT_PATH, 'utf-8'));
+      if (fs.existsSync(CANVAS_LAYOUT_PATH)) {
+        const parsed = JSON.parse(await fs.promises.readFile(CANVAS_LAYOUT_PATH, 'utf-8'));
+        return Object.assign(Object.create(null), parsed);
+      }
     } catch (err) {
       logInfo(
         'canvas',
         `canvas layout file unreadable, using empty layout: ${err instanceof Error ? err.message : String(err)}`
       );
     }
-    return {};
+    return Object.create(null);
   }
 
   async function saveLayout(data: Record<string, unknown>) {

@@ -260,14 +260,15 @@ describe('POST /api/doc/:type/:filename/upgrade', () => {
     assert.match(data.content, /^Status: Created in JIRA$/m);
   });
 
-  test('streams an SSE error event when feedback is missing', async () => {
-    const { status, events } = await ssePost(
-      `${baseUrl}/api/doc/epic/${encodeURIComponent(epicFilename)}/upgrade`,
+  test('rejects with a plain 400 when feedback is missing (validateBody, not SSE)', async () => {
+    // validateBody(UpgradeDocSchema) runs before setupSSE() is ever called, so a
+    // request with no feedback never enters the SSE stream at all.
+    const { status, data } = await api(
+      'POST',
+      `/api/doc/epic/${encodeURIComponent(epicFilename)}/upgrade`,
       { feedback: '' }
     );
-    assert.equal(status, 200);
-    const errEvent = events.find((e) => e.error);
-    assert.ok(errEvent, 'should receive an SSE error event');
-    assert.equal(errEvent.error.code, 'VALIDATION_ERROR');
+    assert.equal(status, 400);
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 });
