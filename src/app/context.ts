@@ -228,6 +228,7 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
       broadcast: shared.broadcast,
       logInfo,
       logError,
+      docIndex,
     });
   }
 

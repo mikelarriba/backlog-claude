@@ -556,10 +556,13 @@ Test.
     assert.equal(data.jiraStatus, 'In Progress');
     assert.equal(data.storyPoints, 5);
 
-    // Verify frontmatter was updated on disk
+    // Verify frontmatter was updated on disk. Story_Points is written as the
+    // string "5" — patchFrontmatter now quotes number-like scalars (e.g. "'5'")
+    // so js-yaml reads them back as strings rather than numbers, so assert on
+    // the parsed field rather than the raw unquoted text.
     const { data: doc } = await api('GET', `/api/doc/epic/${encodeURIComponent(epicFilename)}`);
     assert.match(doc.content, /^JIRA_Status: In Progress$/m);
-    assert.match(doc.content, /^Story_Points: 5$/m);
+    assert.match(doc.content, /^Story_Points: .?5.?$/m);
   });
 });
 

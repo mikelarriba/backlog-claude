@@ -194,6 +194,7 @@ export default function jiraPushSprintsRoutes({
         return null;
       };
 
+      const touchedFilenames: string[] = [];
       const results = await pMap(
         items as Array<{
           filename: string;
@@ -218,7 +219,7 @@ export default function jiraPushSprintsRoutes({
               const content = await fs.promises.readFile(filepath, 'utf-8');
               const patched = setFrontmatterField(content, 'Sprint', sprint);
               await fs.promises.writeFile(filepath, patched);
-              await docIndex.invalidateAll();
+              touchedFilenames.push(filename);
               broadcast({ type: 'batch_sprint_updated' });
               logInfo(
                 'jira/push-sprints',
@@ -251,6 +252,8 @@ export default function jiraPushSprintsRoutes({
         },
         { concurrency: config.JIRA_CONCURRENCY }
       );
+
+      if (touchedFilenames.length) await docIndex.invalidateMany(touchedFilenames);
 
       res.json({ results });
     } catch (err) {

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import type { BroadcastFn } from '../types.js';
+import type { BroadcastFn, DocIndexInstance } from '../types.js';
 import type { Logger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLog.js';
 import { config } from '../config/env.js';
@@ -16,6 +16,7 @@ interface InboxWatcherOptions {
   broadcast: BroadcastFn;
   logInfo: Logger['logInfo'];
   logError: Logger['logError'];
+  docIndex?: DocIndexInstance;
 }
 
 export function watchInbox({
@@ -29,6 +30,7 @@ export function watchInbox({
   broadcast,
   logInfo,
   logError,
+  docIndex,
 }: InboxWatcherOptions): { close(): void } {
   ensureDir(INBOX_DIR);
   const allDocDirs = DOC_DIRS || [EPICS_DIR];
@@ -82,6 +84,7 @@ export function watchInbox({
 
           ensureDir(EPICS_DIR);
           await fs.promises.writeFile(path.join(EPICS_DIR, filename), epicContent);
+          await docIndex?.invalidate('epic', filename);
           broadcast({ type: 'epic_created', filename });
           logAudit({ op: 'create', docType: 'epic', filename, source: 'inbox' });
           logInfo(

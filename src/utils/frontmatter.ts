@@ -9,6 +9,17 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Render a single `field: value` line, quoting the value if YAML requires it.
+ * Dumps only the value (never the field name) so the field name is always
+ * written verbatim — the regex-based field lookup elsewhere in this file
+ * matches on an unquoted `field:` prefix.
+ */
+function formatFrontmatterLine(field: string, value: string): string {
+  const dumpedValue = jsYaml.dump(value, { lineWidth: -1 }).trimEnd();
+  return `${field}: ${dumpedValue}`;
+}
+
 /** Split document into parsed metadata and body text. */
 export function parseFrontmatter(content: string): { meta: Record<string, string>; body: string } {
   const lines = content.split('\n');
@@ -47,27 +58,28 @@ export function patchFrontmatter(content: string, field: string, value: string |
     .replace(/[\r\n]/g, ' ')
     .trim();
 
+  const line = formatFrontmatterLine(field, safeValue);
   const lines = content.split('\n');
   if (lines[0].trimEnd() !== FENCE) {
-    return `${FENCE}\n${field}: ${safeValue}\n${FENCE}\n${content}`;
+    return `${FENCE}\n${line}\n${FENCE}\n${content}`;
   }
 
   const closeIdx = lines.indexOf(FENCE, 1);
   if (closeIdx === -1) {
-    lines.splice(1, 0, `${field}: ${safeValue}`);
+    lines.splice(1, 0, line);
     return lines.join('\n');
   }
 
   const fieldRe = new RegExp(`^${escapeRegex(field)}:\\s*`);
   for (let i = 1; i < closeIdx; i++) {
     if (fieldRe.test(lines[i])) {
-      lines[i] = `${field}: ${safeValue}`;
+      lines[i] = line;
       return lines.join('\n');
     }
   }
 
   // Field not present — insert right after the opening fence
-  lines.splice(1, 0, `${field}: ${safeValue}`);
+  lines.splice(1, 0, line);
   return lines.join('\n');
 }
 

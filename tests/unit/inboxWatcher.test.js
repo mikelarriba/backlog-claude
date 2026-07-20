@@ -107,4 +107,23 @@ describe('inboxWatcher retry', () => {
 
     assert.ok(opts.broadcasts.some((e) => e.type === 'inbox-error' && e.filename === filename));
   });
+
+  test('invalidates the doc index after writing the new epic', async () => {
+    const filename = 'test-index-invalidate.md';
+    fs.writeFileSync(path.join(inboxDir, filename), '# Test Epic\nContent here');
+
+    const invalidateCalls = [];
+    const opts = makeOptions({ callClaude: async () => '# Generated Epic\nBody' });
+    opts.docIndex = {
+      invalidate: async (docType, fn) => invalidateCalls.push([docType, fn]),
+    };
+
+    const { watchInbox } = await import('../../src/services/inboxWatcher.js');
+    watchers.push(watchInbox(opts));
+
+    await wait(500);
+
+    assert.ok(fs.existsSync(path.join(epicsDir, filename)), 'epic file should be created');
+    assert.deepEqual(invalidateCalls, [['epic', filename]]);
+  });
 });
