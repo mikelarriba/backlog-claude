@@ -57,59 +57,14 @@ export interface PanelState {
   parallel: string[];
 }
 
-// ── Reactive store ────────────────────────────────────────────────────────────
-type StoreCallback = (value: unknown) => void;
-
-interface Store {
-  set(key: string, value: unknown): void;
-  get(key: string): unknown;
-  subscribe(key: string, fn: StoreCallback): () => void;
-}
-
-export const store: Store = (function () {
-  const _state: Record<string, unknown> = {};
-  const _listeners: Record<string, StoreCallback[]> = {};
-  return {
-    set(key: string, value: unknown): void {
-      _state[key] = value;
-      const fns = _listeners[key] || [];
-      for (let i = 0; i < fns.length; i++) fns[i](value);
-    },
-    get(key: string): unknown {
-      return _state[key];
-    },
-    subscribe(key: string, fn: StoreCallback): () => void {
-      if (!_listeners[key]) _listeners[key] = [];
-      _listeners[key].push(fn);
-      return function () {
-        _listeners[key] = _listeners[key].filter(function (f) {
-          return f !== fn;
-        });
-      };
-    },
-  };
-})();
-
-// Declare a store-backed global variable. Code in other modules can read/write
-// the named global (via the window object) and it routes through the store,
-// enabling store.subscribe(key, fn) callbacks to fire on every write.
-function _storeVar(name: string, initial: unknown): void {
-  store.set(name, initial);
-  Object.defineProperty(window, name, {
-    get: function () {
-      return store.get(name);
-    },
-    set: function (v: unknown) {
-      store.set(name, v);
-    },
-    configurable: true,
-    enumerable: true,
-  });
-}
-
-// ── Store-backed global state ─────────────────────────────────────────────────
-// allDocs and piSettings are backed by store.ts (event-driven), so any write
-// via the window global also emits domain events (docs:changed / piSettings:changed).
+// ── Global state ──────────────────────────────────────────────────────────────
+// Plain window globals (declared as ambient `var`s in global.d.ts), read and
+// written as bare identifiers throughout public/ts/. Previously each of these
+// was wired through a generic key/value store with a subscribe() API via
+// Object.defineProperty, but nothing ever called store.subscribe() on any of
+// them — the indirection added a layer to trace through with no behavior
+// riding on it. allDocs and piSettings keep their real reactive wiring below
+// since store.ts's docs/piSettings pub-sub does have real subscribers.
 Object.defineProperty(window, 'allDocs', {
   get: () => _getState().docs,
   set: (docs: DocEntry[]) => {
@@ -128,43 +83,48 @@ Object.defineProperty(window, 'piSettings', {
   enumerable: true,
 });
 
-_storeVar('jiraBase', '');
-_storeVar('currentFilename', null);
-_storeVar('currentDocType', null);
-_storeVar('activeTypeFilter', 'all');
-_storeVar('activeStatusFilter', 'all');
-_storeVar('activeTeamFilter', 'all');
-_storeVar('activeWorkCatFilter', 'all');
-_storeVar('currentJiraId', null);
-_storeVar('_justDragged', false);
-_storeVar('_quickCreateType', null);
-_storeVar('_toastTimer', null);
-_storeVar('selectedItems', new Set<string>());
-_storeVar('_lastClickedItem', null);
-_storeVar('jiraSearchResults', [] as DocEntry[]);
-_storeVar('sprintConfig', {} as SprintConfig);
-_storeVar('splitThreshold', 8);
-_storeVar('_metaTeams', [] as string[]);
-_storeVar('_metaWorkCategories', [] as string[]);
+globalThis.jiraBase = '';
+globalThis.currentFilename = null;
+globalThis.currentDocType = null;
+globalThis.activeTypeFilter = 'all';
+globalThis.activeStatusFilter = 'all';
+globalThis.activeTeamFilter = 'all';
+globalThis.activeWorkCatFilter = 'all';
+globalThis.currentJiraId = null;
+globalThis._justDragged = false;
+globalThis._quickCreateType = null;
+globalThis._toastTimer = null;
+globalThis.selectedItems = new Set<string>();
+globalThis._lastClickedItem = null;
+globalThis.jiraSearchResults = [] as DocEntry[];
+globalThis.sprintConfig = {} as SprintConfig;
+globalThis.splitThreshold = 8;
+globalThis._metaTeams = [] as string[];
+globalThis._metaWorkCategories = [] as string[];
 // List-level state (moved here from list.js so all state is centralised)
-_storeVar('jiraVersions', [] as string[]);
-_storeVar('_swimlanesCollapsed', {
+globalThis.jiraVersions = [] as string[];
+globalThis._swimlanesCollapsed = {
   currentPi: false,
   nextPi: false,
   backlog: false,
-} as SwimlaneCollapsed);
-_storeVar('_collapsedItems', new Set<string>());
+} as SwimlaneCollapsed;
+globalThis._collapsedItems = new Set<string>();
 // Piconfig-level state referenced from HTML onclick
-_storeVar('_piConfigActivePi', null);
+globalThis._piConfigActivePi = null;
 // Refine cluster state (shared across refine.js and refine-*.js)
-_storeVar('_canvasEpicFilename', null);
-_storeVar('_canvasDocType', null);
-_storeVar('_canvasManageLinks', false);
-_storeVar('_canvasSelectedCards', new Set<string>());
-_storeVar('_activePanelState', { stories: [], layout: {}, blocks: [], parallel: [] } as PanelState);
-_storeVar('_panelStates', new Map<string, PanelState>());
+globalThis._canvasEpicFilename = null;
+globalThis._canvasDocType = null;
+globalThis._canvasManageLinks = false;
+globalThis._canvasSelectedCards = new Set<string>();
+globalThis._activePanelState = {
+  stories: [],
+  layout: {},
+  blocks: [],
+  parallel: [],
+} as PanelState;
+globalThis._panelStates = new Map<string, PanelState>();
 // Roadmap state (shared with export.js)
-_storeVar('_roadmapVisiblePis', new Set<string>());
+globalThis._roadmapVisiblePis = new Set<string>();
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 export const TYPE_LABEL: Record<string, string> = {
