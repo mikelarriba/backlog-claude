@@ -52,7 +52,7 @@ interface RpComment {
   text: string;
 }
 
-// ── Canvas state ─ all in state.js as _storeVar globals ──────
+// ── Canvas state ─ all declared as window globals in state.js ─
 // _canvasEpicFilename, _canvasDocType, _canvasManageLinks,
 // _canvasSelectedCards, _activePanelState, _panelStates
 

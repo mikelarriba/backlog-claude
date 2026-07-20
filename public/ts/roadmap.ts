@@ -19,7 +19,7 @@ export interface RoadmapSprint {
   [key: string]: unknown;
 }
 
-// _roadmapVisiblePis is in state.js as a _storeVar global
+// _roadmapVisiblePis is declared as a window global in state.js
 let _roadmapPanelState: Record<string, boolean> = { epics: true, stories: true }; // expanded/collapsed
 let _roadmapFocusedEpic: string | null = null; // filename of clicked feature (focus mode)
 

@@ -1,6 +1,7 @@
-// ── Global variable declarations for store-backed window properties ──────────
-// These are created by _storeVar() in state.ts and accessed as globals in the
-// browser. Declaring them here lets TypeScript resolve them in strict mode.
+// ── Global variable declarations for window-global state ─────────────────────
+// These are assigned directly onto `window` in state.ts and accessed as bare
+// globals in the browser. Declaring them here lets TypeScript resolve them in
+// strict mode.
 
 import type { DocEntry, PISettings, SprintConfig, SwimlaneCollapsed, PanelState } from './state.js';
 

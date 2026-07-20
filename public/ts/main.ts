@@ -1,5 +1,5 @@
 // ── ES Module entry point ────────────────────────────────────────
-import { fetchJSON, debounce, store } from './state.js';
+import { fetchJSON, debounce } from './state.js';
 import type { DocEntry } from './state.js';
 import { on } from './store.js';
 import {
@@ -295,8 +295,8 @@ function updateSplitMode(): void {
 
   right.classList.toggle('split-mode', wide);
 
-  const _cf = store.get('currentFilename') as string | null;
-  const _cdt = store.get('currentDocType') as string | null;
+  const _cf = currentFilename;
+  const _cdt = currentDocType;
   if (!wide && _cf) {
     const listView = document.getElementById('list-view');
     if (listView) listView.style.display = 'none';
@@ -494,7 +494,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
 async function loadAppConfig(): Promise<void> {
   try {
     const cfg = (await fetchJSON('/api/config')) as { jiraBase?: string };
-    if (cfg.jiraBase) store.set('jiraBase', cfg.jiraBase);
+    if (cfg.jiraBase) jiraBase = cfg.jiraBase;
   } catch (e) {
     console.warn('Failed to load app config:', (e as Error).message);
   }
@@ -708,8 +708,8 @@ document.addEventListener('click', (e: MouseEvent) => {
       closeDropdown(btn.dataset.closeDropdown ?? '');
       break;
     case 'openManualRefineAndClose': {
-      const cf = store.get('currentFilename') as string | null;
-      const cdt = store.get('currentDocType') as string | null;
+      const cf = currentFilename;
+      const cdt = currentDocType;
       openManualRefine(cf ?? '', cdt ?? '');
       closeDropdown(btn.dataset.closeDropdown ?? '');
       break;
@@ -722,8 +722,8 @@ document.addEventListener('click', (e: MouseEvent) => {
       pullFromJira();
       break;
     case 'exportEpicToPdfCurrent': {
-      const cf = store.get('currentFilename') as string | null;
-      const cdt = store.get('currentDocType') as string | null;
+      const cf = currentFilename;
+      const cdt = currentDocType;
       exportEpicToPdf(cf ?? '', cdt ?? '');
       break;
     }

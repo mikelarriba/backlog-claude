@@ -11,7 +11,7 @@ import {
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { on, upsertDoc } from './store.js';
-// _roadmapVisiblePis is in state.js as a _storeVar global
+// _roadmapVisiblePis is declared as a window global in state.js
 let _roadmapPanelState = { epics: true, stories: true }; // expanded/collapsed
 let _roadmapFocusedEpic = null; // filename of clicked feature (focus mode)
 // Re-render PI filter when piSettings arrives (may load after roadmap opens)
