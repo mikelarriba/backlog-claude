@@ -18,6 +18,7 @@ import {
 } from './refine.js';
 import { buildCanvasGraph, renderCanvas, saveCanvasLayout } from './refine-canvas.js';
 import { _closeLinkPopup } from './refine-edges.js';
+import { positionPopup } from './ui-helpers.js';
 export async function _fpCreateChild(type, epicFilename, featureFilename) {
   const title = prompt(`Title for new ${type}:`);
   if (!title) return;
@@ -46,8 +47,7 @@ export function _showCardContextMenu(x, y, filename, epicFilename, docType) {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
   popup.innerHTML = `
     <div class="canvas-link-popup-title">Move card</div>
     <button id="_ctx-left">← Move to Left</button>
@@ -87,8 +87,7 @@ export function _showFpCardContextMenu(
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
   // Build "Move to Epic" submenu items from _panelStates
   const epicItems = [..._panelStates.keys()]
     .map((ef) => {
@@ -155,8 +154,7 @@ export function _showEpicContextMenu(x, y, epicFilename, featureFilename) {
   const epicDoc = allDocs.find((d) => d.filename === epicFilename && d.docType === 'epic');
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
   popup.innerHTML = `
     <div class="canvas-link-popup-title">${escHtml(epicDoc?.title || epicFilename)}</div>
     <button id="_epic-ctx-split">✂ Split Epic</button>
@@ -182,8 +180,7 @@ export function _showEmptyCellMenu(x, y, col, row, epicFilename, epicDocType) {
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
   popup.innerHTML = `
     <div class="canvas-link-popup-title">Create new</div>
     <button id="_cell-story" class="green">＋ Story</button>
@@ -289,8 +286,7 @@ export function _showMultiCardContextMenu(x, y, epicFilename, docType) {
   const count = _canvasSelectedCards.size;
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
   popup.innerHTML = `
     <div class="canvas-link-popup-title">${count} cards selected</div>
     <button id="_ctx-m-left">← Move all Left</button>

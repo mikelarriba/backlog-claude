@@ -9,6 +9,7 @@ import { openDoc } from './detail.js';
 import { upsertDoc } from './store.js';
 import { refreshRoadmapView } from './roadmap.js';
 import type { RoadmapSprint } from './roadmap.js';
+import { positionPopup } from './ui-helpers.js';
 
 function _closeRoadmapCtx(): void {
   const el = document.getElementById('rm-context-menu');
@@ -34,8 +35,7 @@ function _showRoadmapCtx(x: number, y: number, html: string): void {
   const rect = menu.getBoundingClientRect();
   if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
   if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
-  menu.style.left = x + 'px';
-  menu.style.top = y + 'px';
+  positionPopup(menu, x, y);
 
   setTimeout(() => {
     document.addEventListener('mousedown', _rmCtxDismiss);

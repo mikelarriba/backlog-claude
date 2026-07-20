@@ -172,6 +172,7 @@ export function renderSwimlanes(docs: DocEntry[]): void {
   ].join('');
 
   list.innerHTML = html;
+  _invalidateDepElCache();
   applyDepCascade();
   attachDepHoverListeners();
 }
@@ -437,9 +438,32 @@ export function applyDepCascade(): void {
 // ── Dependency connector lines ────────────────────────────────
 let _depHighlightedEls: HTMLElement[] = [];
 
+// Filename → elements cache for _findVisibleDepEl, rebuilt lazily on first use
+// after each render (see the `list.innerHTML = html` assignment above) instead
+// of running a fresh document.querySelectorAll per blocker/blocked lookup on
+// every mouseenter.
+let _depElCache: Map<string, HTMLElement[]> | null = null;
+
+function _invalidateDepElCache(): void {
+  _depElCache = null;
+}
+
+function _buildDepElCache(): Map<string, HTMLElement[]> {
+  const map = new Map<string, HTMLElement[]>();
+  document.querySelectorAll<HTMLElement>('[data-filename]').forEach((el) => {
+    const fn = el.dataset.filename;
+    if (!fn) return;
+    const existing = map.get(fn);
+    if (existing) existing.push(el);
+    else map.set(fn, [el]);
+  });
+  return map;
+}
+
 /** Find the first visible element matching data-filename (handles hidden views). */
 function _findVisibleDepEl(filename: string): HTMLElement | null {
-  const els = document.querySelectorAll<HTMLElement>(`[data-filename="${CSS.escape(filename)}"]`);
+  if (!_depElCache) _depElCache = _buildDepElCache();
+  const els = _depElCache.get(filename) || [];
   for (const el of els) {
     const r = el.getBoundingClientRect();
     if (r.width > 0 || r.height > 0) return el;
