@@ -10,6 +10,7 @@ import {
   jiraToMarkdown,
   extractFrontmatterField,
 } from '../../src/utils/transforms.js';
+import { parseFrontmatter } from '../../src/utils/frontmatter.js';
 
 // ── slugify ───────────────────────────────────────────────────────────────────
 describe('slugify', () => {
@@ -179,7 +180,15 @@ describe('setFrontmatterField — newline sanitization', () => {
     const frontmatterLines = lines.slice(1, lines.indexOf('---', 1));
     const hasSpuriousSeparator = frontmatterLines.some((l) => l.trim() === '---');
     assert.ok(!hasSpuriousSeparator, 'no spurious --- inside frontmatter block');
-    assert.ok(result.includes('Title: malicious'), 'sanitized value written');
+    assert.ok(
+      frontmatterLines.some((l) => l.startsWith('Title:') && l.includes('malicious')),
+      'sanitized value written'
+    );
+    // The value legitimately still contains ": ", so it must round-trip through
+    // js-yaml unchanged rather than being read back as an empty string.
+    const { meta } = parseFrontmatter(result);
+    assert.ok(meta.Title.includes('malicious'));
+    assert.ok(meta.Title.includes('injected: true'));
   });
 
   test('strips carriage returns from value', () => {
@@ -193,6 +202,21 @@ describe('setFrontmatterField — newline sanitization', () => {
     const content = '---\nStatus: Draft\n---\n';
     const result = setFrontmatterField(content, 'Status', 'Created in JIRA');
     assert.ok(result.includes('Status: Created in JIRA'));
+  });
+
+  test('a value containing ": " does not corrupt the rest of the frontmatter block', () => {
+    const content =
+      '---\nJIRA_ID: ABC-123\nSprint: Sprint 4\nStory_Points: 5\nTitle: old\nStatus: Draft\n---\n\n# Body\n';
+    const result = setFrontmatterField(content, 'Title', 'Fix bug: race condition in queue');
+    const { meta } = parseFrontmatter(result);
+    // Every other field must still be readable — a naive unquoted write would
+    // produce invalid YAML that makes js-yaml.load() throw, silently wiping
+    // parseFrontmatter's return to `{}` for the whole document.
+    assert.equal(meta.JIRA_ID, 'ABC-123');
+    assert.equal(meta.Sprint, 'Sprint 4');
+    assert.equal(meta.Story_Points, '5');
+    assert.equal(meta.Status, 'Draft');
+    assert.equal(meta.Title, 'Fix bug: race condition in queue');
   });
 });
 

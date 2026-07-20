@@ -376,6 +376,44 @@ Test.
 
       const content = fs.readFileSync(path.join(docsRoot, 'stories', storyCFilename), 'utf-8');
       assert.match(content, /^Sprint: Sprint 100$/m);
+
+      // The docIndex must reflect the new sprint too — pull previously called
+      // docIndex.invalidateAll() once per item instead of a single batched
+      // invalidateMany() after the pMap, but the net effect (index gets
+      // refreshed) must hold either way.
+      const { data: docs } = await api('GET', '/api/docs');
+      const indexed = docs.find((d) => d.filename === storyCFilename);
+      assert.equal(indexed.sprint, 'Sprint 100');
+    });
+
+    test('pull (batch): patches multiple docs in one request via a single index refresh', async () => {
+      const { status, data } = await api('POST', '/api/jira/push-sprints', {
+        items: [
+          {
+            filename: storyCFilename,
+            sprint: 'Sprint 200',
+            changeType: 'pull',
+            jiraId: 'EAMDM-3',
+            docType: 'story',
+          },
+          {
+            filename: storyAFilename,
+            sprint: 'Sprint 200',
+            changeType: 'pull',
+            jiraId: 'EAMDM-1',
+            docType: 'story',
+          },
+        ],
+      });
+      assert.equal(status, 200);
+      assert.equal(
+        data.results.every((r) => r.status === 'ok'),
+        true
+      );
+
+      const { data: docs } = await api('GET', '/api/docs');
+      assert.equal(docs.find((d) => d.filename === storyCFilename).sprint, 'Sprint 200');
+      assert.equal(docs.find((d) => d.filename === storyAFilename).sprint, 'Sprint 200');
     });
 
     test('skips an item with no resolvable JIRA ID', async () => {

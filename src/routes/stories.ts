@@ -113,6 +113,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
       newStory = normalizeOutput(newStory);
       sections[storyIndex] = newStory;
       await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
+      await docIndex.invalidate('story', filename);
 
       if (fs.existsSync(inboxPath)) {
         const note = `\n\n---\n\n## Story Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')} (Story ${storyIndex + 1})\n\n${feedback.trim()}\n`;
@@ -156,6 +157,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
 
       sections.splice(storyIndex, 1);
       await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
+      await docIndex.invalidate('story', filename);
       res.json({ success: true, remaining: sections.length });
     } catch (err) {
       const apiErr = parseApiError(err);
