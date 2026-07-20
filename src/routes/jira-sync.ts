@@ -2,7 +2,13 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
+import {
+  sendError,
+  parseApiError,
+  handleRouteError,
+  assertDocType,
+  assertFilename,
+} from '../utils/routeHelpers.js';
 import { pMap } from '../utils/pMap.js';
 import {
   setFrontmatterField,
@@ -141,19 +147,7 @@ export default function jiraSyncRoutes({
       );
       res.json({ success: true, jiraStatus, storyPoints: jiraSp });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/sync-status',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(
-        res,
-        ['INVALID_TYPE', 'INVALID_FILENAME', 'NO_JIRA_ID'].includes(apiErr.code) ? 400 : 500,
-        apiErr.code,
-        apiErr.message,
-        apiErr.details
-      );
+      handleRouteError(res, err, { scope: 'POST /api/jira/sync-status', logError });
     }
   });
 
@@ -356,13 +350,7 @@ export default function jiraSyncRoutes({
 
       res.json({ items });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/pull-preview',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      handleRouteError(res, err, { scope: 'POST /api/jira/pull-preview', logError });
     }
   });
 
@@ -481,13 +469,7 @@ export default function jiraSyncRoutes({
       );
       res.json({ changed, skipped, errors, total: linkedDocs.length });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/check-all',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      handleRouteError(res, err, { scope: 'POST /api/jira/check-all', logError });
     }
   });
 

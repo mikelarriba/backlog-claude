@@ -1,7 +1,7 @@
 // ── JIRA rank-sync route ──────────────────────────────────────────────────────
 // Handles POST /api/jira/push-rank — syncs local rank order to JIRA backlog.
 import { Router } from 'express';
-import { sendError, parseApiError } from '../utils/routeHelpers.js';
+import { sendError, handleRouteError } from '../utils/routeHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { JiraPushRankSchema } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
@@ -28,13 +28,7 @@ export default function jiraPushRankRoutes({ jiraRequest, logInfo, logError }: J
       );
       res.json({ success: true, key, beforeKey: beforeKey || null, afterKey: afterKey || null });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/push-rank',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      handleRouteError(res, err, { scope: 'POST /api/jira/push-rank', logError });
     }
   });
 

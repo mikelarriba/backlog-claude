@@ -83,6 +83,49 @@ describe('GET /api/docs', () => {
   });
 });
 
+// ── GET /api/epics (legacy, #422: now docIndex-backed instead of a disk scan) ──
+describe('GET /api/epics', () => {
+  test('returns 200 with an array', async () => {
+    const { status, data } = await api('GET', '/api/epics');
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(data));
+  });
+
+  test('includes a newly-created epic with the expected shape, excludes non-epics', async () => {
+    const { data: epic } = await api('POST', '/api/docs/draft', {
+      title: 'Legacy Epics Route Test',
+      type: 'epic',
+    });
+    const { data: story } = await api('POST', '/api/docs/draft', {
+      title: 'Legacy Epics Route Test Story',
+      type: 'story',
+    });
+
+    const { data: epics } = await api('GET', '/api/epics');
+    const entry = epics.find((e) => e.filename === epic.filename);
+    assert.ok(entry, 'new epic should appear in the legacy /api/epics list');
+    assert.deepEqual(Object.keys(entry).sort(), ['date', 'docType', 'filename', 'title']);
+    assert.equal(entry.docType, 'epic');
+    assert.equal(entry.title, 'Legacy Epics Route Test');
+
+    assert.ok(
+      !epics.some((e) => e.filename === story.filename),
+      'a story must not appear in the epics-only legacy list'
+    );
+  });
+
+  test('index invalidation: delete epic → GET /api/epics excludes it', async () => {
+    const { data: epic } = await api('POST', '/api/docs/draft', {
+      title: 'Legacy Epics Delete Test',
+      type: 'epic',
+    });
+    await api('DELETE', `/api/doc/epic/${encodeURIComponent(epic.filename)}`);
+
+    const { data: epics } = await api('GET', '/api/epics');
+    assert.ok(!epics.some((e) => e.filename === epic.filename));
+  });
+});
+
 // ── POST /api/generate ────────────────────────────────────────────────────────
 describe('POST /api/generate', () => {
   test('returns 400 when idea is missing', async () => {
