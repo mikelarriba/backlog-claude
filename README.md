@@ -382,7 +382,7 @@ backlog-claude/
 ## Running tests
 
 ```bash
-npm test                  # all 167 tests (unit + integration)
+npm test                  # unit + integration tests — run it for the current count
 npm run test:unit         # unit tests only
 npm run test:integration  # integration tests only
 ```
@@ -391,7 +391,7 @@ Tests use Node's built-in `node:test` runner — no extra dependencies.
 
 Integration tests start a real Express instance in an isolated temp directory per suite, so they never touch your actual `docs/` data. JIRA HTTP calls are stubbed via `mock.method(globalThis, 'fetch', ...)`. Claude subprocess calls are stubbed via `MOCK_CLAUDE=1`.
 
-### Test coverage (58 suites · 167 tests)
+### Test coverage (run `npm test` for the current suite/test count)
 
 | Suite                   | What it covers                                                                                                                        |
 | :---------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
