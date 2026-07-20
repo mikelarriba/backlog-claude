@@ -34,9 +34,27 @@ describe('JIRA push-sprints — guard clauses', () => {
     await stop();
   });
 
+  // Items schemas require a non-empty array (matches the existing convention
+  // elsewhere, e.g. /api/docs/batch-delete), so these guard-clause probes send
+  // a well-formed single item — validateBody runs before the guard clause (see
+  // the existing /api/jira/pull route for the same ordering), so an empty or
+  // malformed body would 400 before ever reaching the token/board checks.
+  const sprintPreviewItem = {
+    filename: 'guard-clause-probe.md',
+    sprint: null,
+    jiraId: '',
+    title: 'Probe',
+    docType: 'story',
+  };
+  const sprintPushItem = {
+    filename: 'guard-clause-probe.md',
+    sprint: 'Sprint 1',
+    changeType: 'push',
+  };
+
   test('POST /api/jira/push-sprints-preview returns 503 when JIRA_API_TOKEN is not set', async () => {
     const { status, data } = await api('POST', '/api/jira/push-sprints-preview', {
-      items: [],
+      items: [sprintPreviewItem],
       selectedSprints: [],
     });
     assert.equal(status, 503);
@@ -47,7 +65,7 @@ describe('JIRA push-sprints — guard clauses', () => {
     process.env.JIRA_API_TOKEN = 'fake-test-token';
     try {
       const { status, data } = await api('POST', '/api/jira/push-sprints-preview', {
-        items: [],
+        items: [sprintPreviewItem],
         selectedSprints: [],
       });
       assert.equal(status, 400);
@@ -58,7 +76,9 @@ describe('JIRA push-sprints — guard clauses', () => {
   });
 
   test('POST /api/jira/push-sprints returns 503 when JIRA_API_TOKEN is not set', async () => {
-    const { status, data } = await api('POST', '/api/jira/push-sprints', { items: [] });
+    const { status, data } = await api('POST', '/api/jira/push-sprints', {
+      items: [sprintPushItem],
+    });
     assert.equal(status, 503);
     assert.equal(data.code, 'JIRA_NOT_CONFIGURED');
   });
@@ -66,7 +86,9 @@ describe('JIRA push-sprints — guard clauses', () => {
   test('POST /api/jira/push-sprints returns 400 when JIRA_BOARD_ID is not configured', async () => {
     process.env.JIRA_API_TOKEN = 'fake-test-token';
     try {
-      const { status, data } = await api('POST', '/api/jira/push-sprints', { items: [] });
+      const { status, data } = await api('POST', '/api/jira/push-sprints', {
+        items: [sprintPushItem],
+      });
       assert.equal(status, 400);
       assert.equal(data.code, 'NO_BOARD');
     } finally {

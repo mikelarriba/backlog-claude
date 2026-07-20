@@ -11,6 +11,8 @@ import { resolveParentJiraId } from '../services/jiraService.js';
 import { createJiraPushService } from '../services/jiraPushService.js';
 import { TEAM_TO_JIRA_LABEL, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 import { config } from '../config/env.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import { JiraPushPreviewSchema } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
@@ -34,7 +36,7 @@ export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
   // ── POST /api/jira/push-preview ─────────────────────────────────────────────
   // Returns a field-level diff for each item so the client can show a confirmation popup.
   // Items with an existing JIRA ID are fetched in parallel (max JIRA_CONCURRENCY at once).
-  router.post('/api/jira/push-preview', async (req, res) => {
+  router.post('/api/jira/push-preview', validateBody(JiraPushPreviewSchema), async (req, res) => {
     if (!process.env.JIRA_API_TOKEN)
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 

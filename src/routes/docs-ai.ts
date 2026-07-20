@@ -11,7 +11,12 @@ import {
   resolveDocPath,
 } from '../utils/routeHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
-import { GenerateDocSchema, SplitStorySchema, SplitEpicSchema } from '../schemas/docs.js';
+import {
+  GenerateDocSchema,
+  UpgradeDocSchema,
+  SplitStorySchema,
+  SplitEpicSchema,
+} from '../schemas/docs.js';
 import { generateDoc, upgradeDoc, splitStory, splitEpic } from '../services/aiService.js';
 import type { RouteContext } from '../types.js';
 
@@ -82,53 +87,57 @@ export default function docsAiRoutes(ctx: RouteContext) {
   });
 
   // ── POST /api/doc/:type/:filename/upgrade ── regenerate with feedback (SSE) ─
-  router.post('/api/doc/:type/:filename/upgrade', async (req, res) => {
-    let docType, filename, filepath;
-    try {
-      ({ docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG));
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
-    }
-    if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
-
-    setupSSE(res);
-    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
-
-    try {
-      const { feedback } = req.body;
-
-      if (!feedback || !String(feedback).trim()) {
-        send({ error: { code: 'VALIDATION_ERROR', message: 'feedback is required' } });
-        res.end();
-        return;
+  router.post(
+    '/api/doc/:type/:filename/upgrade',
+    validateBody(UpgradeDocSchema),
+    async (req, res) => {
+      let docType, filename, filepath;
+      try {
+        ({ docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG));
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
       }
+      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
-      const { fullContent } = await upgradeDoc(
-        { filepath, filename, docType, feedback, INBOX_DIR },
-        { streamClaude, docIndex },
-        (chunk) => send({ text: chunk })
-      );
+      setupSSE(res);
+      const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-      send({ done: true, content: fullContent });
-      res.end();
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/doc/:type/:filename/upgrade',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      send({
-        error: {
-          code: apiErr.code,
-          message: apiErr.message,
-          ...(apiErr.details ? { details: apiErr.details } : {}),
-        },
-      });
-      res.end();
+      try {
+        const { feedback } = req.body;
+
+        if (!feedback || !String(feedback).trim()) {
+          send({ error: { code: 'VALIDATION_ERROR', message: 'feedback is required' } });
+          res.end();
+          return;
+        }
+
+        const { fullContent } = await upgradeDoc(
+          { filepath, filename, docType, feedback, INBOX_DIR },
+          { streamClaude, docIndex },
+          (chunk) => send({ text: chunk })
+        );
+
+        send({ done: true, content: fullContent });
+        res.end();
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        logError(
+          'POST /api/doc/:type/:filename/upgrade',
+          apiErr.message,
+          apiErr.details as Record<string, unknown> | undefined
+        );
+        send({
+          error: {
+            code: apiErr.code,
+            message: apiErr.message,
+            ...(apiErr.details ? { details: apiErr.details } : {}),
+          },
+        });
+        res.end();
+      }
     }
-  });
+  );
 
   // ── POST /api/docs/split-story ── AI-powered story split (SSE) ───────────────
   router.post('/api/docs/split-story', validateBody(SplitStorySchema), async (req, res) => {
