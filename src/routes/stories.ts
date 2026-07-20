@@ -6,10 +6,11 @@ import {
   sendError,
   ensureDir,
   parseApiError,
+  handleRouteError,
   assertFilename,
   setupSSE,
 } from '../utils/routeHelpers.js';
-import { extractTitle, extractFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
+import { extractFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
 import {
   parseStorySections,
   serializeStoryFile,
@@ -253,31 +254,18 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
   });
 
   // ── Legacy endpoints ───────────────────────────────────────────────────────
-  router.get('/api/epics', async (_, res) => {
+  // Reads from docIndex instead of re-scanning EPICS_DIR on every request —
+  // the index already has this data (built once at startup, kept current via
+  // invalidate calls on every write).
+  router.get('/api/epics', (_, res) => {
     try {
-      ensureDir(EPICS_DIR);
-      const filenames = (await fs.promises.readdir(EPICS_DIR)).filter(
-        (f) => f.endsWith('.md') && f !== '.gitkeep'
-      );
-      const files = (
-        await Promise.all(
-          filenames.map(async (f) => {
-            const content = await fs.promises.readFile(path.join(EPICS_DIR, f), 'utf-8');
-            const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/);
-            return {
-              filename: f,
-              docType: 'epic',
-              title:
-                extractTitle(content) || f.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', ''),
-              date: dateMatch ? dateMatch[1] : '',
-            };
-          })
-        )
-      ).sort((a, b) => b.filename.localeCompare(a.filename));
+      const files = docIndex
+        .getAll()
+        .filter((d) => d.docType === 'epic')
+        .map(({ filename, docType, title, date }) => ({ filename, docType, title, date }));
       res.json(files);
     } catch (err) {
-      const apiErr = parseApiError(err);
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      handleRouteError(res, err);
     }
   });
 

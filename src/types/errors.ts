@@ -17,11 +17,13 @@ export interface ApiError {
 export class AppError extends Error {
   readonly code: string;
   readonly details?: unknown;
+  readonly statusCode: number;
 
-  constructor(code: string, message: string, details?: unknown) {
+  constructor(code: string, message: string, details?: unknown, statusCode = 400) {
     super(message);
     this.name = 'AppError';
     this.code = code;
     this.details = details;
+    this.statusCode = statusCode;
   }
 }

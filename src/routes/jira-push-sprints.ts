@@ -3,7 +3,13 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { pMap } from '../utils/pMap.js';
-import { sendError, parseApiError, setupSSE, ensureDir } from '../utils/routeHelpers.js';
+import {
+  sendError,
+  parseApiError,
+  handleRouteError,
+  setupSSE,
+  ensureDir,
+} from '../utils/routeHelpers.js';
 import { setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
 import { ensureSprintCache } from '../services/jiraService.js';
 import {
@@ -270,13 +276,7 @@ export default function jiraPushSprintsRoutes({
 
       res.json({ results });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/push-sprints',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      handleRouteError(res, err, { scope: 'POST /api/jira/push-sprints', logError });
     }
   });
 
@@ -428,13 +428,7 @@ export default function jiraPushSprintsRoutes({
 
       res.json({ results });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/pull-sprint',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      handleRouteError(res, err, { scope: 'POST /api/jira/pull-sprint', logError });
     }
   });
 

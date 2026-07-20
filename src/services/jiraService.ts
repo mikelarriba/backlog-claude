@@ -156,6 +156,52 @@ export async function resolveParentJiraId(dir: string, filename: string): Promis
   return jiraId && jiraId !== 'TBD' ? jiraId : null;
 }
 
+// ── Shared epic-link resolver ────────────────────────────────────────────────
+// Reads a story/spike/bug's Epic_ID frontmatter field and resolves the parent
+// Epic's JIRA key, if any. `epicFilename` is returned separately from
+// `epicJiraId` so callers can distinguish "no Epic_ID set" from "Epic_ID set
+// but the epic isn't in JIRA yet" — the two cases are handled differently at
+// call sites (e.g. whether to clear an existing Epic Link in JIRA).
+export async function resolveEpicLink(
+  content: string,
+  EPICS_DIR: string
+): Promise<{ epicFilename: string | null; epicJiraId: string | null }> {
+  const epicFilename = extractFrontmatterField(content, 'Epic_ID');
+  if (!epicFilename || epicFilename === 'TBD') return { epicFilename: null, epicJiraId: null };
+  const epicJiraId = await resolveParentJiraId(EPICS_DIR, epicFilename);
+  return { epicFilename, epicJiraId };
+}
+
+// ── Shared "contains" link sync (epic → feature) ─────────────────────────────
+// Best-effort and idempotent: JIRA errors if the link already exists, which is
+// swallowed and logged rather than failing the whole push.
+export async function syncContainsLink(
+  content: string,
+  type: string,
+  key: string,
+  FEATURES_DIR: string,
+  jiraRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>,
+  logWarn: Logger['logWarn']
+): Promise<void> {
+  if (type !== 'epic') return;
+  const featureFilename = extractFrontmatterField(content, 'Feature_ID');
+  if (!featureFilename || featureFilename === 'TBD') return;
+  const featureJiraId = await resolveParentJiraId(FEATURES_DIR, featureFilename);
+  if (!featureJiraId) return;
+  const linkTypeName = await getContainsLinkTypeName(jiraRequest, logWarn);
+  if (!linkTypeName) return;
+  await jiraRequest('POST', '/issueLink', {
+    type: { name: linkTypeName },
+    inwardIssue: { key },
+    outwardIssue: { key: featureJiraId },
+  }).catch((e) =>
+    logWarn(
+      'jira/push',
+      `Could not create "${linkTypeName}" link: ${e instanceof Error ? e.message : String(e)}`
+    )
+  );
+}
+
 export function createJiraService({
   JIRA_BASE,
   JIRA_TOKEN,

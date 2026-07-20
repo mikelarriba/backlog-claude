@@ -69,9 +69,8 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       }
 
       const epicContent = await fs.promises.readFile(filepath, 'utf-8');
-      const epicDoc = docIndex
-        .getAll()
-        .find((d) => d.filename === filename && d.docType === docType);
+      const indexed = docIndex.get(filename);
+      const epicDoc = indexed && indexed.docType === docType ? indexed : null;
       if (!epicDoc) {
         res.status(404).send('Document not in index');
         return;
@@ -239,9 +238,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       for (const leaf of visibleLeafs) {
         const key = leaf.parentFilename || '__none__';
         if (!epicMap.has(key)) {
-          const epicDoc = leaf.parentFilename
-            ? allDocs.find((d) => d.filename === leaf.parentFilename) || null
-            : null;
+          const epicDoc = leaf.parentFilename ? docIndex.get(leaf.parentFilename) : null;
           epicMap.set(key, { epicDoc, sprints: new Set(), storyCount: 0, totalSP: 0 });
         }
         const entry = epicMap.get(key)!;

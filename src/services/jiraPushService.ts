@@ -14,7 +14,8 @@ import { serializeStoryFile } from './storyService.js';
 import {
   LOCAL_TO_JIRA_TYPE,
   ensureSprintCache,
-  getContainsLinkTypeName,
+  resolveEpicLink,
+  syncContainsLink,
   resolveParentJiraId,
 } from './jiraService.js';
 import { logAudit } from '../utils/auditLog.js';
@@ -169,9 +170,8 @@ export function createJiraPushService({
 
       // Sync Epic Link when a story/spike/bug has been moved to a different epic
       if (type === 'story' || type === 'spike' || type === 'bug') {
-        const epicFilename = extractFrontmatterField(content, 'Epic_ID');
-        if (epicFilename && epicFilename !== 'TBD') {
-          const epicJiraId = await resolveParentJiraId(EPICS_DIR, epicFilename);
+        const { epicFilename, epicJiraId } = await resolveEpicLink(content, EPICS_DIR);
+        if (epicFilename) {
           if (epicJiraId) updateFields[FIELD_EPIC_LINK] = epicJiraId;
         } else {
           // Epic_ID cleared — remove Epic Link in JIRA
@@ -202,27 +202,7 @@ export function createJiraPushService({
       action = 'updated';
 
       // Sync "contains" link for epics (best-effort, idempotent — JIRA errors if link exists)
-      if (type === 'epic') {
-        const featureFilename = extractFrontmatterField(content, 'Feature_ID');
-        if (featureFilename && featureFilename !== 'TBD') {
-          const featureJiraId = await resolveParentJiraId(FEATURES_DIR, featureFilename);
-          if (featureJiraId) {
-            const linkTypeName = await getContainsLinkTypeName(jiraRequest, logWarn);
-            if (linkTypeName) {
-              await jiraRequest('POST', '/issueLink', {
-                type: { name: linkTypeName },
-                inwardIssue: { key },
-                outwardIssue: { key: featureJiraId },
-              }).catch((e) =>
-                logWarn(
-                  'jira/push',
-                  `Could not create "${linkTypeName}" link: ${e instanceof Error ? e.message : String(e)}`
-                )
-              );
-            }
-          }
-        }
-      }
+      await syncContainsLink(content, type, key, FEATURES_DIR, jiraRequest, logWarn);
     } else {
       const baseLabels = type === 'bug' ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues'] : [JIRA_LABEL];
       if (teamLabel) baseLabels.push(teamLabel);
@@ -240,38 +220,15 @@ export function createJiraPushService({
       if (type === 'epic') fields[FIELD_EPIC_NAME] = summary.slice(0, 60);
 
       if (type === 'story' || type === 'spike' || type === 'bug') {
-        const epicFilename = extractFrontmatterField(content, 'Epic_ID');
-        if (epicFilename && epicFilename !== 'TBD') {
-          const epicJiraId = await resolveParentJiraId(EPICS_DIR, epicFilename);
-          if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
-        }
+        const { epicJiraId } = await resolveEpicLink(content, EPICS_DIR);
+        if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
       }
 
       const created = (await jiraRequest('POST', '/issue', { fields })) as { key: string };
       key = created.key;
       action = 'created';
 
-      if (type === 'epic') {
-        const featureFilename = extractFrontmatterField(content, 'Feature_ID');
-        if (featureFilename && featureFilename !== 'TBD') {
-          const featureJiraId = await resolveParentJiraId(FEATURES_DIR, featureFilename);
-          if (featureJiraId) {
-            const linkTypeName = await getContainsLinkTypeName(jiraRequest, logWarn);
-            if (linkTypeName) {
-              await jiraRequest('POST', '/issueLink', {
-                type: { name: linkTypeName },
-                inwardIssue: { key },
-                outwardIssue: { key: featureJiraId },
-              }).catch((e) =>
-                logWarn(
-                  'jira/push',
-                  `Could not create "${linkTypeName}" link: ${e instanceof Error ? e.message : String(e)}`
-                )
-              );
-            }
-          }
-        }
-      }
+      await syncContainsLink(content, type, key, FEATURES_DIR, jiraRequest, logWarn);
 
       let updated = setFrontmatterField(content, 'JIRA_ID', key);
       updated = setFrontmatterField(updated, 'JIRA_URL', `${JIRA_BASE}/browse/${key}`);

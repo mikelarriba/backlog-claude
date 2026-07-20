@@ -8,6 +8,7 @@ import { ValidationError } from './validate.js';
 import type { TypeConfig, TypeConfigEntry } from '../types.js';
 import type { ApiError } from '../types/errors.js';
 import { AppError } from '../types/errors.js';
+import type { Logger } from './logger.js';
 
 export function sendError(
   res: Response,
@@ -53,6 +54,30 @@ export function parseApiError(
     message: (typeof e.message === 'string' ? e.message : null) || fallbackMessage,
     ...(e.details ? { details: e.details } : {}),
   };
+}
+
+// ── Route error handler ──────────────────────────────────────────────────────
+// Collapses the parseApiError → (optional logError) → sendError sequence
+// repeated across nearly every route's catch block into one call. Status code
+// comes from the error itself (AppError.statusCode, default 400; ValidationError
+// is always 400) rather than a hand-maintained per-route list of codes, so a
+// new AppError code doesn't need every call site updated to recognize it.
+export function handleRouteError(
+  res: Response,
+  err: unknown,
+  opts: { scope?: string; logError?: Logger['logError'] } = {}
+): Response {
+  const apiErr = parseApiError(err);
+  if (opts.scope && opts.logError) {
+    opts.logError(
+      opts.scope,
+      apiErr.message,
+      apiErr.details as Record<string, unknown> | undefined
+    );
+  }
+  const status =
+    err instanceof AppError ? err.statusCode : err instanceof ValidationError ? 400 : 500;
+  return sendError(res, status, apiErr.code, apiErr.message, apiErr.details);
 }
 
 export function normalizeType(value: unknown): string {

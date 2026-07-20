@@ -5,7 +5,7 @@ import path from 'path';
 import {
   sendError,
   ensureDir,
-  parseApiError,
+  handleRouteError,
   assertDocType,
   assertStatus,
   resolveDocPath,
@@ -33,8 +33,7 @@ export default function docsCrudRoutes({
       for (const cfg of Object.values(TYPE_CONFIG)) ensureDir(cfg.dir());
       res.json(docIndex.getAll());
     } catch (err) {
-      const apiErr = parseApiError(err);
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      handleRouteError(res, err);
     }
   });
 
@@ -46,14 +45,7 @@ export default function docsCrudRoutes({
       const content = await fs.promises.readFile(filepath, 'utf-8');
       res.json({ filename, docType, content });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      sendError(
-        res,
-        apiErr.code === 'INVALID_TYPE' || apiErr.code === 'INVALID_FILENAME' ? 400 : 500,
-        apiErr.code,
-        apiErr.message,
-        apiErr.details
-      );
+      handleRouteError(res, err);
     }
   });
 
@@ -210,18 +202,7 @@ export default function docsCrudRoutes({
         ...(priority !== undefined && { priority }),
       });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      sendError(
-        res,
-        ['INVALID_TYPE', 'INVALID_FILENAME', 'INVALID_STATUS', 'INVALID_TITLE'].includes(
-          apiErr.code
-        )
-          ? 400
-          : 500,
-        apiErr.code,
-        apiErr.message,
-        apiErr.details
-      );
+      handleRouteError(res, err);
     }
   });
 
@@ -237,14 +218,7 @@ export default function docsCrudRoutes({
       logAudit({ op: 'delete', docType, filename, source: 'api' });
       res.json({ success: true });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      sendError(
-        res,
-        ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500,
-        apiErr.code,
-        apiErr.message,
-        apiErr.details
-      );
+      handleRouteError(res, err);
     }
   });
 
@@ -320,14 +294,7 @@ ${notesLine}`;
       logInfo('POST /api/docs/draft', `Created draft ${filename}`);
       res.json({ success: true, filename, docType: normalizedType });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      sendError(
-        res,
-        ['VALIDATION_ERROR', 'INVALID_TYPE'].includes(apiErr.code) ? 400 : 500,
-        apiErr.code,
-        apiErr.message,
-        apiErr.details
-      );
+      handleRouteError(res, err);
     }
   });
 

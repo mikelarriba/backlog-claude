@@ -8,6 +8,8 @@ import {
   createJiraService,
   LOCAL_TO_JIRA_TYPE,
   JIRA_TO_LOCAL_TYPE,
+  resolveEpicLink,
+  syncContainsLink,
 } from '../../src/services/jiraService.js';
 import { isoDate, slugify, stripFrontmatter } from '../../src/utils/transforms.js';
 
@@ -176,5 +178,169 @@ describe('stripFrontmatter', () => {
 
   test('returns content unchanged when no frontmatter', () => {
     assert.equal(stripFrontmatter('Just text'), 'Just text');
+  });
+});
+
+// ── resolveEpicLink (#422 dedup) ───────────────────────────────────────────────
+// Shared by jira-push-doc.ts's push-preview and jiraPushService.ts's create/update
+// paths, which previously each reimplemented this resolution independently.
+describe('resolveEpicLink', () => {
+  let epicsDir;
+
+  before(() => {
+    epicsDir = path.join(tmpRoot, 'resolve-epic-link-epics');
+    fs.mkdirSync(epicsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(epicsDir, 'linked-epic.md'),
+      '---\nJIRA_ID: EAMDM-100\n---\n\n## Linked Epic\n'
+    );
+    fs.writeFileSync(
+      path.join(epicsDir, 'unpushed-epic.md'),
+      '---\nJIRA_ID: TBD\n---\n\n## Unpushed Epic\n'
+    );
+  });
+
+  test('returns nulls when Epic_ID is absent', async () => {
+    const result = await resolveEpicLink('---\nStatus: Draft\n---\n', epicsDir);
+    assert.deepEqual(result, { epicFilename: null, epicJiraId: null });
+  });
+
+  test('returns nulls when Epic_ID is the TBD placeholder', async () => {
+    const result = await resolveEpicLink('---\nEpic_ID: TBD\n---\n', epicsDir);
+    assert.deepEqual(result, { epicFilename: null, epicJiraId: null });
+  });
+
+  test('resolves the epic filename and its JIRA key when the epic is already in JIRA', async () => {
+    const result = await resolveEpicLink('---\nEpic_ID: linked-epic.md\n---\n', epicsDir);
+    assert.deepEqual(result, { epicFilename: 'linked-epic.md', epicJiraId: 'EAMDM-100' });
+  });
+
+  test('returns the epic filename but a null JIRA key when the epic has not been pushed yet', async () => {
+    const result = await resolveEpicLink('---\nEpic_ID: unpushed-epic.md\n---\n', epicsDir);
+    assert.deepEqual(result, { epicFilename: 'unpushed-epic.md', epicJiraId: null });
+  });
+
+  test('returns the epic filename but a null JIRA key when the epic file does not exist', async () => {
+    const result = await resolveEpicLink('---\nEpic_ID: missing-epic.md\n---\n', epicsDir);
+    assert.deepEqual(result, { epicFilename: 'missing-epic.md', epicJiraId: null });
+  });
+});
+
+// ── syncContainsLink (#422 dedup) ──────────────────────────────────────────────
+// Shared by jiraPushService.ts's create and update paths, which previously each
+// had a verbatim copy of this "epic contains feature" link-creation block.
+describe('syncContainsLink', () => {
+  let epicsDir, featuresDir;
+  const noopLogWarn = () => {};
+
+  before(() => {
+    epicsDir = path.join(tmpRoot, 'sync-contains-epics');
+    featuresDir = path.join(tmpRoot, 'sync-contains-features');
+    fs.mkdirSync(epicsDir, { recursive: true });
+    fs.mkdirSync(featuresDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(featuresDir, 'linked-feature.md'),
+      '---\nJIRA_ID: EAMDM-200\n---\n\n## Linked Feature\n'
+    );
+    fs.writeFileSync(
+      path.join(featuresDir, 'unpushed-feature.md'),
+      '---\nJIRA_ID: TBD\n---\n\n## Unpushed Feature\n'
+    );
+  });
+
+  test('is a no-op for non-epic types', async () => {
+    const calls = [];
+    await syncContainsLink(
+      '---\nFeature_ID: linked-feature.md\n---\n',
+      'story',
+      'EAMDM-1',
+      featuresDir,
+      async (...args) => calls.push(args),
+      noopLogWarn
+    );
+    assert.equal(calls.length, 0);
+  });
+
+  test('is a no-op when Feature_ID is absent or TBD', async () => {
+    const calls = [];
+    const jiraRequest = async (...args) => calls.push(args);
+    await syncContainsLink(
+      '---\nStatus: Draft\n---\n',
+      'epic',
+      'EAMDM-1',
+      featuresDir,
+      jiraRequest,
+      noopLogWarn
+    );
+    await syncContainsLink(
+      '---\nFeature_ID: TBD\n---\n',
+      'epic',
+      'EAMDM-1',
+      featuresDir,
+      jiraRequest,
+      noopLogWarn
+    );
+    assert.equal(calls.length, 0);
+  });
+
+  test('is a no-op when the linked feature has not been pushed to JIRA yet', async () => {
+    const calls = [];
+    await syncContainsLink(
+      '---\nFeature_ID: unpushed-feature.md\n---\n',
+      'epic',
+      'EAMDM-1',
+      featuresDir,
+      async (...args) => calls.push(args),
+      noopLogWarn
+    );
+    assert.equal(calls.length, 0);
+  });
+
+  test('creates the "contains" issue link when the epic has a pushed feature', async () => {
+    const calls = [];
+    const jiraRequest = async (method, urlPath, body) => {
+      calls.push({ method, urlPath, body });
+      if (urlPath === '/issueLinkType') {
+        return {
+          issueLinkTypes: [{ name: 'Contains', inward: 'is part of', outward: 'contains' }],
+        };
+      }
+      return {};
+    };
+    await syncContainsLink(
+      '---\nFeature_ID: linked-feature.md\n---\n',
+      'epic',
+      'EAMDM-1',
+      featuresDir,
+      jiraRequest,
+      noopLogWarn
+    );
+    const linkCall = calls.find((c) => c.urlPath === '/issueLink');
+    assert.ok(linkCall, 'expected an /issueLink call');
+    assert.equal(linkCall.method, 'POST');
+    assert.deepEqual(linkCall.body, {
+      type: { name: 'Contains' },
+      inwardIssue: { key: 'EAMDM-1' },
+      outwardIssue: { key: 'EAMDM-200' },
+    });
+  });
+
+  test('logs a warning instead of throwing when the JIRA link call fails', async () => {
+    const warnings = [];
+    const jiraRequest = async (method, urlPath) => {
+      if (urlPath === '/issueLinkType')
+        return { issueLinkTypes: [{ name: 'Contains', inward: '', outward: 'contains' }] };
+      if (urlPath === '/issueLink') throw new Error('link already exists');
+      return {};
+    };
+    await syncContainsLink(
+      '---\nFeature_ID: linked-feature.md\n---\n',
+      'epic',
+      'EAMDM-1',
+      featuresDir,
+      jiraRequest,
+      (_ctx, msg) => warnings.push(msg)
+    );
+    assert.ok(warnings.some((w) => w.includes('link already exists')));
   });
 });

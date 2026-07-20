@@ -4,10 +4,15 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { pMap } from '../utils/pMap.js';
-import { sendError, parseApiError, assertDocType, assertFilename } from '../utils/routeHelpers.js';
+import {
+  sendError,
+  handleRouteError,
+  assertDocType,
+  assertFilename,
+} from '../utils/routeHelpers.js';
 import { extractFrontmatterField } from '../utils/transforms.js';
 import { parseStorySections } from '../services/storyService.js';
-import { resolveParentJiraId } from '../services/jiraService.js';
+import { resolveParentJiraId, resolveEpicLink } from '../services/jiraService.js';
 import { createJiraPushService } from '../services/jiraPushService.js';
 import { TEAM_TO_JIRA_LABEL, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 import { config } from '../config/env.js';
@@ -78,12 +83,11 @@ export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
           let pendingEpicTitle = null;
           let epicFilenameRef = null;
           if (docType === 'story' || docType === 'spike' || docType === 'bug') {
-            const epicFilename = extractFrontmatterField(content, 'Epic_ID');
-            if (epicFilename && epicFilename !== 'TBD') {
+            const { epicFilename, epicJiraId } = await resolveEpicLink(content, EPICS_DIR);
+            if (epicFilename) {
               epicFilenameRef = epicFilename;
-              const eid = await resolveParentJiraId(EPICS_DIR, epicFilename);
-              if (eid) {
-                localEpicJiraId = eid;
+              if (epicJiraId) {
+                localEpicJiraId = epicJiraId;
               } else {
                 // Epic exists locally but not yet in JIRA — capture its title for preview
                 const epicPath = path.join(EPICS_DIR, epicFilename);
@@ -289,13 +293,7 @@ export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
 
       res.json({ items: previews });
     } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/push-preview',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      handleRouteError(res, err, { scope: 'POST /api/jira/push-preview', logError });
     }
   });
 
@@ -335,19 +333,7 @@ export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
       );
       res.json(result);
     } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/push/:type/:filename',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(
-        res,
-        ['INVALID_TYPE', 'INVALID_FILENAME'].includes(apiErr.code) ? 400 : 500,
-        apiErr.code,
-        apiErr.message,
-        apiErr.details
-      );
+      handleRouteError(res, err, { scope: 'POST /api/jira/push/:type/:filename', logError });
     }
   });
 
