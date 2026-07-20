@@ -18,6 +18,7 @@ import {
 } from './refine.js';
 import { buildCanvasGraph, renderCanvas, saveCanvasLayout } from './refine-canvas.js';
 import { _closeLinkPopup } from './refine-edges.js';
+import { positionPopup } from './ui-helpers.js';
 
 // ── Local shape of canvas layout position entries ───────────────
 // _activePanelState.layout / _panelStates' PanelState.layout are typed as
@@ -67,8 +68,7 @@ export function _showCardContextMenu(
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
   popup.innerHTML = `
     <div class="canvas-link-popup-title">Move card</div>
     <button id="_ctx-left">← Move to Left</button>
@@ -111,8 +111,7 @@ export function _showFpCardContextMenu(
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
 
   // Build "Move to Epic" submenu items from _panelStates
   const epicItems = [..._panelStates.keys()]
@@ -196,8 +195,7 @@ export function _showEpicContextMenu(
   const epicDoc = allDocs.find((d) => d.filename === epicFilename && d.docType === 'epic');
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
   popup.innerHTML = `
     <div class="canvas-link-popup-title">${escHtml(epicDoc?.title || epicFilename)}</div>
     <button id="_epic-ctx-split">✂ Split Epic</button>
@@ -233,8 +231,7 @@ export function _showEmptyCellMenu(
   _closeLinkPopup();
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
   popup.innerHTML = `
     <div class="canvas-link-popup-title">Create new</div>
     <button id="_cell-story" class="green">＋ Story</button>
@@ -387,8 +384,7 @@ export function _showMultiCardContextMenu(
   const count = _canvasSelectedCards.size;
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
-  popup.style.left = `${x}px`;
-  popup.style.top = `${y}px`;
+  positionPopup(popup, x, y);
   popup.innerHTML = `
     <div class="canvas-link-popup-title">${count} cards selected</div>
     <button id="_ctx-m-left">← Move all Left</button>

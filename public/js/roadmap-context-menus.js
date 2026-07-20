@@ -7,6 +7,7 @@ import { _rankSortFn } from './list-render.js';
 import { openDoc } from './detail.js';
 import { upsertDoc } from './store.js';
 import { refreshRoadmapView } from './roadmap.js';
+import { positionPopup } from './ui-helpers.js';
 function _closeRoadmapCtx() {
   const el = document.getElementById('rm-context-menu');
   if (el) el.remove();
@@ -28,8 +29,7 @@ function _showRoadmapCtx(x, y, html) {
   const rect = menu.getBoundingClientRect();
   if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
   if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
-  menu.style.left = x + 'px';
-  menu.style.top = y + 'px';
+  positionPopup(menu, x, y);
   setTimeout(() => {
     document.addEventListener('mousedown', _rmCtxDismiss);
     document.addEventListener('contextmenu', _rmCtxDismiss);
