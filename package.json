@@ -22,7 +22,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@asteasolutions/zod-to-openapi": "^8.5.0",
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@kenjiuno/msgreader": "^1.28.0",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
