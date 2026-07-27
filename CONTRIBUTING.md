@@ -65,5 +65,5 @@ Every PR must pass:
 - `typecheck` (backend)
 - `typecheck:frontend`
 - `lint` + `format:check`
-- `test` (unit + integration, with coverage report)
+- `test` (unit + integration)
 - `frontend-drift` — the compiled `public/js/` must match the TS source; run `npm run build:frontend` and commit the result before pushing
