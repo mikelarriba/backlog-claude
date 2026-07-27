@@ -37,7 +37,7 @@ cp .env.example .env
 # Edit .env and fill in JIRA_BASE_URL, JIRA_API_TOKEN, JIRA_PROJECT, JIRA_LABEL
 
 # 3. Start the server
-npm start          # node --watch server.js  (auto-restarts on file changes)
+npm start          # tsx --watch server.ts  (auto-restarts on file changes)
 
 # 4. Open the app
 open http://localhost:3000
@@ -201,110 +201,129 @@ Blocked_By: 2026-04-30-story-a.md # comma-separated; this story must come after
 
 ## Project structure
 
+The backend is TypeScript, compiled/run on the fly via `tsx` (no separate build step for the server). The frontend is also authored in TypeScript under `public/ts/`, but the browser loads the compiled output committed to `public/js/` — run `npm run build:frontend` after editing anything in `public/ts/` (see "Adding a new frontend module" in `CONTRIBUTING.md`).
+
 ```
 backlog-claude/
-├── server.js                      # Entry point: mounts routes, SSE, static files
+├── server.ts                      # Entry point: mounts routes, SSE, static files
 ├── index.html                     # App shell
 │
 ├── src/
-│   ├── routes/
-│   │   ├── docs-crud.js           # GET /api/docs, GET|PATCH|DELETE /api/doc, POST /api/docs/draft
-│   │   ├── docs-ai.js             # POST /api/generate, /upgrade, /split-story (SSE streaming)
-│   │   ├── docs-batch.js          # POST /api/docs/batch-delete, /batch-fix-version,
+│   ├── app/
+│   │   ├── context.ts             # DI container — wires shared deps into route modules
+│   │   ├── middleware.ts          # Global Express middleware (CORS, rate limiting, …)
+│   │   └── routes.ts              # Registers every route module on the Express app
+│   │
+│   ├── config/
+│   │   ├── docTypes.ts            # Single source of truth for doc types (Epic/Story/Spike/Bug/…)
+│   │   ├── env.ts                 # Environment variable loading/validation
+│   │   ├── metadata.ts            # Teams, work categories, JIRA label mappings
+│   │   └── openapi.ts, openapi/   # buildOpenApiSpec() — generates the /api-docs spec from zod schemas
+│   │
+│   ├── routes/                    # One file per resource; thin (parse → call service → shape response)
+│   │   ├── docs-crud.ts           # GET /api/docs, GET|PATCH|DELETE /api/doc, POST /api/docs/draft
+│   │   ├── docs-ai.ts             # POST /api/generate, /upgrade, /split-story (SSE streaming)
+│   │   ├── docs-batch.ts          # POST /api/docs/batch-delete, /batch-fix-version,
 │   │   │                          #      /distribute, /apply-distribution, /rerank
-│   │   ├── jira-push.js           # POST /api/jira/push/:type/:filename, /push-rank
-│   │   ├── jira-sync.js           # POST /api/jira/sync-status, /update-from-jira
-│   │   ├── jira-search.js         # GET  /api/jira/search, /versions, /children
-│   │   │                          # POST /api/jira/pull
-│   │   ├── links.js               # GET  /api/links/:type/:filename
+│   │   ├── jira-push-doc.ts       # POST /api/jira/push/:type/:filename, /push-preview
+│   │   ├── jira-push-rank.ts      # POST /api/jira/push-rank
+│   │   ├── jira-push-sprints.ts   # POST /api/jira/push-sprints
+│   │   ├── jira-sync.ts           # POST /api/jira/sync-status, /update-from-jira, /check-all
+│   │   ├── jira-search.ts         # GET  /api/jira/search, /versions, /children; POST /api/jira/pull
+│   │   ├── links.ts               # GET  /api/links/:type/:filename
 │   │   │                          # POST|DELETE /api/link  (hierarchy + blocks deps)
-│   │   ├── bugs.js                # POST /api/bugs/create, GET /api/bugs/attachments
-│   │   ├── stories.js             # POST /api/stories/generate
-│   │   ├── settings.js            # GET|PUT /api/settings/*, GET /api/config
-│   │   └── skills.js              # GET|PUT|DELETE /api/skills, product context
+│   │   ├── bugs.ts                # POST /api/bugs/create, GET /api/bugs/attachments
+│   │   ├── bugs-dashboard.ts      # GET  /api/bugs/dashboard (SSE) — JIRA bug time-series/stats
+│   │   ├── stories.ts             # POST /api/stories/generate
+│   │   ├── settings.ts            # GET|PUT /api/settings/*, GET /api/config
+│   │   ├── skills.ts              # GET|PUT|DELETE /api/skills, product context
+│   │   ├── canvas.ts              # Refine-canvas layout persistence
+│   │   ├── confluence.ts          # Confluence export/snapshot routes
+│   │   ├── export.ts              # PDF/PPTX export routes
+│   │   ├── ai-savings.ts          # AI cost/savings tracking routes
+│   │   └── health.ts              # GET /api/health
 │   │
 │   ├── services/
-│   │   ├── docIndex.js            # In-memory Map<filename, metadata>; O(1) lookups;
-│   │   │                          # invalidated on every write, full rebuild on batch ops
-│   │   ├── claudeService.js       # Spawns `claude -p` subprocess; MOCK_CLAUDE=1 stubs it
-│   │   ├── jiraService.js         # JIRA REST helpers, markdown↔JIRA wiki conversion
-│   │   ├── storyService.js        # Parse / serialize multi-story .md files
-│   │   ├── eventService.js        # SSE broadcast to all connected clients
-│   │   ├── bugService.js          # HTML→segments, MSG parsing, PDF buffer, translate
-│   │   └── inboxWatcher.js        # fs.watch on /inbox/, auto-processes dropped files
+│   │   ├── docIndex.ts            # In-memory Map<filename, metadata>; O(1) lookups;
+│   │   │                          #   invalidated per-write, invalidateMany() on batch ops
+│   │   ├── claudeService.ts       # Spawns `claude -p` subprocess; MOCK_CLAUDE=1 stubs it
+│   │   ├── aiService.ts           # generate/upgrade/split-story orchestration
+│   │   ├── aiPromptBuilder.ts     # Prompt construction for Claude calls
+│   │   ├── jiraService.ts         # JIRA REST helpers, markdown↔JIRA wiki conversion
+│   │   ├── jiraPushService.ts     # Push-to-JIRA orchestration
+│   │   ├── jiraSprintService.ts   # Sprint/rank push logic
+│   │   ├── jiraValidator.ts       # JIRA payload validation
+│   │   ├── storyService.ts        # Parse / serialize multi-story .md files
+│   │   ├── eventService.ts        # SSE broadcast to all connected clients
+│   │   ├── bugService.ts          # HTML→segments, MSG parsing, PDF buffer, translate
+│   │   ├── batchService.ts        # Batch-delete/fix-version/rerank/distribution logic
+│   │   ├── distributionService.ts # Sprint distribution algorithm
+│   │   ├── linksService.ts        # Hierarchy + blocks-dependency graph logic
+│   │   ├── docPatch.ts            # Frontmatter patch application
+│   │   ├── confluenceService.ts, confluenceSnapshotStore.ts  # Confluence export
+│   │   ├── aiSavingsService.ts    # AI cost/savings computation
+│   │   ├── exportLayout.ts        # PDF/PPTX layout helpers
+│   │   ├── providers/             # Pluggable AI provider adapters
+│   │   └── inboxWatcher.ts        # fs.watch on /inbox/, auto-processes dropped files
+│   │
+│   ├── schemas/                   # zod request-body schemas (also feed the OpenAPI spec)
+│   ├── middleware/
+│   │   └── rateLimiter.ts         # express-rate-limit config
 │   │
 │   └── utils/
-│       ├── transforms.js          # Pure fns: slugify, isoDate, extractTitle,
+│       ├── transforms.ts          # Pure fns: slugify, isoDate, extractTitle,
 │       │                          #   setFrontmatterField, removeFrontmatterField,
 │       │                          #   markdownToJira, jiraToMarkdown, …
-│       └── routeHelpers.js        # sendError, parseApiError, assertDocType,
-│                                  #   assertFilename, assertStatus, resolveDocPath
+│       ├── routeHelpers.ts        # sendError, parseApiError, assertDocType,
+│       │                          #   assertFilename, assertStatus, resolveDocPath
+│       ├── docHelpers.ts          # findExistingByJiraId and other doc lookups
+│       ├── frontmatter.ts         # Frontmatter parsing primitives
+│       ├── validate.ts, validateMiddleware.ts  # zod request validation
+│       ├── auditLog.ts            # Structured audit log writer
+│       ├── circuitBreaker.ts      # Circuit breaker for external calls
+│       ├── logger.ts              # Structured logging
+│       ├── pMap.ts                # Bounded-concurrency async map
+│       ├── requestLogger.ts       # HTTP request logging middleware
+│       └── topoSort.ts            # Topological sort (dependency cycle detection)
 │
 ├── public/
-│   ├── css/
-│   │   ├── base.css               # CSS variables, reset, dark/light theme
-│   │   ├── layout.css             # App grid, left panel, right panel
-│   │   ├── components.css         # Buttons, dialogs, toasts, forms, spinners
-│   │   ├── list.css               # Swimlanes, doc items, drag states, dep badges,
-│   │   │                          #   insertion line marker, dep-indented items
-│   │   ├── swimlanes.css          # Swimlane-specific layout
-│   │   ├── detail.css             # Detail view, hierarchy panel
-│   │   ├── stories.css            # Story card grid
-│   │   ├── jira.css               # JIRA import/search panel
-│   │   ├── roadmap.css            # Roadmap board, epic timeline, story columns,
-│   │   │                          #   dep badges, dependency modal
-│   │   ├── distribution.css       # Sprint distribution modal
-│   │   ├── split.css              # Story-split modal
-│   │   ├── piconfig.css           # PI & sprint configuration panel
-│   │   ├── refine.css             # Refine/upgrade panel
-│   │   └── bugs.css               # Bug reporter panel
+│   ├── css/                       # base, layout, components, list, roadmap, jira, bugs, …
 │   │
-│   └── js/
-│       ├── state.js               # Shared state (allDocs, piSettings, sprintConfig, …)
-│       │                          #   + helper fns (escHtml, fetchJSON, postJSON, …)
-│       ├── list.js                # Swimlane rendering, rank sort, dep badges, ⛓ button
-│       ├── dragdrop.js            # Mouse-event drag: link drop, PI-move drop,
-│       │                          #   rerank drop (insertion line marker)
-│       ├── detail.js              # Detail view, hierarchy, status changes
-│       ├── upgrade.js             # Upgrade panel (SSE streaming)
-│       ├── quickcreate.js         # Quick-create from detail view
-│       ├── stories.js             # Story cards: generate, upgrade, delete
-│       ├── jira.js                # JIRA push, sync, search, pull
-│       ├── roadmap.js             # Roadmap board, dep modal (openDepModal),
-│       │                          #   card drag-drop for sprint assignment
-│       ├── distribution.js        # Sprint distribution modal + dep warning toast
-│       ├── piconfig.js            # PI & sprint configuration panel
-│       ├── refine.js              # Refine panel
-│       ├── bugcreate.js           # Bug reporter panel
-│       ├── theme.js               # Dark / light theme toggle
-│       └── main.js                # Bootstrap: loadDocs, SSE listener, init (load last)
+│   ├── ts/                        # Frontend source — ES modules, no window.* assignments
+│   │   ├── state.ts               # Shared state (allDocs, piSettings, sprintConfig, …)
+│   │   ├── list.ts, list-render.ts, list-filters.ts  # Swimlane rendering, rank sort, filters
+│   │   ├── dragdrop.ts            # Mouse-event drag: link drop, PI-move drop, rerank
+│   │   ├── detail.ts, detail-fields.ts, detail-links.ts  # Detail view, hierarchy, status
+│   │   ├── upgrade.ts             # Upgrade panel (SSE streaming)
+│   │   ├── quickcreate.ts         # Quick-create from detail view
+│   │   ├── stories.ts             # Story cards: generate, upgrade, delete
+│   │   ├── jira-import.ts, jira-pull.ts, jira-push.ts  # JIRA import, pull, push
+│   │   ├── roadmap.ts + roadmap-*.ts  # Roadmap board, drag, select, JIRA sync, context menus
+│   │   ├── refine.ts + refine-*.ts  # Refine/upgrade canvas (nodes, edges)
+│   │   ├── canvasLayout.ts        # Pure layout math for the refine canvas (unit-tested)
+│   │   ├── distribution.ts        # Sprint distribution modal + dep warning toast
+│   │   ├── piconfig.ts            # PI & sprint configuration panel
+│   │   ├── bugcreate.ts, bugs-dashboard.ts  # Bug reporter panel + JIRA bug dashboard
+│   │   ├── documentation.ts       # Docs/skills browser panel
+│   │   ├── skills.ts              # Skills CRUD panel
+│   │   ├── export.ts, ai-savings.ts, provider-settings.ts
+│   │   ├── theme.ts               # Dark / light theme toggle
+│   │   ├── sse-client.ts, store.ts, ui-helpers.ts  # Shared SSE/store/DOM helpers
+│   │   └── main.ts                # Bootstrap: loadDocs, SSE listener, init (load last)
+│   │
+│   └── js/                        # Compiled output of public/ts/*.ts — generated via
+│                                   #   `npm run build:frontend`, committed alongside the TS
+│                                   #   source (the CI "frontend-drift" check fails a PR
+│                                   #   whose public/js/ doesn't match its public/ts/ source)
 │
 ├── tests/
-│   ├── unit/
-│   │   ├── transforms.test.js     # setFrontmatterField, removeFrontmatterField,
-│   │   │                          #   markdownToJira, extractTitle, …
-│   │   ├── storyService.test.js   # parseStorySections, serializeStoryFile
-│   │   ├── jiraService.test.js    # jiraIssueToMarkdown, extractJiraSummary
-│   │   ├── claudeService.test.js  # MOCK_CLAUDE stub behaviour
-│   │   ├── eventService.test.js   # SSE broadcast
-│   │   └── bugService.test.js     # translateToEnglish, textToPdfBuffer,
-│   │                              #   processAttachment, parseMsgFile
-│   │
-│   └── integration/               # HTTP tests against a real isolated Express instance
-│       ├── api.test.js            # CRUD, draft, PATCH (status/title/SP/sprint/rank),
-│       │                          #   batch-delete, batch-fix-version, rerank,
-│       │                          #   links (hierarchy + blocks), distribute,
-│       │                          #   apply-distribution, generate (SSE)
-│       ├── docs-extended.test.js  # batch-delete, distribute, split-story SSE,
-│       │                          #   upgrade SSE, apply-distribution
-│       ├── jira.test.js           # push, pull, sync-status, update-from-jira,
-│       │                          #   search, versions, children (mocked fetch)
-│       └── settings.test.js       # GET/PUT pi settings, split-threshold,
-│                                  #   sprint config, model settings
-│
-├── helpers/
-│   └── testApp.js                 # Starts an isolated Express instance in a temp dir
-│                                  #   for each integration test suite
+│   ├── unit/                      # Pure-function tests — run `npm test` for the current suite
+│   ├── integration/                # HTTP tests against a real isolated Express instance
+│   ├── e2e/                        # Playwright specs (`npm run test:e2e`)
+│   ├── bench/                      # Performance benchmarks (`npm run test:bench`)
+│   └── helpers/
+│       └── testApp.js              # Starts an isolated Express instance in a temp dir
+│                                   #   for each integration test suite
 │
 ├── docs/
 │   ├── features/                  # Generated Feature documents
@@ -382,29 +401,20 @@ backlog-claude/
 ## Running tests
 
 ```bash
-npm test                  # unit + integration tests — run it for the current count
+npm test                  # unit + integration tests
 npm run test:unit         # unit tests only
 npm run test:integration  # integration tests only
+npm run test:e2e          # Playwright end-to-end tests
+npm run test:bench        # performance benchmarks
 ```
 
 Tests use Node's built-in `node:test` runner — no extra dependencies.
 
 Integration tests start a real Express instance in an isolated temp directory per suite, so they never touch your actual `docs/` data. JIRA HTTP calls are stubbed via `mock.method(globalThis, 'fetch', ...)`. Claude subprocess calls are stubbed via `MOCK_CLAUDE=1`.
 
-### Test coverage (run `npm test` for the current suite/test count)
+### Test coverage
 
-| Suite                   | What it covers                                                                                                                        |
-| :---------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
-| `transforms.test.js`    | `setFrontmatterField`, `removeFrontmatterField`, `markdownToJira`, `extractTitle`, `extractWorkflowStatus`, `extractFrontmatterField` |
-| `storyService.test.js`  | `parseStorySections`, `serializeStoryFile`                                                                                            |
-| `jiraService.test.js`   | `jiraIssueToMarkdown`, `extractJiraSummary`, `LOCAL_TO_JIRA_TYPE`                                                                     |
-| `claudeService.test.js` | `MOCK_CLAUDE` stub, stream behaviour                                                                                                  |
-| `eventService.test.js`  | `broadcast` SSE formatting                                                                                                            |
-| `bugService.test.js`    | `translateToEnglish`, `textToPdfBuffer`, `processAttachment`, `parseMsgFile`                                                          |
-| `api.test.js`           | Full CRUD, draft, PATCH fields, batch ops, rerank, links, distribute, generate SSE                                                    |
-| `docs-extended.test.js` | batch-delete, distribute, split-story SSE, upgrade SSE, apply-distribution                                                            |
-| `jira.test.js`          | push, pull, sync-status, update-from-jira, search, versions, children                                                                 |
-| `settings.test.js`      | PI names, split-threshold, sprint config, model settings                                                                              |
+The suite is split across `tests/unit/` (pure functions and services), `tests/integration/` (HTTP tests against a real isolated Express instance), and `tests/e2e/` (Playwright, browser-driven). It's grown substantially since this project's early days — rather than hand-list every suite here (which reliably goes stale), run `npm test` or browse the relevant `tests/*` directory for the current, authoritative list.
 
 ---
 
@@ -432,12 +442,13 @@ Blocked_By: 2026-05-01-story-a.md
 
 ## In-memory document index
 
-`src/services/docIndex.js` builds a `Map<filename, metadata>` on startup by reading every markdown file once. All `GET /api/docs` requests and JIRA lookup operations (`findByJiraId`) hit the map — no per-request file I/O.
+`src/services/docIndex.ts` builds a `Map<filename, metadata>` on startup by reading every markdown file once. All `GET /api/docs` requests and JIRA lookup operations (`findByJiraId`) hit the map — no per-request file I/O.
 
 Invalidation strategy:
 
 - **Single write** (PATCH, push, pull, link): `docIndex.invalidate(docType, filename)` — rebuilds one entry
-- **Batch write** (batch-delete, batch-fix-version, rerank, apply-distribution): `docIndex.invalidateAll()` — full rebuild
+- **Batch write** (batch-delete, batch-fix-version, rerank, apply-distribution): `docIndex.invalidateMany(filenames)` — re-reads only the affected files
+- **Full rebuild**: `docIndex.invalidateAll()` exists for the rare case where the exact changed filenames aren't known (e.g. the test-only `/api/docs/rebuild-index` endpoint); everyday routes should prefer the targeted `invalidate`/`invalidateMany` calls above
 
 Each index entry contains: `filename`, `docType`, `title`, `date`, `status`, `fixVersion`, `jiraId`, `jiraUrl`, `storyPoints`, `sprint`, `rank`, `priority`, `parentFilename`, `parentType`, `blocks[]`, `blockedBy[]`, `hasDescription`.
 
@@ -532,7 +543,7 @@ The `.gitignore` already excludes `.claude/commands/` and `.product-context.md`.
 
 Drop any `.md` file into `/inbox/`:
 
-1. `inboxWatcher.js` detects the file via `fs.watch`
+1. `inboxWatcher.ts` detects the file via `fs.watch`
 2. Claude CLI reads the raw idea against the matching skill prompt (e.g. `create-epics.md`)
 3. The polished document is saved to the correct `docs/` subfolder
 4. All open browser tabs refresh via SSE
