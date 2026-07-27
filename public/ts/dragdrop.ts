@@ -209,43 +209,6 @@ async function executeDropDep(): Promise<void> {
   }
 }
 
-// ── Existing drop actions ─────────────────────────────────────
-async function _executeLinkDrop(
-  srcFilename: string,
-  srcDocType: string,
-  dropTarget: HTMLElement
-): Promise<void> {
-  const tgtFilename = dropTarget.dataset.filename as string;
-  const tgtDocType = dropTarget.dataset.doctype as string;
-  const tgtTitle = dropTarget.querySelector('.epic-title-text')?.textContent || tgtFilename;
-
-  const dragDocs = getDragDocs(srcFilename, srcDocType);
-
-  try {
-    let linked = 0;
-    for (const d of dragDocs) {
-      const valid = DRAG_TARGETS[d.docType] || [];
-      if (!valid.includes(tgtDocType)) continue;
-      await postJSON('/api/link', {
-        sourceType: d.docType,
-        sourceFilename: d.filename,
-        targetType: tgtDocType,
-        targetFilename: tgtFilename,
-      });
-      linked++;
-    }
-
-    const msg = linked > 1 ? `Linked ${linked} items to "${tgtTitle}"` : `Linked to "${tgtTitle}"`;
-    showJiraToast('success', msg);
-    clearSelection();
-    if (currentFilename === srcFilename || currentFilename === tgtFilename) {
-      loadHierarchy(currentFilename as string, currentDocType as string);
-    }
-  } catch (err) {
-    showJiraToast('error', (err as Error).message);
-  }
-}
-
 async function executeMoveDrop(
   srcFilename: string,
   srcDocType: string,

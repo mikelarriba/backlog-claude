@@ -172,35 +172,6 @@ async function executeDropDep() {
     showJiraToast('error', err.message);
   }
 }
-// ── Existing drop actions ─────────────────────────────────────
-async function _executeLinkDrop(srcFilename, srcDocType, dropTarget) {
-  const tgtFilename = dropTarget.dataset.filename;
-  const tgtDocType = dropTarget.dataset.doctype;
-  const tgtTitle = dropTarget.querySelector('.epic-title-text')?.textContent || tgtFilename;
-  const dragDocs = getDragDocs(srcFilename, srcDocType);
-  try {
-    let linked = 0;
-    for (const d of dragDocs) {
-      const valid = DRAG_TARGETS[d.docType] || [];
-      if (!valid.includes(tgtDocType)) continue;
-      await postJSON('/api/link', {
-        sourceType: d.docType,
-        sourceFilename: d.filename,
-        targetType: tgtDocType,
-        targetFilename: tgtFilename,
-      });
-      linked++;
-    }
-    const msg = linked > 1 ? `Linked ${linked} items to "${tgtTitle}"` : `Linked to "${tgtTitle}"`;
-    showJiraToast('success', msg);
-    clearSelection();
-    if (currentFilename === srcFilename || currentFilename === tgtFilename) {
-      loadHierarchy(currentFilename, currentDocType);
-    }
-  } catch (err) {
-    showJiraToast('error', err.message);
-  }
-}
 async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
   const targetSection = dropSwimlane.dataset.section;
   const newFixVersion = sectionToFixVersion(targetSection);
