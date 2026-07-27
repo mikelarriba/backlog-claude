@@ -121,7 +121,7 @@ export default function jiraSyncRoutes({
 
       const existingBodyText = extractBodyText(content);
       if (jiraDesc && jiraDesc !== existingBodyText) {
-        appendDescriptionHistory(path.join(INBOX_DIR, filename), existingBodyText, jiraDesc);
+        await appendDescriptionHistory(path.join(INBOX_DIR, filename), existingBodyText, jiraDesc);
         const match = updated.match(/^(---[\s\S]*?---\n+## [^\n]+\n)/);
         if (match) {
           const commentsMatch = updated.match(/\n## Comments\b[\s\S]*$/);
@@ -188,7 +188,11 @@ export default function jiraSyncRoutes({
 
       const newBodyText = extractBodyText(freshContent);
       if (newBodyText !== existingBodyText) {
-        appendDescriptionHistory(path.join(INBOX_DIR, filename), existingBodyText, newBodyText);
+        await appendDescriptionHistory(
+          path.join(INBOX_DIR, filename),
+          existingBodyText,
+          newBodyText
+        );
       }
 
       const LOCAL_FIELDS = ['Sprint', 'Squad', 'PI', 'Feature_ID', 'Epic_ID', 'Created', 'Team'];
@@ -360,23 +364,10 @@ export default function jiraSyncRoutes({
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
     try {
-      const linkedDocs = [];
-      for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
-        const dir = cfg.dir();
-        if (!fs.existsSync(dir)) continue;
-        for (const filename of (await fs.promises.readdir(dir)).filter((f) => f.endsWith('.md'))) {
-          try {
-            const content = await fs.promises.readFile(path.join(dir, filename), 'utf-8');
-            const jiraId = extractFrontmatterField(content, 'JIRA_ID');
-            if (!jiraId || jiraId === 'TBD') continue;
-            linkedDocs.push({ filename, docType, jiraId });
-          } catch (err) {
-            logWarn('jira/sync', `skipping unreadable file ${filename}`, {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-      }
+      const linkedDocs = docIndex
+        .getAll()
+        .filter((e) => e.jiraId)
+        .map((e) => ({ filename: e.filename, docType: e.docType, jiraId: e.jiraId as string }));
       if (linkedDocs.length === 0)
         return res.json({ changed: [], skipped: [], errors: [], total: 0 });
 

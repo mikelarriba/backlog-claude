@@ -644,3 +644,64 @@ Local context.
     assert.match(doc.content, /^PI: PI-2026\.1$/m);
   });
 });
+
+// ── POST /api/jira/check-all — uses docIndex, not a disk scan ────────────────
+describe('POST /api/jira/check-all — reads linked docs from docIndex', () => {
+  let filename;
+  const originalFetch = globalThis.fetch;
+
+  before(async () => {
+    const { data: doc } = await api('POST', '/api/generate', {
+      idea: 'Epic linked to JIRA for check-all regression test',
+      type: 'epic',
+    });
+    filename = doc.filename;
+
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      if (typeof url === 'string' && url.includes('/rest/api/')) {
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ key: 'EAMDM-9500', id: '9500' }),
+          text: async () => JSON.stringify({ key: 'EAMDM-9500' }),
+        };
+      }
+      return originalFetch(url, opts);
+    });
+    // Push assigns JIRA_ID and — unlike a raw fs write — updates docIndex via
+    // docIndex.invalidate, so check-all's docIndex.getAll() lookup can see it.
+    await api('POST', `/api/jira/push/epic/${encodeURIComponent(filename)}`);
+    mock.restoreAll();
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+  });
+
+  test('does not scan doc directories with fs.promises.readdir', async () => {
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      if (typeof url === 'string' && url.includes('/rest/api/')) {
+        const body = { fields: { summary: null, status: null, description: null } };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => body,
+          text: async () => JSON.stringify(body),
+        };
+      }
+      return originalFetch(url, opts);
+    });
+
+    const realReaddir = fs.promises.readdir.bind(fs.promises);
+    const readdirSpy = mock.method(fs.promises, 'readdir', (...args) => realReaddir(...args));
+
+    const { status, data } = await api('POST', '/api/jira/check-all');
+    assert.equal(status, 200);
+    assert.ok(data.total >= 1);
+    assert.equal(readdirSpy.mock.calls.length, 0);
+
+    mock.restoreAll();
+  });
+});
