@@ -58,49 +58,6 @@ export function registerRoutes(app: Express, ctx: AppContext, rootDir: string): 
   app.get('/api-docs/openapi.json', (_req, res) => res.json(openApiSpec));
   app.use('/api-docs', express.static(swaggerUiPath));
 
-  app.get('/swagger/openapi.yaml', (_req, res) => {
-    res.setHeader('Content-Type', 'application/yaml; charset=utf-8');
-    res.sendFile(path.join(rootDir, 'openapi.yaml'));
-  });
-
-  app.get('/swagger', (_req, res) => {
-    res.setHeader(
-      'Content-Security-Policy',
-      [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' https://unpkg.com",
-        "style-src 'self' 'unsafe-inline' https://unpkg.com",
-        "img-src 'self' data: https://unpkg.com",
-        "connect-src 'self'",
-        "font-src 'self' https://unpkg.com",
-        "frame-ancestors 'none'",
-      ].join('; ')
-    );
-    res.send(`<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backlog Claude – API Docs</title>
-    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
-    <style>body { margin: 0; }</style>
-  </head>
-  <body>
-    <div id="swagger-ui"></div>
-    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-    <script>
-      SwaggerUIBundle({
-        url: '/swagger/openapi.yaml',
-        dom_id: '#swagger-ui',
-        presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-        layout: 'BaseLayout',
-        deepLinking: true,
-      });
-    </script>
-  </body>
-</html>`);
-  });
-
   app.use(docsCrudRoutes(shared));
   app.use(docsAiRoutes(shared));
   app.use(docsBatchRoutes(shared));
