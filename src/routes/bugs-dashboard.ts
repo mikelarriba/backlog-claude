@@ -76,7 +76,7 @@ function catFromStatusName(name: string): string {
   return 'new';
 }
 
-function statusAtDate(issue: Record<string, unknown>, targetDate: Date): string {
+export function statusAtDate(issue: Record<string, unknown>, targetDate: Date): string {
   const fields = issue.fields as Record<string, unknown>;
   const created = new Date(fields.created as string);
   if (targetDate < created) return '__not_yet__';
@@ -112,7 +112,7 @@ function statusAtDate(issue: Record<string, unknown>, targetDate: Date): string 
   return statusCatToLabel(curCat, curResDate, targetDate);
 }
 
-function buildTimeSeries(bugs: unknown[]): WeekPoint[] {
+export function buildTimeSeries(bugs: unknown[]): WeekPoint[] {
   const now = new Date();
   const points: WeekPoint[] = [];
 
@@ -156,7 +156,7 @@ function buildTimeSeries(bugs: unknown[]): WeekPoint[] {
   return points;
 }
 
-function buildStats(bugs: unknown[]): BugStats {
+export function buildStats(bugs: unknown[]): BugStats {
   let open = 0;
   let resolved30d = 0;
   const resolutionDaysList: number[] = [];
