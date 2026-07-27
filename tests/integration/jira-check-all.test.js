@@ -69,6 +69,10 @@ Created: 2026-01-10
 Stable description text.
 `
     );
+    // check-all reads linked docs from docIndex rather than scanning disk, so
+    // files written directly (bypassing docIndex.invalidate) must be synced
+    // via the test-only rebuild-index endpoint before check-all can see them.
+    await api('POST', '/api/docs/rebuild-index');
     process.env.JIRA_API_TOKEN = 'fake-token';
     mock.method(globalThis, 'fetch', async (url, opts) => {
       if (typeof url === 'string' && url.includes('/rest/api/') && url.includes('EAMDM-901')) {

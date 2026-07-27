@@ -311,7 +311,7 @@ export async function splitStory(
   }
 
   await fs.promises.unlink(filepath);
-  await docIndex.invalidateAll();
+  await docIndex.invalidate(docType, filename);
   broadcast({ type: 'doc_deleted', filename, docType });
 
   logInfo('POST /api/docs/split-story', `Split ${filename} into ${createdFiles.length} parts`);
