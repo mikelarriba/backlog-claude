@@ -189,6 +189,16 @@ export default [
     },
   },
 
+  // Node-run config files
+  {
+    files: ['playwright.config.js'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+      },
+    },
+  },
+
   // Disable Prettier-conflicting rules
   prettier,
 ];
