@@ -25,7 +25,7 @@
     "@asteasolutions/zod-to-openapi": "^8.5.0",
     "@kenjiuno/msgreader": "^1.28.0",
     "dotenv": "^17.4.2",
-    "express": "^4.19.2",
+    "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "js-yaml": "^4.2.0",
     "multer": "^2.1.1",
@@ -42,7 +42,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.44",
-    "@types/express": "^4.17.23",
+    "@types/express": "^5.0.6",
     "@types/js-yaml": "^4.0.9",
     "@types/multer": "^2.1.0",
     "@types/node": "^20.0.0",
