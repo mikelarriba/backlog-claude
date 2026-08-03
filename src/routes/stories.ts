@@ -17,6 +17,8 @@ import {
   extractStoryTitle,
 } from '../services/storyService.js';
 import { normalizeOutput } from '../services/claudeService.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import { UpgradeStorySchema, DeleteStorySchema } from '../schemas/stories.js';
 import type { RouteContext } from '../types.js';
 
 export default function storiesRoutes({
@@ -59,41 +61,41 @@ export default function storiesRoutes({
   });
 
   // ── POST /api/stories/:filename/upgrade-story (SSE) ────────────────────────
-  router.post('/api/stories/:filename/upgrade-story', async (req, res) => {
-    let filename, filepath;
-    try {
-      filename = assertFilename(req.params.filename);
-      filepath = path.join(STORIES_DIR, filename);
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
-    }
-    if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
-
-    setupSSE(res);
-    const send = (p: unknown) => res.write(`data: ${JSON.stringify(p)}\n\n`);
-
-    try {
-      const { storyIndex, feedback } = req.body;
-      if (!feedback?.trim()) {
-        send({ error: { code: 'VALIDATION_ERROR', message: 'Feedback is required' } });
-        return res.end();
+  router.post(
+    '/api/stories/:filename/upgrade-story',
+    validateBody(UpgradeStorySchema),
+    async (req, res) => {
+      let filename, filepath;
+      try {
+        filename = assertFilename(req.params.filename);
+        filepath = path.join(STORIES_DIR, filename);
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
       }
+      if (!fs.existsSync(filepath))
+        return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
 
-      const content = await fs.promises.readFile(filepath, 'utf-8');
-      const { frontmatter, sections } = parseStorySections(content);
-      if (storyIndex < 0 || storyIndex >= sections.length) {
-        send({ error: { code: 'VALIDATION_ERROR', message: 'Invalid story index' } });
-        return res.end();
-      }
+      setupSSE(res);
+      const send = (p: unknown) => res.write(`data: ${JSON.stringify(p)}\n\n`);
 
-      const epicFilename = filename.replace('-stories.md', '.md');
-      const inboxPath = path.join(INBOX_DIR, epicFilename);
-      const inboxHistory = fs.existsSync(inboxPath)
-        ? `\n\nOriginal epic idea and upgrade history:\n---\n${await fs.promises.readFile(inboxPath, 'utf-8')}\n---`
-        : '';
+      try {
+        const { storyIndex, feedback } = req.body;
 
-      const upgradePrompt = `Rewrite the following User Story applying the feedback below. The feedback is provided — apply it directly. Do NOT ask for clarification. Do NOT ask what changes are needed. Output ONLY the rewritten markdown — no commentary, no preamble, no code fences.
+        const content = await fs.promises.readFile(filepath, 'utf-8');
+        const { frontmatter, sections } = parseStorySections(content);
+        if (storyIndex < 0 || storyIndex >= sections.length) {
+          send({ error: { code: 'VALIDATION_ERROR', message: 'Invalid story index' } });
+          return res.end();
+        }
+
+        const epicFilename = filename.replace('-stories.md', '.md');
+        const inboxPath = path.join(INBOX_DIR, epicFilename);
+        const inboxHistory = fs.existsSync(inboxPath)
+          ? `\n\nOriginal epic idea and upgrade history:\n---\n${await fs.promises.readFile(inboxPath, 'utf-8')}\n---`
+          : '';
+
+        const upgradePrompt = `Rewrite the following User Story applying the feedback below. The feedback is provided — apply it directly. Do NOT ask for clarification. Do NOT ask what changes are needed. Output ONLY the rewritten markdown — no commentary, no preamble, no code fences.
 
 Current story:
 ---
@@ -105,72 +107,77 @@ ${feedback.trim()}
 
 Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections and YAML frontmatter structure.`;
 
-      let newStory = '';
-      await streamClaude(upgradePrompt, (chunk) => {
-        newStory += chunk;
-        send({ text: chunk });
-      });
+        let newStory = '';
+        await streamClaude(upgradePrompt, (chunk) => {
+          newStory += chunk;
+          send({ text: chunk });
+        });
 
-      newStory = normalizeOutput(newStory);
-      sections[storyIndex] = newStory;
-      await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
-      await docIndex.invalidate('story', filename);
+        newStory = normalizeOutput(newStory);
+        sections[storyIndex] = newStory;
+        await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
+        await docIndex.invalidate('story', filename);
 
-      if (fs.existsSync(inboxPath)) {
-        const note = `\n\n---\n\n## Story Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')} (Story ${storyIndex + 1})\n\n${feedback.trim()}\n`;
-        await fs.promises.appendFile(inboxPath, note);
+        if (fs.existsSync(inboxPath)) {
+          const note = `\n\n---\n\n## Story Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')} (Story ${storyIndex + 1})\n\n${feedback.trim()}\n`;
+          await fs.promises.appendFile(inboxPath, note);
+        }
+
+        send({ done: true, title: extractStoryTitle(newStory), content: newStory });
+        res.end();
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        logError(
+          'POST /api/stories/:filename/upgrade-story',
+          apiErr.message,
+          apiErr.details as Record<string, unknown> | undefined
+        );
+        send({
+          error: {
+            code: apiErr.code,
+            message: apiErr.message,
+            ...(apiErr.details ? { details: apiErr.details } : {}),
+          },
+        });
+        res.end();
       }
-
-      send({ done: true, title: extractStoryTitle(newStory), content: newStory });
-      res.end();
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/stories/:filename/upgrade-story',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      send({
-        error: {
-          code: apiErr.code,
-          message: apiErr.message,
-          ...(apiErr.details ? { details: apiErr.details } : {}),
-        },
-      });
-      res.end();
     }
-  });
+  );
 
   // ── DELETE /api/stories/:filename/story ────────────────────────────────────
-  router.delete('/api/stories/:filename/story', async (req, res) => {
-    try {
-      const filename = assertFilename(req.params.filename);
-      const filepath = path.join(STORIES_DIR, filename);
-      if (!fs.existsSync(filepath))
-        return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
+  router.delete(
+    '/api/stories/:filename/story',
+    validateBody(DeleteStorySchema),
+    async (req, res) => {
+      try {
+        const filename = assertFilename(req.params.filename);
+        const filepath = path.join(STORIES_DIR, filename);
+        if (!fs.existsSync(filepath))
+          return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
 
-      const { storyIndex } = req.body;
-      const content = await fs.promises.readFile(filepath, 'utf-8');
-      const { frontmatter, sections } = parseStorySections(content);
-      if (storyIndex < 0 || storyIndex >= sections.length) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'Invalid story index');
+        const { storyIndex } = req.body;
+        const content = await fs.promises.readFile(filepath, 'utf-8');
+        const { frontmatter, sections } = parseStorySections(content);
+        if (storyIndex < 0 || storyIndex >= sections.length) {
+          return sendError(res, 400, 'VALIDATION_ERROR', 'Invalid story index');
+        }
+
+        sections.splice(storyIndex, 1);
+        await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
+        await docIndex.invalidate('story', filename);
+        res.json({ success: true, remaining: sections.length });
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        sendError(
+          res,
+          apiErr.code === 'INVALID_FILENAME' ? 400 : 500,
+          apiErr.code,
+          apiErr.message,
+          apiErr.details
+        );
       }
-
-      sections.splice(storyIndex, 1);
-      await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
-      await docIndex.invalidate('story', filename);
-      res.json({ success: true, remaining: sections.length });
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      sendError(
-        res,
-        apiErr.code === 'INVALID_FILENAME' ? 400 : 500,
-        apiErr.code,
-        apiErr.message,
-        apiErr.details
-      );
     }
-  });
+  );
 
   // ── POST /api/epic/:filename/stories (SSE) ─────────────────────────────────
   router.post('/api/epic/:filename/stories', async (req, res) => {

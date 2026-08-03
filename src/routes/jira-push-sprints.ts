@@ -21,7 +21,12 @@ import {
 import { JIRA_LABEL_TO_TEAM } from '../config/metadata.js';
 import { config } from '../config/env.js';
 import { validateBody } from '../utils/validateMiddleware.js';
-import { JiraPushSprintsPreviewSchema, JiraPushSprintsSchema } from '../schemas/jira.js';
+import {
+  JiraPushSprintsPreviewSchema,
+  JiraPushSprintsSchema,
+  JiraPullSprintPreviewSchema,
+  JiraPullSprintSchema,
+} from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
 
 export default function jiraPushSprintsRoutes({
@@ -281,79 +286,83 @@ export default function jiraPushSprintsRoutes({
   });
 
   // ── POST /api/jira/pull-sprint-preview ── scan JIRA sprints for issues not in local app (SSE) ──
-  router.post('/api/jira/pull-sprint-preview', async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN)
-      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-    if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
+  router.post(
+    '/api/jira/pull-sprint-preview',
+    validateBody(JiraPullSprintPreviewSchema),
+    async (req, res) => {
+      if (!process.env.JIRA_API_TOKEN)
+        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+      if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
 
-    setupSSE(res);
-    const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      setupSSE(res);
+      const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-    try {
-      const { selectedSprints = [] } = req.body as { selectedSprints: string[] };
+      try {
+        const { selectedSprints = [] } = req.body as { selectedSprints: string[] };
 
-      send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
-      const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
+        send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
+        const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
 
-      // Build sprint name mapping
-      const { localToJira } = buildSprintNameMap(selectedSprints, sprintMap);
-      const activeSprintMap = new Map<string, number>();
-      for (const localName of selectedSprints) {
-        const jiraName = localToJira.get(localName);
-        if (jiraName) activeSprintMap.set(jiraName, sprintMap.get(jiraName)!);
-      }
+        // Build sprint name mapping
+        const { localToJira } = buildSprintNameMap(selectedSprints, sprintMap);
+        const activeSprintMap = new Map<string, number>();
+        for (const localName of selectedSprints) {
+          const jiraName = localToJira.get(localName);
+          if (jiraName) activeSprintMap.set(jiraName, sprintMap.get(jiraName)!);
+        }
 
-      if (!activeSprintMap.size) {
-        send({
-          type: 'error',
-          message: `No matching JIRA sprints found for: ${selectedSprints.join(', ')}`,
-        });
-        res.end();
-        return;
-      }
-
-      const sprintEntries = [...activeSprintMap.entries()];
-
-      // Scan each selected sprint in parallel (capped at JIRA_CONCURRENCY), then
-      // flatten in original sprint order so results match the old sequential loop.
-      const perSprintResults = await pMap(
-        sprintEntries,
-        async ([jiraSprintName, sprintId], i) => {
+        if (!activeSprintMap.size) {
           send({
-            type: 'progress',
-            message: `Scanning ${jiraSprintName}…`,
-            current: i + 1,
-            total: sprintEntries.length,
+            type: 'error',
+            message: `No matching JIRA sprints found for: ${selectedSprints.join(', ')}`,
           });
-          return fetchUnimportedSprintIssues(
-            jiraAgileRequest,
-            sprintId,
-            jiraSprintName,
-            FIELD_STORY_POINTS,
-            (jiraId) => docIndex.findByJiraId(jiraId)
-          );
-        },
-        { concurrency: config.JIRA_CONCURRENCY }
-      );
+          res.end();
+          return;
+        }
 
-      const results = perSprintResults.flat();
+        const sprintEntries = [...activeSprintMap.entries()];
 
-      send({ type: 'done', results });
-      res.end();
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/pull-sprint-preview',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      send({ type: 'error', message: apiErr.message });
-      res.end();
+        // Scan each selected sprint in parallel (capped at JIRA_CONCURRENCY), then
+        // flatten in original sprint order so results match the old sequential loop.
+        const perSprintResults = await pMap(
+          sprintEntries,
+          async ([jiraSprintName, sprintId], i) => {
+            send({
+              type: 'progress',
+              message: `Scanning ${jiraSprintName}…`,
+              current: i + 1,
+              total: sprintEntries.length,
+            });
+            return fetchUnimportedSprintIssues(
+              jiraAgileRequest,
+              sprintId,
+              jiraSprintName,
+              FIELD_STORY_POINTS,
+              (jiraId) => docIndex.findByJiraId(jiraId)
+            );
+          },
+          { concurrency: config.JIRA_CONCURRENCY }
+        );
+
+        const results = perSprintResults.flat();
+
+        send({ type: 'done', results });
+        res.end();
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        logError(
+          'POST /api/jira/pull-sprint-preview',
+          apiErr.message,
+          apiErr.details as Record<string, unknown> | undefined
+        );
+        send({ type: 'error', message: apiErr.message });
+        res.end();
+      }
     }
-  });
+  );
 
   // ── POST /api/jira/pull-sprint ── import selected JIRA issues as local docs ──
-  router.post('/api/jira/pull-sprint', async (req, res) => {
+  router.post('/api/jira/pull-sprint', validateBody(JiraPullSprintSchema), async (req, res) => {
     if (!process.env.JIRA_API_TOKEN)
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
