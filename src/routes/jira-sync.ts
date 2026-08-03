@@ -10,20 +10,11 @@ import {
   assertFilename,
 } from '../utils/routeHelpers.js';
 import { pMap } from '../utils/pMap.js';
-import {
-  setFrontmatterField,
-  extractFrontmatterField,
-  jiraToMarkdown,
-  stripFrontmatter,
-} from '../utils/transforms.js';
-import {
-  appendDescriptionHistory,
-  extractBodyText,
-  buildPreviewItem,
-} from '../services/jiraService.js';
+import { extractFrontmatterField, jiraToMarkdown } from '../utils/transforms.js';
+import { extractBodyText, buildPreviewItem } from '../services/jiraService.js';
 import type { JiraPreviewIssue } from '../services/jiraService.js';
+import { createJiraSyncService } from '../services/jiraSyncService.js';
 import { logAudit } from '../utils/auditLog.js';
-import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 import { findExistingByJiraId } from '../utils/docHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import {
@@ -52,6 +43,11 @@ export default function jiraSyncRoutes({
   docIndex,
 }: JiraRouteContext) {
   const router = Router();
+  const { syncStatusFromIssue, mergeFromJiraIssue } = createJiraSyncService({
+    INBOX_DIR,
+    FIELD_STORY_POINTS,
+    jiraIssueToMarkdown,
+  });
 
   // Bound helper — threads context dependencies into the shared utility.
   const _findExistingByJiraId = (jiraId: string) =>
@@ -91,58 +87,15 @@ export default function jiraSyncRoutes({
         if (!jiraId || jiraId === 'TBD')
           return sendError(res, 400, 'NO_JIRA_ID', 'Document has no JIRA_ID');
 
-        type JiraSyncIssue = {
-          fields?: Record<string, unknown> & {
-            status?: { name?: string };
-            labels?: string[];
-            summary?: string;
-            description?: string;
-          };
-        };
-        const issue = (await jiraRequest(
+        const issue = await jiraRequest(
           'GET',
           `/issue/${jiraId}?fields=status,labels,${FIELD_STORY_POINTS},summary,description`
-        )) as JiraSyncIssue;
-        const jiraStatus = issue.fields?.status?.name || null;
-        const jiraSp = issue.fields?.[FIELD_STORY_POINTS] ?? null;
-        const jiraSummary = String(issue.fields?.summary || '')
-          .replace(/[\r\n]+/g, ' ')
-          .trim();
-        const jiraDesc = jiraToMarkdown(String(issue.fields?.description || '')).trim();
-
-        const issueLabels = (issue.fields?.labels ?? []) as string[];
-        const teamLabel = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
-        const jiraTeam = teamLabel ? JIRA_LABEL_TO_TEAM[teamLabel] : null;
-
-        let updated = content;
-        if (jiraStatus) updated = setFrontmatterField(updated, 'JIRA_Status', jiraStatus);
-        if (jiraSp !== null) updated = setFrontmatterField(updated, 'Story_Points', String(jiraSp));
-        if (jiraTeam !== null) {
-          const localTeam = extractFrontmatterField(content, 'Team') || 'TBD';
-          if (jiraTeam !== localTeam) updated = setFrontmatterField(updated, 'Team', jiraTeam);
-        }
-
-        if (jiraSummary) {
-          const existingTitle = (stripFrontmatter(content).match(/^## (.+)$/m) || [])[1] || '';
-          if (jiraSummary !== existingTitle) {
-            updated = updated.replace(/^## .+$/m, `## ${jiraSummary}`);
-          }
-        }
-
-        const existingBodyText = extractBodyText(content);
-        if (jiraDesc && jiraDesc !== existingBodyText) {
-          await appendDescriptionHistory(
-            path.join(INBOX_DIR, filename),
-            existingBodyText,
-            jiraDesc
-          );
-          const match = updated.match(/^(---[\s\S]*?---\n+## [^\n]+\n)/);
-          if (match) {
-            const commentsMatch = updated.match(/\n## Comments\b[\s\S]*$/);
-            const commentsSection = commentsMatch ? commentsMatch[0] : '';
-            updated = match[1] + '\n' + jiraDesc + '\n' + commentsSection;
-          }
-        }
+        );
+        const { updated, jiraStatus, jiraSp } = await syncStatusFromIssue({
+          content,
+          filename,
+          issue,
+        });
 
         await fs.promises.writeFile(filepath, updated);
         await docIndex.invalidate(docType, filename);
@@ -183,7 +136,6 @@ export default function jiraSyncRoutes({
         if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
         const existing = await fs.promises.readFile(filepath, 'utf-8');
-        const existingBodyText = extractBodyText(existing);
 
         const jiraKey =
           (req.body?.jiraKey || '').trim().toUpperCase() ||
@@ -202,36 +154,7 @@ export default function jiraSyncRoutes({
           `/issue/${jiraKey}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`
         );
 
-        const { content: freshContent } = jiraIssueToMarkdown(issue);
-
-        const newBodyText = extractBodyText(freshContent);
-        if (newBodyText !== existingBodyText) {
-          await appendDescriptionHistory(
-            path.join(INBOX_DIR, filename),
-            existingBodyText,
-            newBodyText
-          );
-        }
-
-        const LOCAL_FIELDS = ['Sprint', 'Squad', 'PI', 'Feature_ID', 'Epic_ID', 'Created', 'Team'];
-        let merged = freshContent;
-        for (const field of LOCAL_FIELDS) {
-          const localVal = extractFrontmatterField(existing, field);
-          if (localVal) merged = setFrontmatterField(merged, field, localVal);
-        }
-        const existingComments = existing.match(/\n## Comments\b[\s\S]*$/);
-        if (existingComments) merged = merged.trimEnd() + existingComments[0];
-
-        const issLabels =
-          ((issue as { fields?: Record<string, unknown> }).fields?.labels as
-            | string[]
-            | undefined) ?? [];
-        const issTeamLbl = issLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
-        if (issTeamLbl) {
-          const jiraTeam = JIRA_LABEL_TO_TEAM[issTeamLbl];
-          const localTeam = extractFrontmatterField(existing, 'Team') || 'TBD';
-          if (jiraTeam !== localTeam) merged = setFrontmatterField(merged, 'Team', jiraTeam);
-        }
+        const { merged } = await mergeFromJiraIssue({ existing, filename, issue });
 
         await fs.promises.writeFile(filepath, merged);
         await docIndex.invalidate(docType, filename);
