@@ -12,7 +12,7 @@ interface JiraVersion {
   released?: boolean;
 }
 
-interface SprintInfo {
+export interface SprintInfo {
   name: string;
   capacity: number;
   [key: string]: unknown;
@@ -444,7 +444,7 @@ let _depHighlightedEls: HTMLElement[] = [];
 // every mouseenter.
 let _depElCache: Map<string, HTMLElement[]> | null = null;
 
-function _invalidateDepElCache(): void {
+export function _invalidateDepElCache(): void {
   _depElCache = null;
 }
 
@@ -534,13 +534,17 @@ export function showDepConnectors(filename: string): void {
   }
 }
 
+export function attachDepHoverListenerFor(el: HTMLElement, doc: DocEntry): void {
+  if (!(doc.blocks || []).length && !(doc.blockedBy || []).length && !(doc.parallel || []).length)
+    return;
+  el.addEventListener('mouseenter', () => showDepConnectors(doc.filename));
+  el.addEventListener('mouseleave', hideDepConnectors);
+}
+
 export function attachDepHoverListeners(): void {
   document.querySelectorAll<HTMLElement>('#epic-list .epic-item[data-filename]').forEach((el) => {
     const doc = allDocs.find((d) => d.filename === el.dataset.filename);
     if (!doc) return;
-    if (!(doc.blocks || []).length && !(doc.blockedBy || []).length && !(doc.parallel || []).length)
-      return;
-    el.addEventListener('mouseenter', () => showDepConnectors(doc.filename));
-    el.addEventListener('mouseleave', hideDepConnectors);
+    attachDepHoverListenerFor(el, doc);
   });
 }

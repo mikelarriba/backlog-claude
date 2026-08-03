@@ -37,12 +37,25 @@ export function setDocs(docs: DocEntry[]): void {
   emit('docs:changed', { docs: _state.docs });
 }
 
+// Fields that affect a doc's position in the tree/swimlane it's rendered in
+// (rank/order, parent, PI section, or type). A change limited to any other
+// field (title, status, story points, sprint, team, ...) can be patched onto
+// the existing row in place — see list-filters.ts's patchSingleDoc().
+const STRUCTURAL_FIELDS: Array<keyof DocEntry> = [
+  'rank',
+  'parentFilename',
+  'fixVersion',
+  'docType',
+];
+
 export function upsertDoc(doc: DocEntry): void {
   const idx = _state.docs.findIndex((d) => d.filename === doc.filename);
+  const prev = idx !== -1 ? _state.docs[idx] : null;
   if (idx !== -1) _state.docs[idx] = doc;
   else _state.docs.push(doc);
   emit('doc:upserted', { doc });
-  emit('docs:changed', { docs: _state.docs });
+  const structural = !prev || STRUCTURAL_FIELDS.some((f) => prev[f] !== doc[f]);
+  emit('docs:changed', { docs: _state.docs, changedFilename: doc.filename, structural });
 }
 
 export function removeDoc(filename: string): void {

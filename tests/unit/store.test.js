@@ -114,6 +114,102 @@ describe('store: upsertDoc', () => {
     off();
     assert.ok(fired);
   });
+
+  test('docs:changed carries changedFilename and structural:true for a brand-new doc', () => {
+    let received = null;
+    const off = on('docs:changed', (payload) => {
+      received = payload;
+    });
+    upsertDoc({ filename: 'new.md', rank: 1, parentFilename: null, fixVersion: null });
+    off();
+    assert.equal(received.changedFilename, 'new.md');
+    assert.equal(received.structural, true);
+  });
+
+  test('docs:changed carries structural:false when only a non-structural field changes', () => {
+    setDocs([
+      {
+        filename: 'x.md',
+        title: 'Old',
+        rank: 1,
+        parentFilename: null,
+        fixVersion: 'PI-1',
+        docType: 'story',
+      },
+    ]);
+    let received = null;
+    const off = on('docs:changed', (payload) => {
+      received = payload;
+    });
+    upsertDoc({
+      filename: 'x.md',
+      title: 'New Title',
+      rank: 1,
+      parentFilename: null,
+      fixVersion: 'PI-1',
+      docType: 'story',
+    });
+    off();
+    assert.equal(received.changedFilename, 'x.md');
+    assert.equal(received.structural, false);
+  });
+
+  test('docs:changed carries structural:true when rank changes', () => {
+    setDocs([
+      { filename: 'x.md', rank: 1, parentFilename: null, fixVersion: null, docType: 'story' },
+    ]);
+    let received = null;
+    const off = on('docs:changed', (payload) => {
+      received = payload;
+    });
+    upsertDoc({
+      filename: 'x.md',
+      rank: 2,
+      parentFilename: null,
+      fixVersion: null,
+      docType: 'story',
+    });
+    off();
+    assert.equal(received.structural, true);
+  });
+
+  test('docs:changed carries structural:true when fixVersion (PI section) changes', () => {
+    setDocs([
+      { filename: 'x.md', rank: 1, parentFilename: null, fixVersion: 'PI-1', docType: 'story' },
+    ]);
+    let received = null;
+    const off = on('docs:changed', (payload) => {
+      received = payload;
+    });
+    upsertDoc({
+      filename: 'x.md',
+      rank: 1,
+      parentFilename: null,
+      fixVersion: 'PI-2',
+      docType: 'story',
+    });
+    off();
+    assert.equal(received.structural, true);
+  });
+
+  test('docs:changed carries structural:true when parentFilename changes', () => {
+    setDocs([
+      { filename: 'x.md', rank: 1, parentFilename: 'a.md', fixVersion: null, docType: 'story' },
+    ]);
+    let received = null;
+    const off = on('docs:changed', (payload) => {
+      received = payload;
+    });
+    upsertDoc({
+      filename: 'x.md',
+      rank: 1,
+      parentFilename: 'b.md',
+      fixVersion: null,
+      docType: 'story',
+    });
+    off();
+    assert.equal(received.structural, true);
+  });
 });
 
 // ── removeDoc ─────────────────────────────────────────────────────────────────

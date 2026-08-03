@@ -340,7 +340,7 @@ let _depHighlightedEls = [];
 // of running a fresh document.querySelectorAll per blocker/blocked lookup on
 // every mouseenter.
 let _depElCache = null;
-function _invalidateDepElCache() {
+export function _invalidateDepElCache() {
   _depElCache = null;
 }
 function _buildDepElCache() {
@@ -418,14 +418,17 @@ export function showDepConnectors(filename) {
     svg.appendChild(path);
   }
 }
+export function attachDepHoverListenerFor(el, doc) {
+  if (!(doc.blocks || []).length && !(doc.blockedBy || []).length && !(doc.parallel || []).length)
+    return;
+  el.addEventListener('mouseenter', () => showDepConnectors(doc.filename));
+  el.addEventListener('mouseleave', hideDepConnectors);
+}
 export function attachDepHoverListeners() {
   document.querySelectorAll('#epic-list .epic-item[data-filename]').forEach((el) => {
     const doc = allDocs.find((d) => d.filename === el.dataset.filename);
     if (!doc) return;
-    if (!(doc.blocks || []).length && !(doc.blockedBy || []).length && !(doc.parallel || []).length)
-      return;
-    el.addEventListener('mouseenter', () => showDepConnectors(doc.filename));
-    el.addEventListener('mouseleave', hideDepConnectors);
+    attachDepHoverListenerFor(el, doc);
   });
 }
 //# sourceMappingURL=list-render.js.map
