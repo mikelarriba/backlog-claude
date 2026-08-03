@@ -12,7 +12,13 @@ import {
 import type { DocEntry } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { loadDocs } from './list.js';
-import { renderSwimlanes } from './list-render.js';
+import {
+  renderSwimlanes,
+  renderDocItem,
+  attachDepHoverListenerFor,
+  _invalidateDepElCache,
+} from './list-render.js';
+import type { SprintInfo } from './list-render.js';
 import { sectionToFixVersion } from './dragdrop.js';
 
 // NOTE: `_lastClickedItem` is declared in global.d.ts as `string | null`, but
@@ -119,28 +125,90 @@ export function setWorkCatFilter(cat: string): void {
   applyFilters();
 }
 
+function _currentSearchQuery(): string {
+  return (document.getElementById('search') as HTMLInputElement | null)?.value.toLowerCase() ?? '';
+}
+
+function _matchesFilters(d: DocEntry, q: string): boolean {
+  if (activeTypeFilter !== 'all' && d.docType !== activeTypeFilter) return false;
+  if (activeStatusFilter !== 'all' && (d.status || 'Draft') !== activeStatusFilter) return false;
+  if (activeTeamFilter !== 'all' && d.team !== activeTeamFilter) return false;
+  if (activeWorkCatFilter !== 'all' && d.workCategory !== activeWorkCatFilter) return false;
+  if (q && !(d.title.toLowerCase().includes(q) || d.filename.toLowerCase().includes(q)))
+    return false;
+  return true;
+}
+
 // The rest parameter is unused at runtime (this function always re-derives
 // from the `allDocs` global) but is accepted so callers — e.g. the
 // `on('docs:changed', ...)` subscription in main.ts, and `debounce()` below —
 // can pass arguments (such as the changed docs payload) without a type error.
 export function applyFilters(..._args: unknown[]): void {
-  const q =
-    (document.getElementById('search') as HTMLInputElement | null)?.value.toLowerCase() ?? '';
-  let filtered = allDocs;
-  if (activeTypeFilter !== 'all') filtered = filtered.filter((d) => d.docType === activeTypeFilter);
-  if (activeStatusFilter !== 'all')
-    filtered = filtered.filter((d) => (d.status || 'Draft') === activeStatusFilter);
-  if (activeTeamFilter !== 'all') filtered = filtered.filter((d) => d.team === activeTeamFilter);
-  if (activeWorkCatFilter !== 'all')
-    filtered = filtered.filter((d) => d.workCategory === activeWorkCatFilter);
-  if (q)
-    filtered = filtered.filter(
-      (d) => d.title.toLowerCase().includes(q) || d.filename.toLowerCase().includes(q)
-    );
+  const q = _currentSearchQuery();
+  const filtered = allDocs.filter((d) => _matchesFilters(d, q));
   renderSwimlanes(filtered);
 }
 
 export const applyFiltersDebounced: (...args: unknown[]) => void = debounce(applyFilters, 200);
+
+// ── Single-row patch path (perf) ─────────────────────────────────────────────
+// Patches just one doc's existing DOM row instead of rebuilding the full
+// swimlane tree — used for single-field edits (title, story points, sprint,
+// team, ...) that don't change where the doc sits in the tree. Returns false
+// when the fast path doesn't apply (row not currently rendered, or the doc no
+// longer matches the active filters) so the caller can fall back to a full
+// applyFilters() rebuild.
+function _refreshSwimlaneCapacity(doc: DocEntry): void {
+  const versionName = doc.fixVersion;
+  if (!versionName) return;
+  let sectionKey: string | null = null;
+  if (piSettings.currentPi && versionName === piSettings.currentPi) sectionKey = 'currentPi';
+  else if (piSettings.nextPi && versionName === piSettings.nextPi) sectionKey = 'nextPi';
+  if (!sectionKey) return;
+
+  const sprintConfigMap = sprintConfig as unknown as Record<string, SprintInfo[]>;
+  const sprints = sprintConfigMap[versionName];
+  if (!sprints || !sprints.length) return;
+
+  const badge = document.querySelector<HTMLElement>(
+    `.swimlane-section[data-section="${sectionKey}"] .swimlane-capacity`
+  );
+  if (!badge) return;
+
+  const totalCapacity = sprints.reduce((sum, s) => sum + s.capacity, 0);
+  const q = _currentSearchQuery();
+  const assignedSP = allDocs
+    .filter((d) => d.fixVersion === versionName && _matchesFilters(d, q))
+    .reduce((sum, d) => sum + (Number(d.storyPoints) || 0), 0);
+  const pct = totalCapacity > 0 ? Math.round((assignedSP / totalCapacity) * 100) : 0;
+  badge.textContent = `${assignedSP} / ${totalCapacity} SP (${pct}%)`;
+  badge.classList.toggle('over', pct > 100);
+}
+
+export function patchSingleDoc(filename: string): boolean {
+  const doc = allDocs.find((d) => d.filename === filename);
+  if (!doc) return false;
+  if (!_matchesFilters(doc, _currentSearchQuery())) return false;
+
+  const list = document.getElementById('epic-list');
+  const existing = list?.querySelector<HTMLElement>(
+    `.epic-item[data-filename="${CSS.escape(filename)}"]`
+  );
+  if (!existing) return false;
+
+  const indent = Number(existing.dataset.indent || '0');
+  const childrenMap = buildChildrenMap(allDocs);
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = renderDocItem(doc, indent, childrenMap).trim();
+  const newEl = wrapper.firstElementChild as HTMLElement | null;
+  if (!newEl) return false;
+  existing.replaceWith(newEl);
+
+  _invalidateDepElCache();
+  attachDepHoverListenerFor(newEl, doc);
+  _refreshSwimlaneCapacity(doc);
+  return true;
+}
 
 // ── Multi-select ─────────────────────────────────────────────
 export function itemKey(filename: string, docType: string): string {

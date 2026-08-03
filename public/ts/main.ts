@@ -22,6 +22,7 @@ import {
   setWorkCatFilter,
   applyFilters,
   applyFiltersDebounced,
+  patchSingleDoc,
   handleItemClick,
   handleItemContextMenu,
   showContextMenu,
@@ -597,8 +598,26 @@ function _renderWorkCatFilterPills(cats: string[]): void {
 
 // ── Store subscriptions ───────────────────────────────────────
 // Subscribe to domain event so any mutation (upsertDoc, removeDoc, setDocs,
-// or direct allDocs assignment via window) triggers applyFilters.
-on('docs:changed', ({ docs }: { docs: DocEntry[] }) => applyFilters(docs));
+// or direct allDocs assignment via window) triggers a re-render. A single-doc
+// upsertDoc() call that doesn't change the doc's tree position (see store.ts's
+// `structural` flag) patches just that row instead of rebuilding the full
+// swimlane tree; every other change (removeDoc, setDocs, a structural
+// upsertDoc) falls back to the full applyFilters() rebuild.
+on(
+  'docs:changed',
+  ({
+    docs,
+    changedFilename,
+    structural,
+  }: {
+    docs: DocEntry[];
+    changedFilename?: string;
+    structural?: boolean;
+  }) => {
+    if (changedFilename && !structural && patchSingleDoc(changedFilename)) return;
+    applyFilters(docs);
+  }
+);
 
 // Bootstrap
 (async () => {
