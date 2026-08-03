@@ -1,5 +1,5 @@
 // ── ES Module entry point ────────────────────────────────────────
-import { fetchJSON, debounce } from './state.js';
+import { fetchJSON, debounce, wireModalBackdropClose } from './state.js';
 import type { DocEntry } from './state.js';
 import { on } from './store.js';
 import {
@@ -636,18 +636,24 @@ updateSplitMode();
 
 _connectSSE();
 
-const deleteOverlay = document.getElementById('delete-overlay');
-if (deleteOverlay) {
-  deleteOverlay.addEventListener('click', (e: MouseEvent) => {
-    if (e.target === e.currentTarget) closeDeleteDialog();
-  });
-}
-
-const splitOverlay = document.getElementById('split-overlay');
-if (splitOverlay) {
-  splitOverlay.addEventListener('click', (e: MouseEvent) => {
-    if (e.target === e.currentTarget) closeSplitModal();
-  });
+// Every dialog-overlay modal closes on a backdrop click, wired uniformly
+// here (rather than per-modal inline onclick or ad hoc listeners) so the
+// behavior is consistent across the app. Each entry uses that modal's own
+// close function so cleanup (resolved promises, timers, ...) still runs.
+for (const [overlayId, onClose] of [
+  ['delete-overlay', closeDeleteDialog],
+  ['bulk-assign-overlay', closeBulkAssignDialog],
+  ['sync-preview-overlay', syncPreviewCancel],
+  ['jira-select-overlay', jiraSelectCancel],
+  ['split-overlay', closeSplitModal],
+  ['distribution-overlay', closeDistributionModal],
+  ['sprint-push-overlay', closeSprintPushModal],
+  ['pull-sprint-overlay', closePullSprintModal],
+  ['roadmap-export-overlay', closeRoadmapExportDialog],
+  ['dep-overlay', closeDepModal],
+  ['issue-split-modal', closeIssueSplitModal],
+] as const) {
+  wireModalBackdropClose(overlayId, onClose);
 }
 
 // ── Delegated click handler ───────────────────────────────────

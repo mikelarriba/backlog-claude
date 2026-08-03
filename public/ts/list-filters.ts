@@ -8,6 +8,8 @@ import {
   postJSON,
   showJiraToast,
   SECTION_LABELS,
+  openModal,
+  closeModal,
 } from './state.js';
 import type { DocEntry } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
@@ -487,7 +489,7 @@ export async function contextDeleteSelected(): Promise<void> {
 
   const msgEl = document.getElementById('delete-msg');
   if (msgEl) msgEl.textContent = msg;
-  document.getElementById('delete-overlay')?.classList.add('show');
+  openModal('delete-overlay');
 
   // Replace the delete handler temporarily for batch delete
   const btn = document.getElementById('confirm-delete-btn') as HTMLButtonElement | null;
@@ -541,7 +543,7 @@ export async function contextAssignField(field: string, value: string): Promise<
     const msg = `Assign ${label} "${displayValue}" to ${docs.length} selected items?`;
     const msgEl = document.getElementById('bulk-assign-msg');
     if (msgEl) msgEl.textContent = msg;
-    document.getElementById('bulk-assign-overlay')?.classList.add('show');
+    openModal('bulk-assign-overlay');
 
     const btn = document.getElementById('confirm-bulk-assign-btn') as HTMLButtonElement | null;
     if (!btn) return;
@@ -592,7 +594,7 @@ async function _executeBatchFieldUpdate(
 }
 
 export function closeBulkAssignDialog(): void {
-  document.getElementById('bulk-assign-overlay')?.classList.remove('show');
+  closeModal('bulk-assign-overlay');
 }
 
 export function getSelectedDocs(): DocEntry[] {

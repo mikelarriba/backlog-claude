@@ -1,7 +1,7 @@
 // ── Export — delegates rendering to server-side endpoints ────────────────────
 // Server generates print-ready HTML; client opens it in a new tab.
 // The user then uses Cmd+P / Ctrl+P → "Save as PDF" in the browser.
-import { showJiraToast, escHtml } from './state.js';
+import { showJiraToast, escHtml, openModal, closeModal } from './state.js';
 import { getAllSprints } from './roadmap.js';
 export async function exportEpicToPdf(filename, docType) {
   docType = docType || 'epic';
@@ -41,7 +41,7 @@ export function openRoadmapExportDialog() {
       (t) => `<label><input type="checkbox" value="${escHtml(t)}" checked />${escHtml(t)}</label>`
     )
     .join('');
-  document.getElementById('roadmap-export-overlay').classList.add('show');
+  openModal('roadmap-export-overlay');
 }
 export function rexpToggleAllSprints(checked) {
   document
@@ -54,7 +54,7 @@ export function rexpToggleAllTeams(checked) {
     .forEach((cb) => (cb.checked = checked));
 }
 export function closeRoadmapExportDialog() {
-  document.getElementById('roadmap-export-overlay').classList.remove('show');
+  closeModal('roadmap-export-overlay');
 }
 export async function executeRoadmapExport() {
   const includeRoadmap = document.getElementById('rexp-roadmap-graphic')?.checked;

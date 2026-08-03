@@ -1,5 +1,5 @@
 // ── Doc list coordinator ───────────────────────────────────────
-import { fetchJSON, postJSON, showJiraToast, TYPE_LABEL } from './state.js';
+import { fetchJSON, postJSON, showJiraToast, TYPE_LABEL, openModal, closeModal } from './state.js';
 import { openDoc } from './detail.js';
 import { getSelectedDocs, closeContextMenu } from './list-filters.js';
 import { _rankSortFn } from './list-render.js';
@@ -70,11 +70,11 @@ export function contextSplitItem() {
   const genBtn = modal.querySelector('#issue-split-generate-btn');
   genBtn.disabled = false;
   genBtn.textContent = 'Generate';
-  modal.classList.add('show');
+  openModal('issue-split-modal');
   modal.querySelector('#issue-split-idea').focus();
 }
 export function closeIssueSplitModal() {
-  document.getElementById('issue-split-modal')?.classList.remove('show');
+  closeModal('issue-split-modal');
 }
 export async function executeSplitIssue() {
   const modal = document.getElementById('issue-split-modal');

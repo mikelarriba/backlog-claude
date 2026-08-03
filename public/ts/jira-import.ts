@@ -2,7 +2,7 @@
 // Covers the generic "pick items from a list" modal (used by both the
 // import flow here and by conflict/children prompts) and the full
 // search → select → download import flow from the FAB's Import tab.
-import { fetchJSON, postJSON, escHtml, setJiraStatus } from './state.js';
+import { fetchJSON, postJSON, escHtml, setJiraStatus, openModal, closeModal } from './state.js';
 
 interface JiraSelectItem {
   key?: string;
@@ -76,7 +76,7 @@ export function showJiraSelectModal(
       })
       .join('');
 
-    document.getElementById('jira-select-overlay')!.classList.add('show');
+    openModal('jira-select-overlay');
   });
 }
 
@@ -89,7 +89,7 @@ export function jiraSelectAll(checked: boolean): void {
 }
 
 export function jiraSelectCancel(): void {
-  document.getElementById('jira-select-overlay')!.classList.remove('show');
+  closeModal('jira-select-overlay');
   if (_jiraSelectResolve) {
     _jiraSelectResolve([]);
     _jiraSelectResolve = null;
@@ -102,7 +102,7 @@ export function jiraSelectConfirm(): void {
   ).map(function (cb) {
     return _jiraSelectItems[parseInt(cb.dataset.idx!)];
   });
-  document.getElementById('jira-select-overlay')!.classList.remove('show');
+  closeModal('jira-select-overlay');
   if (_jiraSelectResolve) {
     _jiraSelectResolve(selected);
     _jiraSelectResolve = null;
