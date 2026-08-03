@@ -105,6 +105,10 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
 
   const { handleEvents, broadcast } = createEventService();
 
+  // Ensure all doc dirs exist once at boot so newly-started servers don't
+  // return 500s, instead of re-checking on every GET /api/docs request.
+  for (const cfg of Object.values(TYPE_CONFIG)) ensureDir(cfg.dir());
+
   const docIndex = createDocIndex({ TYPE_CONFIG });
   docIndex.build().catch((err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err);

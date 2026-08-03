@@ -185,6 +185,39 @@ describe('POST /api/confluence/analyze — happy path', () => {
   });
 });
 
+// ── Parallel JIRA fetch (issue #454: analyze uses pMap, not a serial loop) ───
+describe('POST /api/confluence/analyze — multiple issues fetched in parallel', () => {
+  let fetchedKeys;
+
+  before(() => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    mockClaudeResponse = '[]';
+    fetchedKeys = [];
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+      const match = urlStr.match(/\/issue\/([^?]+)/);
+      const key = match ? decodeURIComponent(match[1]) : 'unknown';
+      fetchedKeys.push(key);
+      return jsonRes({ fields: { summary: `Summary for ${key}`, description: '' } });
+    });
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+    mockClaudeResponse = '[]';
+  });
+
+  test('fetches every requested issue exactly once regardless of ordering', async () => {
+    const jiraIds = ['EAMDM-1', 'EAMDM-2', 'EAMDM-3', 'EAMDM-4', 'EAMDM-5', 'EAMDM-6'];
+    const { status } = await api('POST', '/api/confluence/analyze', { jiraIds });
+    assert.equal(status, 200);
+    assert.equal(fetchedKeys.length, jiraIds.length);
+    assert.deepEqual([...fetchedKeys].sort(), [...jiraIds].sort());
+  });
+});
+
 // ── Malformed AI response ─────────────────────────────────────────────────────
 describe('POST /api/confluence/analyze — AI returns unparseable content', () => {
   before(() => {

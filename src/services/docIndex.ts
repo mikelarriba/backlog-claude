@@ -17,6 +17,10 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
   const _map = new Map<string, DocEntry>();
   // Secondary index: jiraId → filename for O(1) findByJiraId lookups.
   const _jiraIndex = new Map<string, string>();
+  // Cache of getAll()'s sorted output — invalidated (set to null) whenever
+  // _map changes, so repeat callers (e.g. every GET /api/docs) don't re-sort
+  // the full index from scratch each time.
+  let _sortedCache: DocEntry[] | null = null;
 
   function _jiraIndexSet(entry: DocEntry): void {
     if (entry.jiraId) _jiraIndex.set(entry.jiraId, entry.filename);
@@ -120,6 +124,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     const t = Date.now();
     _map.clear();
     _jiraIndex.clear();
+    _sortedCache = null;
     // Collect all (docType, dir, filename) tuples first so we can yield evenly
     const entries: Array<{ docType: string; dir: string; f: string }> = [];
     for (const [docType, cfg] of Object.entries(TYPE_CONFIG)) {
@@ -158,7 +163,10 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
 
   // Return all entries sorted newest-first (same order as GET /api/docs).
   function getAll(): DocEntry[] {
-    return Array.from(_map.values()).sort((a, b) => b.filename.localeCompare(a.filename));
+    if (!_sortedCache) {
+      _sortedCache = Array.from(_map.values()).sort((a, b) => b.filename.localeCompare(a.filename));
+    }
+    return _sortedCache;
   }
 
   // O(1) single-entry lookup.
@@ -168,6 +176,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
 
   // Rebuild a single entry after a write; remove it after a delete.
   async function invalidate(docType: string, filename: string): Promise<void> {
+    _sortedCache = null;
     const cfg = TYPE_CONFIG[docType];
     // Remove stale jira index entry before updating the map entry.
     const old = _map.get(filename);
@@ -197,6 +206,7 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
   // Use this instead of invalidateAll() when the exact changed filenames are known.
   async function invalidateMany(filenames: string[]): Promise<void> {
     if (!filenames.length) return;
+    _sortedCache = null;
     // Build a reverse lookup: filename → docType so we can call _buildEntry.
     // Walk TYPE_CONFIG rather than the index so deleted files are also handled.
     const filenameSet = new Set(filenames);

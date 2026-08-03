@@ -29,8 +29,8 @@ export default function docsCrudRoutes({
   // ── GET /api/docs ──────────────────────────────────────────────────────────
   router.get('/api/docs', (req, res) => {
     try {
-      // Ensure all doc dirs exist so newly-started servers don't return 500
-      for (const cfg of Object.values(TYPE_CONFIG)) ensureDir(cfg.dir());
+      // Doc dirs are ensured once at boot (see app/context.ts) — no need to
+      // stat/mkdir them on every request.
       res.json(docIndex.getAll());
     } catch (err) {
       handleRouteError(res, err);

@@ -37,8 +37,20 @@ export interface Snapshot {
 }
 
 export const SNAPSHOT_TTL_MS = 30 * 60 * 1000;
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 const store = new Map<string, Snapshot>();
+
+// Proactive sweep so snapshots don't accumulate for the life of the process
+// when /undo is never called (the common case) — mirrors eventService's
+// idle-client sweep. Lazy eviction on read (see getSnapshot) still applies.
+const sweepTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [id, snapshot] of store) {
+    if (now - snapshot.createdAt > SNAPSHOT_TTL_MS) store.delete(id);
+  }
+}, SWEEP_INTERVAL_MS);
+sweepTimer.unref();
 
 export function createSnapshot(operations: SnapshotOperation[], now: number = Date.now()): string {
   const id = randomUUID();

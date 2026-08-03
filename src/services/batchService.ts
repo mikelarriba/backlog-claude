@@ -412,10 +412,11 @@ export async function applyDistribution(
     }
   }
 
-  // Phase 2: flush all writes atomically
-  await Promise.all(
-    writes.map(({ filepath, content }) => fs.promises.writeFile(filepath, content))
-  );
+  // Phase 2: flush all writes, capped like every sibling batch function in
+  // this file to avoid firing hundreds of concurrent file writes at once.
+  await pMap(writes, ({ filepath, content }) => fs.promises.writeFile(filepath, content), {
+    concurrency: BATCH_CONCURRENCY,
+  });
 
   const updated = writes.map(({ filename, docType, sprint }) => ({ filename, docType, sprint }));
 

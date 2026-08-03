@@ -8,6 +8,8 @@ import { sendError, parseApiError } from '../utils/routeHelpers.js';
 import { normalizeOutput } from '../services/claudeService.js';
 import { buildConfluenceAnalysisPrompt } from '../services/aiPromptBuilder.js';
 import { jiraToMarkdown } from '../utils/transforms.js';
+import { pMap } from '../utils/pMap.js';
+import { config } from '../config/env.js';
 import {
   createSnapshot,
   getSnapshot,
@@ -130,22 +132,26 @@ export default function confluenceRoutes({
       const issues: Array<{ key: string; summary: string; description: string }> = [];
       const unreachable: Array<{ key: string; error: string }> = [];
 
-      for (const key of jiraIds as string[]) {
-        try {
-          const issue = (await jiraRequest(
-            'GET',
-            `/issue/${encodeURIComponent(key)}?fields=summary,description`
-          )) as { fields?: { summary?: string; description?: string } };
-          issues.push({
-            key,
-            summary: String(issue.fields?.summary || ''),
-            description: jiraToMarkdown(issue.fields?.description || ''),
-          });
-        } catch (err) {
-          const apiErr = parseApiError(err);
-          unreachable.push({ key, error: apiErr.message });
-        }
-      }
+      await pMap(
+        jiraIds as string[],
+        async (key) => {
+          try {
+            const issue = (await jiraRequest(
+              'GET',
+              `/issue/${encodeURIComponent(key)}?fields=summary,description`
+            )) as { fields?: { summary?: string; description?: string } };
+            issues.push({
+              key,
+              summary: String(issue.fields?.summary || ''),
+              description: jiraToMarkdown(issue.fields?.description || ''),
+            });
+          } catch (err) {
+            const apiErr = parseApiError(err);
+            unreachable.push({ key, error: apiErr.message });
+          }
+        },
+        { concurrency: config.JIRA_CONCURRENCY }
+      );
 
       if (unreachable.length > 0) {
         return sendError(
