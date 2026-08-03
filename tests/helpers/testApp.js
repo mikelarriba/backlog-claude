@@ -46,6 +46,18 @@ export async function startTestApp() {
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
 
+  // docIndex.build() runs in the background and is not awaited by server
+  // startup (see src/app/context.ts), so the HTTP server can start accepting
+  // requests before the initial directory scan finishes. Poll /api/health
+  // until docIndex reports ready so tests that write files directly to disk
+  // and immediately assert on GET /api/docs aren't racing that scan.
+  for (;;) {
+    const res = await fetch(`http://localhost:${port}/api/health`);
+    const data = await res.json().catch(() => null);
+    if (data?.dependencies?.docIndex === 'ok') break;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
   async function api(method, urlPath, body) {
     const opts = { method, headers: {} };
     if (body !== undefined) {
