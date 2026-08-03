@@ -92,3 +92,61 @@ export const JiraPullSchema = z
       .openapi({ description: 'Optional parent document to link pulled issues under' }),
   })
   .openapi('JiraPull');
+
+// ── jira-sync.ts ──────────────────────────────────────────────────────────────
+
+// Body is unused by the route (docType/filename come from the URL) — the
+// schema only rejects a non-empty/malformed body, and stays optional so a
+// request sent with no body (the common case) still passes.
+export const JiraSyncStatusSchema = z.object({}).strict().optional().openapi('JiraSyncStatus');
+
+export const JiraUpdateFromJiraSchema = z
+  .object({
+    jiraKey: z
+      .string()
+      .optional()
+      .openapi({ description: 'JIRA key to sync from (falls back to the file’s JIRA_ID)' }),
+  })
+  .strict()
+  .optional()
+  .openapi('JiraUpdateFromJira');
+
+export const JiraSyncPullPreviewSchema = z
+  .object({
+    jiraKey: z.string().min(1).openapi({ description: 'JIRA issue key to preview' }),
+    includeChildren: z
+      .boolean()
+      .optional()
+      .openapi({ description: 'Also preview child/linked issues' }),
+  })
+  .strict()
+  .openapi('JiraSyncPullPreview');
+
+export const JiraCheckAllSchema = z.object({}).strict().optional().openapi('JiraCheckAll');
+
+// ── jira-push-sprints.ts (pull side) ────────────────────────────────────────────
+
+export const JiraPullSprintPreviewSchema = z
+  .object({
+    selectedSprints: z
+      .array(z.string())
+      .optional()
+      .openapi({ description: 'Local sprint names to scan (all if omitted)' }),
+  })
+  .strict()
+  .openapi('JiraPullSprintPreview');
+
+export const JiraPullSprintSchema = z
+  .object({
+    issues: z
+      .array(
+        z.object({
+          key: z.string().min(1).openapi({ description: 'JIRA issue key' }),
+          sprintName: z.string().min(1).openapi({ description: 'Local sprint name to assign' }),
+        })
+      )
+      .optional()
+      .openapi({ description: 'JIRA issues to pull in as local docs' }),
+  })
+  .strict()
+  .openapi('JiraPullSprint');

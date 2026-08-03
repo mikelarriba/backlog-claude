@@ -10,6 +10,8 @@ import { buildConfluenceAnalysisPrompt } from '../services/aiPromptBuilder.js';
 import { jiraToMarkdown } from '../utils/transforms.js';
 import { pMap } from '../utils/pMap.js';
 import { config } from '../config/env.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import { ConfluenceAnalyzeSchema, ConfluenceExecuteSchema } from '../schemas/confluence.js';
 import {
   createSnapshot,
   getSnapshot,
@@ -110,82 +112,75 @@ export default function confluenceRoutes({
   const router = Router();
 
   // ── POST /api/confluence/analyze ────────────────────────────────────────────
-  router.post('/api/confluence/analyze', async (req, res) => {
-    try {
-      const { jiraIds } = req.body;
-      if (!Array.isArray(jiraIds) || jiraIds.length === 0) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'jiraIds must be a non-empty array');
-      }
-      if (!jiraIds.every((id) => typeof id === 'string' && id.trim())) {
-        return sendError(
-          res,
-          400,
-          'VALIDATION_ERROR',
-          'jiraIds must be an array of non-empty strings'
-        );
-      }
-
-      if (!process.env.JIRA_API_TOKEN) {
-        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-      }
-
-      const issues: Array<{ key: string; summary: string; description: string }> = [];
-      const unreachable: Array<{ key: string; error: string }> = [];
-
-      await pMap(
-        jiraIds as string[],
-        async (key) => {
-          try {
-            const issue = (await jiraRequest(
-              'GET',
-              `/issue/${encodeURIComponent(key)}?fields=summary,description`
-            )) as { fields?: { summary?: string; description?: string } };
-            issues.push({
-              key,
-              summary: String(issue.fields?.summary || ''),
-              description: jiraToMarkdown(issue.fields?.description || ''),
-            });
-          } catch (err) {
-            const apiErr = parseApiError(err);
-            unreachable.push({ key, error: apiErr.message });
-          }
-        },
-        { concurrency: config.JIRA_CONCURRENCY }
-      );
-
-      if (unreachable.length > 0) {
-        return sendError(
-          res,
-          400,
-          'JIRA_ISSUE_UNREACHABLE',
-          `Could not fetch ${unreachable.length} of ${jiraIds.length} JIRA issue(s)`,
-          { unreachable }
-        );
-      }
-
-      const prompt = buildConfluenceAnalysisPrompt({ issues });
-      const rawResponse = await callClaude(prompt);
-
-      let suggestions: ConfluenceSuggestion[];
+  router.post(
+    '/api/confluence/analyze',
+    validateBody(ConfluenceAnalyzeSchema),
+    async (req, res) => {
       try {
-        suggestions = parseConfluenceSuggestions(rawResponse);
-      } catch (err) {
-        throw new Error(
-          `AI analysis returned an unparseable response: ${err instanceof Error ? err.message : String(err)}`
-        );
-      }
+        const { jiraIds } = req.body;
 
-      res.json({ suggestions });
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/confluence/analyze',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+        if (!process.env.JIRA_API_TOKEN) {
+          return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+        }
+
+        const issues: Array<{ key: string; summary: string; description: string }> = [];
+        const unreachable: Array<{ key: string; error: string }> = [];
+
+        await pMap(
+          jiraIds as string[],
+          async (key) => {
+            try {
+              const issue = (await jiraRequest(
+                'GET',
+                `/issue/${encodeURIComponent(key)}?fields=summary,description`
+              )) as { fields?: { summary?: string; description?: string } };
+              issues.push({
+                key,
+                summary: String(issue.fields?.summary || ''),
+                description: jiraToMarkdown(issue.fields?.description || ''),
+              });
+            } catch (err) {
+              const apiErr = parseApiError(err);
+              unreachable.push({ key, error: apiErr.message });
+            }
+          },
+          { concurrency: config.JIRA_CONCURRENCY }
+        );
+
+        if (unreachable.length > 0) {
+          return sendError(
+            res,
+            400,
+            'JIRA_ISSUE_UNREACHABLE',
+            `Could not fetch ${unreachable.length} of ${jiraIds.length} JIRA issue(s)`,
+            { unreachable }
+          );
+        }
+
+        const prompt = buildConfluenceAnalysisPrompt({ issues });
+        const rawResponse = await callClaude(prompt);
+
+        let suggestions: ConfluenceSuggestion[];
+        try {
+          suggestions = parseConfluenceSuggestions(rawResponse);
+        } catch (err) {
+          throw new Error(
+            `AI analysis returned an unparseable response: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+
+        res.json({ suggestions });
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        logError(
+          'POST /api/confluence/analyze',
+          apiErr.message,
+          apiErr.details as Record<string, unknown> | undefined
+        );
+        sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      }
     }
-  });
+  );
 
   // ── GET /api/confluence/test ────────────────────────────────────────────────
   // Connection test used to verify Confluence credentials (env vars only — no
@@ -218,123 +213,112 @@ export default function confluenceRoutes({
   // abort the rest of the batch (acceptance criteria: partial success). Only
   // successfully-applied operations are recorded in the undo snapshot; a
   // failed/skipped suggestion never happened, so there's nothing to reverse.
-  router.post('/api/confluence/execute', async (req, res) => {
-    try {
-      const { suggestions } = req.body;
-      if (!Array.isArray(suggestions) || suggestions.length === 0) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'suggestions must be a non-empty array');
-      }
-      for (const s of suggestions) {
-        const item = s as Record<string, unknown> | null;
-        if (
-          !item ||
-          typeof item !== 'object' ||
-          typeof item.pageTitle !== 'string' ||
-          !item.pageTitle.trim() ||
-          typeof item.action !== 'string' ||
-          !VALID_ACTIONS.has(item.action)
-        ) {
+  router.post(
+    '/api/confluence/execute',
+    validateBody(ConfluenceExecuteSchema),
+    async (req, res) => {
+      try {
+        const { suggestions } = req.body;
+
+        if (confluenceNotConfigured()) {
           return sendError(
             res,
-            400,
-            'VALIDATION_ERROR',
-            'Each suggestion must have a non-empty pageTitle and a valid action (Create, Update, Delete)'
+            503,
+            'CONFLUENCE_NOT_CONFIGURED',
+            'Confluence credentials not configured'
           );
         }
-      }
 
-      if (confluenceNotConfigured()) {
-        return sendError(
-          res,
-          503,
-          'CONFLUENCE_NOT_CONFIGURED',
-          'Confluence credentials not configured'
-        );
-      }
+        const results: ConfluenceExecuteResult[] = [];
+        const operations: SnapshotOperation[] = [];
 
-      const results: ConfluenceExecuteResult[] = [];
-      const operations: SnapshotOperation[] = [];
-
-      for (const suggestion of suggestions as ConfluenceSuggestion[]) {
-        const { pageTitle, action, proposedContent } = suggestion;
-        try {
-          if (action === 'Create') {
-            const page = await confluenceCreatePage(pageTitle, proposedContent);
-            results.push({ pageTitle, action, pageId: page.id, success: true });
-            operations.push({
-              action: 'Create',
-              pageTitle,
-              pageId: page.id,
-              previousContent: null,
-              previousVersion: null,
-            });
-          } else if (action === 'Update') {
-            const page = await confluenceGetPageByTitle(pageTitle);
-            if (!page) {
-              results.push({
+        for (const suggestion of suggestions as ConfluenceSuggestion[]) {
+          const { pageTitle, action, proposedContent } = suggestion;
+          try {
+            if (action === 'Create') {
+              const page = await confluenceCreatePage(pageTitle, proposedContent);
+              results.push({ pageTitle, action, pageId: page.id, success: true });
+              operations.push({
+                action: 'Create',
                 pageTitle,
-                action,
-                pageId: null,
-                success: false,
-                error: `Page not found: ${pageTitle}`,
+                pageId: page.id,
+                previousContent: null,
+                previousVersion: null,
               });
-              continue;
-            }
-            const updated = await confluenceUpdatePage(
-              page.id,
-              page.version,
-              pageTitle,
-              proposedContent
-            );
-            results.push({ pageTitle, action, pageId: updated.id, success: true });
-            operations.push({
-              action: 'Update',
-              pageTitle,
-              pageId: page.id,
-              previousContent: page.body,
-              previousVersion: page.version,
-            });
-          } else {
-            // action === 'Delete'
-            const page = await confluenceGetPageByTitle(pageTitle);
-            if (!page) {
-              results.push({
+            } else if (action === 'Update') {
+              const page = await confluenceGetPageByTitle(pageTitle);
+              if (!page) {
+                results.push({
+                  pageTitle,
+                  action,
+                  pageId: null,
+                  success: false,
+                  error: `Page not found: ${pageTitle}`,
+                });
+                continue;
+              }
+              const updated = await confluenceUpdatePage(
+                page.id,
+                page.version,
                 pageTitle,
-                action,
-                pageId: null,
-                success: false,
-                error: `Page not found: ${pageTitle}`,
+                proposedContent
+              );
+              results.push({ pageTitle, action, pageId: updated.id, success: true });
+              operations.push({
+                action: 'Update',
+                pageTitle,
+                pageId: page.id,
+                previousContent: page.body,
+                previousVersion: page.version,
               });
-              continue;
+            } else {
+              // action === 'Delete'
+              const page = await confluenceGetPageByTitle(pageTitle);
+              if (!page) {
+                results.push({
+                  pageTitle,
+                  action,
+                  pageId: null,
+                  success: false,
+                  error: `Page not found: ${pageTitle}`,
+                });
+                continue;
+              }
+              await confluenceDeletePage(page.id);
+              results.push({ pageTitle, action, pageId: page.id, success: true });
+              operations.push({
+                action: 'Delete',
+                pageTitle,
+                pageId: page.id,
+                previousContent: page.body,
+                previousVersion: page.version,
+              });
             }
-            await confluenceDeletePage(page.id);
-            results.push({ pageTitle, action, pageId: page.id, success: true });
-            operations.push({
-              action: 'Delete',
+          } catch (err) {
+            const apiErr = parseApiError(err);
+            results.push({
               pageTitle,
-              pageId: page.id,
-              previousContent: page.body,
-              previousVersion: page.version,
+              action,
+              pageId: null,
+              success: false,
+              error: apiErr.message,
             });
           }
-        } catch (err) {
-          const apiErr = parseApiError(err);
-          results.push({ pageTitle, action, pageId: null, success: false, error: apiErr.message });
         }
-      }
 
-      const snapshotId = createSnapshot(operations);
-      res.json({ snapshotId, results });
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/confluence/execute',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+        const snapshotId = createSnapshot(operations);
+        res.json({ snapshotId, results });
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        logError(
+          'POST /api/confluence/execute',
+          apiErr.message,
+          apiErr.details as Record<string, unknown> | undefined
+        );
+        sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      }
     }
-  });
+  );
 
   // ── POST /api/confluence/undo/:snapshotId ───────────────────────────────────
   // Reverses a prior /execute call using its stored snapshot, applying the

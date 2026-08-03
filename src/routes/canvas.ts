@@ -3,7 +3,8 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import type { CanvasRouteContext } from '../types.js';
-import { sendError } from '../utils/routeHelpers.js';
+import { validateBody } from '../utils/validateMiddleware.js';
+import { CanvasLayoutSchema } from '../schemas/canvas.js';
 
 export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
   const router = Router();
@@ -39,38 +40,20 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
   });
 
   // PUT /api/canvas/layout/:epicFilename
-  router.put('/api/canvas/layout/:epicFilename', async (req, res) => {
-    const epicFilename = decodeURIComponent(req.params.epicFilename);
-    const { positions } = req.body;
-    if (!positions || typeof positions !== 'object') {
-      return sendError(res, 400, 'VALIDATION_ERROR', 'positions object is required');
-    }
+  router.put(
+    '/api/canvas/layout/:epicFilename',
+    validateBody(CanvasLayoutSchema),
+    async (req, res) => {
+      const epicFilename = decodeURIComponent(req.params.epicFilename);
+      const { positions } = req.body;
 
-    // Validate all positions have non-negative integer col/row
-    for (const [fn, pos] of Object.entries(
-      positions as Record<string, { col: unknown; row: unknown }>
-    )) {
-      if (
-        !Number.isInteger(pos.col) ||
-        (pos.col as number) < 0 ||
-        !Number.isInteger(pos.row) ||
-        (pos.row as number) < 0
-      ) {
-        return sendError(
-          res,
-          400,
-          'VALIDATION_ERROR',
-          `Position for "${fn}" must have non-negative integer col and row`
-        );
-      }
+      const layout = await loadLayout();
+      layout[epicFilename] = positions;
+      await saveLayout(layout);
+      logInfo('PUT /api/canvas/layout', `Saved layout for ${epicFilename}`);
+      res.json({ success: true });
     }
-
-    const layout = await loadLayout();
-    layout[epicFilename] = positions;
-    await saveLayout(layout);
-    logInfo('PUT /api/canvas/layout', `Saved layout for ${epicFilename}`);
-    res.json({ success: true });
-  });
+  );
 
   // DELETE /api/canvas/layout/:epicFilename
   router.delete('/api/canvas/layout/:epicFilename', async (req, res) => {
