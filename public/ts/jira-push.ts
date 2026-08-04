@@ -43,6 +43,21 @@ export interface SyncPreviewItem {
 let _syncPreviewResolve: ((items: SyncPreviewItem[] | null) => void) | null = null;
 let _syncPreviewItems: SyncPreviewItem[] = [];
 
+// Pure: summarizes a preview item list into a "N new · N update · N to delete"
+// string. Extracted so the create/update/delete counting logic (easy to get
+// wrong when items carry ambiguous/missing `action`) is unit-testable without
+// a DOM.
+export function summarizePreviewCounts(items: SyncPreviewItem[]): string {
+  const createCount = items.filter((i) => i.action === 'create').length;
+  const updateCount = items.filter((i) => i.action === 'update').length;
+  const deleteCount = items.filter((i) => i.action === 'delete').length;
+  const parts: string[] = [];
+  if (createCount) parts.push(`${createCount} new`);
+  if (updateCount) parts.push(`${updateCount} update`);
+  if (deleteCount) parts.push(`${deleteCount} to delete`);
+  return parts.join(' · ');
+}
+
 export function showSyncPreviewModal(
   title: string,
   items: SyncPreviewItem[],
@@ -55,14 +70,7 @@ export function showSyncPreviewModal(
     document.getElementById('sync-preview-title')!.textContent = title;
     document.getElementById('sync-preview-confirm-btn')!.textContent = confirmLabel || 'Confirm';
 
-    const createCount = items.filter((i) => i.action === 'create').length;
-    const updateCount = items.filter((i) => i.action === 'update').length;
-    const deleteCount = items.filter((i) => i.action === 'delete').length;
-    const parts: string[] = [];
-    if (createCount) parts.push(`${createCount} new`);
-    if (updateCount) parts.push(`${updateCount} update`);
-    if (deleteCount) parts.push(`${deleteCount} to delete`);
-    document.getElementById('sync-preview-counts')!.textContent = parts.join(' · ');
+    document.getElementById('sync-preview-counts')!.textContent = summarizePreviewCounts(items);
 
     const list = document.getElementById('sync-preview-list')!;
     list.innerHTML = items
@@ -247,8 +255,13 @@ function _enterSyncProgressMode(): void {
   }
 }
 
+// Pure: percent-complete for the progress bar, guarding against div-by-zero.
+export function computeProgressPercent(current: number, total: number): number {
+  return total > 0 ? Math.round((current / total) * 100) : 0;
+}
+
 export function updateJiraProgress(current: number, total: number, label: string): void {
-  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+  const pct = computeProgressPercent(current, total);
   const bar = document.getElementById('sync-progress-bar') as HTMLElement | null;
   if (bar) bar.style.width = pct + '%';
   const labelEl = document.getElementById('sync-progress-label');
@@ -301,6 +314,42 @@ export function updateJiraPushBtn(): void {
 export interface PushPreviewItem extends SyncPreviewItem {
   filename?: string;
   docType?: string;
+}
+
+// Pure: push order — features before epics before everything else, and
+// within that, creates before updates. Ensures parents exist in JIRA before
+// children try to link to them (Epic Link / "Is Contained" fields).
+export function comparePushPreviewItems(a: PushPreviewItem, b: PushPreviewItem): number {
+  const typeOrder: Record<string, number> = { feature: 0, epic: 1 };
+  const aOrder = (a.action === 'create' ? 0 : 3) + (typeOrder[a.docType ?? ''] ?? 2);
+  const bOrder = (b.action === 'create' ? 0 : 3) + (typeOrder[b.docType ?? ''] ?? 2);
+  return aOrder - bOrder;
+}
+
+export interface PushResultItem {
+  key?: string;
+  action?: string;
+  docType?: string;
+}
+
+// Pure: "Pushed: N created, N synced, N failed" summary text (or "Nothing
+// pushed" when there's nothing to report). `updated` intentionally counts
+// every non-"created" result (including results with no action at all),
+// matching the original inline behavior.
+export function summarizePushResults(results: PushResultItem[], errorCount: number): string {
+  const created = results.filter((r) => r.action === 'created').length;
+  const updated = results.filter((r) => r.action !== 'created').length;
+  const pushParts: string[] = [];
+  if (created) pushParts.push(`${created} created`);
+  if (updated) pushParts.push(`${updated} synced`);
+  if (errorCount) pushParts.push(`${errorCount} failed`);
+  return pushParts.length ? `Pushed: ${pushParts.join(', ')}` : 'Nothing pushed';
+}
+
+// Pure: JIRA keys of successfully-pushed results for a given doc type — used
+// to log AI-assisted time savings per story/spike push.
+export function collectPushedKeysByDocType(results: PushResultItem[], docType: string): string[] {
+  return results.filter((r) => r.docType === docType && r.key).map((r) => r.key!);
 }
 
 export async function pushToJira(): Promise<void> {
@@ -363,12 +412,7 @@ export async function pushToJira(): Promise<void> {
   // then update-features, update-epics, update-others.
   // This ensures features are created before epics (for "Is Contained" links)
   // and epics before stories (for Epic Link fields).
-  previewItems.sort(function (a, b) {
-    const typeOrder: Record<string, number> = { feature: 0, epic: 1 };
-    const aOrder = (a.action === 'create' ? 0 : 3) + (typeOrder[a.docType ?? ''] ?? 2);
-    const bOrder = (b.action === 'create' ? 0 : 3) + (typeOrder[b.docType ?? ''] ?? 2);
-    return aOrder - bOrder;
-  });
+  previewItems.sort(comparePushPreviewItems);
 
   // 3. Show unified confirmation popup with checkboxes
   const selected = await showSyncPreviewModal(
@@ -383,7 +427,7 @@ export async function pushToJira(): Promise<void> {
   }
 
   // 4. Execute push for each selected item with progress tracking
-  const results: { key?: string; action?: string; docType?: string }[] = [];
+  const results: PushResultItem[] = [];
   const errorMessages: string[] = [];
   for (let idx = 0; idx < selected.length; idx++) {
     const item = selected[idx] as PushPreviewItem;
@@ -413,33 +457,19 @@ export async function pushToJira(): Promise<void> {
     }
   }
 
-  const created = results.filter((r) => r.action === 'created').length;
-  const updated = results.filter((r) => r.action !== 'created').length;
-  const pushParts: string[] = [];
-  if (created) pushParts.push(`${created} created`);
-  if (updated) pushParts.push(`${updated} synced`);
-  if (errorMessages.length) pushParts.push(`${errorMessages.length} failed`);
   if (currentFilename) openDoc(currentFilename, currentDocType!);
-  const summaryText = pushParts.length ? `Pushed: ${pushParts.join(', ')}` : 'Nothing pushed';
+  const summaryText = summarizePushResults(results, errorMessages.length);
   const errorDetail = errorMessages.length ? '\n' + errorMessages.join('\n') : '';
   finishJiraProgress(summaryText + errorDetail, errorMessages.length > 0);
   updateJiraPushBtn();
 
   // Log AI-assisted time savings for successfully pushed stories/spikes.
-  const storyResults = results.filter((r) => r.docType === 'story' && r.key);
-  const spikeResults = results.filter((r) => r.docType === 'spike' && r.key);
+  const storyResults = collectPushedKeysByDocType(results, 'story');
+  const spikeResults = collectPushedKeysByDocType(results, 'spike');
   if (storyResults.length) {
-    void logAiSaving(
-      'story_push',
-      storyResults.length,
-      storyResults.map((r) => r.key!)
-    );
+    void logAiSaving('story_push', storyResults.length, storyResults);
   }
   if (spikeResults.length) {
-    void logAiSaving(
-      'spike_push',
-      spikeResults.length,
-      spikeResults.map((r) => r.key!)
-    );
+    void logAiSaving('spike_push', spikeResults.length, spikeResults);
   }
 }

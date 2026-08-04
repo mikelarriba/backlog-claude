@@ -34,6 +34,27 @@ interface SprintPushChange {
   currentJiraSprint?: string;
 }
 
+// Pure: buffer-line splitting shared by both SSE-over-fetch streams below
+// (push-sprints-preview and pull-sprint-preview). `\n`-terminated lines are
+// ready to process; any trailing partial line is carried forward as the new
+// buffer, exactly like the original inline `buffer.split('\n'); buffer =
+// lines.pop()` pattern at each call site.
+export function splitSSEBuffer(buffer: string): { lines: string[]; remainder: string } {
+  const lines = buffer.split('\n');
+  const remainder = lines.pop() ?? '';
+  return { lines, remainder };
+}
+
+// Pure: strips the "data: " prefix from one SSE line, returning the raw JSON
+// text still to be parsed by the caller (kept separate from JSON.parse so
+// callers can decide their own try/catch scope around malformed payloads),
+// or null for lines that aren't a data line (blank keep-alives, event:/id:
+// lines, etc).
+export function extractSSEDataPayload(line: string): string | null {
+  if (!line.startsWith('data: ')) return null;
+  return line.slice(6);
+}
+
 let _sprintPushPreview: SprintPushChange[] = []; // current preview changes
 let _sprintPushFilters: Record<string, boolean> = { add: true, change: true, pull: true };
 let _sprintPushItems: SprintPushItem[] = []; // items prepared for preview
@@ -166,13 +187,14 @@ export async function startSprintPushPreview(): Promise<void> {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop()!;
+      const { lines, remainder } = splitSSEBuffer(buffer);
+      buffer = remainder;
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
+        const raw = extractSSEDataPayload(line);
+        if (raw === null) continue;
         try {
-          const payload = JSON.parse(line.slice(6)) as {
+          const payload = JSON.parse(raw) as {
             type?: string;
             message?: string;
             current?: number;
@@ -222,17 +244,50 @@ function showSprintPushError(msg: string): void {
   el.classList.add('show');
 }
 
-function renderSprintPushPreview(preview: { changes?: SprintPushChange[] }): void {
-  document.getElementById('sprint-push-loading')!.classList.remove('show');
-
-  // Filter out items where the sprint hasn't actually changed (client-side safety net)
-  const allChanges = preview.changes || [];
-  const changes = allChanges.filter((c) => {
+// Pure: client-side safety net that drops "change" entries whose target
+// sprint is actually identical to the current JIRA sprint (case/whitespace
+// insensitive), and drops any change type outside the known set entirely.
+export function filterSprintPushChanges(changes: SprintPushChange[]): SprintPushChange[] {
+  return changes.filter((c) => {
     if (c.changeType === 'change' && c.targetSprint && c.currentJiraSprint) {
       return c.targetSprint.toLowerCase().trim() !== c.currentJiraSprint.toLowerCase().trim();
     }
     return ['add', 'change', 'pull'].includes(c.changeType);
   });
+}
+
+// Pure: counts filtered changes by change type, for the filter-pill badges.
+export function countSprintPushChangesByType(changes: SprintPushChange[]): {
+  adds: number;
+  changesCount: number;
+  pulls: number;
+} {
+  return {
+    adds: changes.filter((c) => c.changeType === 'add').length,
+    changesCount: changes.filter((c) => c.changeType === 'change').length,
+    pulls: changes.filter((c) => c.changeType === 'pull').length,
+  };
+}
+
+// Pure: the "from → to" arrow text shown per change row.
+export function formatSprintChangeArrow(c: SprintPushChange): string {
+  if (c.changeType === 'add') return `— → ${c.targetSprint}`;
+  if (c.changeType === 'change') return `${c.currentJiraSprint} → ${c.targetSprint}`;
+  if (c.changeType === 'pull') return `JIRA: ${c.currentJiraSprint} → local`;
+  return '';
+}
+
+// Pure: the badge label per change type ("add" reads as "push" to the user).
+export function sprintChangeBadgeLabel(c: SprintPushChange): string {
+  return c.changeType === 'add' ? 'push' : c.changeType === 'pull' ? 'pull' : c.changeType;
+}
+
+function renderSprintPushPreview(preview: { changes?: SprintPushChange[] }): void {
+  document.getElementById('sprint-push-loading')!.classList.remove('show');
+
+  // Filter out items where the sprint hasn't actually changed (client-side safety net)
+  const allChanges = preview.changes || [];
+  const changes = filterSprintPushChanges(allChanges);
 
   if (!changes.length) {
     document.getElementById('sprint-push-empty')!.classList.add('show');
@@ -245,9 +300,7 @@ function renderSprintPushPreview(preview: { changes?: SprintPushChange[] }): voi
   (document.getElementById('sprint-push-actions') as HTMLElement).style.display = 'flex';
 
   // Recompute counts from filtered set
-  const adds = changes.filter((c) => c.changeType === 'add').length;
-  const changesCount = changes.filter((c) => c.changeType === 'change').length;
-  const pulls = changes.filter((c) => c.changeType === 'pull').length;
+  const { adds, changesCount, pulls } = countSprintPushChangesByType(changes);
 
   // Update pill counts
   document.getElementById('sprint-push-count-add')!.textContent = String(adds);
@@ -267,16 +320,8 @@ function renderSprintPushPreview(preview: { changes?: SprintPushChange[] }): voi
     row.className = 'sprint-push-item';
     row.dataset['type'] = c.changeType;
 
-    let arrow = '';
-    const badgeLabel =
-      c.changeType === 'add' ? 'push' : c.changeType === 'pull' ? 'pull' : c.changeType;
-    if (c.changeType === 'add') {
-      arrow = `— → ${c.targetSprint}`;
-    } else if (c.changeType === 'change') {
-      arrow = `${c.currentJiraSprint} → ${c.targetSprint}`;
-    } else if (c.changeType === 'pull') {
-      arrow = `JIRA: ${c.currentJiraSprint} → local`;
-    }
+    const arrow = formatSprintChangeArrow(c);
+    const badgeLabel = sprintChangeBadgeLabel(c);
 
     row.innerHTML = `
       <input type="checkbox" checked data-jira-id="${c.jiraId}" data-change-type="${c.changeType}"
@@ -335,6 +380,30 @@ interface SprintPushResultItem {
   status: 'ok' | 'skipped' | 'error' | string;
 }
 
+interface SprintPushRequestItem {
+  changeType?: string;
+}
+
+// Pure: "Sprint sync: N updated (N pushed) (N pulled), N skipped, N failed"
+// summary, plus the pulled count the caller uses to decide whether to
+// refresh local data.
+export function summarizeSprintPushResult(
+  items: SprintPushRequestItem[],
+  results: SprintPushResultItem[]
+): { msg: string; pulled: number; errors: number } {
+  const ok = results.filter((r) => r.status === 'ok').length;
+  const skipped = results.filter((r) => r.status === 'skipped').length;
+  const errors = results.filter((r) => r.status === 'error').length;
+  const pushed = items.filter((i) => i.changeType === 'add' || i.changeType === 'change').length;
+  const pulled = items.filter((i) => i.changeType === 'pull').length;
+  let msg = `Sprint sync: ${ok} updated`;
+  if (pushed) msg += ` (${pushed} pushed)`;
+  if (pulled) msg += ` (${pulled} pulled)`;
+  if (skipped) msg += `, ${skipped} skipped`;
+  if (errors) msg += `, ${errors} failed`;
+  return { msg, pulled, errors };
+}
+
 export async function confirmSprintPush(): Promise<void> {
   const checkboxes = document.querySelectorAll<HTMLInputElement>(
     '.sprint-push-item input[type="checkbox"]:checked'
@@ -357,16 +426,7 @@ export async function confirmSprintPush(): Promise<void> {
     const res = (await postJSON('/api/jira/push-sprints', { items })) as {
       results?: SprintPushResultItem[];
     };
-    const ok = (res.results || []).filter((r) => r.status === 'ok').length;
-    const skipped = (res.results || []).filter((r) => r.status === 'skipped').length;
-    const errors = (res.results || []).filter((r) => r.status === 'error').length;
-    const pushed = items.filter((i) => i.changeType === 'add' || i.changeType === 'change').length;
-    const pulled = items.filter((i) => i.changeType === 'pull').length;
-    let msg = `Sprint sync: ${ok} updated`;
-    if (pushed) msg += ` (${pushed} pushed)`;
-    if (pulled) msg += ` (${pulled} pulled)`;
-    if (skipped) msg += `, ${skipped} skipped`;
-    if (errors) msg += `, ${errors} failed`;
+    const { msg, pulled, errors } = summarizeSprintPushResult(items, res.results || []);
     showJiraToast(errors ? 'warn' : 'success', msg);
     if (pulled > 0) loadDocs(); // refresh local data after pull
     closeSprintPushModal();
@@ -379,7 +439,7 @@ export async function confirmSprintPush(): Promise<void> {
 
 // ── Pull from JIRA Sprints ───────────────────────────────────
 
-const JIRA_TYPE_TO_LOCAL: Record<string, string> = {
+export const JIRA_TYPE_TO_LOCAL: Record<string, string> = {
   'New Feature': 'feature',
   Epic: 'epic',
   Story: 'story',
@@ -466,11 +526,12 @@ export async function startPullSprintPreview(): Promise<void> {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop()!;
+      const { lines, remainder } = splitSSEBuffer(buffer);
+      buffer = remainder;
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const msg = JSON.parse(line.slice(6)) as {
+        const raw = extractSSEDataPayload(line);
+        if (raw === null) continue;
+        const msg = JSON.parse(raw) as {
           type?: string;
           message?: string;
           results?: PullSprintResult[];
@@ -543,6 +604,13 @@ export function _pullSprintUpdateCount(): void {
   if (btn) btn.textContent = `Pull Selected (${checked}/${total})`;
 }
 
+// Pure: "Pulled N issue(s), N failed" summary text.
+export function summarizePullSprintResult(results: SprintPushResultItem[]): string {
+  const ok = results.filter((r) => r.status === 'ok').length;
+  const err = results.filter((r) => r.status === 'error').length;
+  return `Pulled ${ok} issue${ok !== 1 ? 's' : ''}${err ? `, ${err} failed` : ''}`;
+}
+
 export async function confirmPullSprint(): Promise<void> {
   const cbs = document.querySelectorAll<HTMLInputElement>(
     '#pull-sprint-results input[type="checkbox"]:checked'
@@ -561,9 +629,7 @@ export async function confirmPullSprint(): Promise<void> {
     const data = (await postJSON('/api/jira/pull-sprint', { issues })) as {
       results?: SprintPushResultItem[];
     };
-    const ok = data.results?.filter((r) => r.status === 'ok').length || 0;
-    const err = data.results?.filter((r) => r.status === 'error').length || 0;
-    showJiraToast('ok', `Pulled ${ok} issue${ok !== 1 ? 's' : ''}${err ? `, ${err} failed` : ''}`);
+    showJiraToast('ok', summarizePullSprintResult(data.results || []));
     closePullSprintModal();
     loadDocs();
   } catch (e) {

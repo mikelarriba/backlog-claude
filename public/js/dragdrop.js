@@ -251,11 +251,14 @@ function computeInsertBefore(srcDocType, clientY) {
   }
   return null; // insert at end
 }
-export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFilename) {
-  const group = allDocs.filter((d) => d.docType === srcDocType);
+// Pure: computes the new rank order for a same-type group after dragging
+// `srcFilename` to just before `insertBeforeFilename` (or to the end when
+// null/undefined/not found). Returns null when `srcFilename` isn't in
+// `group`, matching the original early-return-without-side-effects behavior.
+export function computeRerankedOrder(group, srcFilename, insertBeforeFilename) {
   const sorted = [...group].sort(_rankSortFn);
   const draggedIdx = sorted.findIndex((d) => d.filename === srcFilename);
-  if (draggedIdx < 0) return;
+  if (draggedIdx < 0) return null;
   const [dragged] = sorted.splice(draggedIdx, 1);
   let insertIdx = sorted.length; // default: end
   if (insertBeforeFilename) {
@@ -263,10 +266,16 @@ export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFil
     if (targetIdx >= 0) insertIdx = targetIdx;
   }
   sorted.splice(insertIdx, 0, dragged);
+  return sorted.map((d) => d.filename);
+}
+export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFilename) {
+  const group = allDocs.filter((d) => d.docType === srcDocType);
+  const orderedFilenames = computeRerankedOrder(group, srcFilename, insertBeforeFilename);
+  if (!orderedFilenames) return;
   try {
     await postJSON('/api/docs/rerank', {
       type: srcDocType,
-      orderedFilenames: sorted.map((d) => d.filename),
+      orderedFilenames,
     });
   } catch (e) {
     showJiraToast('error', e.message);
