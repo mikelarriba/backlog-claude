@@ -636,19 +636,9 @@ updateSplitMode();
 
 _connectSSE();
 
-const deleteOverlay = document.getElementById('delete-overlay');
-if (deleteOverlay) {
-  deleteOverlay.addEventListener('click', (e: MouseEvent) => {
-    if (e.target === e.currentTarget) closeDeleteDialog();
-  });
-}
-
-const splitOverlay = document.getElementById('split-overlay');
-if (splitOverlay) {
-  splitOverlay.addEventListener('click', (e: MouseEvent) => {
-    if (e.target === e.currentTarget) closeSplitModal();
-  });
-}
+// Backdrop-click-to-close for all `.dialog-overlay` modals is wired
+// automatically by openModal() in state.ts the first time each is opened —
+// no per-modal listener needed here.
 
 // ── Delegated click handler ───────────────────────────────────
 // Replaces the ~150 inline onclick attributes that previously called
@@ -1246,11 +1236,6 @@ const _dynGlobals: Record<string, unknown> = {
   // onkeydown handlers remaining in index.html inputs
   searchJira,
   pullByKey,
-  // modal overlay onclick (overlay backdrop clicks) still in index.html
-  closeSprintPushModal,
-  closePullSprintModal,
-  closeRoadmapExportDialog,
-  closeIssueSplitModal,
   // Exposed for cross-module calls (also in FRONTEND_GLOBALS eslint list)
   focusEpic,
   updateSplitMode,

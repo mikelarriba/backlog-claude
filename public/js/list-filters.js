@@ -8,6 +8,8 @@ import {
   postJSON,
   showJiraToast,
   SECTION_LABELS,
+  openModal,
+  closeModal,
 } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { loadDocs } from './list.js';
@@ -402,7 +404,7 @@ export async function contextDeleteSelected() {
       : `Delete ${count} selected items? This cannot be undone.`;
   const msgEl = document.getElementById('delete-msg');
   if (msgEl) msgEl.textContent = msg;
-  document.getElementById('delete-overlay')?.classList.add('show');
+  openModal('delete-overlay');
   // Replace the delete handler temporarily for batch delete
   const btn = document.getElementById('confirm-delete-btn');
   if (!btn) return;
@@ -452,7 +454,7 @@ export async function contextAssignField(field, value) {
     const msg = `Assign ${label} "${displayValue}" to ${docs.length} selected items?`;
     const msgEl = document.getElementById('bulk-assign-msg');
     if (msgEl) msgEl.textContent = msg;
-    document.getElementById('bulk-assign-overlay')?.classList.add('show');
+    openModal('bulk-assign-overlay');
     const btn = document.getElementById('confirm-bulk-assign-btn');
     if (!btn) return;
     btn.disabled = false;
@@ -489,7 +491,7 @@ async function _executeBatchFieldUpdate(field, value, docs, label, displayValue)
   }
 }
 export function closeBulkAssignDialog() {
-  document.getElementById('bulk-assign-overlay')?.classList.remove('show');
+  closeModal('bulk-assign-overlay');
 }
 export function getSelectedDocs() {
   const docs = [];

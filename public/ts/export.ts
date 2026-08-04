@@ -1,7 +1,7 @@
 // ── Export — delegates rendering to server-side endpoints ────────────────────
 // Server generates print-ready HTML; client opens it in a new tab.
 // The user then uses Cmd+P / Ctrl+P → "Save as PDF" in the browser.
-import { showJiraToast, escHtml } from './state.js';
+import { showJiraToast, escHtml, openModal, closeModal } from './state.js';
 import { getAllSprints } from './roadmap.js';
 
 interface ExportSprint {
@@ -49,7 +49,7 @@ export function openRoadmapExportDialog(): void {
     )
     .join('');
 
-  document.getElementById('roadmap-export-overlay')!.classList.add('show');
+  openModal('roadmap-export-overlay');
 }
 
 export function rexpToggleAllSprints(checked: boolean): void {
@@ -65,7 +65,7 @@ export function rexpToggleAllTeams(checked: boolean): void {
 }
 
 export function closeRoadmapExportDialog(): void {
-  document.getElementById('roadmap-export-overlay')!.classList.remove('show');
+  closeModal('roadmap-export-overlay');
 }
 
 export async function executeRoadmapExport(): Promise<void> {

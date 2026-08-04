@@ -228,9 +228,24 @@ export async function streamSSE(url, body, { onText, onDone, onError, onProgress
   }
 }
 // ── Shared modal helpers ──────────────────────────────────────────────────────
+// Every dialog/overlay in the app toggles visibility via a `show` class on its
+// `#id` element. openModal()/closeModal() are the single place that happens so
+// every modal behaves identically. For elements carrying the `dialog-overlay`
+// class, openModal() also lazily wires a backdrop-click-to-close listener the
+// first time that id is opened — clicking the dimmed backdrop (not the dialog
+// content) closes it, matching the pattern several modals used to hand-roll
+// individually (and others didn't wire at all).
+const _backdropWired = new Set();
 export function openModal(id) {
   const el = document.getElementById(id);
-  if (el) el.classList.add('show');
+  if (!el) return;
+  el.classList.add('show');
+  if (el.classList.contains('dialog-overlay') && !_backdropWired.has(id)) {
+    el.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal(id);
+    });
+    _backdropWired.add(id);
+  }
 }
 export function closeModal(id) {
   const el = document.getElementById(id);
