@@ -13,7 +13,8 @@ import {
 } from './state.js';
 import type { DocEntry } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
-import { loadDocs } from './list.js';
+import { loadDocs, contextSplitItem } from './list.js';
+import { registerActions } from './actions.js';
 import {
   renderSwimlanes,
   renderDocItem,
@@ -312,6 +313,37 @@ export function handleItemContextMenu(e: MouseEvent, filename: string, docType: 
   showContextMenu(e.clientX, e.clientY);
 }
 
+// ── Context-menu action names ────────────────────────────────────────────
+// Proof-of-concept for the typed data-action registration pattern (see
+// actions.ts for the mechanism). The menu HTML built below is generated
+// dynamically (it never exists in index.html) and used to reach its
+// handlers via `onclick="contextMoveToPI(...)"` strings routed through
+// main.ts's untyped `_dynGlobals` window bridge. It now instead emits
+// `data-action="${CTX_ACTIONS.x}"` (+ `data-*` argument attributes) and
+// registers its own handlers below, so main.ts needs no case/import/
+// _dynGlobals entry for any of these four actions.
+export const CTX_ACTIONS = {
+  moveToPi: 'ctxMoveToPi',
+  assignField: 'ctxAssignField',
+  deleteSelected: 'ctxDeleteSelected',
+  splitItem: 'ctxSplitItem',
+} as const;
+
+registerActions({
+  [CTX_ACTIONS.moveToPi]: (el) => {
+    void contextMoveToPI(el.dataset.section ?? '');
+  },
+  [CTX_ACTIONS.assignField]: (el) => {
+    void contextAssignField(el.dataset.field ?? '', el.dataset.value ?? '');
+  },
+  [CTX_ACTIONS.deleteSelected]: () => {
+    void contextDeleteSelected();
+  },
+  [CTX_ACTIONS.splitItem]: () => {
+    contextSplitItem();
+  },
+});
+
 export function showContextMenu(x: number, y: number): void {
   closeContextMenu();
   const count = selectedItems.size;
@@ -332,7 +364,7 @@ export function showContextMenu(x: number, y: number): void {
   const piItems = piOptions
     .map((opt) => {
       const badge = opt.badge ? `<span class="ctx-badge">${escHtml(opt.badge)}</span>` : '';
-      return `<button class="ctx-item" onclick="contextMoveToPI('${opt.section}')">
+      return `<button class="ctx-item" data-action="${CTX_ACTIONS.moveToPi}" data-section="${escHtml(opt.section)}">
       ${badge}${escHtml(opt.label)}
     </button>`;
     })
@@ -348,34 +380,34 @@ export function showContextMenu(x: number, y: number): void {
   const sprintItems = Array.from(allSprints.entries())
     .map(
       ([name, _pi]) =>
-        `<button class="ctx-item" onclick="contextAssignField('sprint','${escHtml(name)}')">${escHtml(name)}</button>`
+        `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="sprint" data-value="${escHtml(name)}">${escHtml(name)}</button>`
     )
     .join('');
-  const sprintClear = `<button class="ctx-item" onclick="contextAssignField('sprint','')">Clear sprint</button>`;
+  const sprintClear = `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="sprint" data-value="">Clear sprint</button>`;
 
   // "Assign Team" submenu
   const teamItems = (_metaTeams || [])
     .map(
       (t) =>
-        `<button class="ctx-item" onclick="contextAssignField('team','${escHtml(t)}')">${escHtml(t)}</button>`
+        `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="team" data-value="${escHtml(t)}">${escHtml(t)}</button>`
     )
     .join('');
-  const teamClear = `<button class="ctx-item" onclick="contextAssignField('team','')">Clear team</button>`;
+  const teamClear = `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="team" data-value="">Clear team</button>`;
 
   // "Assign Category" submenu
   const catItems = (_metaWorkCategories || [])
     .map(
       (c) =>
-        `<button class="ctx-item" onclick="contextAssignField('workCategory','${escHtml(c)}')">${escHtml(c)}</button>`
+        `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="workCategory" data-value="${escHtml(c)}">${escHtml(c)}</button>`
     )
     .join('');
-  const catClear = `<button class="ctx-item" onclick="contextAssignField('workCategory','')">Clear category</button>`;
+  const catClear = `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="workCategory" data-value="">Clear category</button>`;
 
   const splitOption =
     count === 1
       ? `
     <div class="ctx-separator"></div>
-    <button class="ctx-item" onclick="contextSplitItem()">✂ Split Issue</button>`
+    <button class="ctx-item" data-action="${CTX_ACTIONS.splitItem}">✂ Split Issue</button>`
       : '';
 
   menu.innerHTML = `
@@ -399,7 +431,7 @@ export function showContextMenu(x: number, y: number): void {
     </div>
     ${splitOption}
     <div class="ctx-separator"></div>
-    <button class="ctx-item ctx-danger" onclick="contextDeleteSelected()">Delete</button>
+    <button class="ctx-item ctx-danger" data-action="${CTX_ACTIONS.deleteSelected}">Delete</button>
   `;
 
   document.body.appendChild(menu);
