@@ -48,6 +48,12 @@ jobs:
         env:
           MOCK_CLAUDE: '1'
           LOG_LEVEL: 'error'
+      - name: Coverage summary (report-only, no threshold enforced yet)
+        run: npm run test:coverage
+        continue-on-error: true
+        env:
+          MOCK_CLAUDE: '1'
+          LOG_LEVEL: 'error'
 
   frontend-drift:
     name: Frontend Build Drift Check
