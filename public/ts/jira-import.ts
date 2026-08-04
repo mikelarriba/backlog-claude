@@ -300,6 +300,17 @@ export async function performJiraPull(
 }
 
 // ── Import by key (bypasses label filter) ────────────────────
+
+// Pure: parses a freeform "EAMDM-1, EAMDM-2  EAMDM-3" input into a clean,
+// uppercased array of JIRA keys (whitespace/comma separated, dedupe-free —
+// duplicates are the server's problem, same as before extraction).
+export function parseJiraKeysInput(raw: string): string[] {
+  return raw
+    .split(/[\s,]+/)
+    .map((k) => k.trim().toUpperCase())
+    .filter(Boolean);
+}
+
 export async function pullByKey(): Promise<void> {
   const input = document.getElementById('jira-key-input') as HTMLInputElement | null;
   if (!input) return;
@@ -309,10 +320,7 @@ export async function pullByKey(): Promise<void> {
     return;
   }
 
-  const keys = raw
-    .split(/[\s,]+/)
-    .map((k) => k.trim().toUpperCase())
-    .filter(Boolean);
+  const keys = parseJiraKeysInput(raw);
   if (!keys.length) return;
 
   const btn = document.querySelector('.btn-jira-key') as HTMLButtonElement | null;
@@ -342,55 +350,103 @@ interface JiraChildIssue {
   localExists?: boolean;
 }
 
-export async function offerChildrenDownload(parentIssues: JiraPulledItem[]): Promise<void> {
+// Pure: merges each parent's already-fetched children into a single
+// deduplicated list (first occurrence of a key wins, matching the original
+// inline-loop behavior) plus a child-key → parent lookup used to group the
+// user's selection back up by parent for the pull.
+export function mergeChildrenResults(
+  parentIssues: JiraPulledItem[],
+  childrenByParentKey: Map<string, JiraChildIssue[]>
+): { allChildren: JiraSelectItem[]; childToParent: Map<string, JiraPulledItem> } {
   const allChildren: JiraSelectItem[] = [];
   const childToParent = new Map<string, JiraPulledItem>(); // child.key → parent issue
   const seen = new Set<string>();
 
   for (const parent of parentIssues) {
-    try {
-      const data = (await fetchJSON(`/api/jira/children/${encodeURIComponent(parent.key!)}`)) as {
-        children?: JiraChildIssue[];
-      };
-      for (const child of data.children || []) {
-        if (!seen.has(child.key)) {
-          seen.add(child.key);
-          allChildren.push({
-            key: child.key,
-            summary: child.summary,
-            type: child.issuetype,
-            localExists: child.localExists,
-          });
-          childToParent.set(child.key, parent);
-        }
+    const children = childrenByParentKey.get(parent.key!) || [];
+    for (const child of children) {
+      if (!seen.has(child.key)) {
+        seen.add(child.key);
+        allChildren.push({
+          key: child.key,
+          summary: child.summary,
+          type: child.issuetype,
+          localExists: child.localExists,
+        });
+        childToParent.set(child.key, parent);
       }
-    } catch (e) {
-      console.warn(`Failed to fetch children for ${parent.key}:`, (e as Error).message);
     }
   }
 
-  if (allChildren.length === 0) return;
+  return { allChildren, childToParent };
+}
 
-  const newCount = allChildren.filter((c) => !c.localExists).length;
-  const updateCount = allChildren.filter((c) => c.localExists).length;
+// Pure: "N new, N to update" summary of a children list's local-existence split.
+export function summarizeChildrenCounts(children: JiraSelectItem[]): string {
+  const newCount = children.filter((c) => !c.localExists).length;
+  const updateCount = children.filter((c) => c.localExists).length;
   const parts: string[] = [];
   if (newCount) parts.push(`${newCount} new`);
   if (updateCount) parts.push(`${updateCount} to update`);
-  const modalTitle = `Children in JIRA: ${parts.join(', ')}`;
+  return parts.join(', ');
+}
 
-  const selected = await showJiraSelectModal(modalTitle, allChildren, 'Import / Update selected');
+export interface ChildrenPullGroup {
+  parent: JiraPulledItem;
+  childKeys: string[];
+  overwriteKeys: string[];
+}
 
-  if (!selected.length) return;
-
-  // Pull each group of children with their parent link so Epic_ID / Feature_ID is set.
-  // Pre-include existing children in overwriteKeys so no second conflict dialog fires.
-  for (const parent of parentIssues) {
+// Pure: regroups the user's flat child selection by parent, so each parent's
+// children can be pulled together with `parentLink` set. Existing local
+// children are pre-included in `overwriteKeys` so no second conflict dialog
+// fires for them.
+export function groupSelectedChildrenByParent(
+  parentIssues: JiraPulledItem[],
+  selected: JiraSelectItem[],
+  childToParent: Map<string, JiraPulledItem>
+): ChildrenPullGroup[] {
+  return parentIssues.map((parent) => {
     const childKeys = selected
       .filter((c) => childToParent.get(c.key!)?.key === parent.key)
       .map((c) => c.key!);
     const overwriteKeys = selected
       .filter((c) => childToParent.get(c.key!)?.key === parent.key && c.localExists)
       .map((c) => c.key!);
+    return { parent, childKeys, overwriteKeys };
+  });
+}
+
+export async function offerChildrenDownload(parentIssues: JiraPulledItem[]): Promise<void> {
+  const childrenByParentKey = new Map<string, JiraChildIssue[]>();
+
+  for (const parent of parentIssues) {
+    try {
+      const data = (await fetchJSON(`/api/jira/children/${encodeURIComponent(parent.key!)}`)) as {
+        children?: JiraChildIssue[];
+      };
+      childrenByParentKey.set(parent.key!, data.children || []);
+    } catch (e) {
+      console.warn(`Failed to fetch children for ${parent.key}:`, (e as Error).message);
+    }
+  }
+
+  const { allChildren, childToParent } = mergeChildrenResults(parentIssues, childrenByParentKey);
+
+  if (allChildren.length === 0) return;
+
+  const modalTitle = `Children in JIRA: ${summarizeChildrenCounts(allChildren)}`;
+
+  const selected = await showJiraSelectModal(modalTitle, allChildren, 'Import / Update selected');
+
+  if (!selected.length) return;
+
+  // Pull each group of children with their parent link so Epic_ID / Feature_ID is set.
+  for (const { parent, childKeys, overwriteKeys } of groupSelectedChildrenByParent(
+    parentIssues,
+    selected,
+    childToParent
+  )) {
     if (childKeys.length) {
       await performJiraPull(childKeys, overwriteKeys, [], {
         filename: parent.filename!,

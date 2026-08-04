@@ -70,6 +70,50 @@ export async function syncJiraStatus(): Promise<void> {
 // ── Update from JIRA ─────────────────────────────────────────
 const JIRA_CARET = ' <span class="toolbar-caret">▾</span>';
 
+export interface SyncSelectionPlan {
+  parentSelected: boolean;
+  selectedChildren: SyncPreviewItem[];
+  selectedDeletes: SyncPreviewItem[];
+  totalSteps: number;
+}
+
+// Pure: given the full preview list (item 0 is always the parent/root doc)
+// and the user's checked subset, partitions the selection into "parent
+// update", "children to sync", and "children to delete" groups, and counts
+// how many progress steps the pull will take.
+export function computeSyncSelectionPlan(
+  previewItems: SyncPreviewItem[],
+  selected: SyncPreviewItem[]
+): SyncSelectionPlan {
+  const parentItem = previewItems[0];
+  const parentSelected = selected.some(
+    (s) => s.jiraKey === parentItem.jiraKey && s.action !== 'delete'
+  );
+  const selectedChildren = selected.filter(
+    (s) => s.jiraKey !== parentItem.jiraKey && s.action !== 'delete'
+  );
+  const selectedDeletes = selected.filter((s) => s.action === 'delete');
+  const totalSteps =
+    (parentSelected ? 1 : 0) +
+    (selectedChildren.length > 0 ? 1 : 0) +
+    (selectedDeletes.length > 0 ? 1 : 0);
+  return { parentSelected, selectedChildren, selectedDeletes, totalSteps };
+}
+
+// Pure: "Updated X, N child(ren) synced, N closed item(s) deleted" summary
+// (or "No changes applied"), with an optional trailing error message.
+export function summarizePullResult(
+  outcome: { updatedKey: string | null; childrenSynced: number; childrenDeleted: number },
+  errorMsg: string
+): string {
+  const pullParts: string[] = [];
+  if (outcome.updatedKey) pullParts.push(`Updated ${outcome.updatedKey}`);
+  if (outcome.childrenSynced) pullParts.push(`${outcome.childrenSynced} child(ren) synced`);
+  if (outcome.childrenDeleted) pullParts.push(`${outcome.childrenDeleted} closed item(s) deleted`);
+  const errorDetail = errorMsg ? '\n' + errorMsg : '';
+  return (pullParts.join(', ') || 'No changes applied') + errorDetail;
+}
+
 export async function updateFromJira(jiraKeyOverride?: string): Promise<void> {
   if (!currentFilename || !currentDocType) return;
 
@@ -117,18 +161,8 @@ export async function updateFromJira(jiraKeyOverride?: string): Promise<void> {
   }
 
   // 3. Execute: update selected items with progress tracking
-  const parentItem = previewItems[0];
-  const parentSelected = selected.some(
-    (s) => s.jiraKey === parentItem.jiraKey && s.action !== 'delete'
-  );
-  const selectedChildren = selected.filter(
-    (s) => s.jiraKey !== parentItem.jiraKey && s.action !== 'delete'
-  );
-  const selectedDeletes = selected.filter((s) => s.action === 'delete');
-  const totalSteps =
-    (parentSelected ? 1 : 0) +
-    (selectedChildren.length > 0 ? 1 : 0) +
-    (selectedDeletes.length > 0 ? 1 : 0);
+  const plan = computeSyncSelectionPlan(previewItems, selected);
+  const { parentSelected, selectedChildren, selectedDeletes, totalSteps } = plan;
   let pullErrors = 0;
   let pullErrorMsg = '';
   let updatedKey: string | null = null;
@@ -183,13 +217,8 @@ export async function updateFromJira(jiraKeyOverride?: string): Promise<void> {
     pullErrorMsg = (e as Error).message;
     console.warn('Pull from JIRA failed:', (e as Error).message);
   } finally {
-    const pullParts: string[] = [];
-    if (updatedKey) pullParts.push(`Updated ${updatedKey}`);
-    if (childrenSynced) pullParts.push(`${childrenSynced} child(ren) synced`);
-    if (childrenDeleted) pullParts.push(`${childrenDeleted} closed item(s) deleted`);
-    const errorDetail = pullErrorMsg ? '\n' + pullErrorMsg : '';
     finishJiraProgress(
-      (pullParts.join(', ') || 'No changes applied') + errorDetail,
+      summarizePullResult({ updatedKey, childrenSynced, childrenDeleted }, pullErrorMsg),
       pullErrors > 0
     );
     updateJiraPushBtn();
@@ -227,6 +256,26 @@ export function submitUpdateFromJiraKey(): void {
 }
 
 // ── Check All JIRA ───────────────────────────────────────────
+
+// Pure: the check-all response nests each item's field diffs under
+// `changesArray`, but the shared preview modal renders `changes` — remap
+// without mutating the original response objects.
+export function mapCheckAllChangesToModalItems(changed: SyncPreviewItem[]): SyncPreviewItem[] {
+  return changed.map(function (item) {
+    return Object.assign({}, item, { changes: item.changesArray || [] });
+  });
+}
+
+// Pure: "Synced N issue(s), M error(s)" summary with optional error detail.
+export function summarizeCheckAllSyncResult(synced: number, errorMsgs: string[]): string {
+  const errorDetail = errorMsgs.length ? '\n' + errorMsgs.join('\n') : '';
+  return (
+    `Synced ${synced} issue${synced !== 1 ? 's' : ''}` +
+    (errorMsgs.length ? `, ${errorMsgs.length} error(s)` : '') +
+    errorDetail
+  );
+}
+
 export async function checkAllJira(): Promise<void> {
   const btn = document.getElementById('jira-check-all-btn') as HTMLButtonElement | null;
   if (!btn) return;
@@ -259,9 +308,7 @@ export async function checkAllJira(): Promise<void> {
   }
 
   // Map to the array-changes format expected by showSyncPreviewModal
-  const modalItems = changed.map(function (item) {
-    return Object.assign({}, item, { changes: item.changesArray || [] });
-  });
+  const modalItems = mapCheckAllChangesToModalItems(changed);
 
   // Show preview modal with changes — reuse the sync preview
   const selected = await showSyncPreviewModal(
@@ -294,13 +341,7 @@ export async function checkAllJira(): Promise<void> {
     }
   }
 
-  const errorDetail = syncErrorMsgs.length ? '\n' + syncErrorMsgs.join('\n') : '';
-  finishJiraProgress(
-    `Synced ${synced} issue${synced !== 1 ? 's' : ''}` +
-      (syncErrorMsgs.length ? `, ${syncErrorMsgs.length} error(s)` : '') +
-      errorDetail,
-    syncErrorMsgs.length > 0
-  );
+  finishJiraProgress(summarizeCheckAllSyncResult(synced, syncErrorMsgs), syncErrorMsgs.length > 0);
 
   if (synced > 0) {
     await loadDocs();
