@@ -8,6 +8,7 @@
 // via POST /api/confluence/execute (#374) with a 60-second undo window.
 import { fetchJSON, postJSON, showJiraToast, escHtml } from './state.js';
 import { logAiSaving } from './ai-savings.js';
+import { renderDiffHtml } from './lineDiff.js';
 
 export interface DocIssue {
   key: string;
@@ -408,13 +409,6 @@ export interface ConfluenceSuggestion {
   proposedContent: string;
 }
 
-interface DiffLine {
-  type: 'add' | 'remove' | 'context';
-  text: string;
-}
-
-const LCS_CELL_LIMIT = 250_000;
-
 let _suggestions: ConfluenceSuggestion[] = [];
 const _selectedSuggestionIndexes = new Set<number>();
 const _expandedSuggestionIndexes = new Set<number>();
@@ -641,76 +635,8 @@ function _setSuggestionStatus(index: number, status: SuggestionStatus, message?:
 }
 
 // ── Diff rendering ───────────────────────────────────────────────────────────
-function _computeLineDiff(current: string, proposed: string): DiffLine[] {
-  const a = current.split('\n');
-  const b = proposed.split('\n');
-  const n = a.length;
-  const m = b.length;
-
-  if (n * m > LCS_CELL_LIMIT) {
-    return [
-      ...a.map((text): DiffLine => ({ type: 'remove', text })),
-      ...b.map((text): DiffLine => ({ type: 'add', text })),
-    ];
-  }
-
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    }
-  }
-
-  const lines: DiffLine[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < n && j < m) {
-    if (a[i] === b[j]) {
-      lines.push({ type: 'context', text: a[i] });
-      i++;
-      j++;
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      lines.push({ type: 'remove', text: a[i] });
-      i++;
-    } else {
-      lines.push({ type: 'add', text: b[j] });
-      j++;
-    }
-  }
-  while (i < n) {
-    lines.push({ type: 'remove', text: a[i] });
-    i++;
-  }
-  while (j < m) {
-    lines.push({ type: 'add', text: b[j] });
-    j++;
-  }
-  return lines;
-}
-
-function _diffLinesForSuggestion(s: ConfluenceSuggestion): DiffLine[] {
-  if (s.action === 'Create') {
-    return (s.proposedContent || '').split('\n').map((text): DiffLine => ({ type: 'add', text }));
-  }
-  if (s.action === 'Delete') {
-    return (s.currentContent || '').split('\n').map((text): DiffLine => ({ type: 'remove', text }));
-  }
-  return _computeLineDiff(s.currentContent || '', s.proposedContent || '');
-}
-
-function _renderDiffHtml(s: ConfluenceSuggestion): string {
-  const lines = _diffLinesForSuggestion(s);
-  if (!lines.length) return '<div class="doc-diff-empty">No content to compare.</div>';
-
-  return lines
-    .map((line) => {
-      const cls =
-        line.type === 'add' ? 'diff-add' : line.type === 'remove' ? 'diff-remove' : 'diff-context';
-      const marker = line.type === 'add' ? '+' : line.type === 'remove' ? '\u2212' : ' ';
-      return `<div class="diff-line ${cls}"><span class="diff-marker">${marker}</span><span class="diff-text">${escHtml(line.text)}</span></div>`;
-    })
-    .join('');
-}
+// The actual diff algorithm + HTML rendering live in lineDiff.ts, a pure,
+// DOM-free module imported as renderDiffHtml() above (#458).
 
 function _renderSuggestionRow(s: ConfluenceSuggestion, index: number): string {
   const checked = _selectedSuggestionIndexes.has(index) ? 'checked' : '';
@@ -739,7 +665,7 @@ function _renderSuggestionRow(s: ConfluenceSuggestion, index: number): string {
     </div>
     <div class="doc-diff-body">
       <div class="doc-diff-inner">
-        <div class="doc-diff-content">${_renderDiffHtml(s)}</div>
+        <div class="doc-diff-content">${renderDiffHtml(s)}</div>
       </div>
     </div>
   </div>`;
