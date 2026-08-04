@@ -14,7 +14,7 @@ mock.module('../../public/js/detail.js', {
   namedExports: { closeDeleteDialog: () => {}, executeDelete: async () => {} },
 });
 mock.module('../../public/js/list.js', {
-  namedExports: { loadDocs: async () => {} },
+  namedExports: { loadDocs: async () => {}, contextSplitItem: () => {} },
 });
 
 const { setPiSettings } = await import('../../public/js/store.js');

@@ -5,10 +5,10 @@ import {
   loadDocs,
   loadPiSettings,
   loadJiraVersions,
-  contextSplitItem,
   closeIssueSplitModal,
   executeSplitIssue,
 } from './list.js';
+import { dispatchAction } from './actions.js';
 import {
   toggleItemCollapse,
   collapseAll,
@@ -26,9 +26,6 @@ import {
   handleItemContextMenu,
   showContextMenu,
   closeContextMenu,
-  contextMoveToPI,
-  contextDeleteSelected,
-  contextAssignField,
   closeBulkAssignDialog,
 } from './list-filters.js';
 import { dismissWelcomeBanner } from './list-render.js';
@@ -581,6 +578,11 @@ document.addEventListener('click', (e) => {
   const btn = target.closest('[data-action]');
   if (!btn) return;
   const action = btn.dataset.action ?? '';
+  // Typed self-registered actions (see actions.ts) take priority over the
+  // legacy switch below — this is how a migrated view (currently: the list
+  // multi-select context menu in list-filters.ts) reaches its handlers
+  // without a case here. Falls through to the switch for everything else.
+  if (dispatchAction(action, btn, e)) return;
   switch (action) {
     // ── Sidebar navigation ──────────────────────────────────
     case 'navigateTo':
@@ -1011,6 +1013,13 @@ document.addEventListener('change', (e) => {
 // detail-fields.ts, etc. They cannot yet be migrated to delegated
 // listeners without refactoring each template — that is out of scope
 // for this issue.
+//
+// The list multi-select context menu (list-filters.ts's showContextMenu)
+// has been migrated off this bridge as the issue #461 proof-of-concept —
+// see actions.ts and CTX_ACTIONS in list-filters.ts. Its four handlers
+// (contextMoveToPI, contextDeleteSelected, contextAssignField,
+// contextSplitItem) are intentionally absent below; they now self-register
+// via registerActions() instead.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1020,10 +1029,6 @@ const _dynGlobals = {
   handleItemContextMenu,
   showContextMenu,
   closeContextMenu,
-  contextMoveToPI,
-  contextDeleteSelected,
-  contextAssignField,
-  contextSplitItem,
   openDistributionModal,
   // detail.js — still used from template-generated HTML (detail-links, etc.)
   openDoc,
