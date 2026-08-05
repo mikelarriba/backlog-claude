@@ -149,31 +149,27 @@ describe('GET /api/bugs/attachments/:slug/:file', () => {
   });
 
   test('returns 404 NOT_FOUND for a well-formed but nonexistent slug/file pair', async () => {
-    // assertFilename's pattern requires both segments to end in ".md" — real
-    // slugs/attachment names (e.g. "my-bug-title", "screenshot.png") never do
-    // (see below), so this uses ".md"-suffixed names purely to reach the
-    // not-found branch past validation.
     const { status, data } = await api(
       'GET',
-      '/api/bugs/attachments/nonexistent-slug.md/nonexistent-file.md'
+      '/api/bugs/attachments/nonexistent-slug/nonexistent-file.png'
     );
     assert.equal(status, 404);
     assert.equal(data.code, 'NOT_FOUND');
   });
 
-  test('BUG: a real, just-created attachment cannot be retrieved through this endpoint', async () => {
-    // src/routes/bugs.ts reuses routeHelpers.assertFilename (designed for
-    // markdown doc filenames — pattern requires a ".md" suffix) to validate
+  test('a real, just-created attachment can be retrieved through this endpoint', async () => {
+    // Regression test for #470: bugs.ts used to reuse routeHelpers.assertFilename
+    // (designed for markdown doc filenames — requires a ".md" suffix) to validate
     // BOTH the :slug and :file params here. Real bug slugs come from
     // slugify(title) (never ".md") and real attachment filenames keep their
-    // original extension (.png, .pdf, .msg, ...) — neither can ever match
-    // `^[a-z0-9][a-z0-9-]*\.md$`. As a result GET /api/bugs/attachments/:slug/:file
-    // always 400s for genuine attachments created via POST /api/bugs/create.
-    // Documented here per issue #459 scope (test-only; not fixed in this PR).
+    // original extension (.png, .pdf, .msg, ...), so the endpoint always 400'd
+    // for genuine attachments created via POST /api/bugs/create. Now fixed via
+    // dedicated assertSlug/assertAttachmentFilename validators.
     const form = new FormData();
     form.append('id', 'BUG-7');
-    form.append('title', 'Bug proving attachment retrieval is broken');
-    form.append('attachments', new Blob(['fake png bytes'], { type: 'image/png' }), 'evidence.png');
+    form.append('title', 'Bug proving attachment retrieval works');
+    const fileBytes = 'fake png bytes';
+    form.append('attachments', new Blob([fileBytes], { type: 'image/png' }), 'evidence.png');
     const createRes = await fetch(`${baseUrl}/api/bugs/create`, { method: 'POST', body: form });
     const created = await createRes.json();
     assert.equal(createRes.status, 200, `Expected 200, got ${createRes.status}`);
@@ -185,9 +181,8 @@ describe('GET /api/bugs/attachments/:slug/:file', () => {
     const attachmentRelPath = linkMatch[1]; // "<slug>/<safeName>"
 
     const attachRes = await fetch(`${baseUrl}/api/bugs/attachments/${attachmentRelPath}`);
-    // Current (buggy) behavior: 400 INVALID_FILENAME instead of 200 + the file.
-    assert.equal(attachRes.status, 400);
-    const attachData = await attachRes.json();
-    assert.equal(attachData.code, 'INVALID_FILENAME');
+    assert.equal(attachRes.status, 200, `Expected 200, got ${attachRes.status}`);
+    const attachBody = await attachRes.text();
+    assert.equal(attachBody, fileBytes);
   });
 });

@@ -3,7 +3,13 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
-import { sendError, ensureDir, parseApiError, assertFilename } from '../utils/routeHelpers.js';
+import {
+  sendError,
+  ensureDir,
+  parseApiError,
+  assertSlug,
+  assertAttachmentFilename,
+} from '../utils/routeHelpers.js';
 import { isoDate, slugify } from '../utils/transforms.js';
 import { translateToEnglish, processAttachment } from '../services/bugService.js';
 import type { BugRouteContext } from '../types.js';
@@ -144,8 +150,8 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
   router.get('/api/bugs/attachments/:slug/:file', (req, res) => {
     let slug, file;
     try {
-      slug = assertFilename(req.params.slug);
-      file = assertFilename(req.params.file);
+      slug = assertSlug(req.params.slug);
+      file = assertAttachmentFilename(req.params.file);
     } catch (_err) {
       logInfo(
         'GET /api/bugs/attachment',
