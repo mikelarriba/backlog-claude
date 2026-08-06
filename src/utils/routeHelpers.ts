@@ -121,6 +121,43 @@ export function assertFilename(filename: unknown): string {
   return cleaned;
 }
 
+// Allow-list regex for bug attachment slugs — matches the output of
+// transforms.slugify() (lowercase alphanumeric + hyphens, no extension,
+// capped at 50 chars — slugify() only strips leading/trailing whitespace,
+// not leading hyphens, so a leading hyphen must stay valid here), NOT the
+// markdown-doc ".md" pattern above. No dots are ever allowed, so ".." can't
+// validate regardless of position.
+const SAFE_SLUG_RE = /^[a-z0-9-]{1,50}$/;
+
+export function assertSlug(slug: unknown): string {
+  const cleaned = path.basename(String(slug || '').trim());
+  if (!cleaned || !SAFE_SLUG_RE.test(cleaned)) {
+    throw new AppError(
+      'INVALID_FILENAME',
+      'Slug must match pattern: lowercase letters, digits, hyphens'
+    );
+  }
+  return cleaned;
+}
+
+// Allow-list regex for bug attachment filenames — matches the sanitized
+// upload name written in bugs.ts (original name with any char outside
+// [a-zA-Z0-9._-] replaced by "_"), so it keeps case and the real extension
+// (.png, .pdf, .msg, ...) instead of requiring ".md". Must start with an
+// alphanumeric char so traversal tokens like ".." never validate.
+const SAFE_ATTACHMENT_FILENAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
+export function assertAttachmentFilename(filename: unknown): string {
+  const cleaned = path.basename(String(filename || '').trim());
+  if (!cleaned || !SAFE_ATTACHMENT_FILENAME_RE.test(cleaned)) {
+    throw new AppError(
+      'INVALID_FILENAME',
+      'Filename must match pattern: letters, digits, dots, underscores, hyphens'
+    );
+  }
+  return cleaned;
+}
+
 export function setupSSE(res: Response): void {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
