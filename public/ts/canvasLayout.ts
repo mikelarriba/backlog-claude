@@ -112,3 +112,50 @@ export function computeAutoLayout(
 
   return layout;
 }
+
+// ── Compact layout: remap col/row values to remove gaps ────────
+// After cards are deleted or moved, columns/rows can end up with unused
+// indices in between occupied ones. This renumbers the used col/row values
+// to consecutive integers starting at 0 (preserving relative order), so the
+// grid doesn't render empty gaps. Pure — does not mutate the input.
+export function compactLayout<T extends CanvasPos>(
+  positions: Record<string, T>
+): { positions: Record<string, T>; changed: boolean; usedCols: number[]; usedRows: number[] } {
+  const usedCols = [...new Set(Object.values(positions).map((p) => p.col))].sort((a, b) => a - b);
+  const usedRows = [...new Set(Object.values(positions).map((p) => p.row))].sort((a, b) => a - b);
+  const colRemap = new Map(usedCols.map((c, i) => [c, i]));
+  const rowRemap = new Map(usedRows.map((r, i) => [r, i]));
+
+  const remapped: Record<string, T> = {};
+  let changed = false;
+  for (const [fn, pos] of Object.entries(positions)) {
+    const col = colRemap.get(pos.col) ?? pos.col;
+    const row = rowRemap.get(pos.row) ?? pos.row;
+    if (col !== pos.col || row !== pos.row) changed = true;
+    remapped[fn] = { ...pos, col, row };
+  }
+  return { positions: remapped, changed, usedCols, usedRows };
+}
+
+// ── Edge move: compute a card's new position when snapped to a grid edge ─
+// Used by the canvas context menu's "move to left/right/top/bottom" actions.
+// `positions` is the full set of current positions, used to find the
+// grid's far edge for 'right'/'bottom'. Pure — returns a new position object.
+export function computeEdgeMovePosition(
+  direction: string,
+  cur: CanvasPos,
+  positions: CanvasPos[]
+): CanvasPos {
+  switch (direction) {
+    case 'left':
+      return { col: 0, row: cur.row };
+    case 'right':
+      return { col: Math.max(...positions.map((p) => p.col)) + 1, row: cur.row };
+    case 'top':
+      return { col: cur.col, row: 0 };
+    case 'bottom':
+      return { col: cur.col, row: Math.max(...positions.map((p) => p.row)) + 1 };
+    default:
+      return cur;
+  }
+}
