@@ -2,6 +2,34 @@
 import { showJiraToast, escHtml, getErrorMessage, postJSON, fetchJSON } from './state.js';
 import { loadDocs } from './list.js';
 import { rebuildCanvasEdges, renderCanvas } from './refine-canvas.js';
+import { registerActions } from './actions.js';
+
+// Typed data-action names for _showLinkPopup's buttons (issue #461 migration —
+// see actions.ts and CTX_ACTIONS in list-filters.ts for the established pattern).
+// Replaces the onclick="_createCanvasLink(...)" / onclick="_closeLinkPopup()"
+// strings previously built by hand-interpolating escHtml() args into the
+// template, which reached these handlers through main.ts's untyped window
+// bridge instead of a direct, typed call.
+export const EDGE_ACTIONS = {
+  createLink: 'edgeCreateLink',
+  closePopup: 'edgeClosePopup',
+} as const;
+
+registerActions({
+  [EDGE_ACTIONS.createLink]: (el) => {
+    const { linkType, srcFilename, srcDocType, tgtFilename, tgtDocType } = el.dataset;
+    _createCanvasLink(
+      linkType ?? '',
+      srcFilename ?? '',
+      srcDocType ?? '',
+      tgtFilename ?? '',
+      tgtDocType ?? ''
+    );
+  },
+  [EDGE_ACTIONS.closePopup]: () => {
+    _closeLinkPopup();
+  },
+});
 
 // ── Edge click popup ───────────────────────────────────────────
 export function _showEdgePopup(
@@ -153,10 +181,11 @@ export function _showLinkPopup(
   popup.className = 'canvas-link-popup';
   popup.style.left = `${x}px`;
   popup.style.top = `${y}px`;
+  const linkDataAttrs = `data-src-filename="${escHtml(srcFilename)}" data-src-doc-type="${escHtml(srcDocType)}" data-tgt-filename="${escHtml(tgtFilename)}" data-tgt-doc-type="${escHtml(tgtDocType)}"`;
   popup.innerHTML = `
-    <button onclick="_createCanvasLink('blocks','${escHtml(srcFilename)}','${escHtml(srcDocType)}','${escHtml(tgtFilename)}','${escHtml(tgtDocType)}')">Add BLOCKS link</button>
-    <button onclick="_createCanvasLink('parallel','${escHtml(srcFilename)}','${escHtml(srcDocType)}','${escHtml(tgtFilename)}','${escHtml(tgtDocType)}')">Add PARALLEL link</button>
-    <button onclick="_closeLinkPopup()">Cancel</button>`;
+    <button data-action="${EDGE_ACTIONS.createLink}" data-link-type="blocks" ${linkDataAttrs}>Add BLOCKS link</button>
+    <button data-action="${EDGE_ACTIONS.createLink}" data-link-type="parallel" ${linkDataAttrs}>Add PARALLEL link</button>
+    <button data-action="${EDGE_ACTIONS.closePopup}">Cancel</button>`;
   document.body.appendChild(popup);
   // Close on outside click
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);

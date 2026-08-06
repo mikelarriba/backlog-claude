@@ -100,8 +100,6 @@ import {
   _deleteCanvasLink,
   _changeCanvasLinkType,
   toggleManageLinks,
-  _closeLinkPopup,
-  _createCanvasLink,
 } from './refine-edges.js';
 import {
   _fpCreateChild,
@@ -1120,12 +1118,15 @@ document.addEventListener('change', (e: Event) => {
 // listeners without refactoring each template — that is out of scope
 // for this issue.
 //
-// The list multi-select context menu (list-filters.ts's showContextMenu)
-// has been migrated off this bridge as the issue #461 proof-of-concept —
-// see actions.ts and CTX_ACTIONS in list-filters.ts. Its four handlers
-// (contextMoveToPI, contextDeleteSelected, contextAssignField,
-// contextSplitItem) are intentionally absent below; they now self-register
-// via registerActions() instead.
+// Two views have been migrated off this bridge so far (issue #461) — see
+// actions.ts for the pattern:
+//   - The list multi-select context menu (list-filters.ts's showContextMenu).
+//     Its four handlers (contextMoveToPI, contextDeleteSelected,
+//     contextAssignField, contextSplitItem) are intentionally absent below.
+//   - The canvas edge "add link" popup (refine-edges.ts's _showLinkPopup).
+//     Its two handlers (_createCanvasLink, _closeLinkPopup) are intentionally
+//     absent below — see EDGE_ACTIONS in refine-edges.ts.
+// Both now self-register via registerActions() instead.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1171,8 +1172,6 @@ const _dynGlobals: Record<string, unknown> = {
   _deleteCanvasLink,
   _changeCanvasLinkType,
   toggleManageLinks,
-  _closeLinkPopup,
-  _createCanvasLink,
   // refine-nodes.ts
   _fpCreateChild,
   _showCardContextMenu,
