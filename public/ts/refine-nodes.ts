@@ -19,6 +19,7 @@ import {
 import { buildCanvasGraph, renderCanvas, saveCanvasLayout } from './refine-canvas.js';
 import { _closeLinkPopup } from './refine-edges.js';
 import { positionPopup } from './ui-helpers.js';
+import { computeEdgeMovePosition } from './canvasLayout.js';
 
 // ── Local shape of canvas layout position entries ───────────────
 // _activePanelState.layout / _panelStates' PanelState.layout are typed as
@@ -445,23 +446,7 @@ export async function _moveCardsToEdge(
   for (const fn of filenames) {
     const cur = layout[fn];
     if (!cur) continue;
-    let newCol = cur.col;
-    let newRow = cur.row;
-    switch (direction) {
-      case 'left':
-        newCol = 0;
-        break;
-      case 'right':
-        newCol = Math.max(...positions.map((p) => p.col)) + 1;
-        break;
-      case 'top':
-        newRow = 0;
-        break;
-      case 'bottom':
-        newRow = Math.max(...positions.map((p) => p.row)) + 1;
-        break;
-    }
-    layout[fn] = { col: newCol, row: newRow };
+    layout[fn] = computeEdgeMovePosition(direction, cur, positions);
   }
   _canvasSelectedCards.clear();
   await saveCanvasLayout(_activePanelState, epicFilename);
@@ -634,27 +619,11 @@ export async function _moveCardToEdge(
   if (!cur) return;
 
   const positions = Object.values(layout);
-  let newCol = cur.col;
-  let newRow = cur.row;
+  const next = computeEdgeMovePosition(direction, cur, positions);
 
-  switch (direction) {
-    case 'left':
-      newCol = 0;
-      break;
-    case 'right':
-      newCol = Math.max(...positions.map((p) => p.col)) + 1;
-      break;
-    case 'top':
-      newRow = 0;
-      break;
-    case 'bottom':
-      newRow = Math.max(...positions.map((p) => p.row)) + 1;
-      break;
-  }
+  if (next.col === cur.col && next.row === cur.row) return;
 
-  if (newCol === cur.col && newRow === cur.row) return;
-
-  layout[filename] = { col: newCol, row: newRow };
+  layout[filename] = next;
   await saveCanvasLayout(_activePanelState, epicFilename);
   renderCanvas(epicFilename, docType);
 }

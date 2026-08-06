@@ -2,7 +2,7 @@
 import { escHtml, TYPE_LABEL, postJSON, putJSON, fetchJSON, deleteJSON } from './state.js';
 import type { DocEntry, PanelState } from './state.js';
 export { computeAutoLayout } from './canvasLayout.js';
-import { computeAutoLayout } from './canvasLayout.js';
+import { computeAutoLayout, compactLayout } from './canvasLayout.js';
 import type { CanvasPos, BlockEdge, ParallelPair } from './canvasLayout.js';
 import { openRefinePanel, openManualRefine } from './refine.js';
 import {
@@ -47,20 +47,14 @@ export function _renderFpCanvas(
     CELL_H = 90,
     GUTTER_X = 14,
     GUTTER_Y = 14;
-  const positions: Record<string, CanvasPos> = {};
+  const rawPositions: Record<string, CanvasPos> = {};
   for (const c of ps.stories)
-    positions[c.filename] = (ps.layout[c.filename] as CanvasPos | undefined) || { col: 0, row: 0 };
-
-  const usedCols = [...new Set(Object.values(positions).map((p) => p.col))].sort((a, b) => a - b);
-  const usedRows = [...new Set(Object.values(positions).map((p) => p.row))].sort((a, b) => a - b);
-  const colRemap = new Map(usedCols.map((c, i) => [c, i]));
-  const rowRemap = new Map(usedRows.map((r, i) => [r, i]));
-  for (const fn of Object.keys(positions)) {
-    positions[fn] = {
-      col: colRemap.get(positions[fn].col) ?? 0,
-      row: rowRemap.get(positions[fn].row) ?? 0,
+    rawPositions[c.filename] = (ps.layout[c.filename] as CanvasPos | undefined) || {
+      col: 0,
+      row: 0,
     };
-  }
+
+  const { positions, usedCols, usedRows } = compactLayout(rawPositions);
 
   const cols = usedCols.length || 1;
   const rows = usedRows.length || 1;
@@ -303,22 +297,9 @@ export function renderCanvas(epicFilename: string, docType: string): void {
 
   // Compact layout: remap col/row values to remove gaps
   const layoutEntries = _activePanelState.layout as Record<string, CanvasPos>;
-  const usedCols = [...new Set(Object.values(layoutEntries).map((p) => p.col))].sort(
-    (a, b) => a - b
-  );
-  const usedRows = [...new Set(Object.values(layoutEntries).map((p) => p.row))].sort(
-    (a, b) => a - b
-  );
+  const { positions: compacted, changed, usedCols, usedRows } = compactLayout(layoutEntries);
   if (usedCols.length || usedRows.length) {
-    const colRemap = new Map(usedCols.map((c, i) => [c, i]));
-    const rowRemap = new Map(usedRows.map((r, i) => [r, i]));
-    let changed = false;
-    for (const fn of Object.keys(layoutEntries)) {
-      const newCol = colRemap.get(layoutEntries[fn].col) ?? layoutEntries[fn].col;
-      const newRow = rowRemap.get(layoutEntries[fn].row) ?? layoutEntries[fn].row;
-      if (newCol !== layoutEntries[fn].col || newRow !== layoutEntries[fn].row) changed = true;
-      layoutEntries[fn] = { col: newCol, row: newRow };
-    }
+    Object.assign(layoutEntries, compacted);
     if (changed) saveCanvasLayout(_activePanelState, epicFilename);
   }
 

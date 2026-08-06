@@ -3,7 +3,11 @@
 // DOM access, explicitly documented as safe to unit-test in isolation.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeAutoLayout } from '../../public/js/canvasLayout.js';
+import {
+  computeAutoLayout,
+  compactLayout,
+  computeEdgeMovePosition,
+} from '../../public/js/canvasLayout.js';
 
 function makeChild(filename) {
   return { filename, docType: 'story', title: filename };
@@ -84,5 +88,93 @@ describe('computeAutoLayout()', () => {
     assert.equal(layout['a.md'].row, 0);
     assert.equal(layout['b.md'].row, 0);
     assert.notEqual(layout['a.md'].col, layout['b.md'].col);
+  });
+});
+
+describe('compactLayout()', () => {
+  test('leaves an already-consecutive layout unchanged', () => {
+    const positions = { a: { col: 0, row: 0 }, b: { col: 1, row: 0 }, c: { col: 0, row: 1 } };
+    const result = compactLayout(positions);
+    assert.deepEqual(result.positions, positions);
+    assert.equal(result.changed, false);
+    assert.deepEqual(result.usedCols, [0, 1]);
+    assert.deepEqual(result.usedRows, [0, 1]);
+  });
+
+  test('closes a column gap by renumbering to consecutive integers', () => {
+    const positions = { a: { col: 0, row: 0 }, b: { col: 5, row: 0 } };
+    const result = compactLayout(positions);
+    assert.deepEqual(result.positions, { a: { col: 0, row: 0 }, b: { col: 1, row: 0 } });
+    assert.equal(result.changed, true);
+  });
+
+  test('closes a row gap by renumbering to consecutive integers', () => {
+    const positions = { a: { col: 0, row: 0 }, b: { col: 0, row: 7 } };
+    const result = compactLayout(positions);
+    assert.deepEqual(result.positions, { a: { col: 0, row: 0 }, b: { col: 0, row: 1 } });
+    assert.equal(result.changed, true);
+  });
+
+  test('preserves relative order of non-consecutive values', () => {
+    const positions = { a: { col: 2, row: 0 }, b: { col: 5, row: 0 }, c: { col: 9, row: 0 } };
+    const result = compactLayout(positions);
+    assert.equal(result.positions.a.col, 0);
+    assert.equal(result.positions.b.col, 1);
+    assert.equal(result.positions.c.col, 2);
+  });
+
+  test('does not mutate the input object', () => {
+    const positions = { a: { col: 0, row: 0 }, b: { col: 5, row: 0 } };
+    const snapshot = JSON.parse(JSON.stringify(positions));
+    compactLayout(positions);
+    assert.deepEqual(positions, snapshot);
+  });
+
+  test('handles an empty positions map', () => {
+    const result = compactLayout({});
+    assert.deepEqual(result.positions, {});
+    assert.equal(result.changed, false);
+    assert.deepEqual(result.usedCols, []);
+    assert.deepEqual(result.usedRows, []);
+  });
+
+  test('preserves extra fields on each position entry', () => {
+    const positions = { a: { col: 0, row: 0, extra: 'keep-me' } };
+    const result = compactLayout(positions);
+    assert.equal(result.positions.a.extra, 'keep-me');
+  });
+});
+
+describe('computeEdgeMovePosition()', () => {
+  const positions = [
+    { col: 0, row: 0 },
+    { col: 3, row: 2 },
+    { col: 1, row: 5 },
+  ];
+
+  test('left snaps column to 0 and keeps the row', () => {
+    const result = computeEdgeMovePosition('left', { col: 2, row: 4 }, positions);
+    assert.deepEqual(result, { col: 0, row: 4 });
+  });
+
+  test('right snaps column to one past the highest existing column', () => {
+    const result = computeEdgeMovePosition('right', { col: 0, row: 4 }, positions);
+    assert.deepEqual(result, { col: 4, row: 4 });
+  });
+
+  test('top snaps row to 0 and keeps the column', () => {
+    const result = computeEdgeMovePosition('top', { col: 2, row: 4 }, positions);
+    assert.deepEqual(result, { col: 2, row: 0 });
+  });
+
+  test('bottom snaps row to one past the highest existing row', () => {
+    const result = computeEdgeMovePosition('bottom', { col: 2, row: 0 }, positions);
+    assert.deepEqual(result, { col: 2, row: 6 });
+  });
+
+  test('an unrecognized direction returns the current position unchanged', () => {
+    const cur = { col: 2, row: 4 };
+    const result = computeEdgeMovePosition('sideways', cur, positions);
+    assert.deepEqual(result, { col: 2, row: 4 });
   });
 });
