@@ -201,15 +201,7 @@ import {
   rmCtxSetSprint,
 } from './roadmap-context-menus.js';
 import { handleRoadmapCardClick, handleRoadmapEpicClick } from './roadmap-select.js';
-import {
-  loadSkillsView,
-  toggleSkillCard,
-  saveSkill,
-  resetSkill,
-  improveSkill,
-  saveProductContext,
-  resetProductContext,
-} from './skills.js';
+import { loadSkillsView } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
 import {
   toggleModelSection,
@@ -1012,7 +1004,7 @@ document.addEventListener('change', (e) => {
 // listeners without refactoring each template — that is out of scope
 // for this issue.
 //
-// Two views have been migrated off this bridge so far (issue #461) — see
+// Three views have been migrated off this bridge so far (issue #461) — see
 // actions.ts for the pattern:
 //   - The list multi-select context menu (list-filters.ts's showContextMenu).
 //     Its four handlers (contextMoveToPI, contextDeleteSelected,
@@ -1020,7 +1012,11 @@ document.addEventListener('change', (e) => {
 //   - The canvas edge "add link" popup (refine-edges.ts's _showLinkPopup).
 //     Its two handlers (_createCanvasLink, _closeLinkPopup) are intentionally
 //     absent below — see EDGE_ACTIONS in refine-edges.ts.
-// Both now self-register via registerActions() instead.
+//   - The skills view's card buttons (skills.ts's renderSkillCard /
+//     renderProductContext). Its six handlers (toggleSkillCard, saveSkill,
+//     resetSkill, improveSkill, saveProductContext, resetProductContext) are
+//     intentionally absent below — see SKILL_ACTIONS in skills.ts.
+// All three now self-register via registerActions() instead.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1112,13 +1108,6 @@ const _dynGlobals = {
   // bugcreate.ts
   onBugFilesSelected,
   removeBugFile,
-  // skills.ts
-  toggleSkillCard,
-  saveSkill,
-  resetSkill,
-  improveSkill,
-  saveProductContext,
-  resetProductContext,
   // bugs-dashboard.ts
   bugToggleKey,
   bugToggleAll,
