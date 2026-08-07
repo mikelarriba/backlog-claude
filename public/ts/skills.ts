@@ -1,5 +1,43 @@
 // ── Skills view: command template editor ─────────────────────────────────────
 import { fetchJSON, putJSON, deleteJSON, escHtml } from './state.js';
+import { registerActions } from './actions.js';
+
+// Typed data-action names for the skills view's card buttons (issue #461
+// migration — see actions.ts and CTX_ACTIONS in list-filters.ts / EDGE_ACTIONS
+// in refine-edges.ts for the established pattern). Replaces the
+// onclick="toggleSkillCard(...)" / onclick="saveSkill(...)" / etc. strings
+// previously built by hand-interpolating escHtml(skill.name) into the
+// template, which reached these handlers through main.ts's untyped window
+// bridge instead of a direct, typed call.
+export const SKILL_ACTIONS = {
+  toggleCard: 'skillToggleCard',
+  save: 'skillSave',
+  reset: 'skillReset',
+  improve: 'skillImprove',
+  saveContext: 'skillSaveContext',
+  resetContext: 'skillResetContext',
+} as const;
+
+registerActions({
+  [SKILL_ACTIONS.toggleCard]: (el) => {
+    toggleSkillCard(el.dataset.skillName ?? '');
+  },
+  [SKILL_ACTIONS.save]: (el) => {
+    void saveSkill(el.dataset.skillName ?? '');
+  },
+  [SKILL_ACTIONS.reset]: (el) => {
+    void resetSkill(el.dataset.skillName ?? '');
+  },
+  [SKILL_ACTIONS.improve]: (el) => {
+    void improveSkill(el.dataset.skillName ?? '');
+  },
+  [SKILL_ACTIONS.saveContext]: () => {
+    void saveProductContext();
+  },
+  [SKILL_ACTIONS.resetContext]: () => {
+    void resetProductContext();
+  },
+});
 
 const DOC_COMMANDS = [
   'create-features',
@@ -41,7 +79,7 @@ function renderProductContext(ctx: ProductContext): string {
 
   return `
     <div class="skill-card product-context-card" data-skill="product-context">
-      <div class="skill-header" onclick="toggleSkillCard('product-context')">
+      <div class="skill-header" data-action="${SKILL_ACTIONS.toggleCard}" data-skill-name="product-context">
         <span class="skill-chevron" id="skill-chev-product-context">▶</span>
         <span class="skill-name">Product Context</span>
         <span class="skill-badge ${badgeClass}" id="skill-badge-product-context">${badgeLabel}</span>
@@ -55,8 +93,8 @@ function renderProductContext(ctx: ProductContext): string {
             spellcheck="false"
           >${escHtml(ctx.content)}</textarea>
           <div class="skill-actions">
-            <button class="btn-skill-save" onclick="saveProductContext()">Save</button>
-            ${showReset ? '<button class="btn-skill-reset" onclick="resetProductContext()">Reset to Template</button>' : ''}
+            <button class="btn-skill-save" data-action="${SKILL_ACTIONS.saveContext}">Save</button>
+            ${showReset ? `<button class="btn-skill-reset" data-action="${SKILL_ACTIONS.resetContext}">Reset to Template</button>` : ''}
             <span class="skill-status" id="skill-status-product-context"></span>
           </div>
         </div>
@@ -133,7 +171,7 @@ function renderSkillCard(skill: Skill): string {
 
   return `
     <div class="skill-card" data-skill="${escHtml(skill.name)}">
-      <div class="skill-header" onclick="toggleSkillCard('${escHtml(skill.name)}')">
+      <div class="skill-header" data-action="${SKILL_ACTIONS.toggleCard}" data-skill-name="${escHtml(skill.name)}">
         <span class="skill-chevron" id="skill-chev-${escHtml(skill.name)}">▶</span>
         <span class="skill-name">${escHtml(displayName)}</span>
         <span class="skill-badge ${badgeClass}" id="skill-badge-${escHtml(skill.name)}">${badgeLabel}</span>
@@ -147,9 +185,9 @@ function renderSkillCard(skill: Skill): string {
             spellcheck="false"
           >${escHtml(skill.content)}</textarea>
           <div class="skill-actions">
-            <button class="btn-skill-save" onclick="saveSkill('${escHtml(skill.name)}')">Save</button>
-            <button class="btn-skill-improve" onclick="improveSkill('${escHtml(skill.name)}')">AI Improve</button>
-            ${showReset ? `<button class="btn-skill-reset" onclick="resetSkill('${escHtml(skill.name)}')">Reset to Template</button>` : ''}
+            <button class="btn-skill-save" data-action="${SKILL_ACTIONS.save}" data-skill-name="${escHtml(skill.name)}">Save</button>
+            <button class="btn-skill-improve" data-action="${SKILL_ACTIONS.improve}" data-skill-name="${escHtml(skill.name)}">AI Improve</button>
+            ${showReset ? `<button class="btn-skill-reset" data-action="${SKILL_ACTIONS.reset}" data-skill-name="${escHtml(skill.name)}">Reset to Template</button>` : ''}
             <span class="skill-status" id="skill-status-${escHtml(skill.name)}"></span>
           </div>
         </div>
