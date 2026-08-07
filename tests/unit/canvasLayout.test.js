@@ -7,6 +7,8 @@ import {
   computeAutoLayout,
   compactLayout,
   computeEdgeMovePosition,
+  buildBlocksAndParallel,
+  computeSecEdges,
 } from '../../public/js/canvasLayout.js';
 
 function makeChild(filename) {
@@ -176,5 +178,88 @@ describe('computeEdgeMovePosition()', () => {
     const cur = { col: 2, row: 4 };
     const result = computeEdgeMovePosition('sideways', cur, positions);
     assert.deepEqual(result, { col: 2, row: 4 });
+  });
+});
+
+describe('buildBlocksAndParallel()', () => {
+  test('returns empty lists for no children', () => {
+    const result = buildBlocksAndParallel([], () => undefined);
+    assert.deepEqual(result, { blocks: [], parallel: [] });
+  });
+
+  test('skips a child with no lookup match', () => {
+    const result = buildBlocksAndParallel(['a.md'], () => undefined);
+    assert.deepEqual(result, { blocks: [], parallel: [] });
+  });
+
+  test('emits a blocks edge for a blocked filename that is also a child', () => {
+    const docs = { 'a.md': { blocks: ['b.md'] }, 'b.md': {} };
+    const result = buildBlocksAndParallel(['a.md', 'b.md'], (fn) => docs[fn]);
+    assert.deepEqual(result.blocks, [{ src: 'a.md', tgt: 'b.md' }]);
+  });
+
+  test('drops a blocks edge whose target is outside the child set', () => {
+    const docs = { 'a.md': { blocks: ['outside.md'] } };
+    const result = buildBlocksAndParallel(['a.md'], (fn) => docs[fn]);
+    assert.deepEqual(result.blocks, []);
+  });
+
+  test('emits a parallel pair for a parallel filename that is also a child', () => {
+    const docs = { 'a.md': { parallel: ['b.md'] }, 'b.md': {} };
+    const result = buildBlocksAndParallel(['a.md', 'b.md'], (fn) => docs[fn]);
+    assert.deepEqual(result.parallel, [{ a: 'a.md', b: 'b.md' }]);
+  });
+
+  test('deduplicates a parallel pair declared from both sides', () => {
+    const docs = { 'a.md': { parallel: ['b.md'] }, 'b.md': { parallel: ['a.md'] } };
+    const result = buildBlocksAndParallel(['a.md', 'b.md'], (fn) => docs[fn]);
+    assert.equal(result.parallel.length, 1);
+  });
+
+  test('drops a parallel pair whose partner is outside the child set', () => {
+    const docs = { 'a.md': { parallel: ['outside.md'] } };
+    const result = buildBlocksAndParallel(['a.md'], (fn) => docs[fn]);
+    assert.deepEqual(result.parallel, []);
+  });
+});
+
+describe('computeSecEdges()', () => {
+  test('returns no edges when there are no positions', () => {
+    assert.deepEqual(computeSecEdges({}, []), []);
+  });
+
+  test('returns no edge for a single card in a column', () => {
+    const layout = { a: { col: 0, row: 0 } };
+    assert.deepEqual(computeSecEdges(layout, []), []);
+  });
+
+  test('connects two cards sharing a column in row order', () => {
+    const layout = { a: { col: 0, row: 0 }, b: { col: 0, row: 1 } };
+    assert.deepEqual(computeSecEdges(layout, []), [{ src: 'a', tgt: 'b' }]);
+  });
+
+  test('orders the edge by row regardless of key insertion order', () => {
+    const layout = { b: { col: 0, row: 1 }, a: { col: 0, row: 0 } };
+    assert.deepEqual(computeSecEdges(layout, []), [{ src: 'a', tgt: 'b' }]);
+  });
+
+  test('chains three cards in the same column into two consecutive edges', () => {
+    const layout = { a: { col: 0, row: 0 }, b: { col: 0, row: 1 }, c: { col: 0, row: 2 } };
+    const result = computeSecEdges(layout, []);
+    assert.deepEqual(result, [
+      { src: 'a', tgt: 'b' },
+      { src: 'b', tgt: 'c' },
+    ]);
+  });
+
+  test('does not connect cards in different columns', () => {
+    const layout = { a: { col: 0, row: 0 }, b: { col: 1, row: 0 } };
+    assert.deepEqual(computeSecEdges(layout, []), []);
+  });
+
+  test('omits a pair already connected by a BLOCKS edge (either direction)', () => {
+    const layout = { a: { col: 0, row: 0 }, b: { col: 0, row: 1 } };
+    assert.deepEqual(computeSecEdges(layout, [{ src: 'a', tgt: 'b' }]), []);
+    assert.deepEqual(computeSecEdges(layout, [{ src: 'b', tgt: 'a' }]), []);
   });
 });

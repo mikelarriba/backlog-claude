@@ -1,7 +1,12 @@
 // ── Refine canvas: rendering and persistence ───────────────────
 import { escHtml, TYPE_LABEL, postJSON, putJSON, fetchJSON, deleteJSON } from './state.js';
 export { computeAutoLayout } from './canvasLayout.js';
-import { computeAutoLayout, compactLayout } from './canvasLayout.js';
+import {
+  computeAutoLayout,
+  compactLayout,
+  buildBlocksAndParallel,
+  computeSecEdges,
+} from './canvasLayout.js';
 import { openRefinePanel, openManualRefine } from './refine.js';
 import {
   _showEpicContextMenu,
@@ -152,33 +157,12 @@ export async function buildCanvasGraph(filename, docType) {
     /* no-op */
   }
   _activePanelState.stories = children;
-  _activePanelState.parallel = [];
-  _activePanelState.blocks = [];
-  // Build blocks pairs from child blockedBy info
-  const childFilenames = new Set(children.map((c) => c.filename));
-  for (const child of children) {
-    const doc = allDocs.find((d) => d.filename === child.filename);
-    if (!doc) continue;
-    for (const blockedFn of doc.blocks || []) {
-      if (childFilenames.has(blockedFn)) {
-        _activePanelState.blocks.push({
-          src: child.filename,
-          tgt: blockedFn,
-        });
-      }
-    }
-    for (const parallelFn of doc.parallel || []) {
-      if (childFilenames.has(parallelFn)) {
-        const pairKey = [child.filename, parallelFn].sort().join('|');
-        if (!_activePanelState.parallel.find((p) => [p.a, p.b].sort().join('|') === pairKey)) {
-          _activePanelState.parallel.push({
-            a: child.filename,
-            b: parallelFn,
-          });
-        }
-      }
-    }
-  }
+  const { blocks, parallel } = buildBlocksAndParallel(
+    children.map((c) => c.filename),
+    (fn) => allDocs.find((d) => d.filename === fn)
+  );
+  _activePanelState.blocks = blocks;
+  _activePanelState.parallel = parallel;
   if (Object.keys(savedPositions).length > 0) {
     _activePanelState.layout = savedPositions;
   } else {
@@ -196,26 +180,12 @@ export async function buildCanvasGraph(filename, docType) {
 }
 // ── Lightweight edge rebuild (preserves card positions) ────────
 export function rebuildCanvasEdges(ps = _activePanelState) {
-  const childFilenames = new Set(ps.stories.map((c) => c.filename));
-  ps.blocks = [];
-  ps.parallel = [];
-  for (const child of ps.stories) {
-    const doc = allDocs.find((d) => d.filename === child.filename);
-    if (!doc) continue;
-    for (const blockedFn of doc.blocks || []) {
-      if (childFilenames.has(blockedFn)) {
-        ps.blocks.push({ src: child.filename, tgt: blockedFn });
-      }
-    }
-    for (const parallelFn of doc.parallel || []) {
-      if (childFilenames.has(parallelFn)) {
-        const pairKey = [child.filename, parallelFn].sort().join('|');
-        if (!ps.parallel.find((p) => [p.a, p.b].sort().join('|') === pairKey)) {
-          ps.parallel.push({ a: child.filename, b: parallelFn });
-        }
-      }
-    }
-  }
+  const { blocks, parallel } = buildBlocksAndParallel(
+    ps.stories.map((c) => c.filename),
+    (fn) => allDocs.find((d) => d.filename === fn)
+  );
+  ps.blocks = blocks;
+  ps.parallel = parallel;
 }
 // ── Render canvas ──────────────────────────────────────────────
 export function renderCanvas(epicFilename, docType) {
@@ -519,44 +489,32 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
     hit.addEventListener('click', onClick);
     svg.appendChild(hit);
   }
-  // SEC arrows: cards sharing a column, consecutive rows
-  const byCols = {};
-  for (const [fn, pos] of Object.entries(_activePanelState.layout)) {
-    if (!byCols[pos.col]) byCols[pos.col] = [];
-    byCols[pos.col].push({ fn, row: pos.row });
-  }
+  // SEC arrows: cards sharing a column, consecutive rows (skipped where a
+  // BLOCKS edge already connects the pair — BLOCKS takes precedence)
   const blocksList = _activePanelState.blocks;
   const parallelList = _activePanelState.parallel;
-  for (const colItems of Object.values(byCols)) {
-    colItems.sort((a, b) => a.row - b.row);
-    for (let i = 0; i < colItems.length - 1; i++) {
-      const src = cardPositions[colItems[i].fn];
-      const tgt = cardPositions[colItems[i + 1].fn];
-      if (!src || !tgt || src === tgt) continue;
-      const hasBlocks = blocksList.some(
-        (b) =>
-          (b.src === colItems[i].fn && b.tgt === colItems[i + 1].fn) ||
-          (b.src === colItems[i + 1].fn && b.tgt === colItems[i].fn)
-      );
-      if (hasBlocks) continue;
-      const x1 = src.cx,
-        y1 = src.y + CELL_H;
-      const x2 = tgt.cx,
-        y2 = tgt.y;
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', `M${x1},${y1} C${x1},${y1 + 20} ${x2},${y2 - 20} ${x2},${y2}`);
-      path.setAttribute('stroke', 'var(--border)');
-      path.setAttribute('stroke-width', '1.5');
-      path.setAttribute('fill', 'none');
-      path.setAttribute('marker-end', 'url(#arrow-sec)');
-      svg.appendChild(path);
-      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      label.setAttribute('x', String(x1 + 6));
-      label.setAttribute('y', String(y1 + (y2 - y1) / 2));
-      label.setAttribute('class', 'canvas-edge-label');
-      label.textContent = 'SEC';
-      svg.appendChild(label);
-    }
+  const secEdges = computeSecEdges(_activePanelState.layout, blocksList);
+  for (const { src: srcFn, tgt: tgtFn } of secEdges) {
+    const src = cardPositions[srcFn];
+    const tgt = cardPositions[tgtFn];
+    if (!src || !tgt || src === tgt) continue;
+    const x1 = src.cx,
+      y1 = src.y + CELL_H;
+    const x2 = tgt.cx,
+      y2 = tgt.y;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${x1},${y1} C${x1},${y1 + 20} ${x2},${y2 - 20} ${x2},${y2}`);
+    path.setAttribute('stroke', 'var(--border)');
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('marker-end', 'url(#arrow-sec)');
+    svg.appendChild(path);
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', String(x1 + 6));
+    label.setAttribute('y', String(y1 + (y2 - y1) / 2));
+    label.setAttribute('class', 'canvas-edge-label');
+    label.textContent = 'SEC';
+    svg.appendChild(label);
   }
   // BLOCKS arrows (red) — clickable
   for (const { src, tgt } of blocksList) {

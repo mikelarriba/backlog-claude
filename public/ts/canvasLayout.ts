@@ -18,6 +18,13 @@ export interface ParallelPair {
   b: string;
 }
 
+// A doc's raw block/parallel link fields, as needed to derive canvas edges.
+// (A subset of DocEntry — kept minimal so callers can pass any doc-shaped lookup.)
+export interface DocLinkFields {
+  blocks?: string[];
+  parallel?: string[];
+}
+
 // ── Auto layout: topological BFS ──────────────────────────────
 export function computeAutoLayout(
   children: DocEntry[],
@@ -158,4 +165,72 @@ export function computeEdgeMovePosition(
     default:
       return cur;
   }
+}
+
+// ── Build BLOCKS/PARALLEL edge lists from each child's link fields ────
+// Given the set of children on a canvas and a way to look up each child's
+// raw `blocks`/`parallel` doc fields, derive the deduplicated edge lists
+// used for layout and rendering. Edges to filenames outside `childFilenames`
+// are dropped (e.g. a story blocking something outside this epic). PARALLEL
+// pairs are undirected and deduplicated regardless of declaration order —
+// e.g. a declaring parallel:[b] produces the same single {a,b} pair as
+// b declaring parallel:[a]. Pure — `lookupDoc` is expected to be a
+// side-effect-free lookup (e.g. an array `.find()` or Map `.get()`).
+export function buildBlocksAndParallel(
+  childFilenames: string[],
+  lookupDoc: (filename: string) => DocLinkFields | undefined
+): { blocks: BlockEdge[]; parallel: ParallelPair[] } {
+  const childSet = new Set(childFilenames);
+  const blocks: BlockEdge[] = [];
+  const parallel: ParallelPair[] = [];
+
+  for (const fn of childFilenames) {
+    const doc = lookupDoc(fn);
+    if (!doc) continue;
+
+    for (const blockedFn of doc.blocks || []) {
+      if (childSet.has(blockedFn)) blocks.push({ src: fn, tgt: blockedFn });
+    }
+
+    for (const parallelFn of doc.parallel || []) {
+      if (!childSet.has(parallelFn)) continue;
+      const pairKey = [fn, parallelFn].sort().join('|');
+      if (!parallel.some((p) => [p.a, p.b].sort().join('|') === pairKey)) {
+        parallel.push({ a: fn, b: parallelFn });
+      }
+    }
+  }
+
+  return { blocks, parallel };
+}
+
+// ── SEC (sequential) edges: consecutive cards sharing a column ────────
+// Cards stacked in the same grid column, top to bottom, are implicitly
+// sequential unless an explicit BLOCKS edge already connects them (BLOCKS
+// takes precedence and is drawn separately). Pure — reads only `layout`
+// and `blocks`, returns the src/tgt pairs a caller should render as SEC.
+export function computeSecEdges(
+  layout: Record<string, CanvasPos>,
+  blocks: BlockEdge[]
+): { src: string; tgt: string }[] {
+  const byCol = new Map<number, { fn: string; row: number }[]>();
+  for (const [fn, pos] of Object.entries(layout)) {
+    if (!byCol.has(pos.col)) byCol.set(pos.col, []);
+    byCol.get(pos.col)!.push({ fn, row: pos.row });
+  }
+
+  const edges: { src: string; tgt: string }[] = [];
+  for (const colItems of byCol.values()) {
+    colItems.sort((a, b) => a.row - b.row);
+    for (let i = 0; i < colItems.length - 1; i++) {
+      const src = colItems[i].fn;
+      const tgt = colItems[i + 1].fn;
+      const hasBlocks = blocks.some(
+        (b) => (b.src === src && b.tgt === tgt) || (b.src === tgt && b.tgt === src)
+      );
+      if (hasBlocks) continue;
+      edges.push({ src, tgt });
+    }
+  }
+  return edges;
 }
