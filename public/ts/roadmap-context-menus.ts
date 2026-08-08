@@ -10,6 +10,50 @@ import { upsertDoc } from './store.js';
 import { refreshRoadmapView } from './roadmap.js';
 import type { RoadmapSprint } from './roadmap.js';
 import { positionPopup } from './ui-helpers.js';
+import { registerActions } from './actions.js';
+
+// ── Context-menu action names ────────────────────────────────────────────
+// Typed data-action registration (issue #461 migration — see actions.ts and
+// CTX_ACTIONS in list-filters.ts for the established pattern). The menu HTML
+// built below is generated dynamically and previously reached its handlers
+// via `onclick="rmCtxMoveEpic(...)"`-style strings routed through main.ts's
+// untyped `_dynGlobals` window bridge. It now instead emits
+// `data-action="${RM_CTX_ACTIONS.x}"` (+ `data-*` argument attributes) and
+// registers its own handlers below, so main.ts needs no case/import/
+// _dynGlobals entry for any of these four actions.
+export const RM_CTX_ACTIONS = {
+  openEpic: 'rmCtxOpenEpicAction',
+  moveEpic: 'rmCtxMoveEpicAction',
+  moveStory: 'rmCtxMoveStoryAction',
+  setSprint: 'rmCtxSetSprintAction',
+} as const;
+
+registerActions({
+  [RM_CTX_ACTIONS.openEpic]: (el) => {
+    rmCtxOpenEpic(el.dataset.filename ?? '', el.dataset.docType ?? '');
+  },
+  [RM_CTX_ACTIONS.moveEpic]: (el) => {
+    void rmCtxMoveEpic(
+      el.dataset.filename ?? '',
+      el.dataset.docType ?? '',
+      el.dataset.direction ?? ''
+    );
+  },
+  [RM_CTX_ACTIONS.moveStory]: (el) => {
+    void rmCtxMoveStory(
+      el.dataset.filename ?? '',
+      el.dataset.docType ?? '',
+      el.dataset.direction ?? ''
+    );
+  },
+  [RM_CTX_ACTIONS.setSprint]: (el) => {
+    void rmCtxSetSprint(
+      el.dataset.filename ?? '',
+      el.dataset.docType ?? '',
+      el.dataset.sprint ?? ''
+    );
+  },
+});
 
 function _closeRoadmapCtx(): void {
   const el = document.getElementById('rm-context-menu');
@@ -52,16 +96,17 @@ export function handleEpicContextMenu(e: MouseEvent, filename: string, docType: 
   const title = doc?.title || filename;
   const shortTitle = title.length > 40 ? title.substring(0, 37) + '…' : title;
 
+  const fnAttr = `data-filename="${escHtml(filename)}" data-doc-type="${escHtml(docType)}"`;
   const html = `
     <div class="ctx-header">${escHtml(shortTitle)}</div>
     <div class="ctx-separator"></div>
-    <button class="ctx-item" onclick="rmCtxOpenEpic('${escHtml(filename)}','${escHtml(docType)}')">Open Epic</button>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.openEpic}" ${fnAttr}>Open Epic</button>
     ${_buildSprintSubmenu(filename, docType)}
     <div class="ctx-separator"></div>
-    <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','up')">Move up</button>
-    <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','down')">Move down</button>
-    <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','top')">Move to the top</button>
-    <button class="ctx-item" onclick="rmCtxMoveEpic('${escHtml(filename)}','${escHtml(docType)}','bottom')">Move to the bottom</button>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveEpic}" ${fnAttr} data-direction="up">Move up</button>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveEpic}" ${fnAttr} data-direction="down">Move down</button>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveEpic}" ${fnAttr} data-direction="top">Move to the top</button>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveEpic}" ${fnAttr} data-direction="bottom">Move to the bottom</button>
   `;
   _showRoadmapCtx(e.clientX, e.clientY, html);
 }
@@ -141,18 +186,19 @@ function _buildSprintSubmenu(filename: string, docType: string): string {
   const seen = new Set<string>();
   let items = '';
 
+  const fnAttr = `data-filename="${escHtml(filename)}" data-doc-type="${escHtml(docType)}"`;
   for (const pi of pis) {
     for (const s of ((sprintConfig as SprintConfig)[pi] as RoadmapSprint[] | undefined) || []) {
       if (seen.has(s.name)) continue;
       seen.add(s.name);
-      items += `<button class="ctx-item" onclick="rmCtxSetSprint('${escHtml(filename)}','${escHtml(docType)}','${escHtml(s.name)}')">${escHtml(s.name)}</button>`;
+      items += `<button class="ctx-item" data-action="${RM_CTX_ACTIONS.setSprint}" ${fnAttr} data-sprint="${escHtml(s.name)}">${escHtml(s.name)}</button>`;
     }
   }
 
   if (!items) return '';
 
   items += `<div class="ctx-separator"></div>`;
-  items += `<button class="ctx-item ctx-danger" onclick="rmCtxSetSprint('${escHtml(filename)}','${escHtml(docType)}','')">Remove from sprint</button>`;
+  items += `<button class="ctx-item ctx-danger" data-action="${RM_CTX_ACTIONS.setSprint}" ${fnAttr} data-sprint="">Remove from sprint</button>`;
 
   return `
     <div class="ctx-submenu-wrap">
@@ -170,15 +216,16 @@ export function handleStoryContextMenu(e: MouseEvent, filename: string, docType:
   const title = doc?.title || filename;
   const shortTitle = title.length > 40 ? title.substring(0, 37) + '…' : title;
 
+  const fnAttr = `data-filename="${escHtml(filename)}" data-doc-type="${escHtml(docType)}"`;
   const html = `
     <div class="ctx-header">${escHtml(shortTitle)}</div>
     <div class="ctx-separator"></div>
     ${_buildSprintSubmenu(filename, docType)}
     <div class="ctx-separator"></div>
-    <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','up')">Move up</button>
-    <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','down')">Move down</button>
-    <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','top')">Move to the top</button>
-    <button class="ctx-item" onclick="rmCtxMoveStory('${escHtml(filename)}','${escHtml(docType)}','bottom')">Move to the bottom</button>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveStory}" ${fnAttr} data-direction="up">Move up</button>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveStory}" ${fnAttr} data-direction="down">Move down</button>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveStory}" ${fnAttr} data-direction="top">Move to the top</button>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveStory}" ${fnAttr} data-direction="bottom">Move to the bottom</button>
   `;
   _showRoadmapCtx(e.clientX, e.clientY, html);
 }
