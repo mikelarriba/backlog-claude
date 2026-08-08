@@ -9,6 +9,7 @@ import {
   computeEdgeMovePosition,
   buildBlocksAndParallel,
   computeSecEdges,
+  computeCanvasRanks,
 } from '../../public/js/canvasLayout.js';
 
 function makeChild(filename) {
@@ -261,5 +262,72 @@ describe('computeSecEdges()', () => {
     const layout = { a: { col: 0, row: 0 }, b: { col: 0, row: 1 } };
     assert.deepEqual(computeSecEdges(layout, [{ src: 'a', tgt: 'b' }]), []);
     assert.deepEqual(computeSecEdges(layout, [{ src: 'b', tgt: 'a' }]), []);
+  });
+});
+
+describe('computeCanvasRanks()', () => {
+  test('returns no ranks for an empty story list', () => {
+    assert.deepEqual(computeCanvasRanks([], {}), []);
+  });
+
+  test('drops a story with no saved layout position', () => {
+    const stories = [{ filename: 'a.md', docType: 'story' }];
+    assert.deepEqual(computeCanvasRanks(stories, {}), []);
+  });
+
+  test('ranks a single positioned story as 1', () => {
+    const stories = [{ filename: 'a.md', docType: 'story' }];
+    const layout = { 'a.md': { col: 0, row: 0 } };
+    assert.deepEqual(computeCanvasRanks(stories, layout), [
+      { filename: 'a.md', docType: 'story', rank: 1 },
+    ]);
+  });
+
+  test('orders by column first, left to right', () => {
+    const stories = [
+      { filename: 'a.md', docType: 'story' },
+      { filename: 'b.md', docType: 'story' },
+    ];
+    const layout = { 'a.md': { col: 1, row: 0 }, 'b.md': { col: 0, row: 0 } };
+    const result = computeCanvasRanks(stories, layout);
+    assert.deepEqual(
+      result.map((r) => r.filename),
+      ['b.md', 'a.md']
+    );
+    assert.deepEqual(
+      result.map((r) => r.rank),
+      [1, 2]
+    );
+  });
+
+  test('within the same column, orders by row top to bottom', () => {
+    const stories = [
+      { filename: 'a.md', docType: 'story' },
+      { filename: 'b.md', docType: 'story' },
+    ];
+    const layout = { 'a.md': { col: 0, row: 2 }, 'b.md': { col: 0, row: 0 } };
+    const result = computeCanvasRanks(stories, layout);
+    assert.deepEqual(
+      result.map((r) => r.filename),
+      ['b.md', 'a.md']
+    );
+  });
+
+  test('defaults a missing docType to "story"', () => {
+    const stories = [{ filename: 'a.md' }];
+    const layout = { 'a.md': { col: 0, row: 0 } };
+    assert.deepEqual(computeCanvasRanks(stories, layout), [
+      { filename: 'a.md', docType: 'story', rank: 1 },
+    ]);
+  });
+
+  test('does not mutate the input stories or layout', () => {
+    const stories = [{ filename: 'a.md', docType: 'story' }];
+    const layout = { 'a.md': { col: 0, row: 0 } };
+    const storiesSnapshot = JSON.parse(JSON.stringify(stories));
+    const layoutSnapshot = JSON.parse(JSON.stringify(layout));
+    computeCanvasRanks(stories, layout);
+    assert.deepEqual(stories, storiesSnapshot);
+    assert.deepEqual(layout, layoutSnapshot);
   });
 });
