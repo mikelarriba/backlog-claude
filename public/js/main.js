@@ -192,14 +192,7 @@ import {
   _pullSprintUpdateCount,
   confirmPullSprint,
 } from './roadmap-jira-sync.js';
-import {
-  handleEpicContextMenu,
-  handleStoryContextMenu,
-  rmCtxOpenEpic,
-  rmCtxMoveEpic,
-  rmCtxMoveStory,
-  rmCtxSetSprint,
-} from './roadmap-context-menus.js';
+import { handleEpicContextMenu, handleStoryContextMenu } from './roadmap-context-menus.js';
 import { handleRoadmapCardClick, handleRoadmapEpicClick } from './roadmap-select.js';
 import { loadSkillsView } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
@@ -1004,7 +997,7 @@ document.addEventListener('change', (e) => {
 // listeners without refactoring each template — that is out of scope
 // for this issue.
 //
-// Three views have been migrated off this bridge so far (issue #461) — see
+// Four views have been migrated off this bridge so far (issue #461) — see
 // actions.ts for the pattern:
 //   - The list multi-select context menu (list-filters.ts's showContextMenu).
 //     Its four handlers (contextMoveToPI, contextDeleteSelected,
@@ -1016,7 +1009,14 @@ document.addEventListener('change', (e) => {
 //     renderProductContext). Its six handlers (toggleSkillCard, saveSkill,
 //     resetSkill, improveSkill, saveProductContext, resetProductContext) are
 //     intentionally absent below — see SKILL_ACTIONS in skills.ts.
-// All three now self-register via registerActions() instead.
+//   - The roadmap epic/story context menus' action buttons
+//     (roadmap-context-menus.ts's handleEpicContextMenu / handleStoryContextMenu
+//     submenus). Its four handlers (rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory,
+//     rmCtxSetSprint) are intentionally absent below — see RM_CTX_ACTIONS in
+//     roadmap-context-menus.ts. The two menu *openers* themselves stay on this
+//     bridge — they're reached via `oncontextmenu="..."` in roadmap-render.ts,
+//     a separate event the data-action click dispatcher doesn't cover.
+// All four now self-register via registerActions() instead.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1085,10 +1085,6 @@ const _dynGlobals = {
   // roadmap-context-menus.ts
   handleEpicContextMenu,
   handleStoryContextMenu,
-  rmCtxOpenEpic,
-  rmCtxMoveEpic,
-  rmCtxMoveStory,
-  rmCtxSetSprint,
   // roadmap-jira-sync.ts
   _sprintPushUpdateCount,
   pullSprintSelectAllItems,
