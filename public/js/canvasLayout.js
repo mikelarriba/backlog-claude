@@ -145,6 +145,26 @@ export function buildBlocksAndParallel(childFilenames, lookupDoc) {
   }
   return { blocks, parallel };
 }
+// ── Canvas rank sync: grid order → Rank frontmatter field ────────────
+// Order: col-first (left→right), then row within each col (top→bottom).
+// Cards without a saved layout position are dropped (nothing to rank them
+// by). Pure — returns new rank assignments, does not mutate its inputs.
+export function computeCanvasRanks(stories, layout) {
+  const entries = stories
+    .filter((c) => layout[c.filename])
+    .map((c) => ({
+      filename: c.filename,
+      docType: c.docType || 'story',
+      col: layout[c.filename].col,
+      row: layout[c.filename].row,
+    }))
+    .sort((a, b) => (a.col !== b.col ? a.col - b.col : a.row - b.row));
+  return entries.map((e, i) => ({
+    filename: e.filename,
+    docType: e.docType,
+    rank: i + 1,
+  }));
+}
 // ── SEC (sequential) edges: consecutive cards sharing a column ────────
 // Cards stacked in the same grid column, top to bottom, are implicitly
 // sequential unless an explicit BLOCKS edge already connects them (BLOCKS

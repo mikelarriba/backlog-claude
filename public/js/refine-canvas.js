@@ -6,6 +6,7 @@ import {
   compactLayout,
   buildBlocksAndParallel,
   computeSecEdges,
+  computeCanvasRanks,
 } from './canvasLayout.js';
 import { openRefinePanel, openManualRefine } from './refine.js';
 import {
@@ -591,24 +592,9 @@ export async function saveCanvasLayout(ps = _activePanelState, parentFilename) {
   await syncCanvasRanks(ps);
 }
 // ── Sync canvas grid order → Rank frontmatter field ──────────
-// Order: col-first (left→right), then row within each col (top→bottom)
 async function syncCanvasRanks(ps = _activePanelState) {
   if (!ps.stories.length) return;
-  const layoutEntries = ps.layout;
-  const entries = ps.stories
-    .filter((c) => layoutEntries[c.filename])
-    .map((c) => ({
-      filename: c.filename,
-      docType: c.docType || 'story',
-      col: layoutEntries[c.filename].col,
-      row: layoutEntries[c.filename].row,
-    }))
-    .sort((a, b) => (a.col !== b.col ? a.col - b.col : a.row - b.row));
-  const items = entries.map((e, i) => ({
-    filename: e.filename,
-    docType: e.docType,
-    rank: i + 1,
-  }));
+  const items = computeCanvasRanks(ps.stories, ps.layout);
   if (!items.length) return;
   try {
     await postJSON('/api/docs/rerank-canvas', { items });
