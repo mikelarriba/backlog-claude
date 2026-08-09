@@ -17,6 +17,7 @@ mock.module('../../public/js/detail.js', {
 
 const {
   summarizePreviewCounts,
+  buildSyncPreviewItemHtml,
   computeProgressPercent,
   comparePushPreviewItems,
   summarizePushResults,
@@ -47,6 +48,130 @@ describe('summarizePreviewCounts()', () => {
   test('items with an unrecognized/missing action are not counted anywhere', () => {
     const items = [{ action: 'noop' }, {}];
     assert.equal(summarizePreviewCounts(items), '');
+  });
+});
+
+// ── buildSyncPreviewItemHtml ─────────────────────────────────────────────────
+describe('buildSyncPreviewItemHtml()', () => {
+  test('create action renders the "+ Create" badge and the create CSS class', () => {
+    const html = buildSyncPreviewItemHtml({ action: 'create', title: 'New Story' }, 0);
+    assert.match(html, /sync-preview-action create/);
+    assert.match(html, /\+ Create</);
+    assert.doesNotMatch(html, /sync-preview-item--delete/);
+  });
+
+  test('auto-included create renders the "(auto)" suffix', () => {
+    const html = buildSyncPreviewItemHtml(
+      { action: 'create', title: 'Auto Story', autoIncluded: true },
+      0
+    );
+    assert.match(html, /\+ Create \(auto\)/);
+  });
+
+  test('update action renders the "Update" badge and no field changes when the list is empty', () => {
+    const html = buildSyncPreviewItemHtml({ action: 'update', title: 'Existing Story' }, 1);
+    assert.match(html, /sync-preview-action update/);
+    assert.match(html, /↺ Update/);
+    assert.match(html, /No field changes detected/);
+  });
+
+  test('delete action renders the delete badge, the delete item class, and the reason', () => {
+    const html = buildSyncPreviewItemHtml(
+      { action: 'delete', title: 'Stale Story', reason: 'Removed in JIRA' },
+      2
+    );
+    assert.match(html, /sync-preview-item--delete/);
+    assert.match(html, /sync-preview-action delete/);
+    assert.match(html, /✕ Delete/);
+    assert.match(html, /Removed in JIRA/);
+  });
+
+  test('escapes the title, key, and reason to prevent HTML injection', () => {
+    const html = buildSyncPreviewItemHtml(
+      {
+        action: 'delete',
+        title: '<img src=x onerror=alert(1)>',
+        jiraKey: '<b>PROJ-1</b>',
+        reason: '<script>bad()</script>',
+      },
+      0
+    );
+    assert.doesNotMatch(html, /<img/);
+    assert.doesNotMatch(html, /<b>PROJ-1/);
+    assert.doesNotMatch(html, /<script>/);
+  });
+
+  test('renders the data-idx attribute from the index argument', () => {
+    const html = buildSyncPreviewItemHtml({ action: 'update' }, 7);
+    assert.match(html, /data-idx="7"/);
+  });
+
+  test('a docType renders a type badge with the mapped label; missing docType renders none', () => {
+    const withType = buildSyncPreviewItemHtml({ action: 'update', docType: 'story' }, 0);
+    assert.match(withType, /type-badge story/);
+
+    const withoutType = buildSyncPreviewItemHtml({ action: 'update' }, 0);
+    assert.doesNotMatch(withoutType, /type-badge/);
+  });
+
+  test('an "error" change renders the error message instead of a from/to arrow', () => {
+    const html = buildSyncPreviewItemHtml(
+      { action: 'update', changes: [{ field: 'error', message: 'Conflict detected' }] },
+      0
+    );
+    assert.match(html, /Conflict detected/);
+    assert.doesNotMatch(html, /sync-preview-arrow/);
+  });
+
+  test('a "description" change renders "new" for creates and "will sync" for updates', () => {
+    const created = buildSyncPreviewItemHtml(
+      { action: 'create', changes: [{ field: 'description' }] },
+      0
+    );
+    assert.match(created, />new</);
+
+    const updated = buildSyncPreviewItemHtml(
+      { action: 'update', changes: [{ field: 'description' }] },
+      0
+    );
+    assert.match(updated, /will sync/);
+  });
+
+  test('a change with a defined "from" renders the from value and an arrow', () => {
+    const html = buildSyncPreviewItemHtml(
+      { action: 'update', changes: [{ field: 'status', from: 'To Do', to: 'Done' }] },
+      0
+    );
+    assert.match(html, /sync-preview-from">To Do/);
+    assert.match(html, /sync-preview-arrow/);
+    assert.match(html, /sync-preview-to">Done/);
+  });
+
+  test('a change with no "from" omits the arrow entirely', () => {
+    const html = buildSyncPreviewItemHtml(
+      { action: 'update', changes: [{ field: 'status', to: 'Done' }] },
+      0
+    );
+    assert.doesNotMatch(html, /sync-preview-arrow/);
+  });
+
+  test('pendingEpicTitle and pendingFeatureTitle both render a "[new]" prefix, epic taking priority', () => {
+    const epic = buildSyncPreviewItemHtml(
+      { action: 'update', changes: [{ field: 'parent', pendingEpicTitle: 'My Epic' }] },
+      0
+    );
+    assert.match(epic, /\[new\] My Epic/);
+
+    const feature = buildSyncPreviewItemHtml(
+      { action: 'update', changes: [{ field: 'parent', pendingFeatureTitle: 'My Feature' }] },
+      0
+    );
+    assert.match(feature, /\[new\] My Feature/);
+  });
+
+  test('a change with neither "to" nor pending titles renders an em dash placeholder', () => {
+    const html = buildSyncPreviewItemHtml({ action: 'update', changes: [{ field: 'status' }] }, 0);
+    assert.match(html, /sync-preview-to.*—/);
   });
 });
 

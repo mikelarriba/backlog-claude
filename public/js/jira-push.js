@@ -28,6 +28,118 @@ export function summarizePreviewCounts(items) {
   if (deleteCount) parts.push(`${deleteCount} to delete`);
   return parts.join(' · ');
 }
+// Pure: renders a single sync-preview item's row HTML (checkbox, action
+// badge, type badge, title/key, and the field-change list). Extracted from
+// showSyncPreviewModal's list-building `.map()` so the create/update/delete
+// branching, the pendingEpicTitle/pendingFeatureTitle "[new]" cases, and the
+// error/description special-cased changes are unit-testable without a DOM.
+export function buildSyncPreviewItemHtml(item, idx) {
+  const isCreate = item.action === 'create';
+  const isDelete = item.action === 'delete';
+  const keyLabel = item.jiraKey || item.jiraId || '';
+  const titleText = item.jiraTitle || item.title || '';
+  let changesHtml = '';
+  if (item.changes && item.changes.length > 0) {
+    changesHtml =
+      '<div class="sync-preview-changes">' +
+      item.changes
+        .map(function (c) {
+          if (c.field === 'error')
+            return (
+              '<div class="sync-preview-change"><span class="sync-preview-field">error</span><span class="sync-preview-to" style="color:var(--error-text)">' +
+              escHtml(c.message || '') +
+              '</span></div>'
+            );
+          if (c.field === 'description')
+            return (
+              '<div class="sync-preview-change"><span class="sync-preview-field">description</span><span class="sync-preview-to">' +
+              (isCreate ? 'new' : 'will sync') +
+              '</span></div>'
+            );
+          const fromHtml =
+            c.from !== undefined && c.from !== null
+              ? '<span class="sync-preview-from">' +
+                escHtml(String(c.from)) +
+                '</span><span class="sync-preview-arrow">→</span>'
+              : '';
+          let toHtml;
+          if (c.pendingEpicTitle) {
+            toHtml =
+              '<span class="sync-preview-to" style="color:var(--accent)">[new] ' +
+              escHtml(c.pendingEpicTitle) +
+              '</span>';
+          } else if (c.pendingFeatureTitle) {
+            toHtml =
+              '<span class="sync-preview-to" style="color:var(--accent)">[new] ' +
+              escHtml(c.pendingFeatureTitle) +
+              '</span>';
+          } else if (c.to !== undefined && c.to !== null) {
+            toHtml = '<span class="sync-preview-to">' + escHtml(String(c.to)) + '</span>';
+          } else {
+            toHtml = '<span class="sync-preview-to" style="color:var(--muted)">—</span>';
+          }
+          return (
+            '<div class="sync-preview-change"><span class="sync-preview-field">' +
+            escHtml(c.field) +
+            '</span>' +
+            fromHtml +
+            toHtml +
+            '</div>'
+          );
+        })
+        .join('') +
+      '</div>';
+  } else if (!isCreate && !isDelete) {
+    changesHtml = '<div class="sync-preview-no-changes">No field changes detected</div>';
+  }
+  if (isDelete && item.reason) {
+    changesHtml +=
+      '<div class="sync-preview-changes"><div class="sync-preview-change"><span class="sync-preview-field">reason</span><span class="sync-preview-to" style="color:var(--error-text)">' +
+      escHtml(item.reason) +
+      '</span></div></div>';
+  }
+  const typeLabel = item.docType || item.localDocType || '';
+  const typeBadge = typeLabel
+    ? '<span class="type-badge ' +
+      escHtml(typeLabel) +
+      '" style="font-size:0.6rem;padding:1px 6px">' +
+      escHtml((TYPE_LABEL && TYPE_LABEL[typeLabel]) || typeLabel) +
+      '</span>'
+    : '';
+  const actionClass = isDelete ? 'delete' : isCreate ? 'create' : 'update';
+  const actionLabel = isDelete
+    ? '✕ Delete'
+    : isCreate
+      ? item.autoIncluded
+        ? '+ Create (auto)'
+        : '+ Create'
+      : '↺ Update';
+  const unchecked = ' checked';
+  return (
+    '<div class="sync-preview-item' +
+    (isDelete ? ' sync-preview-item--delete' : '') +
+    '">' +
+    '<label class="sync-preview-item-header">' +
+    '<input type="checkbox"' +
+    unchecked +
+    ' data-idx="' +
+    idx +
+    '" class="sync-preview-cb" />' +
+    '<span class="sync-preview-action ' +
+    actionClass +
+    '">' +
+    actionLabel +
+    '</span>' +
+    typeBadge +
+    '<span class="sync-preview-item-title">' +
+    escHtml(titleText) +
+    '</span>' +
+    (keyLabel ? '<span class="sync-preview-item-key">' + escHtml(keyLabel) + '</span>' : '') +
+    '</label>' +
+    changesHtml +
+    '</div>'
+  );
+}
 export function showSyncPreviewModal(title, items, confirmLabel) {
   return new Promise(function (resolve) {
     _syncPreviewResolve = resolve;
@@ -36,115 +148,7 @@ export function showSyncPreviewModal(title, items, confirmLabel) {
     document.getElementById('sync-preview-confirm-btn').textContent = confirmLabel || 'Confirm';
     document.getElementById('sync-preview-counts').textContent = summarizePreviewCounts(items);
     const list = document.getElementById('sync-preview-list');
-    list.innerHTML = items
-      .map(function (item, idx) {
-        const isCreate = item.action === 'create';
-        const isDelete = item.action === 'delete';
-        const keyLabel = item.jiraKey || item.jiraId || '';
-        const titleText = item.jiraTitle || item.title || '';
-        let changesHtml = '';
-        if (item.changes && item.changes.length > 0) {
-          changesHtml =
-            '<div class="sync-preview-changes">' +
-            item.changes
-              .map(function (c) {
-                if (c.field === 'error')
-                  return (
-                    '<div class="sync-preview-change"><span class="sync-preview-field">error</span><span class="sync-preview-to" style="color:var(--error-text)">' +
-                    escHtml(c.message || '') +
-                    '</span></div>'
-                  );
-                if (c.field === 'description')
-                  return (
-                    '<div class="sync-preview-change"><span class="sync-preview-field">description</span><span class="sync-preview-to">' +
-                    (isCreate ? 'new' : 'will sync') +
-                    '</span></div>'
-                  );
-                const fromHtml =
-                  c.from !== undefined && c.from !== null
-                    ? '<span class="sync-preview-from">' +
-                      escHtml(String(c.from)) +
-                      '</span><span class="sync-preview-arrow">→</span>'
-                    : '';
-                let toHtml;
-                if (c.pendingEpicTitle) {
-                  toHtml =
-                    '<span class="sync-preview-to" style="color:var(--accent)">[new] ' +
-                    escHtml(c.pendingEpicTitle) +
-                    '</span>';
-                } else if (c.pendingFeatureTitle) {
-                  toHtml =
-                    '<span class="sync-preview-to" style="color:var(--accent)">[new] ' +
-                    escHtml(c.pendingFeatureTitle) +
-                    '</span>';
-                } else if (c.to !== undefined && c.to !== null) {
-                  toHtml = '<span class="sync-preview-to">' + escHtml(String(c.to)) + '</span>';
-                } else {
-                  toHtml = '<span class="sync-preview-to" style="color:var(--muted)">—</span>';
-                }
-                return (
-                  '<div class="sync-preview-change"><span class="sync-preview-field">' +
-                  escHtml(c.field) +
-                  '</span>' +
-                  fromHtml +
-                  toHtml +
-                  '</div>'
-                );
-              })
-              .join('') +
-            '</div>';
-        } else if (!isCreate && !isDelete) {
-          changesHtml = '<div class="sync-preview-no-changes">No field changes detected</div>';
-        }
-        if (isDelete && item.reason) {
-          changesHtml +=
-            '<div class="sync-preview-changes"><div class="sync-preview-change"><span class="sync-preview-field">reason</span><span class="sync-preview-to" style="color:var(--error-text)">' +
-            escHtml(item.reason) +
-            '</span></div></div>';
-        }
-        const typeLabel = item.docType || item.localDocType || '';
-        const typeBadge = typeLabel
-          ? '<span class="type-badge ' +
-            escHtml(typeLabel) +
-            '" style="font-size:0.6rem;padding:1px 6px">' +
-            escHtml((TYPE_LABEL && TYPE_LABEL[typeLabel]) || typeLabel) +
-            '</span>'
-          : '';
-        const actionClass = isDelete ? 'delete' : isCreate ? 'create' : 'update';
-        const actionLabel = isDelete
-          ? '✕ Delete'
-          : isCreate
-            ? item.autoIncluded
-              ? '+ Create (auto)'
-              : '+ Create'
-            : '↺ Update';
-        const unchecked = ' checked';
-        return (
-          '<div class="sync-preview-item' +
-          (isDelete ? ' sync-preview-item--delete' : '') +
-          '">' +
-          '<label class="sync-preview-item-header">' +
-          '<input type="checkbox"' +
-          unchecked +
-          ' data-idx="' +
-          idx +
-          '" class="sync-preview-cb" />' +
-          '<span class="sync-preview-action ' +
-          actionClass +
-          '">' +
-          actionLabel +
-          '</span>' +
-          typeBadge +
-          '<span class="sync-preview-item-title">' +
-          escHtml(titleText) +
-          '</span>' +
-          (keyLabel ? '<span class="sync-preview-item-key">' + escHtml(keyLabel) + '</span>' : '') +
-          '</label>' +
-          changesHtml +
-          '</div>'
-        );
-      })
-      .join('');
+    list.innerHTML = items.map(buildSyncPreviewItemHtml).join('');
     openModal('sync-preview-overlay');
     document.querySelectorAll('#sync-preview-list .sync-preview-cb').forEach(function (cb) {
       cb.addEventListener('change', _syncPreviewUpdateCount);
