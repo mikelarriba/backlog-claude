@@ -3,6 +3,23 @@
 // import flow here and by conflict/children prompts) and the full
 // search → select → download import flow from the FAB's Import tab.
 import { fetchJSON, postJSON, escHtml, setJiraStatus, openModal, closeModal } from './state.js';
+import { registerActions } from './actions.js';
+
+// Typed data-action name for the Import tab's result-item toggle (issue #461
+// migration — see actions.ts and CTX_ACTIONS in list-filters.ts for the
+// established pattern). Replaces the onclick="toggleJiraItem(i)" string
+// previously interpolated into renderJiraResults' template, which reached
+// this handler through main.ts's untyped window bridge instead of a direct,
+// typed call.
+export const JIRA_IMPORT_ACTIONS = {
+  toggleItem: 'jiraImportToggleItem',
+} as const;
+
+registerActions({
+  [JIRA_IMPORT_ACTIONS.toggleItem]: (el) => {
+    toggleJiraItem(Number(el.dataset.index));
+  },
+});
 
 interface JiraSelectItem {
   key?: string;
@@ -165,8 +182,8 @@ export function renderJiraResults(issues: JiraSearchIssue[]): void {
   el.innerHTML = issues
     .map(
       (issue, i) => `
-    <div class="jira-result-item ${issue.localExists ? 'local-exists' : ''}" onclick="toggleJiraItem(${i})">
-      <input type="checkbox" id="jira-cb-${i}" onclick="event.stopPropagation(); toggleJiraItem(${i})" />
+    <div class="jira-result-item ${issue.localExists ? 'local-exists' : ''}" data-action="${JIRA_IMPORT_ACTIONS.toggleItem}" data-index="${i}">
+      <input type="checkbox" id="jira-cb-${i}" />
       <div class="jira-result-body">
         <div class="jira-result-key">${escHtml(issue.key)}</div>
         <div class="jira-result-summary" title="${escHtml(issue.summary)}">${escHtml(issue.summary)}</div>

@@ -77,7 +77,6 @@ import {
   searchJira,
   downloadSelected,
   pullByKey,
-  toggleJiraItem,
 } from './jira-import.js';
 import {
   syncPreviewSelectAll,
@@ -1016,7 +1015,10 @@ document.addEventListener('change', (e) => {
 //     roadmap-context-menus.ts. The two menu *openers* themselves stay on this
 //     bridge — they're reached via `oncontextmenu="..."` in roadmap-render.ts,
 //     a separate event the data-action click dispatcher doesn't cover.
-// All four now self-register via registerActions() instead.
+//   - The Import tab's result-list toggle (jira-import.ts's renderJiraResults).
+//     Its one handler (toggleJiraItem) is intentionally absent below — see
+//     JIRA_IMPORT_ACTIONS in jira-import.ts.
+// All five now self-register via registerActions() instead.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1097,8 +1099,6 @@ const _dynGlobals = {
   confirmJiraSprintImport,
   skipJiraSprintImport,
   dismissJiraImportBanner,
-  // jira-import.ts
-  toggleJiraItem,
   // jira-pull.ts
   submitUpdateFromJiraKey,
   // bugcreate.ts
