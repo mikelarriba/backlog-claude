@@ -23,6 +23,27 @@ const CELL_H = 110;
 const GUTTER_X = 60;
 const GUTTER_Y = 36;
 const TOP_OFFSET = 80;
+// Pure grid-geometry math, extracted from renderCanvas so the pixel layout
+// calculations are unit-testable without a DOM (#460). One extra row/col is
+// always added beyond the occupied extent so there's always room to drop a
+// card past the last populated cell.
+export function computeCanvasGridDimensions(usedCols, usedRows, effectiveTopOffset) {
+  const occupiedCols = usedCols.length || 1;
+  const occupiedRows = usedRows.length || 1;
+  const gridCols = occupiedCols + 1;
+  const gridRows = occupiedRows + 1;
+  const totalW = GUTTER_X + gridCols * (CELL_W + GUTTER_X);
+  const totalH = effectiveTopOffset + gridRows * (CELL_H + GUTTER_Y) + GUTTER_Y;
+  return { gridCols, gridRows, totalW, totalH };
+}
+// Pure: top-left pixel position of a grid cell, extracted from renderCanvas's
+// `cellAt` closure so it's unit-testable without a DOM (#460).
+export function cellPixelPosition(col, row, effectiveTopOffset) {
+  return {
+    x: GUTTER_X + col * (CELL_W + GUTTER_X),
+    y: effectiveTopOffset + row * (CELL_H + GUTTER_Y),
+  };
+}
 // ── Mini-canvas rendering for feature multi-panel view ────────
 export function _renderFpCanvas(epicFilename, ps, featureFilename) {
   const container = document.getElementById(`fp-canvas-${epicFilename}`);
@@ -49,10 +70,7 @@ export function _renderFpCanvas(epicFilename, ps, featureFilename) {
   const totalH = GUTTER_Y + rows * (CELL_H + GUTTER_Y);
   const wrap = document.createElement('div');
   wrap.style.cssText = `position:relative;width:${totalW}px;min-height:${totalH}px`;
-  const cellAt = (col, row) => ({
-    x: GUTTER_X + col * (CELL_W + GUTTER_X),
-    y: GUTTER_Y + row * (CELL_H + GUTTER_Y),
-  });
+  const cellAt = (col, row) => cellPixelPosition(col, row, GUTTER_Y);
   // SVG edges
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.style.cssText = `position:absolute;top:0;left:0;width:${totalW}px;height:${totalH}px;pointer-events:none;overflow:visible;z-index:1`;
@@ -222,12 +240,11 @@ export function renderCanvas(epicFilename, docType) {
     if (changed) saveCanvasLayout(_activePanelState, epicFilename);
   }
   // Grid dimensions: occupied + 1 extra row/col for expansion
-  const occupiedCols = usedCols.length || 1;
-  const occupiedRows = usedRows.length || 1;
-  const gridCols = occupiedCols + 1;
-  const gridRows = occupiedRows + 1;
-  const totalW = GUTTER_X + gridCols * (CELL_W + GUTTER_X);
-  const totalH = effectiveTopOffset + gridRows * (CELL_H + GUTTER_Y) + GUTTER_Y;
+  const { gridCols, gridRows, totalW, totalH } = computeCanvasGridDimensions(
+    usedCols,
+    usedRows,
+    effectiveTopOffset
+  );
   // Wrapper sized to content (enables scrolling)
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `position:relative;width:${totalW}px;height:${totalH}px`;
@@ -275,10 +292,7 @@ export function renderCanvas(epicFilename, docType) {
   // ── Swimlane grid cells (visible + drop targets) ──────────────
   // During a card drag, wrapper gets class 'drag-active' which sets
   // pointer-events:none on all cards, letting dragover fall through to cells.
-  const cellAt = (col, row) => ({
-    x: GUTTER_X + col * (CELL_W + GUTTER_X),
-    y: effectiveTopOffset + row * (CELL_H + GUTTER_Y),
-  });
+  const cellAt = (col, row) => cellPixelPosition(col, row, effectiveTopOffset);
   // Build set of occupied cell positions for empty-cell detection
   const _occupiedCells = new Set();
   for (const child of _activePanelState.stories) {
