@@ -40,6 +40,11 @@ export function applyMiddleware(app: Express, rootDir: string): void {
   app.use('/api/doc/:type/:filename/upgrade', aiLimiter);
   app.use('/api/docs/split-story', aiLimiter);
   app.use('/api/split-epic', aiLimiter);
+  app.use('/api/confluence/analyze', aiLimiter);
+  app.use('/api/bugs/dashboard/analyze', aiLimiter);
+  app.use('/api/bugs/create', aiLimiter);
+  app.use('/api/epic/:filename/stories', aiLimiter);
+  app.use('/api/skills/:name/improve', aiLimiter);
   app.use('/api/jira', jiraLimiter);
 
   app.use(
