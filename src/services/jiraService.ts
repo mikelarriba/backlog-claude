@@ -4,6 +4,7 @@ import { jiraToMarkdown, extractFrontmatterField, stripFrontmatter } from '../ut
 import type { TypeConfig, DocIndexInstance } from '../types.js';
 import type { Logger } from '../utils/logger.js';
 import { config } from '../config/env.js';
+import { httpRetryFetch } from './httpClient.js';
 
 export const LOCAL_TO_JIRA_TYPE: Record<string, string> = {
   feature: 'New Feature',
@@ -217,56 +218,12 @@ export function createJiraService({
     body: unknown,
     label: string
   ): Promise<unknown> {
-    const RETRY_DELAYS = [2_000, 4_000, 8_000];
-    const MAX_ATTEMPTS = 3;
-
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS);
-      const opts: RequestInit = {
-        method,
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${JIRA_TOKEN}`,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-      };
-      if (body) opts.body = JSON.stringify(body);
-
-      let res: Response;
-      try {
-        res = await fetch(fullUrl, opts);
-      } catch (err: unknown) {
-        clearTimeout(timer);
-        if ((err as { name?: string }).name === 'AbortError')
-          throw new Error(`${label} request timed out after ${JIRA_TIMEOUT_MS / 1000}s`);
-        throw err;
-      } finally {
-        clearTimeout(timer);
-      }
-
-      if (res.status !== 429) {
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          const safeText = text
-            .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]')
-            .slice(0, 300);
-          throw new Error(`${label} → ${res.status}: ${safeText}`);
-        }
-        const text = await res.text();
-        return text ? JSON.parse(text) : undefined;
-      }
-
-      if (attempt === MAX_ATTEMPTS - 1)
-        throw new Error(`${label} rate limit exceeded after ${MAX_ATTEMPTS} retries`);
-
-      const retryAfterSec = Number(res.headers.get('Retry-After'));
-      const waitMs = retryAfterSec > 0 ? retryAfterSec * 1000 : RETRY_DELAYS[attempt];
-      await new Promise((r) => setTimeout(r, waitMs));
-    }
-
-    throw new Error(`${label} rate limit exceeded after ${MAX_ATTEMPTS} retries`);
+    return httpRetryFetch(fullUrl, method, body, label, {
+      authHeader: `Bearer ${JIRA_TOKEN}`,
+      timeoutMs: JIRA_TIMEOUT_MS,
+      redactPattern: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/g,
+      redactReplacement: 'Bearer [REDACTED]',
+    });
   }
 
   async function jiraRequest(method: string, urlPath: string, body?: unknown): Promise<unknown> {
