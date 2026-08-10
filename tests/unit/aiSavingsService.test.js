@@ -106,6 +106,30 @@ describe('createAiSavingsService()', () => {
       BENCHMARK_MINUTES.bug_create + BENCHMARK_MINUTES.doc_confluence_modify * 3
     );
   });
+
+  test('concurrent appendEntry calls do not lose an entry to a lost update', async () => {
+    const svc = createAiSavingsService(path.join(tmpDir, 'concurrent-root'));
+    await Promise.all([
+      svc.appendEntry({ action_type: 'story_push', item_count: 1 }),
+      svc.appendEntry({ action_type: 'spike_push', item_count: 1 }),
+    ]);
+    const { entries } = await svc.getAll();
+    assert.equal(entries.length, 2);
+    const types = entries.map((e) => e.action_type).sort();
+    assert.deepEqual(types, ['spike_push', 'story_push']);
+  });
+
+  test('many concurrent appendEntry calls all survive', async () => {
+    const svc = createAiSavingsService(path.join(tmpDir, 'concurrent-many-root'));
+    await Promise.all(
+      Array.from({ length: 10 }, () =>
+        svc.appendEntry({ action_type: 'bug_create', item_count: 1 })
+      )
+    );
+    const { entries } = await svc.getAll();
+    assert.equal(entries.length, 10);
+    assert.equal(new Set(entries.map((e) => e.id)).size, 10);
+  });
 });
 
 // ── Report builders ──────────────────────────────────────────────────────────

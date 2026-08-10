@@ -84,6 +84,11 @@ export function createAiSavingsService(rootDir: string) {
     await fs.promises.writeFile(FILE_PATH, JSON.stringify(entries, null, 2));
   }
 
+  // Serializes read-modify-write cycles so concurrent appendEntry() calls
+  // (e.g. two logAiSaving() calls fired back-to-back from a single JIRA push
+  // batch) can't race and silently drop one entry's write.
+  let writeQueue: Promise<unknown> = Promise.resolve();
+
   async function appendEntry(input: AiSavingsLogInput): Promise<AiSavingsEntry> {
     if (!isValidActionType(input.action_type)) {
       throw new Error(`Invalid action_type: ${input.action_type}`);
@@ -98,9 +103,15 @@ export function createAiSavingsService(rootDir: string) {
       time_saved_minutes: computeTimeSavedMinutes(input.action_type, itemCount),
       notes: input.notes ?? '',
     };
-    const entries = await readEntries();
-    entries.push(entry);
-    await writeEntries(entries);
+    const task = writeQueue.then(async () => {
+      const entries = await readEntries();
+      entries.push(entry);
+      await writeEntries(entries);
+    });
+    // Keep chaining from `task` even if it rejects, so one failed write
+    // doesn't wedge the queue for subsequent calls.
+    writeQueue = task.catch(() => {});
+    await task;
     return entry;
   }
 
