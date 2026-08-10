@@ -119,6 +119,7 @@ import {
   onCanvasSearch,
   openManualRefine,
   closeRefineView,
+  resetRefineViewState,
   renderFeatureMultiPanel,
   _toggleEpicPanel,
   closeRefinePanel,
@@ -346,7 +347,7 @@ function navigateTo(viewName: ViewName): void {
   const lv = document.getElementById('list-view');
   if (lv) lv.style.display = 'none';
   document.getElementById('detail-view')?.classList.remove('show');
-  document.getElementById('refine-view')?.classList.remove('show');
+  resetRefineViewState();
   document.getElementById('roadmap-view')?.classList.remove('show');
   document.getElementById('settings-view')?.classList.remove('show');
   document.getElementById('skills-view')?.classList.remove('show');

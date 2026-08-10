@@ -176,12 +176,19 @@ function _onCanvasKeydown(e: KeyboardEvent): void {
   }
 }
 
-export function closeRefineView(): void {
+// Resets canvas/refine state (selection, panel state, keydown listener) and
+// hides the refine view, without touching any other view's visibility. Used
+// both by closeRefineView() (explicit close, which also restores whichever
+// view was open before) and by callers that are navigating away to a
+// different view entirely (main.ts's navigateTo, roadmap.ts's
+// openRoadmapView) and must not have a stale refine session's state leak
+// into the next one, but also must not have this reach back in and re-show
+// a view they're in the middle of hiding.
+export function resetRefineViewState(): void {
   document.getElementById('refine-view')?.classList.remove('show');
   document.removeEventListener('keydown', _onCanvasKeydown);
   updateSplitMode();
 
-  // Clear canvas state
   _canvasEpicFilename = null;
   _canvasDocType = null;
   _activePanelState.layout = {};
@@ -192,6 +199,10 @@ export function closeRefineView(): void {
   _canvasSelectedCards.clear();
   const canvas = document.getElementById('refine-canvas');
   if (canvas) canvas.classList.remove('manage-links-active');
+}
+
+export function closeRefineView(): void {
+  resetRefineViewState();
 
   if (currentFilename && currentDocType) {
     document.getElementById('detail-view')?.classList.add('show');

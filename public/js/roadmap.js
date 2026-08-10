@@ -11,6 +11,7 @@ import {
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { on, upsertDoc } from './store.js';
+import { resetRefineViewState } from './refine.js';
 // _roadmapVisiblePis is declared as a window global in state.js
 let _roadmapPanelState = { epics: true, stories: true }; // expanded/collapsed
 let _roadmapFocusedEpic = null; // filename of clicked feature (focus mode)
@@ -22,7 +23,7 @@ on('piSettings:changed', () => {
 export function openRoadmapView() {
   // Hide other views
   document.getElementById('list-view').style.display = 'none';
-  document.getElementById('refine-view')?.classList.remove('show');
+  resetRefineViewState();
   document.getElementById('detail-view').classList.remove('show');
   document.querySelector('.right').classList.remove('has-selection');
   currentFilename = null;
