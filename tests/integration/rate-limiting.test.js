@@ -80,6 +80,69 @@ describe('aiLimiter covers the real AI-cost routes', () => {
       process.env.MOCK_CLAUDE = '1';
     }
   });
+
+  // #483: routes added after aiLimiter's original 4-path list, which fell
+  // through to the much looser apiLimiter until they were added there too.
+  test('POST /api/confluence/analyze is rate limited after RATE_LIMIT_AI requests', async () => {
+    delete process.env.MOCK_CLAUDE;
+    try {
+      // No JIRA_API_TOKEN in the test env → 503 before any Claude call, so
+      // this only exercises the rate limiter.
+      const statuses = await burst(4, () =>
+        api('POST', '/api/confluence/analyze', { jiraIds: ['ABC-1'] })
+      );
+      assert.equal(statuses[3], 429, `expected the 4th request to be rate limited: ${statuses}`);
+    } finally {
+      process.env.MOCK_CLAUDE = '1';
+    }
+  });
+
+  test('POST /api/bugs/dashboard/analyze is rate limited after RATE_LIMIT_AI requests', async () => {
+    delete process.env.MOCK_CLAUDE;
+    try {
+      const statuses = await burst(4, () =>
+        api('POST', '/api/bugs/dashboard/analyze', { bugKeys: ['BUG-1'] })
+      );
+      assert.equal(statuses[3], 429, `expected the 4th request to be rate limited: ${statuses}`);
+    } finally {
+      process.env.MOCK_CLAUDE = '1';
+    }
+  });
+
+  test('POST /api/bugs/create is rate limited after RATE_LIMIT_AI requests', async () => {
+    delete process.env.MOCK_CLAUDE;
+    try {
+      // No id/title in the body → 400 before any Claude call.
+      const statuses = await burst(4, () => api('POST', '/api/bugs/create', {}));
+      assert.equal(statuses[3], 429, `expected the 4th request to be rate limited: ${statuses}`);
+    } finally {
+      process.env.MOCK_CLAUDE = '1';
+    }
+  });
+
+  test('POST /api/epic/:filename/stories is rate limited after RATE_LIMIT_AI requests', async () => {
+    delete process.env.MOCK_CLAUDE;
+    try {
+      // Missing epic file → 404 before any Claude call.
+      const statuses = await burst(4, () => api('POST', '/api/epic/missing.md/stories', {}));
+      assert.equal(statuses[3], 429, `expected the 4th request to be rate limited: ${statuses}`);
+    } finally {
+      process.env.MOCK_CLAUDE = '1';
+    }
+  });
+
+  test('PUT /api/skills/:name/improve is rate limited after RATE_LIMIT_AI requests', async () => {
+    delete process.env.MOCK_CLAUDE;
+    try {
+      // Unknown skill name → 400 before any Claude call.
+      const statuses = await burst(4, () =>
+        api('PUT', '/api/skills/bogus-skill/improve', { content: 'x' })
+      );
+      assert.equal(statuses[3], 429, `expected the 4th request to be rate limited: ${statuses}`);
+    } finally {
+      process.env.MOCK_CLAUDE = '1';
+    }
+  });
 });
 
 describe('jiraLimiter covers JIRA routes beyond just push*', () => {
