@@ -18,7 +18,7 @@ mock.module('../../public/js/list.js', {
 });
 
 const { setPiSettings } = await import('../../public/js/store.js');
-const { getSwimlaneSection, sectionToFixVersion, computeRerankedOrder } =
+const { getSwimlaneSection, sectionToFixVersion, computeRerankedOrder, computeMoveTarget } =
   await import('../../public/js/dragdrop.js');
 
 function makeDoc(overrides = {}) {
@@ -131,5 +131,49 @@ describe('computeRerankedOrder()', () => {
   test('single-item group: dragging the only item to the end returns it unchanged', () => {
     const group = [makeDoc({ filename: 'a.md', rank: 1 })];
     assert.deepEqual(computeRerankedOrder(group, 'a.md', null), ['a.md']);
+  });
+});
+
+// ── computeMoveTarget (#486 keyboard-operable reorder) ─────────────────────────
+describe('computeMoveTarget()', () => {
+  const group = [
+    makeDoc({ filename: 'a.md', rank: 1 }),
+    makeDoc({ filename: 'b.md', rank: 2 }),
+    makeDoc({ filename: 'c.md', rank: 3 }),
+    makeDoc({ filename: 'd.md', rank: 4 }),
+  ];
+
+  test('moving a middle item up targets its immediate predecessor', () => {
+    assert.equal(computeMoveTarget(group, 'c.md', 'up'), 'b.md');
+    assert.deepEqual(computeRerankedOrder(group, 'c.md', 'b.md'), ['a.md', 'c.md', 'b.md', 'd.md']);
+  });
+
+  test('moving a middle item down targets the item after its immediate successor', () => {
+    assert.equal(computeMoveTarget(group, 'b.md', 'down'), 'd.md');
+    assert.deepEqual(computeRerankedOrder(group, 'b.md', 'd.md'), ['a.md', 'c.md', 'b.md', 'd.md']);
+  });
+
+  test('moving the second-to-last item down targets null (moves to the end)', () => {
+    assert.equal(computeMoveTarget(group, 'c.md', 'down'), null);
+    assert.deepEqual(computeRerankedOrder(group, 'c.md', null), ['a.md', 'b.md', 'd.md', 'c.md']);
+  });
+
+  test('moving the first item up is a no-op (undefined)', () => {
+    assert.equal(computeMoveTarget(group, 'a.md', 'up'), undefined);
+  });
+
+  test('moving the last item down is a no-op (undefined)', () => {
+    assert.equal(computeMoveTarget(group, 'd.md', 'down'), undefined);
+  });
+
+  test('an item not present in the group is a no-op (undefined)', () => {
+    assert.equal(computeMoveTarget(group, 'missing.md', 'up'), undefined);
+    assert.equal(computeMoveTarget(group, 'missing.md', 'down'), undefined);
+  });
+
+  test('single-item group: both directions are a no-op', () => {
+    const single = [makeDoc({ filename: 'a.md', rank: 1 })];
+    assert.equal(computeMoveTarget(single, 'a.md', 'up'), undefined);
+    assert.equal(computeMoveTarget(single, 'a.md', 'down'), undefined);
   });
 });

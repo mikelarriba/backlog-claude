@@ -330,6 +330,43 @@ export function computeRerankedOrder(
   return sorted.map((d) => d.filename);
 }
 
+// Pure targeting logic for moveDocRank below, split out the same way
+// computeRerankedOrder is split from executeRerankDrop so it's testable
+// without a network call. Returns the insertBeforeFilename to pass to
+// executeRerankDrop (null = move to the end), or `undefined` if the move
+// is a no-op (item not found, or already at that edge of its group).
+export function computeMoveTarget(
+  group: DocEntry[],
+  filename: string,
+  direction: 'up' | 'down'
+): string | null | undefined {
+  const sorted = [...group].sort(_rankSortFn);
+  const idx = sorted.findIndex((d) => d.filename === filename);
+  if (idx < 0) return undefined;
+  if (direction === 'up' && idx === 0) return undefined;
+  if (direction === 'down' && idx === sorted.length - 1) return undefined;
+
+  return direction === 'up' ? sorted[idx - 1].filename : (sorted[idx + 2]?.filename ?? null);
+}
+
+// Keyboard-operable alternative to the mouse-drag rerank above — swaps the
+// focused item with its immediate rank-order neighbor of the same docType
+// and persists it the same way a drag-and-drop rerank does. Purely additive:
+// calls the same executeRerankDrop() the drag handler already uses, so the
+// visual reorder happens the same way (via the debounced allDocs reload
+// triggered by the server's rerank broadcast), and does not change or
+// remove the existing mouse drag-and-drop behavior.
+export async function moveDocRank(
+  filename: string,
+  docType: string,
+  direction: 'up' | 'down'
+): Promise<void> {
+  const group = allDocs.filter((d) => d.docType === docType);
+  const insertBeforeFilename = computeMoveTarget(group, filename, direction);
+  if (insertBeforeFilename === undefined) return;
+  await executeRerankDrop(filename, docType, insertBeforeFilename);
+}
+
 export async function executeRerankDrop(
   srcFilename: string,
   srcDocType: string,
@@ -406,6 +443,31 @@ export function initDragDrop(): void {
   if (!list) return;
   let state: DragState | null = null;
   const DRAG_THRESHOLD = 6;
+
+  // Keyboard-operable alternative to the mouse drag above: ArrowUp/ArrowDown
+  // on a focused drag handle rerank the item the same way a drag does.
+  // Focus is restored to the same item's (re-rendered) handle afterward so
+  // repeated presses keep working without re-tabbing.
+  list.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    const handle = (e.target as HTMLElement).closest('.drag-handle');
+    if (!handle) return;
+    const item = handle.closest('.epic-item') as HTMLElement | null;
+    if (!item) return;
+    e.preventDefault();
+
+    const filename = item.dataset.filename as string;
+    const docType = item.dataset.doctype as string;
+    void moveDocRank(filename, docType, e.key === 'ArrowUp' ? 'up' : 'down').then(() => {
+      setTimeout(() => {
+        document
+          .querySelector<HTMLElement>(
+            `.epic-item[data-filename="${CSS.escape(filename)}"] .drag-handle`
+          )
+          ?.focus();
+      }, 200);
+    });
+  });
 
   list.addEventListener('mousedown', (e: MouseEvent) => {
     const handle = (e.target as HTMLElement).closest('.drag-handle');
