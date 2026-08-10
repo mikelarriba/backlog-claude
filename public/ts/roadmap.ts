@@ -12,6 +12,7 @@ import type { SprintConfig } from './state.js';
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { on, upsertDoc } from './store.js';
+import { resetRefineViewState } from './refine.js';
 
 export interface RoadmapSprint {
   name: string;
@@ -32,7 +33,7 @@ on('piSettings:changed', () => {
 export function openRoadmapView(): void {
   // Hide other views
   (document.getElementById('list-view') as HTMLElement).style.display = 'none';
-  document.getElementById('refine-view')?.classList.remove('show');
+  resetRefineViewState();
   document.getElementById('detail-view')!.classList.remove('show');
   document.querySelector('.right')!.classList.remove('has-selection');
   currentFilename = null;

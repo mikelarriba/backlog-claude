@@ -1,8 +1,9 @@
 // ── Roadmap drag-and-drop (sprint move + in-column rerank) ─
 import { patchJSON, buildChildrenMap, getDescendants } from './state.js';
-import { renderRoadmapBoard } from './roadmap-render.js';
+import { renderEpicPanel, patchStoryColumn } from './roadmap-render.js';
 import { executeRerankDrop } from './dragdrop.js';
 import { showDepConnectors, hideDepConnectors } from './list-render.js';
+import { getAllSprints } from './roadmap.js';
 
 interface RoadmapDragPayload {
   filename: string;
@@ -10,9 +11,12 @@ interface RoadmapDragPayload {
   fromSprint: string;
 }
 
-export function initRoadmapDragDrop(): void {
-  const cards = document.querySelectorAll<HTMLElement>('.roadmap-card[draggable]');
-  const dropZones = document.querySelectorAll<HTMLElement>('.roadmap-card-list');
+// `root` scopes listener attachment to a single freshly-patched column
+// (patchStoryColumn) instead of the whole board — pass the default
+// (document) when wiring up the full board on initial render.
+export function initRoadmapDragDrop(root: ParentNode = document): void {
+  const cards = root.querySelectorAll<HTMLElement>('.roadmap-card[draggable]');
+  const dropZones = root.querySelectorAll<HTMLElement>('.roadmap-card-list');
 
   function clearCardDropClasses(): void {
     document
@@ -91,7 +95,14 @@ export function initRoadmapDragDrop(): void {
               : null;
         }
         await executeRerankDrop(data.filename, data.docType, insertBeforeFilename);
-        renderRoadmapBoard();
+
+        // Patch just the affected column(s) in place instead of rebuilding
+        // the whole board — a rerank only ever changes ordering within a
+        // sprint column, never sprint membership or epic timelines.
+        const fromSprint = data.fromSprint || null;
+        const toSprint = card.dataset['sprint'] || null;
+        patchStoryColumn(fromSprint);
+        if (toSprint !== fromSprint) patchStoryColumn(toSprint);
       } catch (err) {
         console.warn('Roadmap card drop failed:', (err as Error).message);
       }
@@ -140,7 +151,13 @@ export function initRoadmapDragDrop(): void {
           }
         }
 
-        renderRoadmapBoard();
+        // Patch just the two affected columns in place. The epic panel is
+        // cheap to rebuild in full (proportional to epic count, not story
+        // count) and a cross-sprint move can shift an epic's timeline bar,
+        // so it still gets a full (but inexpensive) re-render.
+        patchStoryColumn(data.fromSprint || null);
+        patchStoryColumn(toSprint);
+        renderEpicPanel(getAllSprints());
       } catch (err) {
         console.warn('Failed to update sprint assignment:', (err as Error).message);
       }

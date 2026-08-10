@@ -333,6 +333,48 @@ export function renderStoryColumn(
     </div>`;
 }
 
+// ── Single-column patch path (perf) ───────────────────────────
+// Patches just one story column's existing DOM node instead of rebuilding
+// the whole board on every rerank/cross-sprint drag drop — mirrors the
+// single-document patch path used by the backlog list (patchSingleDoc).
+// Falls back to a full renderRoadmapBoard() if the column isn't currently
+// rendered (e.g. it doesn't exist yet), so callers always end up consistent.
+export function patchStoryColumn(sprintName: string | null): void {
+  const sprints = getAllSprints() as RoadmapSprint[];
+  const leafTypes = new Set(['story', 'spike', 'bug']);
+
+  const piDocs = allDocs.filter(
+    (d) => leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
+  );
+  const knownSprintNames = new Set(sprints.map((s) => s.name));
+  const docs = sprintName
+    ? piDocs.filter((d) => d.sprint === sprintName)
+    : piDocs.filter((d) => !d.sprint || !knownSprintNames.has(d.sprint));
+  const capacity = sprintName ? (sprints.find((s) => s.name === sprintName)?.capacity ?? 0) : 0;
+
+  const selector = `.roadmap-column[data-sprint="${sprintName ? CSS.escape(sprintName) : ''}"]`;
+  const existing = document.querySelector<HTMLElement>(selector);
+  if (!existing) {
+    renderRoadmapBoard();
+    return;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = renderStoryColumn(sprintName, docs, capacity).trim();
+  const newEl = wrapper.firstElementChild as HTMLElement | null;
+  if (!newEl) {
+    renderRoadmapBoard();
+    return;
+  }
+  existing.replaceWith(newEl);
+
+  initRoadmapDragDrop(newEl);
+  injectGhostCards();
+  applyEpicFocus();
+  syncRoadmapSelectionUI();
+  attachRoadmapDepHoverListeners();
+}
+
 export function renderRoadmapCard(d: DocEntry, _sprintName: string | null): string {
   const priorityClass = (d.priority || 'Medium').replace(/\s+/g, '-').toLowerCase();
   const sp = Number(d.storyPoints) || 0;
