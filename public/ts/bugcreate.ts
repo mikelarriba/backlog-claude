@@ -3,6 +3,22 @@ import { fetchJSON, escHtml, showJiraToast } from './state.js';
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
 import { logAiSaving } from './ai-savings.js';
+import { registerActions } from './actions.js';
+
+// Typed data-action name for the per-file remove button in
+// renderBugFileList (issue #461 migration — see actions.ts and
+// list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
+// onclick="removeBugFile(${i})" string previously built by hand-interpolating
+// the index into the template.
+export const BUGCREATE_ACTIONS = {
+  removeFile: 'bugcreateRemoveFile',
+} as const;
+
+registerActions({
+  [BUGCREATE_ACTIONS.removeFile]: (el) => {
+    removeBugFile(Number(el.dataset.index));
+  },
+});
 
 interface BugCreateResponse {
   filename: string;
@@ -78,7 +94,7 @@ export function renderBugFileList(): void {
     <div class="bug-file-item">
       <span class="bug-file-name" title="${escHtml(f.name)}">${escHtml(f.name)}</span>
       <span class="bug-file-size">${formatBytes(f.size)}</span>
-      <button class="bug-file-remove" onclick="removeBugFile(${i})" title="Remove">&times;</button>
+      <button class="bug-file-remove" data-action="${BUGCREATE_ACTIONS.removeFile}" data-index="${i}" title="Remove">&times;</button>
     </div>
   `
     )

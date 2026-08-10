@@ -86,13 +86,7 @@ import {
   pushToJira,
 } from './jira-push.js';
 import { pullFromJira, checkAllJira, submitUpdateFromJiraKey } from './jira-pull.js';
-import {
-  openBugForm,
-  closeBugForm,
-  onBugFilesSelected,
-  submitBugReport,
-  removeBugFile,
-} from './bugcreate.js';
+import { openBugForm, closeBugForm, onBugFilesSelected, submitBugReport } from './bugcreate.js';
 import { resetCanvasLayout } from './refine-canvas.js';
 import {
   _showEdgePopup,
@@ -1124,7 +1118,10 @@ document.addEventListener('change', (e: Event) => {
 //   - The Import tab's result-list toggle (jira-import.ts's renderJiraResults).
 //     Its one handler (toggleJiraItem) is intentionally absent below — see
 //     JIRA_IMPORT_ACTIONS in jira-import.ts.
-// All five now self-register via registerActions() instead.
+//   - The bug-report file list's remove button (bugcreate.ts's
+//     renderBugFileList). Its one handler (removeBugFile) is intentionally
+//     absent below — see BUGCREATE_ACTIONS in bugcreate.ts.
+// All six now self-register via registerActions() instead.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1209,7 +1206,6 @@ const _dynGlobals: Record<string, unknown> = {
   submitUpdateFromJiraKey,
   // bugcreate.ts
   onBugFilesSelected,
-  removeBugFile,
   // bugs-dashboard.ts
   bugToggleKey,
   bugToggleAll,
