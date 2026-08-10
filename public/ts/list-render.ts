@@ -366,7 +366,10 @@ export function renderDocItem(
          data-indent="${indent}"
          onclick="handleItemClick(event,'${escHtml(d.filename)}','${d.docType}')"
          oncontextmenu="handleItemContextMenu(event,'${escHtml(d.filename)}','${d.docType}')">
-      <div class="drag-handle" title="Drag to reorder or link"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="drag-handle" title="Drag to reorder or link, or use arrow keys"
+           role="button" tabindex="0"
+           aria-label="Reorder ${escHtml(d.title)}. Use the up and down arrow keys to move it."
+           ><span></span><span></span><span></span><span></span><span></span><span></span></div>
       <div class="readiness-dot ${rdCls}" title="${rdTip}"></div>
       ${collapseBtn}
       ${connector}

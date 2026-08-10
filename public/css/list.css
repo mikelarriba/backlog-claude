@@ -424,8 +424,14 @@
   border-radius: 50%;
   background: var(--muted);
 }
-.epic-item:hover .drag-handle {
+.epic-item:hover .drag-handle,
+.drag-handle:focus-visible {
   opacity: 1;
+}
+.drag-handle:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--accent-subtle);
 }
 
 /* ── Drag-to-reorder: insertion line marker ──────────────────── */
