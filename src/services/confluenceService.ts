@@ -17,6 +17,7 @@
 // lifetime of the service instance (space-key → space-id essentially never
 // changes at runtime).
 import { config } from '../config/env.js';
+import { httpRetryFetch } from './httpClient.js';
 
 const CONFLUENCE_TIMEOUT_MS = config.CONFLUENCE_TIMEOUT_MS;
 
@@ -77,56 +78,12 @@ export function createConfluenceService({
     body: unknown,
     label: string
   ): Promise<unknown> {
-    const RETRY_DELAYS = [2_000, 4_000, 8_000];
-    const MAX_ATTEMPTS = 3;
-
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), CONFLUENCE_TIMEOUT_MS);
-      const opts: RequestInit = {
-        method,
-        signal: controller.signal,
-        headers: {
-          Authorization: authHeader,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-      };
-      if (body) opts.body = JSON.stringify(body);
-
-      let res: Response;
-      try {
-        res = await fetch(fullUrl, opts);
-      } catch (err: unknown) {
-        clearTimeout(timer);
-        if ((err as { name?: string }).name === 'AbortError')
-          throw new Error(`${label} request timed out after ${CONFLUENCE_TIMEOUT_MS / 1000}s`);
-        throw err;
-      } finally {
-        clearTimeout(timer);
-      }
-
-      if (res.status !== 429) {
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          const safeText = text
-            .replace(/Basic\s+[A-Za-z0-9+/]+=*/g, 'Basic [REDACTED]')
-            .slice(0, 300);
-          throw new Error(`${label} → ${res.status}: ${safeText}`);
-        }
-        const text = await res.text();
-        return text ? JSON.parse(text) : undefined;
-      }
-
-      if (attempt === MAX_ATTEMPTS - 1)
-        throw new Error(`${label} rate limit exceeded after ${MAX_ATTEMPTS} retries`);
-
-      const retryAfterSec = Number(res.headers.get('Retry-After'));
-      const waitMs = retryAfterSec > 0 ? retryAfterSec * 1000 : RETRY_DELAYS[attempt];
-      await new Promise((r) => setTimeout(r, waitMs));
-    }
-
-    throw new Error(`${label} rate limit exceeded after ${MAX_ATTEMPTS} retries`);
+    return httpRetryFetch(fullUrl, method, body, label, {
+      authHeader,
+      timeoutMs: CONFLUENCE_TIMEOUT_MS,
+      redactPattern: /Basic\s+[A-Za-z0-9+/]+=*/g,
+      redactReplacement: 'Basic [REDACTED]',
+    });
   }
 
   function mapPage(raw: RawConfluencePage): ConfluencePage {
