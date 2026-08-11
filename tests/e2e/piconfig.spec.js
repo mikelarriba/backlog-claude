@@ -354,3 +354,24 @@ test.describe('PI Config — JIRA sprint auto-suggestion: PI with existing sprin
     await expect(page.locator('#pi-config-jira-banner')).toBeEmpty();
   });
 });
+
+test.describe('PI Config — remove sprint row (#461 typed action-dispatch)', () => {
+  test('clicking the per-row remove button (data-action) removes that row', async ({ page }) => {
+    const piName = `PI-2026.1-remove-sprint-row-${RUN_ID}`;
+    await putSprints(piName, [
+      { name: 'Sprint A', capacity: 40 },
+      { name: 'Sprint B', capacity: 30 },
+    ]);
+    await setPiSettings(piName, null);
+
+    await openPiConfigPanel(page);
+
+    const rows = page.locator('.pi-config-sprint-row');
+    await expect(rows).toHaveCount(2);
+
+    await rows.nth(0).locator('.pi-config-remove-btn').click();
+
+    await expect(rows).toHaveCount(1);
+    await expect(rows.nth(0).locator('.pi-config-sprint-name')).toHaveValue('Sprint B');
+  });
+});

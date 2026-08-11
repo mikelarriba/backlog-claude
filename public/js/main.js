@@ -138,7 +138,6 @@ import {
 import {
   togglePiConfigSection,
   addSprintRow,
-  removeSprintRow,
   selectPiConfigTab,
   saveSprintConfig,
   saveSplitThreshold,
@@ -1016,7 +1015,10 @@ document.addEventListener('change', (e) => {
 //   - The bug-report file list's remove button (bugcreate.ts's
 //     renderBugFileList). Its one handler (removeBugFile) is intentionally
 //     absent below — see BUGCREATE_ACTIONS in bugcreate.ts.
-// All six now self-register via registerActions() instead.
+//   - The PI sprint config's per-row remove button (piconfig.ts's
+//     renderSprintRows). Its one handler (removeSprintRow) is intentionally
+//     absent below — see PICONFIG_ACTIONS in piconfig.ts.
+// All seven now self-register via registerActions() instead.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1090,7 +1092,6 @@ const _dynGlobals = {
   pullSprintSelectAllItems,
   _pullSprintUpdateCount,
   // piconfig.ts
-  removeSprintRow,
   selectPiConfigTab,
   _updatePiFromConfig,
   syncPiFromJira,

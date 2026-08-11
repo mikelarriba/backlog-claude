@@ -10,6 +10,20 @@ import {
 } from './state.js';
 import { refreshRoadmapView } from './roadmap.js';
 import { showJiraSelectModal, performJiraPull } from './jira-import.js';
+import { registerActions } from './actions.js';
+// Typed data-action name for the per-sprint-row remove button in
+// renderSprintRows (issue #461 migration — see actions.ts and
+// list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
+// onclick="removeSprintRow(${i})" string previously built by
+// hand-interpolating the index into the template.
+export const PICONFIG_ACTIONS = {
+  removeSprintRow: 'piconfigRemoveSprintRow',
+};
+registerActions({
+  [PICONFIG_ACTIONS.removeSprintRow]: (el) => {
+    removeSprintRow(Number(el.dataset.index));
+  },
+});
 function _sprintsFor(piName) {
   const cfg = sprintConfig;
   return cfg[piName] || [];
@@ -268,7 +282,7 @@ export function renderSprintRows(sprints) {
         <input class="pi-config-sprint-cap" type="number" min="0" max="999" value="${s.capacity}" placeholder="SP" />
         <span class="pi-config-cap-label">SP</span>
       </div>
-      <button class="pi-config-remove-btn" onclick="removeSprintRow(${i})" title="Remove sprint">&times;</button>
+      <button class="pi-config-remove-btn" data-action="${PICONFIG_ACTIONS.removeSprintRow}" data-index="${i}" title="Remove sprint">&times;</button>
     </div>
   `
     )
