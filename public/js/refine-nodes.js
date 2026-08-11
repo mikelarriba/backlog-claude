@@ -232,6 +232,21 @@ export function _openCellCreateForm(type, col, row, epicFilename, epicDocType) {
     );
   document.getElementById('rp-cell-idea')?.focus();
 }
+// Pure: computes the fixVersion/pi/parent* fields shared by both the
+// empty-cell "generate & link" flow (_executeEmptyCellCreate) and the split
+// flow (_executeCanvasSplit) /api/generate request bodies — inheriting the
+// parent doc's fixVersion/PI (skipping PI when it's still the "TBD"
+// placeholder) and pointing parentEpic or parentFeature at epicFilename
+// depending on which kind of container it is. Extracted so this branching
+// is testable without a DOM or network call (#460).
+export function buildParentLinkFields(parentDoc, epicDocType, epicFilename) {
+  const fields = {};
+  if (parentDoc?.fixVersion) fields.fixVersion = parentDoc.fixVersion;
+  if (parentDoc?.pi && parentDoc.pi !== 'TBD') fields.pi = parentDoc.pi;
+  if (epicDocType === 'epic') fields.parentEpic = epicFilename;
+  if (epicDocType === 'feature') fields.parentFeature = epicFilename;
+  return fields;
+}
 export async function _executeEmptyCellCreate(type, col, row, epicFilename, epicDocType) {
   const idea = document.getElementById('rp-cell-idea')?.value.trim();
   if (!idea) {
@@ -246,11 +261,12 @@ export async function _executeEmptyCellCreate(type, col, row, epicFilename, epic
   stream.style.display = 'block';
   try {
     const parentDoc = allDocs.find((d) => d.filename === epicFilename);
-    const genBody = { idea, type, priority: 'Medium' };
-    if (parentDoc?.fixVersion) genBody.fixVersion = parentDoc.fixVersion;
-    if (parentDoc?.pi && parentDoc.pi !== 'TBD') genBody.pi = parentDoc.pi;
-    if (epicDocType === 'epic') genBody.parentEpic = epicFilename;
-    if (epicDocType === 'feature') genBody.parentFeature = epicFilename;
+    const genBody = {
+      idea,
+      type,
+      priority: 'Medium',
+      ...buildParentLinkFields(parentDoc, epicDocType, epicFilename),
+    };
     const { filename: newFilename } = await postJSON('/api/generate', genBody);
     stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
     await postJSON('/api/link', {
@@ -427,11 +443,8 @@ export async function _executeCanvasSplit(
       idea: `${idea}\n\n---\nContext from original issue:\n${origContent}`,
       type: childDocType,
       priority: origDoc?.priority || 'Medium',
+      ...buildParentLinkFields(origDoc, epicDocType, epicFilename),
     };
-    if (origDoc?.fixVersion) genBody.fixVersion = origDoc.fixVersion;
-    if (origDoc?.pi && origDoc.pi !== 'TBD') genBody.pi = origDoc.pi;
-    if (epicDocType === 'epic') genBody.parentEpic = epicFilename;
-    if (epicDocType === 'feature') genBody.parentFeature = epicFilename;
     const { filename: newFilename } = await postJSON('/api/generate', genBody);
     stream.textContent = `✓ Created ${newFilename}\n⚙ Linking…`;
     await postJSON('/api/link', {
