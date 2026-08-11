@@ -948,6 +948,34 @@
 .roadmap-card {
   position: relative;
 }
+.rm-reorder-handle {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, 4px);
+  gap: 3px;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.rm-reorder-handle span {
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.roadmap-card:hover .rm-reorder-handle,
+.rm-reorder-handle:focus-visible {
+  opacity: 1;
+}
+.rm-reorder-handle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-subtle);
+}
 .rm-dep-btn {
   position: absolute;
   top: 6px;
