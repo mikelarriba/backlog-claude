@@ -28,6 +28,31 @@ registerActions({
     _closeLinkPopup();
   },
 });
+// ── Pure helpers (extracted for unit testing — #460) ────────────
+// The "alternate" link type shown in the edge popup's toggle button: blocks
+// flips to parallel and vice versa, along with its display label.
+export function computeAltLinkType(linkType) {
+  const altType = linkType === 'blocks' ? 'parallel' : 'blocks';
+  const altLabel = linkType === 'blocks' ? 'Change to PARALLEL' : 'Change to BLOCKS';
+  return { altType, altLabel };
+}
+// Only leaf document types (story/spike/bug) may be link targets — epics
+// aggregate their children and can't participate in a dependency edge.
+export function isLinkableTargetDocType(docType) {
+  return ['story', 'spike', 'bug'].includes(docType);
+}
+// Builds the request body shape shared by create/delete/change-type link
+// calls against POST/DELETE /api/link. Centralized so the source/target
+// field-name mapping (easy to transpose by accident) is defined once.
+export function buildLinkPayload(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType) {
+  return {
+    linkType,
+    sourceType: srcDocType,
+    sourceFilename: srcFilename,
+    targetType: tgtDocType,
+    targetFilename: tgtFilename,
+  };
+}
 // ── Edge click popup ───────────────────────────────────────────
 export function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
   _closeLinkPopup();
@@ -35,8 +60,7 @@ export function _showEdgePopup(x, y, linkType, srcFn, srcDt, tgtFn, tgtDt) {
   popup.className = 'canvas-link-popup';
   popup.style.left = `${x}px`;
   popup.style.top = `${y}px`;
-  const altType = linkType === 'blocks' ? 'parallel' : 'blocks';
-  const altLabel = linkType === 'blocks' ? 'Change to PARALLEL' : 'Change to BLOCKS';
+  const { altType, altLabel } = computeAltLinkType(linkType);
   popup.innerHTML = `
     <div class="canvas-link-popup-title">${linkType.toUpperCase()} dependency</div>
     <button class="canvas-link-popup-danger" id="_edge-delete-btn">Delete dependency</button>
@@ -62,13 +86,7 @@ export async function _deleteCanvasLink(linkType, srcFn, srcDt, tgtFn, tgtDt) {
     await fetchJSON('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        linkType,
-        sourceType: srcDt,
-        sourceFilename: srcFn,
-        targetType: tgtDt,
-        targetFilename: tgtFn,
-      }),
+      body: JSON.stringify(buildLinkPayload(linkType, srcFn, srcDt, tgtFn, tgtDt)),
     });
     await loadDocs();
     rebuildCanvasEdges();
@@ -86,21 +104,9 @@ export async function _changeCanvasLinkType(oldType, newType, srcFn, srcDt, tgtF
     await fetchJSON('/api/link', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        linkType: oldType,
-        sourceType: srcDt,
-        sourceFilename: srcFn,
-        targetType: tgtDt,
-        targetFilename: tgtFn,
-      }),
+      body: JSON.stringify(buildLinkPayload(oldType, srcFn, srcDt, tgtFn, tgtDt)),
     });
-    await postJSON('/api/link', {
-      linkType: newType,
-      sourceType: srcDt,
-      sourceFilename: srcFn,
-      targetType: tgtDt,
-      targetFilename: tgtFn,
-    });
+    await postJSON('/api/link', buildLinkPayload(newType, srcFn, srcDt, tgtFn, tgtDt));
     await loadDocs();
     rebuildCanvasEdges();
     renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
@@ -157,18 +163,15 @@ export async function _createCanvasLink(
 ) {
   _closeLinkPopup();
   // Reject epic node links
-  if (!['story', 'spike', 'bug'].includes(tgtDocType)) {
+  if (!isLinkableTargetDocType(tgtDocType)) {
     showJiraToast('error', 'Only leaf stories can be linked');
     return;
   }
   try {
-    await postJSON('/api/link', {
-      linkType,
-      sourceType: srcDocType,
-      sourceFilename: srcFilename,
-      targetType: tgtDocType,
-      targetFilename: tgtFilename,
-    });
+    await postJSON(
+      '/api/link',
+      buildLinkPayload(linkType, srcFilename, srcDocType, tgtFilename, tgtDocType)
+    );
     await loadDocs();
     rebuildCanvasEdges();
     renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
