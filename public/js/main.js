@@ -1018,7 +1018,13 @@ document.addEventListener('change', (e) => {
 //   - The PI sprint config's per-row remove button (piconfig.ts's
 //     renderSprintRows). Its one handler (removeSprintRow) is intentionally
 //     absent below — see PICONFIG_ACTIONS in piconfig.ts.
-// All seven now self-register via registerActions() instead.
+//   - The detail view's dependency chip "remove" button (detail-links.ts's
+//     renderDetailDeps). Its one handler (deleteDepFromDetail) is
+//     intentionally absent below — see DETAIL_LINKS_ACTIONS in
+//     detail-links.ts. (This handler was previously unreachable at runtime:
+//     it was never added to this bridge, so the button silently threw on
+//     click — this migration fixes that as a side effect.)
+// All eight now self-register via registerActions() instead.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,

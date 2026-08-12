@@ -16,6 +16,31 @@ import type { DocEntry } from './state.js';
 import { upsertDoc } from './store.js';
 import { showJiraSelectModal } from './jira-import.js';
 import type { SelectModalItem, ChildLink, LinksResponse } from './detail.js';
+import { registerActions } from './actions.js';
+
+// Typed data-action name for the dependency chip's "remove" button in
+// renderDetailDeps (issue #461 migration — see actions.ts and
+// list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
+// onclick="event.stopPropagation(); deleteDepFromDetail(fn, dtype, linkType)"
+// string previously built by hand-interpolating the three args into the
+// template. That handler was never actually reachable at runtime — main.ts's
+// window bridge (_dynGlobals) never included deleteDepFromDetail, so the
+// button silently threw "deleteDepFromDetail is not defined" on click — so
+// this migration also fixes a dead/broken "remove dependency" button.
+export const DETAIL_LINKS_ACTIONS = {
+  deleteDep: 'detailLinksDeleteDep',
+} as const;
+
+registerActions({
+  [DETAIL_LINKS_ACTIONS.deleteDep]: (el, e) => {
+    e.stopPropagation();
+    void deleteDepFromDetail(
+      el.dataset.depFn ?? '',
+      el.dataset.depType ?? '',
+      el.dataset.linkType ?? ''
+    );
+  },
+});
 
 export function renderDetailDeps(doc: DocEntry | undefined): void {
   const row = document.getElementById('detail-deps-row');
@@ -39,7 +64,7 @@ export function renderDetailDeps(doc: DocEntry | undefined): void {
     return (
       `<span class="dep-chip ${chipClass}" title="${escHtml(linkType)}: ${escHtml(title)}">` +
       `<span class="dep-chip-text" onclick="openDoc('${escHtml(fn)}','${dtype}')">${icon} ${escHtml(short)}</span>` +
-      `<button class="dep-chip-delete" onclick="event.stopPropagation(); deleteDepFromDetail('${escHtml(fn)}','${dtype}','${linkType}')" title="Remove dependency">&times;</button>` +
+      `<button class="dep-chip-delete" data-action="${DETAIL_LINKS_ACTIONS.deleteDep}" data-dep-fn="${escHtml(fn)}" data-dep-type="${escHtml(dtype)}" data-link-type="${escHtml(linkType)}" title="Remove dependency">&times;</button>` +
       `</span>`
     );
   }
