@@ -487,6 +487,41 @@
   pointer-events: none;
 }
 
+/* Keyboard-operable move handle — alternative to the HTML5 cell-drag
+   reposition above (#486 phase 3/N). Sits in the free top-right corner
+   (the four .canvas-handle dots occupy the mid-points of each edge, and
+   the SP badge is only ever a few px wide), visible on hover/focus like
+   the equivalent roadmap-card reorder handle. */
+.canvas-move-handle {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 4;
+}
+.canvas-move-handle span {
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.canvas-card:hover .canvas-move-handle,
+.canvas-move-handle:focus-visible {
+  opacity: 1;
+}
+.canvas-move-handle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0, 150, 214, 0.15));
+}
+
 .canvas-card-header {
   display: flex;
   align-items: center;

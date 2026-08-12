@@ -65,6 +65,30 @@ export function cellPixelPosition(
   };
 }
 
+// Pure: given a card's current grid cell and an arrow-key direction, returns
+// the target cell for the keyboard-operable move alternative below, or
+// undefined for a no-op. Mirrors the grid's own growth model — the occupied
+// extent always gets one extra row/col of expansion room (see
+// computeCanvasGridDimensions), so 'down'/'right' are never blocked, while
+// 'up'/'left' stop at row/col 0 since negative grid coordinates aren't a
+// valid layout position (#486 phase 3/N).
+export function computeCanvasMoveTarget(
+  col: number,
+  row: number,
+  direction: 'up' | 'down' | 'left' | 'right'
+): { col: number; row: number } | undefined {
+  switch (direction) {
+    case 'up':
+      return row > 0 ? { col, row: row - 1 } : undefined;
+    case 'down':
+      return { col, row: row + 1 };
+    case 'left':
+      return col > 0 ? { col: col - 1, row } : undefined;
+    case 'right':
+      return { col: col + 1, row };
+  }
+}
+
 // ── Mini-canvas rendering for feature multi-panel view ────────
 export function _renderFpCanvas(
   epicFilename: string,
@@ -255,6 +279,60 @@ export function rebuildCanvasEdges(ps: PanelState = _activePanelState): void {
   ps.parallel = parallel as unknown as PanelState['parallel'];
 }
 
+// Shared by the mouse cell-drop handler in renderCanvas below and the
+// keyboard-operable move alternative attached to each card's move handle —
+// writes the new grid cell into the layout, persists it, and re-renders.
+// Keeping this as a single function means the mouse and keyboard paths
+// cannot drift (#486 phase 3/N).
+async function applyCanvasCardMove(
+  epicFilename: string,
+  docType: string,
+  filename: string,
+  newCol: number,
+  newRow: number
+): Promise<void> {
+  const layoutEntries = _activePanelState.layout as Record<string, CanvasPos>;
+  const cur = (layoutEntries[filename] as CanvasPos | undefined) || ({} as CanvasPos);
+  if (cur.col === newCol && cur.row === newRow) return;
+  layoutEntries[filename] = { col: newCol, row: newRow };
+  await saveCanvasLayout(_activePanelState, epicFilename);
+  renderCanvas(epicFilename, docType);
+}
+
+// Focus is lost when renderCanvas rebuilds the grid, since the old card/
+// handle elements are discarded — restore it to the moved card's
+// (re-rendered) move handle so repeated key presses keep working without
+// re-tabbing, matching the same pattern used for backlog list rerank and
+// roadmap card move.
+function refocusCanvasMoveHandle(filename: string): void {
+  setTimeout(() => {
+    document
+      .querySelector<HTMLElement>(
+        `.canvas-card[data-filename="${CSS.escape(filename)}"] .canvas-move-handle`
+      )
+      ?.focus();
+  }, 50);
+}
+
+// Keyboard-operable alternative to the HTML5 cell-drag reposition in
+// renderCanvas below — moves `filename` one grid cell in `direction`,
+// reusing the same applyCanvasCardMove() the mouse cell-drop handler uses,
+// then restores focus to the moved card's re-rendered move handle. Purely
+// additive: does not change or remove the existing drag-and-drop behavior
+// (#486 phase 3/N).
+async function moveCanvasCardByKeyboard(
+  epicFilename: string,
+  docType: string,
+  filename: string,
+  pos: CanvasPos,
+  direction: 'up' | 'down' | 'left' | 'right'
+): Promise<void> {
+  const target = computeCanvasMoveTarget(pos.col, pos.row, direction);
+  if (!target) return;
+  await applyCanvasCardMove(epicFilename, docType, filename, target.col, target.row);
+  refocusCanvasMoveHandle(filename);
+}
+
 // ── Render canvas ──────────────────────────────────────────────
 export function renderCanvas(epicFilename: string, docType: string): void {
   const container = document.getElementById('refine-canvas');
@@ -383,11 +461,7 @@ export function renderCanvas(epicFilename: string, docType: string): void {
         if (!fn) return;
         const newCol = parseInt(cell.dataset.col!);
         const newRow = parseInt(cell.dataset.row!);
-        const cur = (layoutEntries[fn] as CanvasPos | undefined) || ({} as CanvasPos);
-        if (cur.col === newCol && cur.row === newRow) return;
-        layoutEntries[fn] = { col: newCol, row: newRow };
-        await saveCanvasLayout(_activePanelState, epicFilename);
-        renderCanvas(epicFilename, docType);
+        await applyCanvasCardMove(epicFilename, docType, fn, newCol, newRow);
       });
 
       // Right-click on empty cell → create new story/spike/bug
@@ -427,14 +501,40 @@ export function renderCanvas(epicFilename: string, docType: string): void {
         ${sp ? `<span class="canvas-card-sp">${sp}</span>` : ''}
       </div>
       <div class="canvas-card-title">${escHtml(child.title || child.filename)}</div>
+      <div class="canvas-move-handle" role="button" tabindex="0"
+           title="Use arrow keys to move this card one grid cell"
+           aria-label="Move ${escHtml(child.title || child.filename)}. Arrow keys move it one cell within the grid."
+           ><span></span><span></span><span></span><span></span><span></span><span></span></div>
       <div class="canvas-handle canvas-handle--top"    data-side="top"></div>
       <div class="canvas-handle canvas-handle--bottom" data-side="bottom"></div>
       <div class="canvas-handle canvas-handle--left"   data-side="left"></div>
       <div class="canvas-handle canvas-handle--right"  data-side="right"></div>`;
 
+    // Keyboard-operable alternative to the HTML5 cell-drag reposition above —
+    // moves the focused card one grid cell per arrow key press, reusing the
+    // same applyCanvasCardMove() the mouse cell-drop handler uses. Purely
+    // additive: does not change or remove the existing drag-and-drop
+    // behavior (#486 phase 3/N).
+    const moveHandle = card.querySelector<HTMLElement>('.canvas-move-handle');
+    moveHandle?.addEventListener('click', (e: MouseEvent) => e.stopPropagation());
+    moveHandle?.addEventListener('keydown', (e: KeyboardEvent) => {
+      const directions: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+        ArrowUp: 'up',
+        ArrowDown: 'down',
+        ArrowLeft: 'left',
+        ArrowRight: 'right',
+      };
+      const direction = directions[e.key];
+      if (!direction) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void moveCanvasCardByKeyboard(epicFilename, docType, child.filename, pos, direction);
+    });
+
     // Click → open panel (plain) or toggle multi-select (Cmd/Ctrl)
     card.addEventListener('click', (e: MouseEvent) => {
       if ((e.target as HTMLElement).classList.contains('canvas-handle')) return;
+      if ((e.target as HTMLElement).classList.contains('canvas-move-handle')) return;
       if (e.metaKey || e.ctrlKey) {
         // Cmd/Ctrl+Click: toggle multi-select without opening panel
         if (_canvasSelectedCards.has(child.filename)) {
