@@ -15,7 +15,7 @@ mock.module('../../public/js/list.js', {
   namedExports: { loadDocs: async () => {}, contextSplitItem: () => {} },
 });
 
-const { computeCanvasGridDimensions, cellPixelPosition } =
+const { computeCanvasGridDimensions, cellPixelPosition, computeCanvasMoveTarget } =
   await import('../../public/js/refine-canvas.js');
 
 // ── computeCanvasGridDimensions ─────────────────────────────────────────────
@@ -74,5 +74,42 @@ describe('cellPixelPosition()', () => {
     const withBanner = cellPixelPosition(2, 3, 124);
     assert.equal(withBanner.y - noBanner.y, 44);
     assert.equal(withBanner.x, noBanner.x);
+  });
+});
+
+// ── computeCanvasMoveTarget ──────────────────────────────────────────────────
+// Backs the keyboard-operable canvas card move alternative (#486 phase 3).
+describe('computeCanvasMoveTarget()', () => {
+  test('up from a non-zero row targets the row above', () => {
+    assert.deepEqual(computeCanvasMoveTarget(2, 3, 'up'), { col: 2, row: 2 });
+  });
+
+  test('up from row 0 is a no-op (undefined) — no negative grid coordinates', () => {
+    assert.equal(computeCanvasMoveTarget(2, 0, 'up'), undefined);
+  });
+
+  test('down always targets the row below, even past the currently occupied extent', () => {
+    assert.deepEqual(computeCanvasMoveTarget(2, 3, 'down'), { col: 2, row: 4 });
+    assert.deepEqual(computeCanvasMoveTarget(0, 0, 'down'), { col: 0, row: 1 });
+  });
+
+  test('left from a non-zero column targets the column before', () => {
+    assert.deepEqual(computeCanvasMoveTarget(3, 2, 'left'), { col: 2, row: 2 });
+  });
+
+  test('left from column 0 is a no-op (undefined) — no negative grid coordinates', () => {
+    assert.equal(computeCanvasMoveTarget(0, 2, 'left'), undefined);
+  });
+
+  test('right always targets the column after, even past the currently occupied extent', () => {
+    assert.deepEqual(computeCanvasMoveTarget(3, 2, 'right'), { col: 4, row: 2 });
+    assert.deepEqual(computeCanvasMoveTarget(0, 0, 'right'), { col: 1, row: 0 });
+  });
+
+  test('origin cell (0,0): up and left are no-ops, down and right advance', () => {
+    assert.equal(computeCanvasMoveTarget(0, 0, 'up'), undefined);
+    assert.equal(computeCanvasMoveTarget(0, 0, 'left'), undefined);
+    assert.deepEqual(computeCanvasMoveTarget(0, 0, 'down'), { col: 0, row: 1 });
+    assert.deepEqual(computeCanvasMoveTarget(0, 0, 'right'), { col: 1, row: 0 });
   });
 });
