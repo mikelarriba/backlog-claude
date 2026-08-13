@@ -21,6 +21,7 @@ import {
   renderMarkdown,
 } from './state.js';
 import { loadDocs } from './list.js';
+import { openDoc } from './detail.js';
 import {
   buildCanvasGraph,
   renderCanvas,
@@ -28,7 +29,90 @@ import {
   _renderFpCanvas,
   computeAutoLayout,
 } from './refine-canvas.js';
-import { _showEpicContextMenu } from './refine-nodes.js';
+import { toggleManageLinks } from './refine-edges.js';
+import { _fpCreateChild, _showEpicContextMenu } from './refine-nodes.js';
+import { registerActions } from './actions.js';
+// Typed data-action names for the refine panel's (epic/story/spike/bug
+// create & edit forms) buttons (issue #461 migration — see actions.ts and
+// CTX_ACTIONS in list-filters.ts / EDGE_ACTIONS in refine-edges.ts for the
+// established pattern). Replaces the onclick="openCreatePanel(...)" /
+// onclick="closeRefinePanel()" / etc. strings previously built by
+// hand-interpolating escHtml() args into the template, which reached these
+// handlers through main.ts's untyped window bridge instead of a direct,
+// typed call.
+//
+// The refine panel's title/SP inline-edit inputs (onblur="saveRpTitle()" /
+// onblur="saveRpStoryPoints(...)" / onkeydown="...") are left as-is — they
+// aren't onclick/onchange handlers and the data-action dispatcher only
+// covers the delegated 'click' listener in main.ts, not 'blur'/'keydown'.
+// The priority <select>'s onchange is migrated below via a direct
+// addEventListener attached right after render (matching the existing
+// convention for 'change' listeners elsewhere, e.g. jira-push.ts /
+// roadmap-jira-sync.ts) instead of data-action, since dispatchAction is
+// wired only to the document's 'click' listener.
+export const REFINE_ACTIONS = {
+  openCreatePanel: 'refineOpenCreatePanel',
+  toggleManageLinks: 'refineToggleManageLinks',
+  toggleEpicPanel: 'refineToggleEpicPanel',
+  fpCreateChild: 'refineFpCreateChild',
+  openEpicPanel: 'refineOpenEpicPanel',
+  closePanel: 'refineClosePanel',
+  toggleUpgrade: 'refineToggleUpgrade',
+  openDocAndClose: 'refineOpenDocAndClose',
+  confirmDelete: 'refineConfirmDelete',
+  executeUpgrade: 'refineExecuteUpgrade',
+  removeDep: 'refineRemoveDep',
+  executeCreate: 'refineExecuteCreate',
+};
+registerActions({
+  [REFINE_ACTIONS.openCreatePanel]: (el) => {
+    openCreatePanel(el.dataset.doctype ?? '');
+  },
+  [REFINE_ACTIONS.toggleManageLinks]: () => {
+    toggleManageLinks();
+  },
+  [REFINE_ACTIONS.toggleEpicPanel]: (el) => {
+    _toggleEpicPanel(el.dataset.epicFilename ?? '', el.dataset.featureFilename ?? '');
+  },
+  [REFINE_ACTIONS.fpCreateChild]: (el) => {
+    void _fpCreateChild(
+      el.dataset.doctype ?? '',
+      el.dataset.epicFilename ?? '',
+      el.dataset.featureFilename ?? ''
+    );
+  },
+  [REFINE_ACTIONS.openEpicPanel]: (el) => {
+    void openManualRefine(el.dataset.epicFilename ?? '', 'epic');
+  },
+  [REFINE_ACTIONS.closePanel]: () => {
+    closeRefinePanel();
+  },
+  [REFINE_ACTIONS.toggleUpgrade]: () => {
+    toggleRpUpgrade();
+  },
+  [REFINE_ACTIONS.openDocAndClose]: (el) => {
+    openDoc(el.dataset.filename ?? '', el.dataset.doctype ?? '');
+    closeRefineView();
+  },
+  [REFINE_ACTIONS.confirmDelete]: (el) => {
+    void confirmRpDelete(el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+  [REFINE_ACTIONS.executeUpgrade]: (el) => {
+    void executeRpUpgrade(el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+  [REFINE_ACTIONS.removeDep]: (el) => {
+    void _removeCanvasLink(
+      el.dataset.linkType ?? '',
+      el.dataset.srcFilename ?? '',
+      el.dataset.srcDoctype ?? '',
+      el.dataset.tgtFilename ?? '',
+      el.dataset.tgtDoctype ?? ''
+    );
+  },
+  [REFINE_ACTIONS.executeCreate]: (el) => {
+    void executeRpCreate(el.dataset.doctype ?? '');
+  },
+});
 // ── Card search / filter ──────────────────────────────────────
 export function onCanvasSearch(query) {
   const cards = document.querySelectorAll('#refine-canvas .canvas-card');
@@ -75,13 +159,13 @@ export async function openManualRefine(filename, docType) {
   const addBtns = document.getElementById('refine-add-btns');
   if (addBtns) {
     if (docType === 'feature') {
-      addBtns.innerHTML = `<button class="btn-xs" onclick="openCreatePanel('epic')">＋ Epic</button>`;
+      addBtns.innerHTML = `<button class="btn-xs" data-action="${REFINE_ACTIONS.openCreatePanel}" data-doctype="epic">＋ Epic</button>`;
     } else {
       addBtns.innerHTML = `
-      <button class="btn-xs green" onclick="openCreatePanel('story')">＋ Story</button>
-      <button class="btn-xs" onclick="openCreatePanel('spike')">＋ Spike</button>
-      <button class="btn-xs red" onclick="openCreatePanel('bug')">＋ Bug</button>
-      <button class="btn-xs" id="manage-links-btn" onclick="toggleManageLinks()">⛓ Manage Links</button>`;
+      <button class="btn-xs green" data-action="${REFINE_ACTIONS.openCreatePanel}" data-doctype="story">＋ Story</button>
+      <button class="btn-xs" data-action="${REFINE_ACTIONS.openCreatePanel}" data-doctype="spike">＋ Spike</button>
+      <button class="btn-xs red" data-action="${REFINE_ACTIONS.openCreatePanel}" data-doctype="bug">＋ Bug</button>
+      <button class="btn-xs" id="manage-links-btn" data-action="${REFINE_ACTIONS.toggleManageLinks}">⛓ Manage Links</button>`;
     }
   }
   closeRefinePanel();
@@ -222,7 +306,7 @@ function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
   panel.className = 'feature-panel' + (isCollapsed ? ' fp-collapsed' : '');
   panel.dataset.epicFilename = epic.filename;
   panel.innerHTML = `
-    <div class="fp-header" onclick="_toggleEpicPanel('${ef}','${ff}')">
+    <div class="fp-header" data-action="${REFINE_ACTIONS.toggleEpicPanel}" data-epic-filename="${ef}" data-feature-filename="${ff}">
       <span class="fp-chevron">${isCollapsed ? '▶' : '▼'}</span>
       <span class="type-badge epic">Epic</span>
       <span class="fp-title">${escHtml(epic.title || epic.filename)}</span>
@@ -230,10 +314,10 @@ function _renderEpicPanel(epic, ps, featureFilename, isCollapsed) {
     </div>
     <div class="fp-body">
       <div class="fp-toolbar">
-        <button class="btn-xs green" onclick="_fpCreateChild('story','${ef}','${ff}')">＋ Story</button>
-        <button class="btn-xs" onclick="_fpCreateChild('spike','${ef}','${ff}')">＋ Spike</button>
-        <button class="btn-xs red" onclick="_fpCreateChild('bug','${ef}','${ff}')">＋ Bug</button>
-        <button class="btn-xs" onclick="openManualRefine('${ef}','epic')">↗ Open Epic</button>
+        <button class="btn-xs green" data-action="${REFINE_ACTIONS.fpCreateChild}" data-doctype="story" data-epic-filename="${ef}" data-feature-filename="${ff}">＋ Story</button>
+        <button class="btn-xs" data-action="${REFINE_ACTIONS.fpCreateChild}" data-doctype="spike" data-epic-filename="${ef}" data-feature-filename="${ff}">＋ Spike</button>
+        <button class="btn-xs red" data-action="${REFINE_ACTIONS.fpCreateChild}" data-doctype="bug" data-epic-filename="${ef}" data-feature-filename="${ff}">＋ Bug</button>
+        <button class="btn-xs" data-action="${REFINE_ACTIONS.openEpicPanel}" data-epic-filename="${ef}">↗ Open Epic</button>
       </div>
       <div class="fp-canvas" id="fp-canvas-${ef}"></div>
     </div>`;
@@ -278,7 +362,7 @@ export async function openRefinePanel(filename, docType) {
       <div class="rp-header">
         <div class="rp-meta">
           <span class="type-badge ${docType}">${TYPE_LABEL[docType] || docType}</span>
-          <button class="rp-close" onclick="closeRefinePanel()" title="Close">✕</button>
+          <button class="rp-close" data-action="${REFINE_ACTIONS.closePanel}" title="Close">✕</button>
         </div>
         <input class="rp-title-input" id="rp-title-input" type="text"
           value="${escHtml(title)}" data-original="${escHtml(title)}"
@@ -299,8 +383,7 @@ export async function openRefinePanel(filename, docType) {
           }
           <div class="rp-edit-field">
             <label class="rp-edit-label">Priority</label>
-            <select class="rp-priority-select" id="rp-priority-select"
-              onchange="saveRpPriority('${ef}','${et}')">
+            <select class="rp-priority-select" id="rp-priority-select">
               <option value="Critical"${pri === 'Critical' ? ' selected' : ''}>Critical</option>
               <option value="High"${pri === 'High' ? ' selected' : ''}>High</option>
               <option value="Medium"${pri === 'Medium' ? ' selected' : ''}>Medium</option>
@@ -310,17 +393,17 @@ export async function openRefinePanel(filename, docType) {
         </div>
       </div>
       <div class="rp-toolbar">
-        <button class="btn-xs" onclick="toggleRpUpgrade()">↑ Upgrade</button>
-        <button class="btn-xs" onclick="openDoc('${ef}','${et}');closeRefineView()">↗ Open</button>
-        ${docType !== 'feature' ? `<button class="btn-xs red" onclick="confirmRpDelete('${ef}','${et}')">Delete</button>` : ''}
+        <button class="btn-xs" data-action="${REFINE_ACTIONS.toggleUpgrade}">↑ Upgrade</button>
+        <button class="btn-xs" data-action="${REFINE_ACTIONS.openDocAndClose}" data-filename="${ef}" data-doctype="${et}">↗ Open</button>
+        ${docType !== 'feature' ? `<button class="btn-xs red" data-action="${REFINE_ACTIONS.confirmDelete}" data-filename="${ef}" data-doctype="${et}">Delete</button>` : ''}
       </div>
       <div class="rp-upgrade-wrap" id="rp-upgrade-wrap" style="display:none">
         <textarea class="rp-textarea" id="rp-upgrade-text"
           placeholder="Describe what to change or improve…"></textarea>
         <div class="rp-btn-row">
           <button class="btn-xs green" id="rp-upgrade-run"
-            onclick="executeRpUpgrade('${ef}','${et}')">Regenerate</button>
-          <button class="btn-xs" onclick="toggleRpUpgrade()">Cancel</button>
+            data-action="${REFINE_ACTIONS.executeUpgrade}" data-filename="${ef}" data-doctype="${et}">Regenerate</button>
+          <button class="btn-xs" data-action="${REFINE_ACTIONS.toggleUpgrade}">Cancel</button>
         </div>
         <div class="rp-stream" id="rp-upgrade-stream" style="display:none"></div>
       </div>
@@ -331,6 +414,14 @@ export async function openRefinePanel(filename, docType) {
         <div class="rp-loading">Loading dependencies…</div>
       </div>
       <div class="rp-comments-section comments-section hidden" id="rp-comments-section"></div>`;
+    // Priority <select> onchange: attached directly (not via data-action)
+    // since the typed dispatchAction() registry is wired only to the
+    // document's delegated 'click' listener in main.ts, not 'change' — this
+    // matches the existing direct-addEventListener convention for 'change'
+    // listeners elsewhere (jira-push.ts, roadmap-jira-sync.ts).
+    document.getElementById('rp-priority-select')?.addEventListener('change', () => {
+      void saveRpPriority(filename, docType);
+    });
     // Load and render dependency section and comments
     _loadRpDeps(filename, docType);
     _renderComments(
@@ -356,7 +447,9 @@ async function _loadRpDeps(filename, docType) {
       return `<div class="rp-dep-row">
         <span class="rp-dep-title">${escHtml(item.title || item.filename)}</span>
         <button class="btn-ghost btn-xs dep-remove-btn"
-          onclick="_removeCanvasLink('${lType}','${escHtml(filename)}','${escHtml(docType)}','${ef}','${et}')">&times;</button>
+          data-action="${REFINE_ACTIONS.removeDep}" data-link-type="${lType}"
+          data-src-filename="${escHtml(filename)}" data-src-doctype="${escHtml(docType)}"
+          data-tgt-filename="${ef}" data-tgt-doctype="${et}">&times;</button>
       </div>`;
     }
     const blocks = data.blocks || [];
@@ -582,7 +675,7 @@ export function openCreatePanel(type) {
         <span class="type-badge ${type}">${TYPE_LABEL[type] || type}</span>
         <span class="rp-title">New ${TYPE_LABEL[type]}</span>
       </div>
-      <button class="rp-close" onclick="closeRefinePanel()" title="Close">✕</button>
+      <button class="rp-close" data-action="${REFINE_ACTIONS.closePanel}" title="Close">✕</button>
     </div>
     <div class="rp-create-form">
       <div class="rp-field">
@@ -597,8 +690,8 @@ export function openCreatePanel(type) {
       </div>
       <div class="rp-btn-row">
         <button class="btn-xs green" id="rp-create-btn"
-          onclick="executeRpCreate('${type}')">Generate &amp; Link</button>
-        <button class="btn-xs" onclick="closeRefinePanel()">Cancel</button>
+          data-action="${REFINE_ACTIONS.executeCreate}" data-doctype="${type}">Generate &amp; Link</button>
+        <button class="btn-xs" data-action="${REFINE_ACTIONS.closePanel}">Cancel</button>
       </div>
       <div class="rp-stream" id="rp-create-stream" style="display:none"></div>
     </div>`;
