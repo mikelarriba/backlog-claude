@@ -136,18 +136,14 @@ export async function searchJira() {
     }
   }
 }
-export function renderJiraResults(issues) {
-  const el = document.getElementById('jira-results');
-  if (!issues.length) {
-    el.innerHTML = '<div class="jira-empty">No results</div>';
-    document.getElementById('jira-download-btn')?.classList.add('hidden');
-    return;
-  }
-  el.innerHTML = issues
-    .map(
-      (issue, i) => `
-    <div class="jira-result-item ${issue.localExists ? 'local-exists' : ''}" data-action="${JIRA_IMPORT_ACTIONS.toggleItem}" data-index="${i}">
-      <input type="checkbox" id="jira-cb-${i}" />
+// Pure: renders a single search-result row's HTML (checkbox, key, summary,
+// type/status badges, and the "✓ Local" badge when the issue already exists
+// locally). Extracted from renderJiraResults' list-building `.map()' so the
+// localExists branching and escaping are unit-testable without a DOM.
+export function buildJiraResultItemHtml(issue, idx) {
+  return `
+    <div class="jira-result-item ${issue.localExists ? 'local-exists' : ''}" data-action="${JIRA_IMPORT_ACTIONS.toggleItem}" data-index="${idx}">
+      <input type="checkbox" id="jira-cb-${idx}" />
       <div class="jira-result-body">
         <div class="jira-result-key">${escHtml(issue.key)}</div>
         <div class="jira-result-summary" title="${escHtml(issue.summary)}">${escHtml(issue.summary)}</div>
@@ -157,9 +153,16 @@ export function renderJiraResults(issues) {
           ${issue.localExists ? `<span class="jira-badge local" title="${escHtml(issue.localFilename || '')}">✓ Local</span>` : ''}
         </div>
       </div>
-    </div>`
-    )
-    .join('');
+    </div>`;
+}
+export function renderJiraResults(issues) {
+  const el = document.getElementById('jira-results');
+  if (!issues.length) {
+    el.innerHTML = '<div class="jira-empty">No results</div>';
+    document.getElementById('jira-download-btn')?.classList.add('hidden');
+    return;
+  }
+  el.innerHTML = issues.map((issue, i) => buildJiraResultItemHtml(issue, i)).join('');
   updateDownloadBtn();
 }
 export function toggleJiraItem(index) {

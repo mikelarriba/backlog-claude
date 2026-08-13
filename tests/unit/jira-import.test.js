@@ -1,8 +1,8 @@
 // ── Unit tests: public/js/jira-import.js ────────────────────────────────────
-// Pure key-parsing, children-merging, and count/grouping helpers extracted
-// from the JIRA import/children-download flow (#460). jira-import.js only
-// imports state.js (no DOM-heavy transitive imports), so no module mocking
-// is needed here — just the window shim state.js relies on.
+// Pure key-parsing, children-merging, count/grouping, and result-row HTML
+// helpers extracted from the JIRA import/children-download flow (#460).
+// jira-import.js only imports state.js (no DOM-heavy transitive imports), so
+// no module mocking is needed here — just the window shim state.js relies on.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import '../helpers/domGlobals.js';
@@ -11,6 +11,7 @@ import {
   mergeChildrenResults,
   summarizeChildrenCounts,
   groupSelectedChildrenByParent,
+  buildJiraResultItemHtml,
 } from '../../public/js/jira-import.js';
 
 // ── parseJiraKeysInput ───────────────────────────────────────────────────────
@@ -143,5 +144,78 @@ describe('groupSelectedChildrenByParent()', () => {
     assert.equal(groups.length, 1);
     assert.deepEqual(groups[0].childKeys, []);
     assert.deepEqual(groups[0].overwriteKeys, []);
+  });
+});
+
+// ── buildJiraResultItemHtml ───────────────────────────────────────────────────
+describe('buildJiraResultItemHtml()', () => {
+  function issue(extra = {}) {
+    return {
+      key: 'PROJ-1',
+      summary: 'Do the thing',
+      issuetype: 'Story',
+      status: 'To Do',
+      ...extra,
+    };
+  }
+
+  test('renders the key, summary, type badge, and status badge', () => {
+    const html = buildJiraResultItemHtml(issue(), 0);
+    assert.match(html, /jira-result-key">PROJ-1</);
+    assert.match(html, /jira-result-summary" title="Do the thing">Do the thing</);
+    assert.match(html, /jira-badge type-Story">Story</);
+    assert.match(html, /jira-badge status">To Do</);
+  });
+
+  test('wires up the toggle-item data-action and the row index', () => {
+    const html = buildJiraResultItemHtml(issue(), 3);
+    assert.match(html, /data-action="jiraImportToggleItem" data-index="3"/);
+    assert.match(html, /id="jira-cb-3"/);
+  });
+
+  test('an issue not already local: no "local-exists" class and no local badge', () => {
+    const html = buildJiraResultItemHtml(issue({ localExists: false }), 0);
+    assert.doesNotMatch(html, /local-exists/);
+    assert.doesNotMatch(html, /✓ Local/);
+  });
+
+  test('an issue that already exists locally gets the "local-exists" class and the local badge', () => {
+    const html = buildJiraResultItemHtml(
+      issue({ localExists: true, localFilename: 'proj-1.md' }),
+      0
+    );
+    assert.match(html, /jira-result-item local-exists"/);
+    assert.match(html, /jira-badge local" title="proj-1\.md">✓ Local</);
+  });
+
+  test('localExists with no localFilename renders the local badge with an empty title', () => {
+    const html = buildJiraResultItemHtml(issue({ localExists: true }), 0);
+    assert.match(html, /jira-badge local" title="">✓ Local</);
+  });
+
+  test('escapes HTML-significant characters in key and summary', () => {
+    const html = buildJiraResultItemHtml(
+      issue({ key: 'PROJ-<1>', summary: '<script>alert("x")</script> & "quoted"' }),
+      0
+    );
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /jira-result-key">PROJ-&lt;1&gt;</);
+    assert.match(
+      html,
+      /&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt; &amp; &quot;quoted&quot;/
+    );
+  });
+
+  test('escapes HTML-significant characters in the issue type used in both the CSS class and label', () => {
+    const html = buildJiraResultItemHtml(issue({ issuetype: '<Epic>' }), 0);
+    assert.match(html, /jira-badge type-&lt;Epic&gt;">&lt;Epic&gt;</);
+  });
+
+  test('escapes HTML-significant characters in the local filename title', () => {
+    const html = buildJiraResultItemHtml(
+      issue({ localExists: true, localFilename: '"weird" <name>.md' }),
+      0
+    );
+    assert.match(html, /title="&quot;weird&quot; &lt;name&gt;\.md">✓ Local/);
   });
 });
