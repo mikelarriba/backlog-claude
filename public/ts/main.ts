@@ -1117,7 +1117,7 @@ document.addEventListener('change', (e: Event) => {
 //     click — this migration fixes that as a side effect.)
 //   - The refine panel's epic/story/spike/bug create & edit forms
 //     (refine.ts's openManualRefine/_renderEpicPanel/openRefinePanel/
-//     openCreatePanel templates). Its ten handlers (refineOpenCreatePanel,
+//     openCreatePanel templates). Its twelve handlers (refineOpenCreatePanel,
 //     refineToggleManageLinks [wraps refine-edges.ts's toggleManageLinks],
 //     refineToggleEpicPanel [wraps _toggleEpicPanel], refineFpCreateChild
 //     [wraps refine-nodes.ts's _fpCreateChild], refineOpenEpicPanel,
