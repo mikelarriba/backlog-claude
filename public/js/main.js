@@ -87,14 +87,8 @@ import {
 import { pullFromJira, checkAllJira, submitUpdateFromJiraKey } from './jira-pull.js';
 import { openBugForm, closeBugForm, onBugFilesSelected, submitBugReport } from './bugcreate.js';
 import { resetCanvasLayout } from './refine-canvas.js';
+import { _showEdgePopup, _deleteCanvasLink, _changeCanvasLinkType } from './refine-edges.js';
 import {
-  _showEdgePopup,
-  _deleteCanvasLink,
-  _changeCanvasLinkType,
-  toggleManageLinks,
-} from './refine-edges.js';
-import {
-  _fpCreateChild,
   _showCardContextMenu,
   _showFpCardContextMenu,
   _fpMoveToEpic,
@@ -113,19 +107,11 @@ import {
   openManualRefine,
   closeRefineView,
   resetRefineViewState,
-  _toggleEpicPanel,
   closeRefinePanel,
   openRefinePanel,
-  _removeCanvasLink,
   saveRpTitle,
   cancelRpTitleEdit,
   saveRpStoryPoints,
-  saveRpPriority,
-  toggleRpUpgrade,
-  executeRpUpgrade,
-  confirmRpDelete,
-  openCreatePanel,
-  executeRpCreate,
 } from './refine.js';
 import {
   exportEpicToPdf,
@@ -1024,7 +1010,24 @@ document.addEventListener('change', (e) => {
 //     detail-links.ts. (This handler was previously unreachable at runtime:
 //     it was never added to this bridge, so the button silently threw on
 //     click — this migration fixes that as a side effect.)
-// All eight now self-register via registerActions() instead.
+//   - The refine panel's epic/story/spike/bug create & edit forms
+//     (refine.ts's openManualRefine/_renderEpicPanel/openRefinePanel/
+//     openCreatePanel templates). Its ten handlers (refineOpenCreatePanel,
+//     refineToggleManageLinks [wraps refine-edges.ts's toggleManageLinks],
+//     refineToggleEpicPanel [wraps _toggleEpicPanel], refineFpCreateChild
+//     [wraps refine-nodes.ts's _fpCreateChild], refineOpenEpicPanel,
+//     refineClosePanel, refineToggleUpgrade, refineOpenDocAndClose,
+//     refineConfirmDelete, refineExecuteUpgrade, refineRemoveDep,
+//     refineExecuteCreate) are intentionally absent below — see
+//     REFINE_ACTIONS in refine.ts. (closeRefinePanel, openRefinePanel,
+//     saveRpTitle, cancelRpTitleEdit and saveRpStoryPoints stay on this
+//     bridge: the first two are still reached via onclick="closeRefinePanel()"
+//     strings in refine-nodes.ts's not-yet-migrated popups, and the inline-
+//     edit inputs' onblur/onkeydown attributes are out of scope for the
+//     data-action click dispatcher. The priority <select>'s onchange now
+//     calls saveRpPriority directly via addEventListener instead of the
+//     bridge.)
+// All nine views now self-register via registerActions() instead.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1050,28 +1053,21 @@ const _dynGlobals = {
   saveTitle,
   cancelTitleEdit,
   saveStoryPoints,
-  // refine.js — rendered in refine-nodes, refine-edges, refine.ts templates
-  openManualRefine,
+  // refine.js — closeRefinePanel/openRefinePanel are still reached via
+  // onclick="..." strings in refine-nodes.ts's not-yet-migrated popups;
+  // saveRpTitle/cancelRpTitleEdit/saveRpStoryPoints back the refine panel's
+  // inline-edit inputs' onblur/onkeydown attributes (out of scope for the
+  // data-action click dispatcher — see REFINE_ACTIONS in refine.ts).
   closeRefinePanel,
   openRefinePanel,
-  _toggleEpicPanel,
-  _removeCanvasLink,
   saveRpTitle,
   cancelRpTitleEdit,
   saveRpStoryPoints,
-  saveRpPriority,
-  toggleRpUpgrade,
-  executeRpUpgrade,
-  confirmRpDelete,
-  openCreatePanel,
-  executeRpCreate,
   // refine-edges.ts
   _showEdgePopup,
   _deleteCanvasLink,
   _changeCanvasLinkType,
-  toggleManageLinks,
   // refine-nodes.ts
-  _fpCreateChild,
   _showCardContextMenu,
   _showFpCardContextMenu,
   _fpMoveToEpic,
