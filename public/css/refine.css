@@ -589,6 +589,15 @@
   font-weight: 600;
 }
 
+/* Source card while keyboard link-mode is active — Enter/Space on a handle
+   picked it up; Tab to another card's handle and press Enter/Space to
+   confirm, or Escape to cancel (#486 phase 4/N). */
+.canvas-card.canvas-link-source {
+  border-color: var(--accent);
+  border-style: dashed;
+  box-shadow: 0 0 0 2px var(--accent-subtle, rgba(0, 150, 214, 0.15));
+}
+
 /* ── Canvas handles (link creation — only in Manage Links mode) ─ */
 .canvas-handle {
   position: absolute;
@@ -603,6 +612,14 @@
 
 #refine-canvas.manage-links-active .canvas-handle {
   display: block;
+}
+
+/* Visible focus ring for the keyboard link-creation alternative
+   (#486 phase 4/N) — the handles are only 10px dots, so the ring is drawn
+   a little outside the dot to stay legible. */
+.canvas-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .canvas-handle--top {
