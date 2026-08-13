@@ -1,7 +1,7 @@
 // ── Refine edge/link popups and manage-links mode ─────────────
 import { showJiraToast, escHtml, getErrorMessage, postJSON, fetchJSON } from './state.js';
 import { loadDocs } from './list.js';
-import { rebuildCanvasEdges, renderCanvas } from './refine-canvas.js';
+import { rebuildCanvasEdges, renderCanvas, _endCanvasLinkMode } from './refine-canvas.js';
 import { registerActions } from './actions.js';
 
 // Typed data-action names for _showLinkPopup's buttons (issue #461 migration —
@@ -174,6 +174,10 @@ export function _restoreManageLinksState(): void {
 // ── Manage Links mode ──────────────────────────────────────────
 export function toggleManageLinks(): void {
   _canvasManageLinks = !_canvasManageLinks;
+  // Leaving Manage Links mode drops the (now hidden/unfocusable) handles
+  // from the tab order — clear any in-progress keyboard link mode so it
+  // can't linger as stale state (#486 phase 4/N).
+  if (!_canvasManageLinks) _endCanvasLinkMode();
   const btn = document.getElementById('manage-links-btn');
   if (btn) btn.classList.toggle('active', _canvasManageLinks);
   // CSS controls handle visibility via this class
