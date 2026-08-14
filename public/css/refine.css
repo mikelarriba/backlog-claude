@@ -514,6 +514,7 @@
   background: var(--muted);
 }
 .canvas-card:hover .canvas-move-handle,
+.fp-card:hover .canvas-move-handle,
 .canvas-move-handle:focus-visible {
   opacity: 1;
 }
