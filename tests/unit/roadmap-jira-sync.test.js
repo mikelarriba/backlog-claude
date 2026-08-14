@@ -20,8 +20,10 @@ const {
   countSprintPushChangesByType,
   formatSprintChangeArrow,
   sprintChangeBadgeLabel,
+  buildSprintPushRowHtml,
   JIRA_TYPE_TO_LOCAL,
   summarizeSprintPushResult,
+  buildPullSprintResultItemHtml,
   summarizePullSprintResult,
 } = await import('../../public/js/roadmap-jira-sync.js');
 
@@ -164,6 +166,74 @@ describe('sprintChangeBadgeLabel()', () => {
   });
 });
 
+// ── buildSprintPushRowHtml ────────────────────────────────────────────────────
+describe('buildSprintPushRowHtml()', () => {
+  function change(extra = {}) {
+    return {
+      changeType: 'add',
+      jiraId: 'PROJ-1',
+      title: 'Do the thing',
+      filename: 'do-the-thing.md',
+      docType: 'story',
+      targetSprint: 'Sprint 3',
+      ...extra,
+    };
+  }
+
+  test('renders the title, key, arrow, and change-type badge', () => {
+    const html = buildSprintPushRowHtml(change());
+    assert.match(html, /sprint-push-item-title" title="Do the thing">Do the thing</);
+    assert.match(html, /sprint-push-item-key">PROJ-1</);
+    assert.match(html, /sprint-push-item-arrow">— → Sprint 3</);
+    assert.match(html, /sprint-push-badge sprint-push-badge-add">push</);
+  });
+
+  test('wires up the checkbox data-* attributes from the change', () => {
+    const html = buildSprintPushRowHtml(change());
+    assert.match(
+      html,
+      /data-jira-id="PROJ-1" data-change-type="add"[\s\S]*data-filename="do-the-thing\.md" data-target-sprint="Sprint 3"[\s\S]*data-doc-type="story"/
+    );
+    assert.match(html, /onchange="_sprintPushUpdateCount\(\)"/);
+  });
+
+  test('missing filename, targetSprint, and docType fall back to empty attribute values', () => {
+    const html = buildSprintPushRowHtml(
+      change({ filename: undefined, targetSprint: undefined, docType: undefined })
+    );
+    assert.match(html, /data-filename="" data-target-sprint=""/);
+    assert.match(html, /data-doc-type=""/);
+  });
+
+  test('a "change" type renders the current -> target arrow and "change" badge', () => {
+    const html = buildSprintPushRowHtml(
+      change({ changeType: 'change', currentJiraSprint: 'Sprint 1', targetSprint: 'Sprint 2' })
+    );
+    assert.match(html, /sprint-push-item-arrow">Sprint 1 → Sprint 2</);
+    assert.match(html, /sprint-push-badge sprint-push-badge-change">change</);
+  });
+
+  test('a "pull" type renders the JIRA -> local arrow and "pull" badge', () => {
+    const html = buildSprintPushRowHtml(
+      change({ changeType: 'pull', currentJiraSprint: 'Sprint 1' })
+    );
+    assert.match(html, /sprint-push-item-arrow">JIRA: Sprint 1 → local</);
+    assert.match(html, /sprint-push-badge sprint-push-badge-pull">pull</);
+  });
+
+  test('escapes HTML-significant characters in the title and jiraId', () => {
+    const html = buildSprintPushRowHtml(
+      change({ title: '<script>alert("x")</script> & "quoted"', jiraId: 'PROJ-<1>' })
+    );
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(
+      html,
+      /title="&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt; &amp; &quot;quoted&quot;"/
+    );
+    assert.match(html, /sprint-push-item-key">PROJ-&lt;1&gt;</);
+  });
+});
+
 // ── JIRA_TYPE_TO_LOCAL ────────────────────────────────────────────────────────
 describe('JIRA_TYPE_TO_LOCAL', () => {
   test('maps known JIRA issue types to local doc types', () => {
@@ -208,6 +278,82 @@ describe('summarizeSprintPushResult()', () => {
     assert.equal(msg, 'Sprint sync: 0 updated');
     assert.equal(pulled, 0);
     assert.equal(errors, 0);
+  });
+});
+
+// ── buildPullSprintResultItemHtml ─────────────────────────────────────────────
+describe('buildPullSprintResultItemHtml()', () => {
+  function result(extra = {}) {
+    return {
+      key: 'PROJ-1',
+      issuetype: 'Story',
+      summary: 'Do the thing',
+      sprintName: 'Sprint 3',
+      ...extra,
+    };
+  }
+
+  test('renders the type badge, key, summary, and sprint meta', () => {
+    const html = buildPullSprintResultItemHtml(result());
+    assert.match(html, /sprint-push-type sprint-push-type-story">Story</);
+    assert.match(html, /<strong>PROJ-1<\/strong> Do the thing/);
+    assert.match(html, /sprint-push-item-meta">Sprint 3 </);
+  });
+
+  test('maps the JIRA issue type to its local type for the badge CSS class', () => {
+    const html = buildPullSprintResultItemHtml(result({ issuetype: 'Bug' }));
+    assert.match(html, /sprint-push-type-bug">Bug</);
+  });
+
+  test('an unmapped issue type falls back to "story" for the badge CSS class', () => {
+    const html = buildPullSprintResultItemHtml(result({ issuetype: 'Something Else' }));
+    assert.match(html, /sprint-push-type-story">Something Else</);
+  });
+
+  test('wires up the checkbox value and data-sprint attribute', () => {
+    const html = buildPullSprintResultItemHtml(result());
+    assert.match(html, /value="PROJ-1" data-sprint="Sprint 3"/);
+    assert.match(html, /onchange="_pullSprintUpdateCount\(\)"/);
+  });
+
+  test('with story points: appends "N SP" to the meta line', () => {
+    const html = buildPullSprintResultItemHtml(result({ storyPoints: 5 }));
+    assert.match(html, /sprint-push-item-meta">Sprint 3 · 5 SP</);
+  });
+
+  test('without story points (undefined or zero): no "SP" suffix in the meta line', () => {
+    const htmlUndefined = buildPullSprintResultItemHtml(result());
+    assert.match(htmlUndefined, /sprint-push-item-meta">Sprint 3 <\/div>/);
+
+    const htmlZero = buildPullSprintResultItemHtml(result({ storyPoints: 0 }));
+    assert.match(htmlZero, /sprint-push-item-meta">Sprint 3 <\/div>/);
+  });
+
+  test('a null story points value: no "SP" suffix in the meta line', () => {
+    const html = buildPullSprintResultItemHtml(result({ storyPoints: null }));
+    assert.match(html, /sprint-push-item-meta">Sprint 3 <\/div>/);
+  });
+
+  test('escapes HTML-significant characters in key, summary, and sprint name', () => {
+    const html = buildPullSprintResultItemHtml(
+      result({
+        key: 'PROJ-<1>',
+        summary: '<script>alert("x")</script> & "quoted"',
+        sprintName: '<Sprint> & "co"',
+      })
+    );
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /<strong>PROJ-&lt;1&gt;<\/strong>/);
+    assert.match(
+      html,
+      /&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt; &amp; &quot;quoted&quot;/
+    );
+    assert.match(html, /sprint-push-item-meta">&lt;Sprint&gt; &amp; &quot;co&quot; /);
+  });
+
+  test('escapes HTML-significant characters in the issue type used in both the CSS class and label', () => {
+    const html = buildPullSprintResultItemHtml(result({ issuetype: '<Epic>' }));
+    assert.match(html, /sprint-push-type-story">&lt;Epic&gt;</);
   });
 });
 

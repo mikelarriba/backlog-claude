@@ -213,6 +213,24 @@ export function formatSprintChangeArrow(c) {
 export function sprintChangeBadgeLabel(c) {
   return c.changeType === 'add' ? 'push' : c.changeType === 'pull' ? 'pull' : c.changeType;
 }
+// Pure: renders a single sprint-push preview row's HTML (checkbox with its
+// data-* attributes, title, key, arrow, and change-type badge). Extracted
+// from renderSprintPushPreview's row-building loop so the arrow/badge
+// wiring and escaping are unit-testable without a DOM.
+export function buildSprintPushRowHtml(c) {
+  const arrow = formatSprintChangeArrow(c);
+  const badgeLabel = sprintChangeBadgeLabel(c);
+  return `
+      <input type="checkbox" checked data-jira-id="${c.jiraId}" data-change-type="${c.changeType}"
+             data-filename="${c.filename || ''}" data-target-sprint="${c.targetSprint || ''}"
+             data-doc-type="${c.docType || ''}"
+             onchange="_sprintPushUpdateCount()">
+      <span class="sprint-push-item-title" title="${escHtml(c.title)}">${escHtml(c.title)}</span>
+      <span class="sprint-push-item-key">${escHtml(c.jiraId)}</span>
+      <span class="sprint-push-item-arrow">${escHtml(arrow)}</span>
+      <span class="sprint-push-badge sprint-push-badge-${c.changeType}">${escHtml(badgeLabel)}</span>
+    `;
+}
 function renderSprintPushPreview(preview) {
   document.getElementById('sprint-push-loading').classList.remove('show');
   // Filter out items where the sprint hasn't actually changed (client-side safety net)
@@ -242,18 +260,7 @@ function renderSprintPushPreview(preview) {
     const row = document.createElement('label');
     row.className = 'sprint-push-item';
     row.dataset['type'] = c.changeType;
-    const arrow = formatSprintChangeArrow(c);
-    const badgeLabel = sprintChangeBadgeLabel(c);
-    row.innerHTML = `
-      <input type="checkbox" checked data-jira-id="${c.jiraId}" data-change-type="${c.changeType}"
-             data-filename="${c.filename || ''}" data-target-sprint="${c.targetSprint || ''}"
-             data-doc-type="${c.docType || ''}"
-             onchange="_sprintPushUpdateCount()">
-      <span class="sprint-push-item-title" title="${escHtml(c.title)}">${escHtml(c.title)}</span>
-      <span class="sprint-push-item-key">${escHtml(c.jiraId)}</span>
-      <span class="sprint-push-item-arrow">${escHtml(arrow)}</span>
-      <span class="sprint-push-badge sprint-push-badge-${c.changeType}">${escHtml(badgeLabel)}</span>
-    `;
+    row.innerHTML = buildSprintPushRowHtml(c);
     list.appendChild(row);
   }
   _sprintPushUpdateCount();
@@ -427,6 +434,22 @@ export async function startPullSprintPreview() {
     document.getElementById('pull-sprint-error').textContent = getErrorMessage(e);
   }
 }
+// Pure: renders a single pull-sprint-preview result row's HTML (checkbox,
+// type badge, key, summary, and sprint/story-points meta line). Extracted
+// from _renderPullSprintResults' row-building loop so the JIRA_TYPE_TO_LOCAL
+// mapping and story-points conditional are unit-testable without a DOM.
+export function buildPullSprintResultItemHtml(r) {
+  const localType = JIRA_TYPE_TO_LOCAL[r.issuetype] || 'story';
+  const typeBadge = `<span class="sprint-push-type sprint-push-type-${localType}">${escHtml(r.issuetype)}</span>`;
+  const sp = r.storyPoints ? `${r.storyPoints} SP` : '';
+  return `<label class="sprint-push-item">
+      <input type="checkbox" checked value="${escHtml(r.key)}" data-sprint="${escHtml(r.sprintName)}" onchange="_pullSprintUpdateCount()" />
+      <div class="sprint-push-item-info">
+        <div class="sprint-push-item-title">${typeBadge} <strong>${escHtml(r.key)}</strong> ${escHtml(r.summary)}</div>
+        <div class="sprint-push-item-meta">${escHtml(r.sprintName)} ${sp ? '· ' + sp : ''}</div>
+      </div>
+    </label>`;
+}
 function _renderPullSprintResults(results) {
   const container = document.getElementById('pull-sprint-results');
   let html = `<div class="sprint-push-results-header">
@@ -434,16 +457,7 @@ function _renderPullSprintResults(results) {
     <span>${results.length} new issue${results.length !== 1 ? 's' : ''} found</span>
   </div>`;
   for (const r of results) {
-    const localType = JIRA_TYPE_TO_LOCAL[r.issuetype] || 'story';
-    const typeBadge = `<span class="sprint-push-type sprint-push-type-${localType}">${escHtml(r.issuetype)}</span>`;
-    const sp = r.storyPoints ? `${r.storyPoints} SP` : '';
-    html += `<label class="sprint-push-item">
-      <input type="checkbox" checked value="${escHtml(r.key)}" data-sprint="${escHtml(r.sprintName)}" onchange="_pullSprintUpdateCount()" />
-      <div class="sprint-push-item-info">
-        <div class="sprint-push-item-title">${typeBadge} <strong>${escHtml(r.key)}</strong> ${escHtml(r.summary)}</div>
-        <div class="sprint-push-item-meta">${escHtml(r.sprintName)} ${sp ? '· ' + sp : ''}</div>
-      </div>
-    </label>`;
+    html += buildPullSprintResultItemHtml(r);
   }
   container.innerHTML = html;
   document.getElementById('pull-sprint-actions').style.display = '';
