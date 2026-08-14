@@ -138,7 +138,9 @@ export function cellPixelPosition(
 // extent always gets one extra row/col of expansion room (see
 // computeCanvasGridDimensions), so 'down'/'right' are never blocked, while
 // 'up'/'left' stop at row/col 0 since negative grid coordinates aren't a
-// valid layout position (#486 phase 3/N).
+// valid layout position (#486 phase 3/N). Bounds-free by design, so it's
+// reused as-is by the feature multi-panel mini-canvas's own keyboard move
+// below — that grid has no fixed extent either (#486 phase 5/N).
 export function computeCanvasMoveTarget(
   col: number,
   row: number,
@@ -154,6 +156,61 @@ export function computeCanvasMoveTarget(
     case 'right':
       return { col: col + 1, row };
   }
+}
+
+// Shared by the mouse fp-drop-cell drop handler in _renderFpCanvas below and
+// the keyboard-operable move alternative attached to each fp-card's move
+// handle — writes the new grid cell into the panel's layout, persists it,
+// and re-renders. Mirrors applyCanvasCardMove's role for the main canvas so
+// the mouse and keyboard paths cannot drift (#486 phase 5/N).
+async function applyFpCardMove(
+  epicFilename: string,
+  ps: PanelState,
+  featureFilename: string,
+  filename: string,
+  newCol: number,
+  newRow: number
+): Promise<void> {
+  const layoutEntries = ps.layout as Record<string, CanvasPos>;
+  const cur = (layoutEntries[filename] as CanvasPos | undefined) || ({} as CanvasPos);
+  if (cur.col === newCol && cur.row === newRow) return;
+  layoutEntries[filename] = { col: newCol, row: newRow };
+  await saveCanvasLayout(ps, epicFilename);
+  _renderFpCanvas(epicFilename, ps, featureFilename);
+}
+
+// Focus is lost when _renderFpCanvas rebuilds the mini-canvas, since the old
+// card/handle elements are discarded — restore it to the moved card's
+// (re-rendered) move handle, matching refocusCanvasMoveHandle's role for the
+// main canvas (#486 phase 5/N).
+function refocusFpMoveHandle(filename: string): void {
+  setTimeout(() => {
+    document
+      .querySelector<HTMLElement>(
+        `.fp-card[data-filename="${CSS.escape(filename)}"] .canvas-move-handle`
+      )
+      ?.focus();
+  }, 50);
+}
+
+// Keyboard-operable alternative to the HTML5 fp-drop-cell drag reposition in
+// _renderFpCanvas below — moves `filename` one grid cell in `direction`,
+// reusing the same applyFpCardMove() the mouse drop handler uses, then
+// restores focus to the moved card's re-rendered move handle. Purely
+// additive: does not change or remove the existing drag-and-drop behavior
+// (#486 phase 5/N).
+async function moveFpCardByKeyboard(
+  epicFilename: string,
+  ps: PanelState,
+  featureFilename: string,
+  filename: string,
+  pos: CanvasPos,
+  direction: 'up' | 'down' | 'left' | 'right'
+): Promise<void> {
+  const target = computeCanvasMoveTarget(pos.col, pos.row, direction);
+  if (!target) return;
+  await applyFpCardMove(epicFilename, ps, featureFilename, filename, target.col, target.row);
+  refocusFpMoveHandle(filename);
 }
 
 // ── Mini-canvas rendering for feature multi-panel view ────────
@@ -240,7 +297,11 @@ export function _renderFpCanvas(
         <span class="type-badge ${c.docType || 'story'}">${TYPE_LABEL[c.docType || 'story'] || c.docType}</span>
         ${sp ? `<span class="canvas-card-sp">${sp}</span>` : ''}
       </div>
-      <div class="fp-card-title">${escHtml(c.title || c.filename)}</div>`;
+      <div class="fp-card-title">${escHtml(c.title || c.filename)}</div>
+      <div class="canvas-move-handle" role="button" tabindex="0"
+           title="Use arrow keys to move this card one grid cell"
+           aria-label="Move ${escHtml(c.title || c.filename)}. Arrow keys move it one cell within the grid."
+           ><span></span><span></span><span></span><span></span><span></span><span></span></div>`;
     card.addEventListener('click', () => openRefinePanel(c.filename, c.docType || 'story'));
     card.addEventListener('contextmenu', (e: MouseEvent) => {
       e.preventDefault();
@@ -257,6 +318,28 @@ export function _renderFpCanvas(
     card.addEventListener('dragstart', (e: DragEvent) => {
       e.dataTransfer?.setData('text/plain', c.filename);
     });
+
+    // Keyboard-operable alternative to the HTML5 fp-drop-cell drag
+    // reposition below — moves the focused card one grid cell per arrow key
+    // press, reusing the same applyFpCardMove() the mouse drop handler uses.
+    // Purely additive: does not change or remove the existing drag-and-drop
+    // behavior (#486 phase 5/N).
+    const moveHandle = card.querySelector<HTMLElement>('.canvas-move-handle');
+    moveHandle?.addEventListener('click', (e: MouseEvent) => e.stopPropagation());
+    moveHandle?.addEventListener('keydown', (e: KeyboardEvent) => {
+      const directions: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+        ArrowUp: 'up',
+        ArrowDown: 'down',
+        ArrowLeft: 'left',
+        ArrowRight: 'right',
+      };
+      const direction = directions[e.key];
+      if (!direction) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void moveFpCardByKeyboard(epicFilename, ps, featureFilename, c.filename, p, direction);
+    });
+
     wrap.appendChild(card);
 
     // Drop zone cells
@@ -275,9 +358,7 @@ export function _renderFpCanvas(
       cell.classList.remove('drag-over');
       const fn = e.dataTransfer?.getData('text/plain');
       if (!fn || fn === c.filename) return;
-      ps.layout[fn] = { col: p.col, row: p.row };
-      await saveCanvasLayout(ps, epicFilename);
-      _renderFpCanvas(epicFilename, ps, featureFilename);
+      await applyFpCardMove(epicFilename, ps, featureFilename, fn, p.col, p.row);
     });
     wrap.insertBefore(cell, card);
   }
