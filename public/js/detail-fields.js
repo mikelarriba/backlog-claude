@@ -4,6 +4,38 @@
 import { fetchJSON, patchJSON, escHtml, showJiraToast } from './state.js';
 import { upsertDoc } from './store.js';
 import { getSprintsForPi } from './piconfig.js';
+import { registerActions } from './actions.js';
+// Typed data-action names for the comment CRUD buttons in _renderComments
+// (issue #461 migration — see actions.ts and CTX_ACTIONS in list-filters.ts
+// for the established pattern). Replaces the onclick="addDocComment(...)" /
+// onclick="saveCommentEdit(...)" / etc. strings previously built by
+// hand-interpolating escHtml(filename)/escHtml(docType)/escHtml(c.id) into
+// the template, which reached these handlers through main.ts's untyped
+// window bridge instead of a direct, typed call.
+export const DETAIL_COMMENT_ACTIONS = {
+  add: 'detailCommentAdd',
+  startEdit: 'detailCommentStartEdit',
+  cancelEdit: 'detailCommentCancelEdit',
+  saveEdit: 'detailCommentSaveEdit',
+  delete: 'detailCommentDelete',
+};
+registerActions({
+  [DETAIL_COMMENT_ACTIONS.add]: (el) => {
+    void addDocComment(el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+  [DETAIL_COMMENT_ACTIONS.startEdit]: (el) => {
+    startCommentEdit(el.dataset.id ?? '');
+  },
+  [DETAIL_COMMENT_ACTIONS.cancelEdit]: (el) => {
+    cancelCommentEdit(el.dataset.id ?? '');
+  },
+  [DETAIL_COMMENT_ACTIONS.saveEdit]: (el) => {
+    void saveCommentEdit(el.dataset.id ?? '', el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+  [DETAIL_COMMENT_ACTIONS.delete]: (el) => {
+    void deleteDocComment(el.dataset.id ?? '', el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+});
 // ── Internal comments ─────────────────────────────────────────
 export function _parseComments(content) {
   const section = (content.match(/\n## Comments\b([\s\S]*)$/) || [])[1] || '';
@@ -33,13 +65,13 @@ export function _renderComments(comments, filename, docType, containerEl) {
       <div class="comment-edit-wrap hidden" id="comment-edit-${escHtml(c.id)}">
         <textarea class="comment-textarea" id="comment-edit-ta-${escHtml(c.id)}">${escHtml(c.text)}</textarea>
         <div class="comment-btn-row">
-          <button class="btn-xs green" onclick="saveCommentEdit('${escHtml(c.id)}','${escHtml(filename)}','${escHtml(docType)}')">Save</button>
-          <button class="btn-xs" onclick="cancelCommentEdit('${escHtml(c.id)}')">Cancel</button>
+          <button class="btn-xs green" data-action="${DETAIL_COMMENT_ACTIONS.saveEdit}" data-id="${escHtml(c.id)}" data-filename="${escHtml(filename)}" data-doctype="${escHtml(docType)}">Save</button>
+          <button class="btn-xs" data-action="${DETAIL_COMMENT_ACTIONS.cancelEdit}" data-id="${escHtml(c.id)}">Cancel</button>
         </div>
       </div>
       <div class="comment-actions">
-        <button class="btn-ghost btn-xs" onclick="startCommentEdit('${escHtml(c.id)}')">Edit</button>
-        <button class="btn-ghost btn-xs danger-text" onclick="deleteDocComment('${escHtml(c.id)}','${escHtml(filename)}','${escHtml(docType)}')">Delete</button>
+        <button class="btn-ghost btn-xs" data-action="${DETAIL_COMMENT_ACTIONS.startEdit}" data-id="${escHtml(c.id)}">Edit</button>
+        <button class="btn-ghost btn-xs danger-text" data-action="${DETAIL_COMMENT_ACTIONS.delete}" data-id="${escHtml(c.id)}" data-filename="${escHtml(filename)}" data-doctype="${escHtml(docType)}">Delete</button>
       </div>
     </div>`
     )
@@ -50,7 +82,7 @@ export function _renderComments(comments, filename, docType, containerEl) {
     <div class="comment-add">
       <textarea class="comment-textarea" id="new-comment-ta" placeholder="Add a comment…"></textarea>
       <div class="comment-btn-row">
-        <button class="btn-xs green" onclick="addDocComment('${escHtml(filename)}','${escHtml(docType)}')">Save</button>
+        <button class="btn-xs green" data-action="${DETAIL_COMMENT_ACTIONS.add}" data-filename="${escHtml(filename)}" data-doctype="${escHtml(docType)}">Save</button>
       </div>
     </div>`;
   section.classList.remove('hidden');
