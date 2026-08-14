@@ -48,11 +48,6 @@ import {
   updateDocSprint,
   updateDocTeam,
   updateDocWorkCategory,
-  addDocComment,
-  startCommentEdit,
-  cancelCommentEdit,
-  saveCommentEdit,
-  deleteDocComment,
 } from './detail-fields.js';
 import {
   toggleHierarchy,
@@ -1010,6 +1005,10 @@ document.addEventListener('change', (e) => {
 //     detail-links.ts. (This handler was previously unreachable at runtime:
 //     it was never added to this bridge, so the button silently threw on
 //     click — this migration fixes that as a side effect.)
+//   - The detail view's comment CRUD buttons (detail-fields.ts's
+//     _renderComments). Its five handlers (addDocComment, startCommentEdit,
+//     cancelCommentEdit, saveCommentEdit, deleteDocComment) are intentionally
+//     absent below — see DETAIL_COMMENT_ACTIONS in detail-fields.ts.
 //   - The refine panel's epic/story/spike/bug create & edit forms
 //     (refine.ts's openManualRefine/_renderEpicPanel/openRefinePanel/
 //     openCreatePanel templates). Its twelve handlers (refineOpenCreatePanel,
@@ -1027,7 +1026,7 @@ document.addEventListener('change', (e) => {
 //     data-action click dispatcher. The priority <select>'s onchange now
 //     calls saveRpPriority directly via addEventListener instead of the
 //     bridge.)
-// All nine views now self-register via registerActions() instead.
+// All ten views now self-register via registerActions() instead.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1042,11 +1041,6 @@ const _dynGlobals = {
   openDoc,
   closeAllDropdowns,
   loadHierarchy,
-  addDocComment,
-  startCommentEdit,
-  cancelCommentEdit,
-  saveCommentEdit,
-  deleteDocComment,
   linkExistingChildren,
   toggleHierarchyChild,
   // detail-links.ts
