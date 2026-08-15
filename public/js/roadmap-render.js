@@ -310,21 +310,22 @@ export function patchStoryColumn(sprintName) {
   syncRoadmapSelectionUI();
   attachRoadmapDepHoverListeners();
 }
-export function renderRoadmapCard(d, _sprintName) {
+// Pure: builds the roadmap card's HTML given the doc and its already-resolved
+// parent epic/feature (or undefined if it has none / the parent wasn't
+// found), instead of looking the parent up via the `allDocs` global itself —
+// split out so this is testable without a DOM or global doc list (#460).
+// `renderRoadmapCard` below does the `allDocs` lookup and delegates here.
+export function buildRoadmapCardHtml(d, parent) {
   const priorityClass = (d.priority || 'Medium').replace(/\s+/g, '-').toLowerCase();
   const sp = Number(d.storyPoints) || 0;
   const spLabel = sp ? `${sp} SP` : 'No SP';
   const spClass = sp ? 'rm-badge rm-sp' : 'rm-badge rm-no-sp';
   const cardHeight = spCardHeight(sp);
-  // Find parent epic for focus
   const parentFn = d.parentFilename || '';
   let parentHtml = '';
-  if (parentFn) {
-    const parent = allDocs.find((p) => p.filename === parentFn);
-    if (parent) {
-      const color = epicColor(parent.workCategory);
-      parentHtml = `<div class="roadmap-card-parent"><span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}</div>`;
-    }
+  if (parent) {
+    const color = epicColor(parent.workCategory);
+    parentHtml = `<div class="roadmap-card-parent"><span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}</div>`;
   }
   // Dependency badges
   const blocks = d.blocks || [];
@@ -364,6 +365,11 @@ export function renderRoadmapCard(d, _sprintName) {
       <button class="rm-dep-btn" title="Manage dependencies (blocks / blocked by)"
               onclick="event.stopPropagation();openDepModal('${escHtml(d.filename)}','${d.docType}')">⛓</button>
     </div>`;
+}
+export function renderRoadmapCard(d, _sprintName) {
+  const parentFn = d.parentFilename || '';
+  const parent = parentFn ? allDocs.find((p) => p.filename === parentFn) : undefined;
+  return buildRoadmapCardHtml(d, parent);
 }
 // ── Feature tooltip popup ────────────────────────────────────
 let _tooltipEl = null;
