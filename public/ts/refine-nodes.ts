@@ -20,6 +20,32 @@ import { buildCanvasGraph, renderCanvas, saveCanvasLayout } from './refine-canva
 import { _closeLinkPopup } from './refine-edges.js';
 import { positionPopup } from './ui-helpers.js';
 import { computeEdgeMovePosition } from './canvasLayout.js';
+import { registerActions } from './actions.js';
+
+// Typed data-action names for the empty-cell-create and split popups' close
+// (issue #461 migration — see actions.ts and list-filters.ts's CTX_ACTIONS
+// for the established pattern). Replaces the onclick="closeRefinePanel()" /
+// onclick="_executeCanvasSplit(...)" strings previously built by hand, the
+// last two sites still on main.ts's window-global bridge per its own
+// tracking comment.
+export const REFINE_NODES_ACTIONS = {
+  closeRefinePanel: 'refineNodesClosePanel',
+  executeCanvasSplit: 'refineNodesExecuteCanvasSplit',
+} as const;
+
+registerActions({
+  [REFINE_NODES_ACTIONS.closeRefinePanel]: () => {
+    closeRefinePanel();
+  },
+  [REFINE_NODES_ACTIONS.executeCanvasSplit]: (el) => {
+    void _executeCanvasSplit(
+      el.dataset.filename as string,
+      el.dataset.childDocType as string,
+      el.dataset.epicFilename as string,
+      el.dataset.epicDocType as string
+    );
+  },
+});
 
 // ── Local shape of canvas layout position entries ───────────────
 // _activePanelState.layout / _panelStates' PanelState.layout are typed as
@@ -272,7 +298,7 @@ export function _openCellCreateForm(
         <span class="type-badge ${type}">${typeName}</span>
         <span class="rp-title">New ${typeName}</span>
       </div>
-      <button class="rp-close" onclick="closeRefinePanel()" title="Close">✕</button>
+      <button class="rp-close" data-action="${REFINE_NODES_ACTIONS.closeRefinePanel}" title="Close">✕</button>
     </div>
     <div class="rp-create-form">
       <div class="rp-field">
@@ -282,7 +308,7 @@ export function _openCellCreateForm(
       </div>
       <div class="rp-btn-row">
         <button class="btn-xs green" id="rp-cell-create-btn">Generate &amp; Link</button>
-        <button class="btn-xs" onclick="closeRefinePanel()">Cancel</button>
+        <button class="btn-xs" data-action="${REFINE_NODES_ACTIONS.closeRefinePanel}">Cancel</button>
       </div>
       <div class="rp-stream" id="rp-cell-stream" style="display:none"></div>
     </div>`;
@@ -502,7 +528,7 @@ export function _openCanvasSplit(
         <span class="type-badge ${childDocType}">${typeName}</span>
         <span class="rp-title">Split: ${escHtml(doc?.title || filename)}</span>
       </div>
-      <button class="rp-close" onclick="closeRefinePanel()" title="Close">✕</button>
+      <button class="rp-close" data-action="${REFINE_NODES_ACTIONS.closeRefinePanel}" title="Close">✕</button>
     </div>
     <div class="rp-create-form">
       <div class="rp-field">
@@ -512,8 +538,11 @@ export function _openCanvasSplit(
       </div>
       <div class="rp-btn-row">
         <button class="btn-xs green" id="rp-split-btn"
-          onclick="_executeCanvasSplit('${escHtml(filename)}','${escHtml(childDocType)}','${escHtml(epicFilename)}','${escHtml(epicDocType)}')">Generate &amp; Link</button>
-        <button class="btn-xs" onclick="closeRefinePanel()">Cancel</button>
+          data-action="${REFINE_NODES_ACTIONS.executeCanvasSplit}"
+          data-filename="${escHtml(filename)}" data-child-doc-type="${escHtml(childDocType)}"
+          data-epic-filename="${escHtml(epicFilename)}" data-epic-doc-type="${escHtml(epicDocType)}"
+          >Generate &amp; Link</button>
+        <button class="btn-xs" data-action="${REFINE_NODES_ACTIONS.closeRefinePanel}">Cancel</button>
       </div>
       <div class="rp-stream" id="rp-split-stream" style="display:none"></div>
     </div>`;
