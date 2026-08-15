@@ -17,6 +17,26 @@ import {
 import { loadHierarchy } from './detail-links.js';
 import { clearSelection, itemKey, getSelectedDocs, applyFilters } from './list-filters.js';
 import { _rankSortFn } from './list-render.js';
+// No aria-live region existed for list reorder before this; adds one,
+// visually hidden but announced to screen readers, following the same
+// lazily-created/appended-to-body convention introduced for canvas link
+// mode (#486 phase 4/N, refine-canvas.ts's _canvasLinkStatusRegion).
+function _listReorderStatusRegion() {
+  let el = document.getElementById('list-reorder-status');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'list-reorder-status';
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('role', 'status');
+    el.style.cssText =
+      'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function _announceListReorderStatus(message) {
+  _listReorderStatusRegion().textContent = message;
+}
 export function getSwimlaneSection(doc) {
   if (!doc) return 'backlog';
   if (doc.fixVersion && piSettings.currentPi && doc.fixVersion === piSettings.currentPi)
@@ -346,7 +366,10 @@ export function initDragDrop() {
   // Keyboard-operable alternative to the mouse drag above: ArrowUp/ArrowDown
   // on a focused drag handle rerank the item the same way a drag does.
   // Focus is restored to the same item's (re-rendered) handle afterward so
-  // repeated presses keep working without re-tabbing.
+  // repeated presses keep working without re-tabbing. Announces the result
+  // via the aria-live region above so screen-reader users get the same
+  // feedback sighted users get from watching the item move (#486 phase 6/N,
+  // generalizing the announcement pattern introduced for canvas link mode).
   list.addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     const handle = e.target.closest('.drag-handle');
@@ -356,7 +379,21 @@ export function initDragDrop() {
     e.preventDefault();
     const filename = item.dataset.filename;
     const docType = item.dataset.doctype;
-    void moveDocRank(filename, docType, e.key === 'ArrowUp' ? 'up' : 'down').then(() => {
+    const direction = e.key === 'ArrowUp' ? 'up' : 'down';
+    const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
+    const group = allDocs.filter((d) => d.docType === docType).sort(_rankSortFn);
+    if (computeMoveTarget(group, filename, direction) === undefined) {
+      _announceListReorderStatus(
+        `${title} is already at the ${direction === 'up' ? 'top' : 'bottom'} of the list.`
+      );
+      return;
+    }
+    void moveDocRank(filename, docType, direction).then(() => {
+      const newIdx =
+        group.findIndex((d) => d.filename === filename) + (direction === 'up' ? -1 : 1);
+      _announceListReorderStatus(
+        `Moved ${title} ${direction}. Now position ${newIdx + 1} of ${group.length}.`
+      );
       setTimeout(() => {
         document
           .querySelector(`.epic-item[data-filename="${CSS.escape(filename)}"] .drag-handle`)
