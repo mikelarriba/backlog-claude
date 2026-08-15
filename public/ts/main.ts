@@ -95,7 +95,6 @@ import {
   _showMultiCardContextMenu,
   _moveCardsToEdge,
   _openCanvasSplit,
-  _executeCanvasSplit,
   _moveCardToEdge,
 } from './refine-nodes.js';
 import {
@@ -104,7 +103,6 @@ import {
   closeRefineView,
   resetRefineViewState,
   renderFeatureMultiPanel,
-  closeRefinePanel,
   openRefinePanel,
   saveRpTitle,
   cancelRpTitleEdit,
@@ -1123,15 +1121,19 @@ document.addEventListener('change', (e: Event) => {
 //     refineClosePanel, refineToggleUpgrade, refineOpenDocAndClose,
 //     refineConfirmDelete, refineExecuteUpgrade, refineRemoveDep,
 //     refineExecuteCreate) are intentionally absent below — see
-//     REFINE_ACTIONS in refine.ts. (closeRefinePanel, openRefinePanel,
-//     saveRpTitle, cancelRpTitleEdit and saveRpStoryPoints stay on this
-//     bridge: the first two are still reached via onclick="closeRefinePanel()"
-//     strings in refine-nodes.ts's not-yet-migrated popups, and the inline-
-//     edit inputs' onblur/onkeydown attributes are out of scope for the
-//     data-action click dispatcher. The priority <select>'s onchange now
+//     REFINE_ACTIONS in refine.ts. (openRefinePanel, saveRpTitle,
+//     cancelRpTitleEdit and saveRpStoryPoints stay on this bridge: the
+//     inline-edit inputs' onblur/onkeydown attributes are out of scope for
+//     the data-action click dispatcher. The priority <select>'s onchange now
 //     calls saveRpPriority directly via addEventListener instead of the
 //     bridge.)
-// All ten views now self-register via registerActions() instead.
+//   - The empty-cell-create and split popups' close/confirm buttons
+//     (refine-nodes.ts's _openCellCreateForm/_openCanvasSplit templates —
+//     the last two sites that were still reached via
+//     onclick="closeRefinePanel()" / onclick="_executeCanvasSplit(...)"
+//     strings). Their handlers are intentionally absent below — see
+//     REFINE_NODES_ACTIONS in refine-nodes.ts.
+// All eleven views now self-register via registerActions() instead.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1152,12 +1154,11 @@ const _dynGlobals: Record<string, unknown> = {
   saveTitle,
   cancelTitleEdit,
   saveStoryPoints,
-  // refine.js — closeRefinePanel/openRefinePanel are still reached via
-  // onclick="..." strings in refine-nodes.ts's not-yet-migrated popups;
-  // saveRpTitle/cancelRpTitleEdit/saveRpStoryPoints back the refine panel's
-  // inline-edit inputs' onblur/onkeydown attributes (out of scope for the
-  // data-action click dispatcher — see REFINE_ACTIONS in refine.ts).
-  closeRefinePanel,
+  // refine.js — saveRpTitle/cancelRpTitleEdit/saveRpStoryPoints back the
+  // refine panel's inline-edit inputs' onblur/onkeydown attributes (out of
+  // scope for the data-action click dispatcher — see REFINE_ACTIONS in
+  // refine.ts). openRefinePanel has no remaining onclick="..." caller found
+  // in this pass but is left bridged pending a dedicated audit.
   openRefinePanel,
   saveRpTitle,
   cancelRpTitleEdit,
@@ -1166,7 +1167,8 @@ const _dynGlobals: Record<string, unknown> = {
   _showEdgePopup,
   _deleteCanvasLink,
   _changeCanvasLinkType,
-  // refine-nodes.ts
+  // refine-nodes.ts — closeRefinePanel/_executeCanvasSplit moved off this
+  // bridge onto REFINE_NODES_ACTIONS (issue #461); see that module.
   _showCardContextMenu,
   _showFpCardContextMenu,
   _fpMoveToEpic,
@@ -1177,7 +1179,6 @@ const _dynGlobals: Record<string, unknown> = {
   _showMultiCardContextMenu,
   _moveCardsToEdge,
   _openCanvasSplit,
-  _executeCanvasSplit,
   _moveCardToEdge,
   // roadmap.ts
   toggleRoadmapPi,
