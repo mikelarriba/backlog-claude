@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { installRoadmapMocks } from '../helpers/mockRoadmapDeps.js';
 
 installRoadmapMocks();
-const { topoSortCards, epicColor, spCardHeight } =
+const { topoSortCards, epicColor, spCardHeight, buildRoadmapCardHtml } =
   await import('../../public/js/roadmap-render.js');
 
 function makeDoc(overrides = {}) {
@@ -127,5 +127,86 @@ describe('spCardHeight', () => {
   test('treats missing/non-numeric story points as 0', () => {
     assert.equal(spCardHeight(undefined), spCardHeight(0));
     assert.equal(spCardHeight(null), spCardHeight(0));
+  });
+});
+
+// ── buildRoadmapCardHtml ────────────────────────────────────────────────────
+// Pure string builder split out of renderRoadmapCard so it's testable without
+// the `allDocs` global — callers resolve the parent doc themselves (#460).
+describe('buildRoadmapCardHtml', () => {
+  test('renders title, type, priority, and story-point badges', () => {
+    const html = buildRoadmapCardHtml(
+      makeDoc({ filename: 'a.md', docType: 'story', title: 'Do the thing', priority: 'High' }),
+      undefined
+    );
+    assert.match(html, /roadmap-card-title">Do the thing</);
+    assert.match(html, /rm-type-story">Story</);
+    assert.match(html, /rm-priority-high">High</);
+  });
+
+  test('shows "No SP" and the rm-no-estimate class when storyPoints is unset', () => {
+    const html = buildRoadmapCardHtml(makeDoc({ storyPoints: null }), undefined);
+    assert.match(html, /rm-no-sp">No SP</);
+    assert.match(html, /roadmap-card rm-no-estimate"/);
+  });
+
+  test('shows the SP count and omits rm-no-estimate when storyPoints is set', () => {
+    const html = buildRoadmapCardHtml(makeDoc({ storyPoints: 5 }), undefined);
+    assert.match(html, /rm-sp">5 SP</);
+    assert.doesNotMatch(html, /rm-no-estimate/);
+  });
+
+  test('wires up the core data-* attributes from the doc', () => {
+    const html = buildRoadmapCardHtml(
+      makeDoc({
+        filename: 'a.md',
+        docType: 'story',
+        storyPoints: 3,
+        parentFilename: 'epic.md',
+        sprint: 'Sprint 1',
+      }),
+      undefined
+    );
+    assert.match(
+      html,
+      /data-filename="a\.md"\s+data-doctype="story"\s+data-sp="3"\s+data-parent="epic\.md"\s+data-sprint="Sprint 1"/
+    );
+  });
+
+  test('omits the parent block when there is no parent doc', () => {
+    const html = buildRoadmapCardHtml(makeDoc({ parentFilename: null }), undefined);
+    assert.doesNotMatch(html, /roadmap-card-parent/);
+  });
+
+  test('renders the parent block using the pre-resolved parent, colored by its work category', () => {
+    const html = buildRoadmapCardHtml(makeDoc({ parentFilename: 'epic.md' }), {
+      title: 'Parent Epic',
+      workCategory: 'User Features',
+    });
+    assert.match(
+      html,
+      /roadmap-card-parent"><span class="rm-parent-dot" style="background:#16a34a"><\/span>Parent Epic/
+    );
+  });
+
+  test('renders dependency badges only for the relationship types present', () => {
+    const html = buildRoadmapCardHtml(
+      makeDoc({ blockedBy: ['x.md'], blocks: [], parallel: ['y.md', 'z.md'] }),
+      undefined
+    );
+    assert.match(html, /dep-blocked">⬅ blocked by 1</);
+    assert.doesNotMatch(html, /dep-blocks"/);
+    assert.match(html, /dep-parallel"># parallel 2</);
+    assert.match(html, /class="roadmap-card rm-dep-blocked/);
+  });
+
+  test('escapes HTML-significant characters in the title and parent title', () => {
+    const html = buildRoadmapCardHtml(
+      makeDoc({ parentFilename: 'epic.md', title: '<script>alert("x")</script>' }),
+      { title: 'A & B', workCategory: null }
+    );
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /roadmap-card-title">&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;</);
+    assert.match(html, /A &amp; B/);
   });
 });
