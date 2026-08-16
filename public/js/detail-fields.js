@@ -47,7 +47,7 @@ export function _parseComments(content) {
   }
   return comments;
 }
-function _serializeComments(comments) {
+export function _serializeComments(comments) {
   if (!comments.length) return '';
   const blocks = comments
     .map((c) => `<!-- comment:${c.id} -->\n${c.text}\n<!-- /comment:${c.id} -->`)
