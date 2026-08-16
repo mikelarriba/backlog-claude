@@ -103,7 +103,6 @@ import {
   closeRefineView,
   resetRefineViewState,
   renderFeatureMultiPanel,
-  openRefinePanel,
   saveRpTitle,
   cancelRpTitleEdit,
   saveRpStoryPoints,
@@ -145,7 +144,6 @@ import {
   focusEpic,
   addDepLink,
   addParallelLink,
-  removeDepLink,
   closeDepModal,
   closeSplitModal,
   executeSplit,
@@ -1074,7 +1072,7 @@ document.addEventListener('change', (e: Event) => {
 // listeners without refactoring each template — that is out of scope
 // for this issue.
 //
-// Four views have been migrated off this bridge so far (issue #461) — see
+// Twelve views have been migrated off this bridge so far (issue #461) — see
 // actions.ts for the pattern:
 //   - The list multi-select context menu (list-filters.ts's showContextMenu).
 //     Its four handlers (contextMoveToPI, contextDeleteSelected,
@@ -1121,19 +1119,24 @@ document.addEventListener('change', (e: Event) => {
 //     refineClosePanel, refineToggleUpgrade, refineOpenDocAndClose,
 //     refineConfirmDelete, refineExecuteUpgrade, refineRemoveDep,
 //     refineExecuteCreate) are intentionally absent below — see
-//     REFINE_ACTIONS in refine.ts. (openRefinePanel, saveRpTitle,
-//     cancelRpTitleEdit and saveRpStoryPoints stay on this bridge: the
-//     inline-edit inputs' onblur/onkeydown attributes are out of scope for
-//     the data-action click dispatcher. The priority <select>'s onchange now
-//     calls saveRpPriority directly via addEventListener instead of the
-//     bridge.)
+//     REFINE_ACTIONS in refine.ts. (saveRpTitle, cancelRpTitleEdit and
+//     saveRpStoryPoints stay on this bridge: the inline-edit inputs'
+//     onblur/onkeydown attributes are out of scope for the data-action click
+//     dispatcher. The priority <select>'s onchange now calls saveRpPriority
+//     directly via addEventListener instead of the bridge.)
 //   - The empty-cell-create and split popups' close/confirm buttons
 //     (refine-nodes.ts's _openCellCreateForm/_openCanvasSplit templates —
 //     the last two sites that were still reached via
 //     onclick="closeRefinePanel()" / onclick="_executeCanvasSplit(...)"
 //     strings). Their handlers are intentionally absent below — see
 //     REFINE_NODES_ACTIONS in refine-nodes.ts.
-// All eleven views now self-register via registerActions() instead.
+//   - The dependency modal's per-item "remove" button (roadmap.ts's
+//     renderDepLists). Its one handler (removeDepLink) is intentionally
+//     absent below — see ROADMAP_DEP_ACTIONS in roadmap.ts. This pass also
+//     removed openRefinePanel from this bridge: an audit found no remaining
+//     onclick="..." caller anywhere — every call site is a direct function
+//     import — so it no longer needs to be here at all.
+// All twelve views now self-register via registerActions() instead.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1157,9 +1160,10 @@ const _dynGlobals: Record<string, unknown> = {
   // refine.js — saveRpTitle/cancelRpTitleEdit/saveRpStoryPoints back the
   // refine panel's inline-edit inputs' onblur/onkeydown attributes (out of
   // scope for the data-action click dispatcher — see REFINE_ACTIONS in
-  // refine.ts). openRefinePanel has no remaining onclick="..." caller found
-  // in this pass but is left bridged pending a dedicated audit.
-  openRefinePanel,
+  // refine.ts). openRefinePanel was audited and confirmed to have no
+  // remaining onclick="..." caller anywhere — every call site is a direct
+  // function import (refine-canvas.ts, refine-nodes.ts, refine.ts) — so it's
+  // removed from this bridge rather than left pending.
   saveRpTitle,
   cancelRpTitleEdit,
   saveRpStoryPoints,
@@ -1182,7 +1186,6 @@ const _dynGlobals: Record<string, unknown> = {
   _moveCardToEdge,
   // roadmap.ts
   toggleRoadmapPi,
-  removeDepLink,
   // roadmap-render.ts
   handleRoadmapCardClick,
   handleRoadmapEpicClick,

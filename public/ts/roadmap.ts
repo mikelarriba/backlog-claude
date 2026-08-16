@@ -13,6 +13,26 @@ import { renderRoadmapBoard } from './roadmap-render.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { on, upsertDoc } from './store.js';
 import { resetRefineViewState } from './refine.js';
+import { registerActions } from './actions.js';
+
+// Typed data-action name for the dependency modal's per-item "remove"
+// button in renderDepLists (issue #461 migration — see actions.ts and
+// list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
+// onclick="removeDepLink('${fn}','${docType}','${direction}')" string
+// previously built by hand-interpolating the three args into the template.
+export const ROADMAP_DEP_ACTIONS = {
+  removeDepLink: 'roadmapRemoveDepLink',
+} as const;
+
+registerActions({
+  [ROADMAP_DEP_ACTIONS.removeDepLink]: (el) => {
+    void removeDepLink(
+      el.dataset.depFn ?? '',
+      el.dataset.depType ?? '',
+      el.dataset.direction ?? ''
+    );
+  },
+});
 
 export interface RoadmapSprint {
   name: string;
@@ -220,7 +240,10 @@ function renderDepLists(data: DepLinksData): void {
       <div class="dep-item">
         <span class="dep-item-title">${escHtml(item.title || item.filename)}</span>
         <button class="btn-ghost btn-xs dep-remove-btn"
-                onclick="removeDepLink('${escHtml(item.filename)}','${escHtml(item.docType || _depModalDocType || '')}','${direction}')"
+                data-action="${ROADMAP_DEP_ACTIONS.removeDepLink}"
+                data-dep-fn="${escHtml(item.filename)}"
+                data-dep-type="${escHtml(item.docType || _depModalDocType || '')}"
+                data-direction="${direction}"
                 title="Remove">&times;</button>
       </div>`;
   }
