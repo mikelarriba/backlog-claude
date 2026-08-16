@@ -4,6 +4,27 @@ import { renderEpicPanel, patchStoryColumn } from './roadmap-render.js';
 import { executeRerankDrop } from './dragdrop.js';
 import { showDepConnectors, hideDepConnectors } from './list-render.js';
 import { getAllSprints } from './roadmap.js';
+// aria-live region for the keyboard-operable move alternatives below,
+// generalizing the same lazily-created/appended-to-body announcement
+// pattern used for canvas link mode (#486 phase 4/N, refine-canvas.ts's
+// _canvasLinkStatusRegion) and backlog list rerank (#486 phase 6/N,
+// dragdrop.ts's _listReorderStatusRegion) to the roadmap card move paths.
+function _roadmapDragStatusRegion() {
+  let el = document.getElementById('roadmap-drag-status');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'roadmap-drag-status';
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('role', 'status');
+    el.style.cssText =
+      'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function _announceRoadmapDragStatus(message) {
+  _roadmapDragStatusRegion().textContent = message;
+}
 // Pure: given the DOM-rendered filename order of a single sprint column,
 // returns the insertBeforeFilename to pass to executeRerankDrop for moving
 // `filename` up or down by one position, or `undefined` when it's already
@@ -202,10 +223,20 @@ async function moveCardWithinColumn(card, filename, docType, direction) {
   const columnFilenames = [...list.querySelectorAll('.roadmap-card[data-filename]')].map(
     (el) => el.dataset['filename']
   );
+  const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
   const insertBeforeFilename = computeColumnMoveTarget(columnFilenames, filename, direction);
-  if (insertBeforeFilename === undefined) return;
+  if (insertBeforeFilename === undefined) {
+    _announceRoadmapDragStatus(
+      `${title} is already at the ${direction === 'up' ? 'top' : 'bottom'} of this column.`
+    );
+    return;
+  }
   await executeRerankDrop(filename, docType, insertBeforeFilename);
   patchStoryColumn(card.dataset['sprint'] || null);
+  const newIdx = columnFilenames.indexOf(filename) + (direction === 'up' ? -1 : 1);
+  _announceRoadmapDragStatus(
+    `Moved ${title} ${direction}. Now position ${newIdx + 1} of ${columnFilenames.length}.`
+  );
   refocusHandle(filename);
 }
 // Keyboard-operable alternative to the cross-sprint column drop above —
@@ -217,9 +248,16 @@ async function moveCardToAdjacentSprint(card, filename, docType, direction) {
   const columnIds = [...getAllSprints().map((s) => s.name), ''];
   const fromId = card.dataset['sprint'] || '';
   const toId = computeAdjacentColumn(columnIds, fromId, direction);
-  if (toId === undefined) return;
+  const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
+  if (toId === undefined) {
+    _announceRoadmapDragStatus(
+      `${title} is already in the ${direction === 'prev' ? 'first' : 'last'} sprint column.`
+    );
+    return;
+  }
   try {
     await applySprintMove(filename, docType, fromId || null, toId || null);
+    _announceRoadmapDragStatus(`Moved ${title} to ${toId || 'Unassigned'}.`);
     refocusHandle(filename);
   } catch (err) {
     console.warn('Failed to update sprint assignment:', err.message);
