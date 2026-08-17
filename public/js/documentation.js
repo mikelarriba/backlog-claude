@@ -9,6 +9,29 @@
 import { fetchJSON, postJSON, showJiraToast, escHtml } from './state.js';
 import { logAiSaving } from './ai-savings.js';
 import { renderDiffHtml } from './lineDiff.js';
+import { registerActions } from './actions.js';
+// Typed data-action names for the issue-row click, pager buttons, and
+// suggestion-row expand/collapse toggle (issue #461 migration — see
+// actions.ts and CTX_ACTIONS in list-filters.ts for the established
+// pattern). Replaces onclick="docRowClick(event,'...')" /
+// onclick="docSetPage(...)" / onclick="toggleSuggestionRow(...)" strings
+// previously reached through main.ts's untyped window bridge.
+export const DOC_ACTIONS = {
+  rowClick: 'docRowClick',
+  setPage: 'docSetPage',
+  toggleSuggestion: 'toggleSuggestionRow',
+};
+registerActions({
+  [DOC_ACTIONS.rowClick]: (el, e) => {
+    docRowClick(e, el.dataset.key ?? '');
+  },
+  [DOC_ACTIONS.setPage]: (el) => {
+    docSetPage(Number(el.dataset.page));
+  },
+  [DOC_ACTIONS.toggleSuggestion]: (el) => {
+    toggleSuggestionRow(Number(el.dataset.index));
+  },
+});
 const PAGE_SIZE = 20;
 let _allIssues = [];
 const _selectedKeys = new Set();
@@ -197,7 +220,7 @@ export function renderIssuesList(issues) {
       const selected = _selectedKeys.has(issue.key) ? 'selected' : '';
       const typeClass = `doc-type-${(issue.issuetype || '').toLowerCase().replace(/\s+/g, '-')}`;
       const statusClass = `doc-status-${(issue.status || '').toLowerCase().replace(/\s+/g, '-')}`;
-      return `<div class="doc-issue-row ${selected}" data-key="${escHtml(issue.key)}" onclick="docRowClick(event,'${escHtml(issue.key)}')">
+      return `<div class="doc-issue-row ${selected}" data-key="${escHtml(issue.key)}" data-action="${DOC_ACTIONS.rowClick}">
         <input type="checkbox" ${checked} onchange="docToggleKey('${escHtml(issue.key)}',this.checked)" onclick="event.stopPropagation()" />
         <div class="doc-issue-body">
           <div class="doc-issue-top">
@@ -214,9 +237,9 @@ export function renderIssuesList(issues) {
   if (pagerEl) {
     pagerEl.innerHTML =
       totalPages > 1
-        ? `<button class="btn-ghost btn-xs" ${_currentPage <= 1 ? 'disabled' : ''} onclick="docSetPage(${_currentPage - 1})">‹ Prev</button>
+        ? `<button class="btn-ghost btn-xs" ${_currentPage <= 1 ? 'disabled' : ''} data-action="${DOC_ACTIONS.setPage}" data-page="${_currentPage - 1}">‹ Prev</button>
            <span class="doc-page-info">Page ${_currentPage} of ${totalPages} (${issues.length} issues)</span>
-           <button class="btn-ghost btn-xs" ${_currentPage >= totalPages ? 'disabled' : ''} onclick="docSetPage(${_currentPage + 1})">Next ›</button>`
+           <button class="btn-ghost btn-xs" ${_currentPage >= totalPages ? 'disabled' : ''} data-action="${DOC_ACTIONS.setPage}" data-page="${_currentPage + 1}">Next ›</button>`
         : `<span class="doc-page-info">${issues.length} issue${issues.length === 1 ? '' : 's'}</span>`;
   }
   _updateSelectionCount();
@@ -495,7 +518,7 @@ function _renderSuggestionRow(s, index) {
     .join(' ');
   const actionClass = `doc-action-${s.action.toLowerCase()}`;
   return `<div class="${rowClasses}" data-index="${index}">
-    <div class="doc-suggestion-header" onclick="toggleSuggestionRow(${index})">
+    <div class="doc-suggestion-header" data-action="${DOC_ACTIONS.toggleSuggestion}" data-index="${index}">
       <input type="checkbox" ${checked} onclick="event.stopPropagation()" onchange="toggleSuggestionCheck(${index},this.checked)" />
       <div class="doc-suggestion-body">
         <div class="doc-suggestion-top">

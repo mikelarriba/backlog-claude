@@ -205,11 +205,8 @@ import {
   docSetTypeFilter,
   docSetFixVersion,
   searchDocumentationIssues,
-  docSetPage,
-  docRowClick,
   docToggleKey,
   askAI,
-  toggleSuggestionRow,
   toggleSuggestionCheck,
   selectAllSuggestions,
   deselectAllSuggestions,
@@ -1210,15 +1207,13 @@ const _dynGlobals: Record<string, unknown> = {
   // bugs-dashboard.ts
   bugToggleKey,
   bugToggleAll,
-  // documentation.ts
+  // documentation.ts — docRowClick/docSetPage/toggleSuggestionRow moved off
+  // this bridge onto DOC_ACTIONS (issue #461); see that module.
   setDocMode,
   docSearch,
   docSetSprint,
   docSetFixVersionBulk,
-  docRowClick,
   docToggleKey,
-  docSetPage,
-  toggleSuggestionRow,
   toggleSuggestionCheck,
   // onkeydown handlers remaining in index.html inputs
   searchJira,
