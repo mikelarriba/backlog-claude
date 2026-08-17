@@ -14,7 +14,8 @@ mock.module('../../public/js/piconfig.js', {
   namedExports: { getSprintsForPi: () => [] },
 });
 
-const { _parseComments, _serializeComments } = await import('../../public/js/detail-fields.js');
+const { _parseComments, _serializeComments, computeChildPoints } =
+  await import('../../public/js/detail-fields.js');
 
 // ── _parseComments ────────────────────────────────────────────────────────
 describe('_parseComments()', () => {
@@ -108,5 +109,61 @@ describe('_parseComments() / _serializeComments() round-trip', () => {
       '## Comments\n\n<!-- comment:c1 -->\nHello\n<!-- /comment:c1 -->\n\n<!-- comment:c2 -->\nWorld\n<!-- /comment:c2 -->';
     const doc = '# Title\n\n' + fragment;
     assert.equal(_serializeComments(_parseComments(doc)), fragment);
+  });
+});
+
+// ── computeChildPoints() ─────────────────────────────────────────────────
+// Takes the doc list as an explicit `docs` parameter rather than reading the
+// `allDocs` global directly, following the same signature-change pattern
+// used for buildRoadmapCardHtml (flagged as a future candidate in the #511
+// status comment on issue #460).
+describe('computeChildPoints()', () => {
+  test('returns null when the doc type is not an aggregator (story/spike/bug)', () => {
+    const docs = [{ filename: 'a.md', docType: 'story', parentFilename: 'e.md', storyPoints: 3 }];
+    assert.equal(computeChildPoints('e.md', 'story', docs), null);
+  });
+
+  test('returns null when an epic has no matching children', () => {
+    const docs = [{ filename: 'other.md', docType: 'story', parentFilename: 'other-epic.md' }];
+    assert.equal(computeChildPoints('e.md', 'epic', docs), null);
+  });
+
+  test('sums story/spike/bug children of an epic', () => {
+    const docs = [
+      { filename: 's1.md', docType: 'story', parentFilename: 'e.md', storyPoints: 3 },
+      { filename: 's2.md', docType: 'spike', parentFilename: 'e.md', storyPoints: 2 },
+      { filename: 's3.md', docType: 'bug', parentFilename: 'e.md', storyPoints: 1 },
+      // Not a child of e.md — must be excluded.
+      { filename: 's4.md', docType: 'story', parentFilename: 'other-epic.md', storyPoints: 99 },
+      // Wrong doc type for an epic's children — must be excluded.
+      { filename: 'ep2.md', docType: 'epic', parentFilename: 'e.md', storyPoints: 99 },
+    ];
+    assert.equal(computeChildPoints('e.md', 'epic', docs), 6);
+  });
+
+  test('treats missing/non-numeric child story points as 0', () => {
+    const docs = [
+      { filename: 's1.md', docType: 'story', parentFilename: 'e.md', storyPoints: null },
+      { filename: 's2.md', docType: 'story', parentFilename: 'e.md', storyPoints: 5 },
+    ];
+    assert.equal(computeChildPoints('e.md', 'epic', docs), 5);
+  });
+
+  test('for a feature, sums each child epic’s own story/spike/bug children (two levels deep)', () => {
+    const docs = [
+      { filename: 'ep1.md', docType: 'epic', parentFilename: 'f.md' },
+      { filename: 'ep2.md', docType: 'epic', parentFilename: 'f.md' },
+      { filename: 's1.md', docType: 'story', parentFilename: 'ep1.md', storyPoints: 3 },
+      { filename: 's2.md', docType: 'story', parentFilename: 'ep1.md', storyPoints: 2 },
+      { filename: 's3.md', docType: 'bug', parentFilename: 'ep2.md', storyPoints: 4 },
+      // Grandchild of a different feature's epic — must be excluded.
+      { filename: 's4.md', docType: 'story', parentFilename: 'ep-other.md', storyPoints: 100 },
+    ];
+    assert.equal(computeChildPoints('f.md', 'feature', docs), 9);
+  });
+
+  test('a feature with epic children that themselves have no points still returns 0, not null', () => {
+    const docs = [{ filename: 'ep1.md', docType: 'epic', parentFilename: 'f.md' }];
+    assert.equal(computeChildPoints('f.md', 'feature', docs), 0);
   });
 });
