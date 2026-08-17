@@ -195,9 +195,16 @@ export async function deleteDocComment(
 }
 
 // ── Story points helpers ───────────────────────────────────────
-export function computeChildPoints(filename: string, docType: string): number | null {
+// Takes `docs` explicitly (instead of reading the `allDocs` global directly)
+// so the aggregation logic is testable without a DOM or global doc list —
+// the same signature-change pattern used for buildRoadmapCardHtml (#460).
+export function computeChildPoints(
+  filename: string,
+  docType: string,
+  docs: DocEntry[]
+): number | null {
   // For epics: sum story/spike/bug children. For features: sum epic children.
-  const children = allDocs.filter((d) => {
+  const children = docs.filter((d) => {
     if (docType === 'feature') return d.docType === 'epic' && d.parentFilename === filename;
     if (docType === 'epic')
       return (
@@ -211,7 +218,7 @@ export function computeChildPoints(filename: string, docType: string): number | 
   for (const c of children) {
     if (docType === 'feature') {
       // Sum the epic's own children points
-      const epicChildren = allDocs.filter(
+      const epicChildren = docs.filter(
         (d) =>
           (d.docType === 'story' || d.docType === 'spike' || d.docType === 'bug') &&
           d.parentFilename === c.filename
@@ -241,7 +248,7 @@ export function updateStoryPointsUI(docType: string, sp: number | null): void {
   } else if (isAggr) {
     spWrap.classList.add('hidden');
     spSumWrap.classList.remove('hidden');
-    const sum = computeChildPoints(currentFilename as string, docType);
+    const sum = computeChildPoints(currentFilename as string, docType, allDocs);
     spSum.textContent = sum !== null ? String(sum) : '—';
   } else {
     spWrap.classList.add('hidden');
