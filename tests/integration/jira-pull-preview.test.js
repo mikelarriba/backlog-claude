@@ -160,6 +160,67 @@ describe('POST /api/jira/pull-preview — includeChildren via issuelinks (non-Ep
   });
 });
 
+describe('POST /api/jira/pull-preview — includeChildren fetches multiple linked children concurrently', () => {
+  const originalFetch = globalThis.fetch;
+  const CHILD_KEYS = ['EAMDM-914', 'EAMDM-915', 'EAMDM-916', 'EAMDM-917', 'EAMDM-918', 'EAMDM-919'];
+
+  before(() => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+
+      const respond = (body, status = 200) => ({
+        ok: status < 400,
+        status,
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      });
+
+      if (urlStr.includes('/issue/EAMDM-913')) {
+        return respond({
+          key: 'EAMDM-913',
+          fields: {
+            summary: 'Parent story with many linked children',
+            issuetype: { name: 'Story' },
+            description: 'Parent description.',
+            issuelinks: CHILD_KEYS.map((key) => ({ inwardIssue: { key } })),
+          },
+        });
+      }
+      const childMatch = CHILD_KEYS.find((key) => urlStr.includes(`/issue/${key}`));
+      if (childMatch) {
+        return respond({
+          key: childMatch,
+          fields: {
+            summary: `Child ${childMatch}`,
+            issuetype: { name: 'Task' },
+            description: 'Child description.',
+          },
+        });
+      }
+      return originalFetch(url, opts);
+    });
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+  });
+
+  test('includes the parent and every fetched child, regardless of completion order', async () => {
+    const { status, data } = await api('POST', '/api/jira/pull-preview', {
+      jiraKey: 'EAMDM-913',
+      includeChildren: true,
+    });
+    assert.equal(status, 200, `Expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assert.equal(data.items.length, CHILD_KEYS.length + 1);
+    assert.equal(data.items[0].jiraKey, 'EAMDM-913');
+    const returnedKeys = data.items.slice(1).map((i) => i.jiraKey);
+    assert.deepEqual([...returnedKeys].sort(), [...CHILD_KEYS].sort());
+  });
+});
+
 describe('POST /api/jira/pull-preview — includeChildren via Epic Link JQL search', () => {
   const originalFetch = globalThis.fetch;
 

@@ -215,9 +215,11 @@ export default function jiraSyncRoutes({
             }
           }
 
-          for (const link of issue.fields?.issuelinks || []) {
-            const inw = link.inwardIssue;
-            if (inw && !seen.has(inw.key)) {
+          await pMap(
+            issue.fields?.issuelinks || [],
+            async (link) => {
+              const inw = link.inwardIssue;
+              if (!inw || seen.has(inw.key)) return;
               seen.add(inw.key);
               try {
                 const full = (await jiraRequest(
@@ -230,8 +232,9 @@ export default function jiraSyncRoutes({
                   error: err instanceof Error ? err.message : String(err),
                 });
               }
-            }
-          }
+            },
+            { concurrency: 5 }
+          );
 
           for (const child of childIssues) items.push(await buildPreviewItem(child, previewCtx));
 
@@ -245,59 +248,63 @@ export default function jiraSyncRoutes({
 
             const jiraChildKeys = new Set(childIssues.map((c) => c.key));
 
-            for (const local of localChildren) {
-              if (jiraChildKeys.has(local.jiraId!) || seen.has(local.jiraId!)) continue;
-              try {
-                type JiraRemoteIssue = {
-                  fields?: {
-                    status?: { name?: string; statusCategory?: { key?: string } };
-                    summary?: string;
-                    issuetype?: { name?: string };
+            await pMap(
+              localChildren,
+              async (local) => {
+                if (jiraChildKeys.has(local.jiraId!) || seen.has(local.jiraId!)) return;
+                try {
+                  type JiraRemoteIssue = {
+                    fields?: {
+                      status?: { name?: string; statusCategory?: { key?: string } };
+                      summary?: string;
+                      issuetype?: { name?: string };
+                    };
                   };
-                };
-                const remoteIssue = (await jiraRequest(
-                  'GET',
-                  `/issue/${local.jiraId}?fields=status,summary,issuetype`
-                )) as JiraRemoteIssue;
-                const statusCat = remoteIssue.fields?.status?.statusCategory?.key;
-                if (statusCat === 'done') {
+                  const remoteIssue = (await jiraRequest(
+                    'GET',
+                    `/issue/${local.jiraId}?fields=status,summary,issuetype`
+                  )) as JiraRemoteIssue;
+                  const statusCat = remoteIssue.fields?.status?.statusCategory?.key;
+                  if (statusCat === 'done') {
+                    items.push({
+                      jiraKey: local.jiraId,
+                      jiraTitle: remoteIssue.fields?.summary || local.title,
+                      jiraType: remoteIssue.fields?.issuetype?.name || '',
+                      localFilename: local.filename,
+                      localDocType: local.docType,
+                      action: 'delete',
+                      reason: `Closed in JIRA (${remoteIssue.fields?.status?.name || 'Done'})`,
+                      changes: [
+                        {
+                          field: 'status',
+                          from: local.status || 'Draft',
+                          to: remoteIssue.fields?.status?.name || 'Done',
+                        },
+                      ],
+                    });
+                  }
+                } catch (err) {
+                  logWarn(
+                    'jira/sync',
+                    `could not fetch ${local.jiraId} from JIRA; offering deletion`,
+                    {
+                      error: err instanceof Error ? err.message : String(err),
+                    }
+                  );
                   items.push({
                     jiraKey: local.jiraId,
-                    jiraTitle: remoteIssue.fields?.summary || local.title,
-                    jiraType: remoteIssue.fields?.issuetype?.name || '',
+                    jiraTitle: local.title || local.filename,
+                    jiraType: '',
                     localFilename: local.filename,
                     localDocType: local.docType,
                     action: 'delete',
-                    reason: `Closed in JIRA (${remoteIssue.fields?.status?.name || 'Done'})`,
-                    changes: [
-                      {
-                        field: 'status',
-                        from: local.status || 'Draft',
-                        to: remoteIssue.fields?.status?.name || 'Done',
-                      },
-                    ],
+                    reason: 'Not found in JIRA',
+                    changes: [{ field: 'status', to: 'Not found in JIRA' }],
                   });
                 }
-              } catch (err) {
-                logWarn(
-                  'jira/sync',
-                  `could not fetch ${local.jiraId} from JIRA; offering deletion`,
-                  {
-                    error: err instanceof Error ? err.message : String(err),
-                  }
-                );
-                items.push({
-                  jiraKey: local.jiraId,
-                  jiraTitle: local.title || local.filename,
-                  jiraType: '',
-                  localFilename: local.filename,
-                  localDocType: local.docType,
-                  action: 'delete',
-                  reason: 'Not found in JIRA',
-                  changes: [{ field: 'status', to: 'Not found in JIRA' }],
-                });
-              }
-            }
+              },
+              { concurrency: 5 }
+            );
           }
         }
 
