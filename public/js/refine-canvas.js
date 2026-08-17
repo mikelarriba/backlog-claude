@@ -53,6 +53,35 @@ function _canvasLinkStatusRegion() {
 function _announceCanvasLinkStatus(message) {
   _canvasLinkStatusRegion().textContent = message;
 }
+// aria-live region for the keyboard-operable node-move alternatives below
+// (both the main canvas grid and the feature multi-panel mini-canvas),
+// generalizing the same lazily-created/appended-to-body announcement
+// pattern used for canvas link mode above (#486 phase 4/N), backlog list
+// rerank (#486 phase 6/N, dragdrop.ts's _listReorderStatusRegion), and
+// roadmap card move (#486 phase 7/N, roadmap-drag.ts's
+// _roadmapDragStatusRegion) to the last remaining drag interaction.
+function _canvasMoveStatusRegion() {
+  let el = document.getElementById('canvas-move-status');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'canvas-move-status';
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('role', 'status');
+    el.style.cssText =
+      'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function _announceCanvasMoveStatus(message) {
+  _canvasMoveStatusRegion().textContent = message;
+}
+const CANVAS_MOVE_BLOCKED_EDGE = {
+  up: 'top',
+  down: 'bottom',
+  left: 'left edge',
+  right: 'right edge',
+};
 // Ends keyboard link mode (on confirm, cancel, or Manage Links being turned
 // off) — clears the tracked source, its visual highlight, and the Escape
 // listener registered by _startCanvasLinkMode.
@@ -153,9 +182,16 @@ function refocusFpMoveHandle(filename) {
 // additive: does not change or remove the existing drag-and-drop behavior
 // (#486 phase 5/N).
 async function moveFpCardByKeyboard(epicFilename, ps, featureFilename, filename, pos, direction) {
+  const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
   const target = computeCanvasMoveTarget(pos.col, pos.row, direction);
-  if (!target) return;
+  if (!target) {
+    _announceCanvasMoveStatus(
+      `${title} is already at the ${CANVAS_MOVE_BLOCKED_EDGE[direction]} of the canvas.`
+    );
+    return;
+  }
   await applyFpCardMove(epicFilename, ps, featureFilename, filename, target.col, target.row);
+  _announceCanvasMoveStatus(`Moved ${title} ${direction}.`);
   refocusFpMoveHandle(filename);
 }
 // ── Mini-canvas rendering for feature multi-panel view ────────
@@ -374,9 +410,16 @@ function refocusCanvasMoveHandle(filename) {
 // additive: does not change or remove the existing drag-and-drop behavior
 // (#486 phase 3/N).
 async function moveCanvasCardByKeyboard(epicFilename, docType, filename, pos, direction) {
+  const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
   const target = computeCanvasMoveTarget(pos.col, pos.row, direction);
-  if (!target) return;
+  if (!target) {
+    _announceCanvasMoveStatus(
+      `${title} is already at the ${CANVAS_MOVE_BLOCKED_EDGE[direction]} of the canvas.`
+    );
+    return;
+  }
   await applyCanvasCardMove(epicFilename, docType, filename, target.col, target.row);
+  _announceCanvasMoveStatus(`Moved ${title} ${direction}.`);
   refocusCanvasMoveHandle(filename);
 }
 // ── Render canvas ──────────────────────────────────────────────
