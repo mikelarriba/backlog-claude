@@ -373,14 +373,24 @@ export function sprintPushSelectAll(checked: boolean): void {
   _sprintPushUpdateCount();
 }
 
+// Pure: confirm-button label + disabled state for the sprint-push selection
+// count, extracted out of _sprintPushUpdateCount below.
+export function formatSprintPushConfirmLabel(
+  checked: number,
+  total: number
+): { text: string; disabled: boolean } {
+  return { text: `Sync Changes (${checked}/${total})`, disabled: checked === 0 };
+}
+
 export function _sprintPushUpdateCount(): void {
   const all = document.querySelectorAll<HTMLInputElement>(
     '.sprint-push-item input[type="checkbox"]'
   );
   const checked = [...all].filter((cb) => cb.checked).length;
   const btn = document.getElementById('sprint-push-confirm') as HTMLButtonElement;
-  btn.textContent = `Sync Changes (${checked}/${all.length})`;
-  btn.disabled = checked === 0;
+  const { text, disabled } = formatSprintPushConfirmLabel(checked, all.length);
+  btn.textContent = text;
+  btn.disabled = disabled;
 }
 
 interface SprintPushResultItem {
@@ -610,13 +620,21 @@ export function pullSprintSelectAllItems(checked: boolean): void {
   _pullSprintUpdateCount();
 }
 
+// Pure: confirm-button label for the pull-sprint selection count, extracted
+// out of _pullSprintUpdateCount below. Mirrors formatSprintPushConfirmLabel
+// above, but this button is never disabled based on selection count, so the
+// return shape is just the text.
+export function formatPullSprintConfirmLabel(checked: number, total: number): string {
+  return `Pull Selected (${checked}/${total})`;
+}
+
 export function _pullSprintUpdateCount(): void {
   const checked = document.querySelectorAll(
     '#pull-sprint-results input[type="checkbox"]:checked'
   ).length;
   const total = document.querySelectorAll('#pull-sprint-results input[type="checkbox"]').length;
   const btn = document.getElementById('pull-sprint-confirm');
-  if (btn) btn.textContent = `Pull Selected (${checked}/${total})`;
+  if (btn) btn.textContent = formatPullSprintConfirmLabel(checked, total);
 }
 
 // Pure: "Pulled N issue(s), N failed" summary text.
