@@ -23,8 +23,10 @@ const {
   buildSprintPushRowHtml,
   JIRA_TYPE_TO_LOCAL,
   summarizeSprintPushResult,
+  formatSprintPushConfirmLabel,
   buildPullSprintResultItemHtml,
   summarizePullSprintResult,
+  formatPullSprintConfirmLabel,
 } = await import('../../public/js/roadmap-jira-sync.js');
 
 // ── splitSSEBuffer ────────────────────────────────────────────────────────────
@@ -281,6 +283,27 @@ describe('summarizeSprintPushResult()', () => {
   });
 });
 
+// ── formatSprintPushConfirmLabel ──────────────────────────────────────────────
+describe('formatSprintPushConfirmLabel()', () => {
+  test('reports the checked/total counts in the label', () => {
+    assert.deepEqual(formatSprintPushConfirmLabel(2, 5), {
+      text: 'Sync Changes (2/5)',
+      disabled: false,
+    });
+  });
+
+  test('is disabled when nothing is checked', () => {
+    assert.deepEqual(formatSprintPushConfirmLabel(0, 5), {
+      text: 'Sync Changes (0/5)',
+      disabled: true,
+    });
+  });
+
+  test('is enabled once at least one item is checked, even if not all', () => {
+    assert.equal(formatSprintPushConfirmLabel(1, 1).disabled, false);
+  });
+});
+
 // ── buildPullSprintResultItemHtml ─────────────────────────────────────────────
 describe('buildPullSprintResultItemHtml()', () => {
   function result(extra = {}) {
@@ -374,5 +397,16 @@ describe('summarizePullSprintResult()', () => {
   test('appends the failed count when errors occurred', () => {
     const results = [{ status: 'ok' }, { status: 'error' }, { status: 'error' }];
     assert.equal(summarizePullSprintResult(results), 'Pulled 1 issue, 2 failed');
+  });
+});
+
+// ── formatPullSprintConfirmLabel ──────────────────────────────────────────────
+describe('formatPullSprintConfirmLabel()', () => {
+  test('reports the checked/total counts in the label', () => {
+    assert.equal(formatPullSprintConfirmLabel(3, 7), 'Pull Selected (3/7)');
+  });
+
+  test('zero checked and zero total are both rendered plainly', () => {
+    assert.equal(formatPullSprintConfirmLabel(0, 0), 'Pull Selected (0/0)');
   });
 });
