@@ -125,9 +125,6 @@ import {
   renderPiConfigTabs,
   _updatePiFromConfig,
   syncPiFromJira,
-  confirmJiraSprintImport,
-  skipJiraSprintImport,
-  dismissJiraImportBanner,
 } from './piconfig.js';
 import {
   openDistributionModal,
@@ -1095,7 +1092,10 @@ document.addEventListener('change', (e: Event) => {
 //     renderBugFileList). Its one handler (removeBugFile) is intentionally
 //     absent below — see BUGCREATE_ACTIONS in bugcreate.ts.
 //   - The PI sprint config's per-row remove button (piconfig.ts's
-//     renderSprintRows). Its one handler (removeSprintRow) is intentionally
+//     renderSprintRows) and its JIRA sprint-import banner's three buttons
+//     (renderJiraImportOffer's Import/Skip, renderJiraImportConfirmation's
+//     dismiss ×). Its four handlers (removeSprintRow, confirmJiraSprintImport,
+//     skipJiraSprintImport, dismissJiraImportBanner) are intentionally
 //     absent below — see PICONFIG_ACTIONS in piconfig.ts.
 //   - The detail view's dependency chip "remove" button (detail-links.ts's
 //     renderDetailDeps). Its one handler (deleteDepFromDetail) is
@@ -1197,9 +1197,6 @@ const _dynGlobals: Record<string, unknown> = {
   selectPiConfigTab,
   _updatePiFromConfig,
   syncPiFromJira,
-  confirmJiraSprintImport,
-  skipJiraSprintImport,
-  dismissJiraImportBanner,
   // jira-pull.ts
   submitUpdateFromJiraKey,
   // bugcreate.ts

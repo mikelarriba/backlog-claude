@@ -11,17 +11,32 @@ import {
 import { refreshRoadmapView } from './roadmap.js';
 import { showJiraSelectModal, performJiraPull } from './jira-import.js';
 import { registerActions } from './actions.js';
-// Typed data-action name for the per-sprint-row remove button in
-// renderSprintRows (issue #461 migration — see actions.ts and
-// list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
-// onclick="removeSprintRow(${i})" string previously built by
-// hand-interpolating the index into the template.
+// Typed data-action names for the per-sprint-row remove button in
+// renderSprintRows and the JIRA sprint-import banner's three buttons in
+// renderJiraImportOffer/renderJiraImportConfirmation (issue #461 migration —
+// see actions.ts and list-filters.ts's CTX_ACTIONS for the established
+// pattern). Replaces onclick="removeSprintRow(${i})" /
+// onclick="confirmJiraSprintImport()" / onclick="skipJiraSprintImport()" /
+// onclick="dismissJiraImportBanner()" strings previously built by hand
+// (the first with the row index interpolated into the template).
 export const PICONFIG_ACTIONS = {
   removeSprintRow: 'piconfigRemoveSprintRow',
+  confirmJiraImport: 'piconfigConfirmJiraImport',
+  skipJiraImport: 'piconfigSkipJiraImport',
+  dismissJiraImportBanner: 'piconfigDismissJiraImportBanner',
 };
 registerActions({
   [PICONFIG_ACTIONS.removeSprintRow]: (el) => {
     removeSprintRow(Number(el.dataset.index));
+  },
+  [PICONFIG_ACTIONS.confirmJiraImport]: () => {
+    confirmJiraSprintImport();
+  },
+  [PICONFIG_ACTIONS.skipJiraImport]: () => {
+    skipJiraSprintImport();
+  },
+  [PICONFIG_ACTIONS.dismissJiraImportBanner]: () => {
+    dismissJiraImportBanner();
   },
 });
 function _sprintsFor(piName) {
@@ -218,8 +233,8 @@ function renderJiraImportOffer() {
     <div class="pi-config-jira-banner-inner info">
       <span class="pi-config-jira-banner-text">No sprints configured for this PI. Import sprint names from JIRA?</span>
       <div class="pi-config-jira-banner-actions">
-        <button class="pi-config-jira-banner-btn primary" onclick="confirmJiraSprintImport()">Import</button>
-        <button class="pi-config-jira-banner-btn" onclick="skipJiraSprintImport()">Skip</button>
+        <button class="pi-config-jira-banner-btn primary" data-action="${PICONFIG_ACTIONS.confirmJiraImport}">Import</button>
+        <button class="pi-config-jira-banner-btn" data-action="${PICONFIG_ACTIONS.skipJiraImport}">Skip</button>
       </div>
     </div>`;
   openModal('pi-config-jira-banner');
@@ -230,7 +245,7 @@ function renderJiraImportConfirmation(count) {
   el.innerHTML = `
     <div class="pi-config-jira-banner-inner success">
       <span class="pi-config-jira-banner-text">Found ${count} sprint${count !== 1 ? 's' : ''} — they will be added with default capacity (${JIRA_IMPORT_DEFAULT_CAPACITY} SP).</span>
-      <button class="pi-config-jira-banner-dismiss" onclick="dismissJiraImportBanner()" title="Dismiss" aria-label="Dismiss">&times;</button>
+      <button class="pi-config-jira-banner-dismiss" data-action="${PICONFIG_ACTIONS.dismissJiraImportBanner}" title="Dismiss" aria-label="Dismiss">&times;</button>
     </div>`;
   openModal('pi-config-jira-banner');
 }
