@@ -12,6 +12,7 @@ docs/*
 .product-context.md
 data/ai-savings.json
 .claude/commands/
+.claude/worktrees/
 playwright-report/
 test-results/
 public/js/*.js.map
