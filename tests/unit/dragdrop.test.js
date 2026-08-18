@@ -18,8 +18,13 @@ mock.module('../../public/js/list.js', {
 });
 
 const { setPiSettings } = await import('../../public/js/store.js');
-const { getSwimlaneSection, sectionToFixVersion, computeRerankedOrder, computeMoveTarget } =
-  await import('../../public/js/dragdrop.js');
+const {
+  getSwimlaneSection,
+  sectionToFixVersion,
+  computeRerankedOrder,
+  computeMoveTarget,
+  computeAdjacentSwimlane,
+} = await import('../../public/js/dragdrop.js');
 
 function makeDoc(overrides = {}) {
   return {
@@ -175,5 +180,37 @@ describe('computeMoveTarget()', () => {
     const single = [makeDoc({ filename: 'a.md', rank: 1 })];
     assert.equal(computeMoveTarget(single, 'a.md', 'up'), undefined);
     assert.equal(computeMoveTarget(single, 'a.md', 'down'), undefined);
+  });
+});
+
+// ── computeAdjacentSwimlane (#486 keyboard-operable cross-section move) ───────
+describe('computeAdjacentSwimlane()', () => {
+  test('moving right from currentPi targets nextPi', () => {
+    assert.equal(computeAdjacentSwimlane('currentPi', 'next'), 'nextPi');
+  });
+
+  test('moving right from nextPi targets backlog', () => {
+    assert.equal(computeAdjacentSwimlane('nextPi', 'next'), 'backlog');
+  });
+
+  test('moving left from backlog targets nextPi', () => {
+    assert.equal(computeAdjacentSwimlane('backlog', 'prev'), 'nextPi');
+  });
+
+  test('moving left from nextPi targets currentPi', () => {
+    assert.equal(computeAdjacentSwimlane('nextPi', 'prev'), 'currentPi');
+  });
+
+  test('moving left from the first section (currentPi) is a no-op (undefined)', () => {
+    assert.equal(computeAdjacentSwimlane('currentPi', 'prev'), undefined);
+  });
+
+  test('moving right from the last section (backlog) is a no-op (undefined)', () => {
+    assert.equal(computeAdjacentSwimlane('backlog', 'next'), undefined);
+  });
+
+  test('an unrecognized section is a no-op (undefined)', () => {
+    assert.equal(computeAdjacentSwimlane('bogus', 'prev'), undefined);
+    assert.equal(computeAdjacentSwimlane('bogus', 'next'), undefined);
   });
 });

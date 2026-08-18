@@ -192,12 +192,17 @@ async function executeDropDep() {
     showJiraToast('error', err.message);
   }
 }
+// Returns whether the move actually happened (false on a missing-PI-version
+// precondition failure or a request error) — used by the keyboard-operable
+// alternative below so it only announces "Moved" via aria-live when the move
+// really succeeded, instead of duplicating this function's own precondition
+// check (#486).
 async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
   const targetSection = dropSwimlane.dataset.section;
   const newFixVersion = sectionToFixVersion(targetSection);
   if (targetSection !== 'backlog' && !newFixVersion) {
     showJiraToast('error', `Set a version for ${SECTION_LABELS[targetSection]} first`);
-    return;
+    return false;
   }
   const dragDocs = getDragDocs(srcFilename, srcDocType);
   const childrenMap = buildChildrenMap(allDocs);
@@ -223,8 +228,10 @@ async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
     const countMsg = allToMove.length > 1 ? ` (${allToMove.length} items)` : '';
     showJiraToast('success', `Moved to ${label}${countMsg}`);
     clearSelection();
+    return true;
   } catch (err) {
     showJiraToast('error', err.message);
+    return false;
   }
 }
 // Returns the docs being dragged — either the multi-selection or just the single item
@@ -301,6 +308,24 @@ export function computeMoveTarget(group, filename, direction) {
   if (direction === 'down' && idx === sorted.length - 1) return undefined;
   return direction === 'up' ? sorted[idx - 1].filename : (sorted[idx + 2]?.filename ?? null);
 }
+// Fixed left-to-right order the three swimlane sections are rendered in
+// (list-render.ts's renderSwimlaneSectionHtml calls), used by
+// computeAdjacentSwimlane below for the keyboard-operable alternative to the
+// mouse drag-to-swimlane move (#486).
+const SWIMLANE_SECTION_ORDER = ['currentPi', 'nextPi', 'backlog'];
+// Pure targeting logic for moveDocSwimlaneByKeyboard below, split out the
+// same way computeMoveTarget is split from moveDocRank so it's testable
+// without a DOM. Returns the section to move `currentSection` into for
+// `direction`, or `undefined` when already at that edge. Mirrors
+// roadmap-drag.ts's computeAdjacentColumn for the roadmap's own cross-sprint
+// keyboard move (#486).
+export function computeAdjacentSwimlane(currentSection, direction) {
+  const idx = SWIMLANE_SECTION_ORDER.indexOf(currentSection);
+  if (idx < 0) return undefined;
+  if (direction === 'prev' && idx === 0) return undefined;
+  if (direction === 'next' && idx === SWIMLANE_SECTION_ORDER.length - 1) return undefined;
+  return direction === 'prev' ? SWIMLANE_SECTION_ORDER[idx - 1] : SWIMLANE_SECTION_ORDER[idx + 1];
+}
 // Keyboard-operable alternative to the mouse-drag rerank above — swaps the
 // focused item with its immediate rank-order neighbor of the same docType
 // and persists it the same way a drag-and-drop rerank does. Purely additive:
@@ -326,6 +351,35 @@ export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFil
   } catch (e) {
     showJiraToast('error', e.message);
   }
+}
+// Keyboard-operable alternative to the mouse drag-to-swimlane-section move
+// (the drop-on-a-.swimlane-section case documented at the top of this file)
+// — moves the focused item to the previous/next swimlane section (Current
+// PI / Next PI / Backlog, the same order they're rendered in), reusing the
+// same executeMoveDrop() the mouse drop handler already calls so the two
+// paths cannot drift. Purely additive: does not change or remove the
+// existing mouse drag-and-drop behavior (#486).
+async function moveDocSwimlaneByKeyboard(filename, docType, direction) {
+  const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
+  const title = doc?.title ?? 'Item';
+  const currentSection = getSwimlaneSection(doc);
+  const targetSection = computeAdjacentSwimlane(currentSection, direction);
+  if (targetSection === undefined) {
+    _announceListReorderStatus(
+      `${title} is already in the ${direction === 'prev' ? 'first' : 'last'} swimlane section.`
+    );
+    return;
+  }
+  const targetEl = document.querySelector(`.swimlane-section[data-section="${targetSection}"]`);
+  if (!targetEl) return;
+  const moved = await executeMoveDrop(filename, docType, targetEl);
+  if (!moved) return;
+  _announceListReorderStatus(`Moved ${title} to ${SECTION_LABELS[targetSection]}.`);
+  setTimeout(() => {
+    document
+      .querySelector(`.epic-item[data-filename="${CSS.escape(filename)}"] .drag-handle`)
+      ?.focus();
+  }, 200);
 }
 function resolveDropTargets(snap, e) {
   let dropTarget = null,
@@ -364,21 +418,30 @@ export function initDragDrop() {
   let state = null;
   const DRAG_THRESHOLD = 6;
   // Keyboard-operable alternative to the mouse drag above: ArrowUp/ArrowDown
-  // on a focused drag handle rerank the item the same way a drag does.
-  // Focus is restored to the same item's (re-rendered) handle afterward so
-  // repeated presses keep working without re-tabbing. Announces the result
-  // via the aria-live region above so screen-reader users get the same
-  // feedback sighted users get from watching the item move (#486 phase 6/N,
-  // generalizing the announcement pattern introduced for canvas link mode).
+  // on a focused drag handle rerank the item the same way a drag does, and
+  // ArrowLeft/ArrowRight move it to the previous/next swimlane section the
+  // same way dropping it on a .swimlane-section does (#486) — mirroring
+  // roadmap-drag.ts's own up/down-rerank + left/right-cross-sprint-move
+  // keyboard split for the roadmap's equivalent card. Focus is restored to
+  // the same item's (re-rendered) handle afterward so repeated presses keep
+  // working without re-tabbing. Announces the result via the aria-live
+  // region above so screen-reader users get the same feedback sighted users
+  // get from watching the item move (#486 phase 6/N, generalizing the
+  // announcement pattern introduced for canvas link mode).
   list.addEventListener('keydown', (e) => {
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     const handle = e.target.closest('.drag-handle');
     if (!handle) return;
     const item = handle.closest('.epic-item');
     if (!item) return;
-    e.preventDefault();
     const filename = item.dataset.filename;
     const docType = item.dataset.doctype;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      void moveDocSwimlaneByKeyboard(filename, docType, e.key === 'ArrowLeft' ? 'prev' : 'next');
+      return;
+    }
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
     const direction = e.key === 'ArrowUp' ? 'up' : 'down';
     const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
     const group = allDocs.filter((d) => d.docType === docType).sort(_rankSortFn);
