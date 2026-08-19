@@ -903,6 +903,58 @@ export function renderCanvas(epicFilename: string, docType: string): void {
   drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW);
 }
 
+// ── Pure edge-path geometry (extracted for unit testing — #460) ─
+// The three SVG edge kinds drawn by drawCanvasEdges below (SEC, BLOCKS,
+// PARALLEL) each compute a path `d` string plus a label anchor point from a
+// pair of card positions. Splitting the curve/bracket math out of the
+// drawing loops means it's unit-testable without a DOM or SVG namespace.
+interface EdgePathResult {
+  d: string;
+  labelX: number;
+  labelY: number;
+}
+
+// SEC arrow: same-column, consecutive-row cards — a shallow S-curve from the
+// bottom of the source cell to the top of the target cell.
+export function computeSecEdgePath(src: CardPos, tgt: CardPos): EdgePathResult {
+  const x1 = src.cx,
+    y1 = src.y + CELL_H;
+  const x2 = tgt.cx,
+    y2 = tgt.y;
+  return {
+    d: `M${x1},${y1} C${x1},${y1 + 20} ${x2},${y2 - 20} ${x2},${y2}`,
+    labelX: x1 + 6,
+    labelY: y1 + (y2 - y1) / 2,
+  };
+}
+
+// BLOCKS arrow: same curve shape as SEC but with a deeper curve to
+// distinguish it visually, and a label centered on the path's midpoint.
+export function computeBlocksEdgePath(src: CardPos, tgt: CardPos): EdgePathResult {
+  const x1 = src.cx,
+    y1 = src.y + CELL_H;
+  const x2 = tgt.cx,
+    y2 = tgt.y;
+  return {
+    d: `M${x1},${y1} C${x1},${y1 + 24} ${x2},${y2 - 24} ${x2},${y2}`,
+    labelX: (x1 + x2) / 2 + 4,
+    labelY: (y1 + y2) / 2,
+  };
+}
+
+// PARALLEL bracket: a squared-off bracket spanning above both cards' tops,
+// from the left edge of the earlier card to the right edge of the later one.
+export function computeParallelBracketPath(a: CardPos, b: CardPos): EdgePathResult {
+  const x1 = a.x;
+  const x2 = b.x + CELL_W;
+  const y = Math.min(a.y, b.y) - 14;
+  return {
+    d: `M${x1},${a.y - 4} V${y} H${x2} V${b.y - 4}`,
+    labelX: (x1 + x2) / 2,
+    labelY: y - 3,
+  };
+}
+
 // ── Draw SVG edges ─────────────────────────────────────────────
 function drawCanvasEdges(
   svg: SVGSVGElement,
@@ -947,12 +999,9 @@ function drawCanvasEdges(
     const tgt = cardPositions[tgtFn];
     if (!src || !tgt || src === tgt) continue;
 
-    const x1 = src.cx,
-      y1 = src.y + CELL_H;
-    const x2 = tgt.cx,
-      y2 = tgt.y;
+    const { d, labelX, labelY } = computeSecEdgePath(src, tgt);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', `M${x1},${y1} C${x1},${y1 + 20} ${x2},${y2 - 20} ${x2},${y2}`);
+    path.setAttribute('d', d);
     path.setAttribute('stroke', 'var(--border)');
     path.setAttribute('stroke-width', '1.5');
     path.setAttribute('fill', 'none');
@@ -960,8 +1009,8 @@ function drawCanvasEdges(
     svg.appendChild(path);
 
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('x', String(x1 + 6));
-    label.setAttribute('y', String(y1 + (y2 - y1) / 2));
+    label.setAttribute('x', String(labelX));
+    label.setAttribute('y', String(labelY));
     label.setAttribute('class', 'canvas-edge-label');
     label.textContent = 'SEC';
     svg.appendChild(label);
@@ -979,11 +1028,7 @@ function drawCanvasEdges(
     const tgtDt =
       _activePanelState.stories.find((c) => c.filename === tgt)?.docType || _canvasDocType;
 
-    const x1 = s.cx,
-      y1 = s.y + CELL_H;
-    const x2 = t.cx,
-      y2 = t.y;
-    const d = `M${x1},${y1} C${x1},${y1 + 24} ${x2},${y2 - 24} ${x2},${y2}`;
+    const { d, labelX, labelY } = computeBlocksEdgePath(s, t);
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', d);
@@ -994,8 +1039,8 @@ function drawCanvasEdges(
     svg.appendChild(path);
 
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('x', String((x1 + x2) / 2 + 4));
-    label.setAttribute('y', String((y1 + y2) / 2));
+    label.setAttribute('x', String(labelX));
+    label.setAttribute('y', String(labelY));
     label.setAttribute('class', 'canvas-edge-label canvas-edge-label--blocks');
     label.textContent = 'BLOCKS';
     svg.appendChild(label);
@@ -1015,10 +1060,7 @@ function drawCanvasEdges(
     const aDt = _activePanelState.stories.find((c) => c.filename === a)?.docType || _canvasDocType;
     const bDt = _activePanelState.stories.find((c) => c.filename === b)?.docType || _canvasDocType;
 
-    const x1 = pa.x;
-    const x2 = pb.x + CELL_W;
-    const y = Math.min(pa.y, pb.y) - 14;
-    const d = `M${x1},${pa.y - 4} V${y} H${x2} V${pb.y - 4}`;
+    const { d, labelX, labelY } = computeParallelBracketPath(pa, pb);
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', d);
@@ -1029,8 +1071,8 @@ function drawCanvasEdges(
     svg.appendChild(path);
 
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('x', String((x1 + x2) / 2));
-    label.setAttribute('y', String(y - 3));
+    label.setAttribute('x', String(labelX));
+    label.setAttribute('y', String(labelY));
     label.setAttribute('text-anchor', 'middle');
     label.setAttribute('class', 'canvas-edge-label canvas-edge-label--parallel');
     label.textContent = 'PARALLEL';
