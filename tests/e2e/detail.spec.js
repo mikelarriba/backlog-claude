@@ -105,3 +105,77 @@ test.describe('Detail view — remove dependency chip (#461 typed action-dispatc
     await expect(page.locator('.dep-chip', { hasText: target.title })).toHaveCount(0);
   });
 });
+
+test.describe('Detail view — hierarchy panel (#461 typed action-dispatch)', () => {
+  test('clicking a hierarchy child header (data-action) expands it and loads its content', async ({
+    page,
+  }) => {
+    const epic = createFixtureDoc('epic', { title: `Hierarchy Epic ${Date.now()}` });
+    const story = createFixtureDoc('story', {
+      title: `Hierarchy Child Story ${Date.now()}`,
+      description: 'Child story body content.',
+    });
+    await rebuildServerIndex();
+
+    const linkRes = await fetch('http://localhost:3000/api/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceType: 'story',
+        sourceFilename: story.filename,
+        targetType: 'epic',
+        targetFilename: epic.filename,
+      }),
+    });
+    if (!linkRes.ok) throw new Error(`create link failed: ${linkRes.status}`);
+
+    await page.goto('/');
+    await expect(page.locator('#epic-list')).toContainText(epic.title, { timeout: 8000 });
+    await page.locator('#epic-list').getByText(epic.title).first().click();
+    await expect(page.locator('#detail-view')).toBeVisible({ timeout: 5000 });
+
+    const childRow = page.locator('.hierarchy-child', { hasText: story.title });
+    await expect(childRow).toBeVisible({ timeout: 5000 });
+    await expect(childRow).not.toHaveClass(/open/);
+
+    await childRow.locator('.hierarchy-child-header').click();
+
+    await expect(childRow).toHaveClass(/open/);
+    await expect(childRow.locator('.hierarchy-child-body')).toContainText(
+      'Child story body content',
+      { timeout: 5000 }
+    );
+
+    // Clicking again (data-action toggles via the same handler) collapses it.
+    await childRow.locator('.hierarchy-child-header').click();
+    await expect(childRow).not.toHaveClass(/open/);
+  });
+
+  test('the "Link existing" button (data-action) opens the select modal and links an item', async ({
+    page,
+  }) => {
+    const epic = createFixtureDoc('epic', { title: `Link Existing Epic ${Date.now()}` });
+    const story = createFixtureDoc('story', { title: `Linkable Story ${Date.now()}` });
+    await rebuildServerIndex();
+
+    await page.goto('/');
+    await expect(page.locator('#epic-list')).toContainText(epic.title, { timeout: 8000 });
+    await page.locator('#epic-list').getByText(epic.title).first().click();
+    await expect(page.locator('#detail-view')).toBeVisible({ timeout: 5000 });
+
+    const linkBtn = page.locator('.btn-link-existing');
+    await expect(linkBtn).toBeVisible({ timeout: 5000 });
+    await linkBtn.click();
+
+    const modal = page.locator('#jira-select-overlay');
+    await expect(modal).toBeVisible({ timeout: 5000 });
+    const item = page.locator('.jira-select-item', { hasText: story.title });
+    await expect(item).toBeVisible({ timeout: 5000 });
+
+    await page.locator('#jira-select-confirm-btn').click();
+
+    await expect(page.locator('.hierarchy-child', { hasText: story.title })).toBeVisible({
+      timeout: 5000,
+    });
+  });
+});

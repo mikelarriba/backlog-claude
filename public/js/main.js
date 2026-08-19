@@ -49,12 +49,7 @@ import {
   updateDocTeam,
   updateDocWorkCategory,
 } from './detail-fields.js';
-import {
-  toggleHierarchy,
-  loadHierarchy,
-  linkExistingChildren,
-  toggleHierarchyChild,
-} from './detail-links.js';
+import { toggleHierarchy, loadHierarchy } from './detail-links.js';
 import { toggleUpgradePanel, executeUpgrade } from './upgrade.js';
 import {
   saveDraft,
@@ -993,11 +988,14 @@ document.addEventListener('change', (e) => {
 //     skipJiraSprintImport, dismissJiraImportBanner) are intentionally
 //     absent below — see PICONFIG_ACTIONS in piconfig.ts.
 //   - The detail view's dependency chip "remove" button (detail-links.ts's
-//     renderDetailDeps). Its one handler (deleteDepFromDetail) is
-//     intentionally absent below — see DETAIL_LINKS_ACTIONS in
-//     detail-links.ts. (This handler was previously unreachable at runtime:
-//     it was never added to this bridge, so the button silently threw on
-//     click — this migration fixes that as a side effect.)
+//     renderDetailDeps) and its hierarchy panel's per-child expand/collapse
+//     header and "Link existing" button (detail-links.ts's loadHierarchy).
+//     Its three handlers (deleteDepFromDetail, toggleHierarchyChild,
+//     linkExistingChildren) are intentionally absent below — see
+//     DETAIL_LINKS_ACTIONS in detail-links.ts. (deleteDepFromDetail was
+//     previously unreachable at runtime: it was never added to this bridge,
+//     so the button silently threw on click — that migration fixed it as a
+//     side effect.)
 //   - The detail view's comment CRUD buttons (detail-fields.ts's
 //     _renderComments). Its five handlers (addDocComment, startCommentEdit,
 //     cancelCommentEdit, saveCommentEdit, deleteDocComment) are intentionally
@@ -1043,8 +1041,6 @@ const _dynGlobals = {
   openDoc,
   closeAllDropdowns,
   loadHierarchy,
-  linkExistingChildren,
-  toggleHierarchyChild,
   // detail-links.ts
   saveTitle,
   cancelTitleEdit,

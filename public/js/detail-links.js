@@ -15,17 +15,23 @@ import {
 import { upsertDoc } from './store.js';
 import { showJiraSelectModal } from './jira-import.js';
 import { registerActions } from './actions.js';
-// Typed data-action name for the dependency chip's "remove" button in
-// renderDetailDeps (issue #461 migration — see actions.ts and
-// list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
-// onclick="event.stopPropagation(); deleteDepFromDetail(fn, dtype, linkType)"
-// string previously built by hand-interpolating the three args into the
-// template. That handler was never actually reachable at runtime — main.ts's
+// Typed data-action names for the dependency chip's "remove" button in
+// renderDetailDeps, and the hierarchy panel's per-child expand/collapse
+// header and "Link existing" button in loadHierarchy (issue #461 migration —
+// see actions.ts and list-filters.ts's CTX_ACTIONS for the established
+// pattern). Replaces the
+// onclick="event.stopPropagation(); deleteDepFromDetail(fn, dtype, linkType)" /
+// onclick="toggleHierarchyChild(this.parentElement)" /
+// onclick="linkExistingChildren()" strings previously built by hand (the
+// first with the three args hand-interpolated into the template). The
+// deleteDep handler was never actually reachable at runtime — main.ts's
 // window bridge (_dynGlobals) never included deleteDepFromDetail, so the
-// button silently threw "deleteDepFromDetail is not defined" on click — so
-// this migration also fixes a dead/broken "remove dependency" button.
+// button silently threw "deleteDepFromDetail is not defined" on click — that
+// migration also fixed a dead/broken "remove dependency" button.
 export const DETAIL_LINKS_ACTIONS = {
   deleteDep: 'detailLinksDeleteDep',
+  toggleHierarchyChild: 'detailLinksToggleHierarchyChild',
+  linkExistingChildren: 'detailLinksLinkExistingChildren',
 };
 registerActions({
   [DETAIL_LINKS_ACTIONS.deleteDep]: (el, e) => {
@@ -35,6 +41,12 @@ registerActions({
       el.dataset.depType ?? '',
       el.dataset.linkType ?? ''
     );
+  },
+  [DETAIL_LINKS_ACTIONS.toggleHierarchyChild]: (el) => {
+    void toggleHierarchyChild(el.parentElement);
+  },
+  [DETAIL_LINKS_ACTIONS.linkExistingChildren]: () => {
+    void linkExistingChildren();
   },
 });
 export function renderDetailDeps(doc) {
@@ -143,7 +155,7 @@ export async function loadHierarchy(filename, docType) {
       <div class="hierarchy-child"
            data-filename="${escHtml(node.filename)}"
            data-doctype="${node.docType}">
-        <div class="hierarchy-child-header" onclick="toggleHierarchyChild(this.parentElement)">
+        <div class="hierarchy-child-header" data-action="${DETAIL_LINKS_ACTIONS.toggleHierarchyChild}">
           <span class="hierarchy-child-chevron">▶</span>
           <span class="type-badge ${node.docType}">${TYPE_LABEL[node.docType] || node.docType}</span>
           <span class="hierarchy-title">${escHtml(node.title)}</span>
@@ -162,7 +174,7 @@ export async function loadHierarchy(filename, docType) {
     const isParent = docType === 'epic' || docType === 'feature';
     const childLabelText = docType === 'epic' ? 'story / spike / bug' : 'epic';
     const linkBtn = isParent
-      ? `<button class="btn-link-existing" onclick="linkExistingChildren()">＋ Link existing ${childLabelText}</button>`
+      ? `<button class="btn-link-existing" data-action="${DETAIL_LINKS_ACTIONS.linkExistingChildren}">＋ Link existing ${childLabelText}</button>`
       : '';
     if (rows.length || isParent) {
       body.innerHTML = rows.join('') + linkBtn;
