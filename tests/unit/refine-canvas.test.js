@@ -15,8 +15,14 @@ mock.module('../../public/js/list.js', {
   namedExports: { loadDocs: async () => {}, contextSplitItem: () => {} },
 });
 
-const { computeCanvasGridDimensions, cellPixelPosition, computeCanvasMoveTarget } =
-  await import('../../public/js/refine-canvas.js');
+const {
+  computeCanvasGridDimensions,
+  cellPixelPosition,
+  computeCanvasMoveTarget,
+  computeSecEdgePath,
+  computeBlocksEdgePath,
+  computeParallelBracketPath,
+} = await import('../../public/js/refine-canvas.js');
 
 // ── computeCanvasGridDimensions ─────────────────────────────────────────────
 describe('computeCanvasGridDimensions()', () => {
@@ -111,5 +117,72 @@ describe('computeCanvasMoveTarget()', () => {
     assert.equal(computeCanvasMoveTarget(0, 0, 'left'), undefined);
     assert.deepEqual(computeCanvasMoveTarget(0, 0, 'down'), { col: 0, row: 1 });
     assert.deepEqual(computeCanvasMoveTarget(0, 0, 'right'), { col: 1, row: 0 });
+  });
+});
+
+// ── computeSecEdgePath / computeBlocksEdgePath / computeParallelBracketPath ──
+// Pure SVG path/label geometry extracted from drawCanvasEdges' three edge-kind
+// loops (SEC, BLOCKS, PARALLEL) so the curve math is unit-testable without an
+// SVG namespace.
+describe('computeSecEdgePath()', () => {
+  test('path runs from the bottom-center of src to the top-center of tgt', () => {
+    const src = { cx: 100, cy: 55, x: 0, y: 0 };
+    const tgt = { cx: 340, cy: 165, x: 240, y: 110 };
+    const { d } = computeSecEdgePath(src, tgt);
+    assert.equal(d, 'M100,110 C100,130 340,90 340,110');
+  });
+
+  test('label sits just right of src.cx, vertically midway between the two curve ends', () => {
+    const src = { cx: 100, cy: 55, x: 0, y: 0 };
+    const tgt = { cx: 340, cy: 165, x: 240, y: 110 };
+    const { labelX, labelY } = computeSecEdgePath(src, tgt);
+    assert.equal(labelX, 106); // src.cx + 6
+    assert.equal(labelY, 110); // y1 == y2 here, so midpoint == y1
+  });
+});
+
+describe('computeBlocksEdgePath()', () => {
+  test('uses a deeper curve than SEC (24 vs 20) between the same anchor points', () => {
+    const src = { cx: 100, cy: 55, x: 0, y: 0 };
+    const tgt = { cx: 340, cy: 165, x: 240, y: 110 };
+    const { d } = computeBlocksEdgePath(src, tgt);
+    assert.equal(d, 'M100,110 C100,134 340,86 340,110');
+  });
+
+  test('label is centered on the path midpoint, nudged 4px right', () => {
+    const src = { cx: 0, cy: 0, x: -110, y: -55 };
+    const tgt = { cx: 200, cy: 200, x: 90, y: 145 };
+    const { labelX, labelY } = computeBlocksEdgePath(src, tgt);
+    // y1 = src.y + CELL_H = -55 + 110 = 55; y2 = tgt.y = 145
+    assert.equal(labelX, 104); // (0 + 200) / 2 + 4
+    assert.equal(labelY, 100); // (55 + 145) / 2
+  });
+});
+
+describe('computeParallelBracketPath()', () => {
+  test('brackets from the left edge of a to the right edge of b, squared off above both tops', () => {
+    const a = { cx: 120, cy: 55, x: 0, y: 0 };
+    const b = { cx: 360, cy: 55, x: 240, y: 0 };
+    const { d } = computeParallelBracketPath(a, b);
+    // x1 = a.x = 0; x2 = b.x + CELL_W(240) = 480; y = min(0,0) - 14 = -14
+    assert.equal(d, 'M0,-4 V-14 H480 V-4');
+  });
+
+  test('bracket height follows whichever card sits higher (smaller y)', () => {
+    const higher = { cx: 120, cy: 55, x: 0, y: 0 };
+    const lower = { cx: 480, cy: 165, x: 300, y: 110 };
+    const { d: dHigherFirst } = computeParallelBracketPath(higher, lower);
+    const { d: dLowerFirst } = computeParallelBracketPath(lower, higher);
+    // Bracket top (y = min(a.y, b.y) - 14) is the same regardless of arg order.
+    assert.equal(dHigherFirst, 'M0,-4 V-14 H540 V106');
+    assert.equal(dLowerFirst, 'M300,106 V-14 H240 V-4');
+  });
+
+  test('label is horizontally centered between the two x anchors, just above the bracket top', () => {
+    const a = { cx: 120, cy: 55, x: 0, y: 0 };
+    const b = { cx: 360, cy: 55, x: 240, y: 0 };
+    const { labelX, labelY } = computeParallelBracketPath(a, b);
+    assert.equal(labelX, 240); // (0 + 480) / 2
+    assert.equal(labelY, -17); // y(-14) - 3
   });
 });
