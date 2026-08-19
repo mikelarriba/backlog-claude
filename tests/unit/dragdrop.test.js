@@ -24,6 +24,7 @@ const {
   computeRerankedOrder,
   computeMoveTarget,
   computeAdjacentSwimlane,
+  buildSwimlaneMoveAnnouncement,
 } = await import('../../public/js/dragdrop.js');
 
 function makeDoc(overrides = {}) {
@@ -212,5 +213,29 @@ describe('computeAdjacentSwimlane()', () => {
   test('an unrecognized section is a no-op (undefined)', () => {
     assert.equal(computeAdjacentSwimlane('bogus', 'prev'), undefined);
     assert.equal(computeAdjacentSwimlane('bogus', 'next'), undefined);
+  });
+});
+
+// ── buildSwimlaneMoveAnnouncement (#486: multi-select aria-live parity) ───────
+describe('buildSwimlaneMoveAnnouncement()', () => {
+  test('single-item move names the item', () => {
+    assert.equal(
+      buildSwimlaneMoveAnnouncement('My Story', 'Current PI', 1),
+      'Moved My Story to Current PI.'
+    );
+  });
+
+  test('multi-select move states the count instead of a single title', () => {
+    assert.equal(
+      buildSwimlaneMoveAnnouncement('My Story', 'Next PI', 3),
+      'Moved 3 items to Next PI.'
+    );
+  });
+
+  test('a zero/undefined count falls back to the single-item wording', () => {
+    assert.equal(
+      buildSwimlaneMoveAnnouncement('My Story', 'Backlog', 0),
+      'Moved My Story to Backlog.'
+    );
   });
 });
