@@ -352,6 +352,18 @@ export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFil
     showJiraToast('error', e.message);
   }
 }
+// Pure: builds the aria-live announcement for a successful swimlane move.
+// executeMoveDrop's mouse-drag path already moves the whole multi-selection
+// when the dragged item is part of one (getDragDocs, used internally by
+// executeMoveDrop) and its success toast already reflects that with a
+// "(N items)" suffix — but until now the keyboard path's announcement below
+// always named just the focused item, so a screen-reader user moving a
+// multi-selection with arrow keys heard "Moved X to Current PI" even though
+// several items moved together. Mirrors the toast's count-awareness instead
+// (#486).
+export function buildSwimlaneMoveAnnouncement(title, label, movedCount) {
+  return movedCount > 1 ? `Moved ${movedCount} items to ${label}.` : `Moved ${title} to ${label}.`;
+}
 // Keyboard-operable alternative to the mouse drag-to-swimlane-section move
 // (the drop-on-a-.swimlane-section case documented at the top of this file)
 // — moves the focused item to the previous/next swimlane section (Current
@@ -372,9 +384,15 @@ async function moveDocSwimlaneByKeyboard(filename, docType, direction) {
   }
   const targetEl = document.querySelector(`.swimlane-section[data-section="${targetSection}"]`);
   if (!targetEl) return;
+  // Captured before executeMoveDrop runs: on success it calls
+  // clearSelection(), so the selection driving getDragDocs's multi-item
+  // count wouldn't be readable afterward.
+  const movedCount = getDragDocs(filename, docType).length;
   const moved = await executeMoveDrop(filename, docType, targetEl);
   if (!moved) return;
-  _announceListReorderStatus(`Moved ${title} to ${SECTION_LABELS[targetSection]}.`);
+  _announceListReorderStatus(
+    buildSwimlaneMoveAnnouncement(title, SECTION_LABELS[targetSection], movedCount)
+  );
   setTimeout(() => {
     document
       .querySelector(`.epic-item[data-filename="${CSS.escape(filename)}"] .drag-handle`)
