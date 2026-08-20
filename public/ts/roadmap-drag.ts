@@ -51,6 +51,23 @@ export function computeColumnMoveTarget(
   return direction === 'up' ? columnFilenames[idx - 1] : (columnFilenames[idx + 2] ?? null);
 }
 
+// Pure: the Home/End counterpart to computeColumnMoveTarget — returns the
+// insertBeforeFilename that jumps `filename` straight to the top (insert
+// before the current first card) or bottom (null = append) of its column, or
+// `undefined` when it's already at that edge. Mirrors dragdrop.ts's
+// computeEdgeMoveTarget for the backlog list's own Home/End path (#486).
+export function computeColumnEdgeMoveTarget(
+  columnFilenames: string[],
+  filename: string,
+  edge: 'first' | 'last'
+): string | null | undefined {
+  const idx = columnFilenames.indexOf(filename);
+  if (idx < 0) return undefined;
+  if (edge === 'first' && idx === 0) return undefined;
+  if (edge === 'last' && idx === columnFilenames.length - 1) return undefined;
+  return edge === 'first' ? columnFilenames[0] : null;
+}
+
 // Pure: given the ordered list of sprint-column identifiers (sprint names,
 // with '' representing the trailing Unassigned column — matching the
 // data-sprint attribute used throughout this module), returns the adjacent
@@ -125,9 +142,12 @@ export function initRoadmapDragDrop(root: ParentNode = document): void {
     const filename = card.dataset['filename'] as string;
     const docType = card.dataset['doctype'] as string;
     handle?.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key))
+        return;
       e.preventDefault();
-      if (e.key === 'ArrowUp') void moveCardWithinColumn(card, filename, docType, 'up');
+      if (e.key === 'Home' || e.key === 'End')
+        void moveCardToColumnEdge(card, filename, docType, e.key === 'Home' ? 'first' : 'last');
+      else if (e.key === 'ArrowUp') void moveCardWithinColumn(card, filename, docType, 'up');
       else if (e.key === 'ArrowDown') void moveCardWithinColumn(card, filename, docType, 'down');
       else if (e.key === 'ArrowLeft')
         void moveCardToAdjacentSprint(card, filename, docType, 'prev');
@@ -292,6 +312,48 @@ async function moveCardWithinColumn(
     `Moved ${title} ${direction}. Now position ${newIdx + 1} of ${columnFilenames.length}.`
   );
   refocusHandle(filename);
+}
+
+// Home/End counterpart to moveCardWithinColumn: jumps the focused card
+// straight to the top or bottom of its own sprint column in one press,
+// reusing the same executeRerankDrop() the drag and single-step keyboard
+// paths already call (#486).
+async function moveCardToColumnEdge(
+  card: HTMLElement,
+  filename: string,
+  docType: string,
+  edge: 'first' | 'last'
+): Promise<void> {
+  const list = card.closest('.roadmap-card-list');
+  if (!list) return;
+  const columnFilenames = [
+    ...list.querySelectorAll<HTMLElement>('.roadmap-card[data-filename]'),
+  ].map((el) => el.dataset['filename'] as string);
+  const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
+  const insertBeforeFilename = computeColumnEdgeMoveTarget(columnFilenames, filename, edge);
+  if (insertBeforeFilename === undefined) {
+    _announceRoadmapDragStatus(
+      `${title} is already at the ${edge === 'first' ? 'top' : 'bottom'} of this column.`
+    );
+    return;
+  }
+
+  await executeRerankDrop(filename, docType, insertBeforeFilename);
+  patchStoryColumn(card.dataset['sprint'] || null);
+  _announceRoadmapDragStatus(buildColumnEdgeMoveAnnouncement(title, edge, columnFilenames.length));
+  refocusHandle(filename);
+}
+
+// Pure: builds the aria-live announcement for a Home/End column jump,
+// reusing the "Now position N of M" phrasing the single-step path already
+// announces so both keyboard paths read the same way (#486).
+export function buildColumnEdgeMoveAnnouncement(
+  title: string,
+  edge: 'first' | 'last',
+  total: number
+): string {
+  const position = edge === 'first' ? 1 : total;
+  return `Moved ${title} to the ${edge === 'first' ? 'top' : 'bottom'} of this column. Now position ${position} of ${total}.`;
 }
 
 // Keyboard-operable alternative to the cross-sprint column drop above —

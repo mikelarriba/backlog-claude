@@ -23,8 +23,10 @@ const {
   sectionToFixVersion,
   computeRerankedOrder,
   computeMoveTarget,
+  computeEdgeMoveTarget,
   computeAdjacentSwimlane,
   buildSwimlaneMoveAnnouncement,
+  buildEdgeMoveAnnouncement,
 } = await import('../../public/js/dragdrop.js');
 
 function makeDoc(overrides = {}) {
@@ -181,6 +183,78 @@ describe('computeMoveTarget()', () => {
     const single = [makeDoc({ filename: 'a.md', rank: 1 })];
     assert.equal(computeMoveTarget(single, 'a.md', 'up'), undefined);
     assert.equal(computeMoveTarget(single, 'a.md', 'down'), undefined);
+  });
+});
+
+// ── computeEdgeMoveTarget (#486 Home/End jump to top/bottom) ──────────────────
+describe('computeEdgeMoveTarget()', () => {
+  const group = [
+    makeDoc({ filename: 'a.md', rank: 1 }),
+    makeDoc({ filename: 'b.md', rank: 2 }),
+    makeDoc({ filename: 'c.md', rank: 3 }),
+    makeDoc({ filename: 'd.md', rank: 4 }),
+  ];
+
+  test('jumping to the top targets the current first item', () => {
+    assert.equal(computeEdgeMoveTarget(group, 'c.md', 'first'), 'a.md');
+    assert.deepEqual(computeRerankedOrder(group, 'c.md', 'a.md'), ['c.md', 'a.md', 'b.md', 'd.md']);
+  });
+
+  test('jumping to the bottom targets null (append to the end)', () => {
+    assert.equal(computeEdgeMoveTarget(group, 'b.md', 'last'), null);
+    assert.deepEqual(computeRerankedOrder(group, 'b.md', null), ['a.md', 'c.md', 'd.md', 'b.md']);
+  });
+
+  test('jumping the second item to the top still moves it', () => {
+    assert.equal(computeEdgeMoveTarget(group, 'b.md', 'first'), 'a.md');
+    assert.deepEqual(computeRerankedOrder(group, 'b.md', 'a.md'), ['b.md', 'a.md', 'c.md', 'd.md']);
+  });
+
+  test('jumping the first item to the top is a no-op (undefined)', () => {
+    assert.equal(computeEdgeMoveTarget(group, 'a.md', 'first'), undefined);
+  });
+
+  test('jumping the last item to the bottom is a no-op (undefined)', () => {
+    assert.equal(computeEdgeMoveTarget(group, 'd.md', 'last'), undefined);
+  });
+
+  test('an item not present in the group is a no-op (undefined)', () => {
+    assert.equal(computeEdgeMoveTarget(group, 'missing.md', 'first'), undefined);
+    assert.equal(computeEdgeMoveTarget(group, 'missing.md', 'last'), undefined);
+  });
+
+  test('single-item group: both edges are a no-op', () => {
+    const single = [makeDoc({ filename: 'a.md', rank: 1 })];
+    assert.equal(computeEdgeMoveTarget(single, 'a.md', 'first'), undefined);
+    assert.equal(computeEdgeMoveTarget(single, 'a.md', 'last'), undefined);
+  });
+
+  test('targets by rank order, not array order', () => {
+    const unsorted = [
+      makeDoc({ filename: 'c.md', rank: 3 }),
+      makeDoc({ filename: 'a.md', rank: 1 }),
+      makeDoc({ filename: 'b.md', rank: 2 }),
+    ];
+    assert.equal(computeEdgeMoveTarget(unsorted, 'b.md', 'first'), 'a.md');
+    assert.equal(computeEdgeMoveTarget(unsorted, 'a.md', 'first'), undefined);
+    assert.equal(computeEdgeMoveTarget(unsorted, 'c.md', 'last'), undefined);
+  });
+});
+
+// ── buildEdgeMoveAnnouncement (#486 Home/End aria-live announcement) ──────────
+describe('buildEdgeMoveAnnouncement()', () => {
+  test('announces position 1 when jumping to the top', () => {
+    assert.equal(
+      buildEdgeMoveAnnouncement('My Story', 'first', 5),
+      'Moved My Story to the top. Now position 1 of 5.'
+    );
+  });
+
+  test('announces the last position when jumping to the bottom', () => {
+    assert.equal(
+      buildEdgeMoveAnnouncement('My Story', 'last', 5),
+      'Moved My Story to the bottom. Now position 5 of 5.'
+    );
   });
 });
 

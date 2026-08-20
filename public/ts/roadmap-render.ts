@@ -423,7 +423,7 @@ export function buildRoadmapCardHtml(
          style="min-height:${cardHeight}px">
       <div class="rm-reorder-handle" role="button" tabindex="0"
            title="Use arrow keys to reorder or move sprint"
-           aria-label="Reorder ${escHtml(d.title)}. Up or Down arrow keys move it within this sprint; Left or Right move it to the adjacent sprint."
+           aria-label="Reorder ${escHtml(d.title)}. Up or Down arrow keys move it within this sprint; Home or End move it to the top or bottom of this sprint; Left or Right move it to the adjacent sprint."
            onclick="event.stopPropagation()"
            ><span></span><span></span><span></span><span></span><span></span><span></span></div>
       ${parentHtml}

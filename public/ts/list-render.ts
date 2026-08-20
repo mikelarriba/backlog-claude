@@ -368,7 +368,7 @@ export function renderDocItem(
          oncontextmenu="handleItemContextMenu(event,'${escHtml(d.filename)}','${d.docType}')">
       <div class="drag-handle" title="Drag to reorder or link, or use arrow keys"
            role="button" tabindex="0"
-           aria-label="Reorder ${escHtml(d.title)}. Use the up and down arrow keys to move it within the list, or left and right to move it between Current PI, Next PI, and Backlog."
+           aria-label="Reorder ${escHtml(d.title)}. Use the up and down arrow keys to move it within the list, Home or End to move it to the top or bottom, or left and right to move it between Current PI, Next PI, and Backlog."
            ><span></span><span></span><span></span><span></span><span></span><span></span></div>
       <div class="readiness-dot ${rdCls}" title="${rdTip}"></div>
       ${collapseBtn}
