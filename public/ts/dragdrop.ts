@@ -378,6 +378,25 @@ export function computeMoveTarget(
   return direction === 'up' ? sorted[idx - 1].filename : (sorted[idx + 2]?.filename ?? null);
 }
 
+// Pure targeting logic for moveDocRankToEdge below, the Home/End counterpart
+// to computeMoveTarget's single-step ArrowUp/ArrowDown targeting. Returns the
+// insertBeforeFilename to pass to executeRerankDrop (null = move to the end),
+// or `undefined` if the move is a no-op (item not found, or already at that
+// edge of its group) — same convention as computeMoveTarget.
+export function computeEdgeMoveTarget(
+  group: DocEntry[],
+  filename: string,
+  edge: 'first' | 'last'
+): string | null | undefined {
+  const sorted = [...group].sort(_rankSortFn);
+  const idx = sorted.findIndex((d) => d.filename === filename);
+  if (idx < 0) return undefined;
+  if (edge === 'first' && idx === 0) return undefined;
+  if (edge === 'last' && idx === sorted.length - 1) return undefined;
+
+  return edge === 'first' ? sorted[0].filename : null;
+}
+
 // Fixed left-to-right order the three swimlane sections are rendered in
 // (list-render.ts's renderSwimlaneSectionHtml calls), used by
 // computeAdjacentSwimlane below for the keyboard-operable alternative to the
@@ -415,6 +434,21 @@ export async function moveDocRank(
 ): Promise<void> {
   const group = allDocs.filter((d) => d.docType === docType);
   const insertBeforeFilename = computeMoveTarget(group, filename, direction);
+  if (insertBeforeFilename === undefined) return;
+  await executeRerankDrop(filename, docType, insertBeforeFilename);
+}
+
+// Home/End counterpart to moveDocRank: jumps the focused item straight to the
+// top or bottom of its group instead of stepping one position at a time.
+// Reuses the same executeRerankDrop() the drag and single-step keyboard paths
+// already call, so all three cannot drift (#486).
+export async function moveDocRankToEdge(
+  filename: string,
+  docType: string,
+  edge: 'first' | 'last'
+): Promise<void> {
+  const group = allDocs.filter((d) => d.docType === docType);
+  const insertBeforeFilename = computeEdgeMoveTarget(group, filename, edge);
   if (insertBeforeFilename === undefined) return;
   await executeRerankDrop(filename, docType, insertBeforeFilename);
 }
@@ -493,6 +527,49 @@ async function moveDocSwimlaneByKeyboard(
   _announceListReorderStatus(
     buildSwimlaneMoveAnnouncement(title, SECTION_LABELS[targetSection], movedCount)
   );
+  setTimeout(() => {
+    document
+      .querySelector<HTMLElement>(
+        `.epic-item[data-filename="${CSS.escape(filename)}"] .drag-handle`
+      )
+      ?.focus();
+  }, 200);
+}
+
+// Pure: builds the aria-live announcement for a Home/End jump, reusing the
+// "Now position N of M" phrasing the single-step ArrowUp/ArrowDown path
+// already announces so both keyboard paths read the same way (#486).
+export function buildEdgeMoveAnnouncement(
+  title: string,
+  edge: 'first' | 'last',
+  total: number
+): string {
+  const position = edge === 'first' ? 1 : total;
+  return `Moved ${title} to the ${edge === 'first' ? 'top' : 'bottom'}. Now position ${position} of ${total}.`;
+}
+
+// Home/End keyboard path: jumps the focused item to the top or bottom of its
+// group in one press, instead of holding an arrow key through the whole list.
+// Mirrors moveDocSwimlaneByKeyboard's structure — announce-and-stop when the
+// move is a no-op, otherwise persist, announce, and restore focus to the
+// re-rendered handle (#486).
+async function moveDocRankToEdgeByKeyboard(
+  filename: string,
+  docType: string,
+  edge: 'first' | 'last'
+): Promise<void> {
+  const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
+  const group = allDocs.filter((d) => d.docType === docType);
+
+  if (computeEdgeMoveTarget(group, filename, edge) === undefined) {
+    _announceListReorderStatus(
+      `${title} is already at the ${edge === 'first' ? 'top' : 'bottom'} of the list.`
+    );
+    return;
+  }
+
+  await moveDocRankToEdge(filename, docType, edge);
+  _announceListReorderStatus(buildEdgeMoveAnnouncement(title, edge, group.length));
   setTimeout(() => {
     document
       .querySelector<HTMLElement>(
@@ -583,6 +660,12 @@ export function initDragDrop(): void {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
       void moveDocSwimlaneByKeyboard(filename, docType, e.key === 'ArrowLeft' ? 'prev' : 'next');
+      return;
+    }
+
+    if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      void moveDocRankToEdgeByKeyboard(filename, docType, e.key === 'Home' ? 'first' : 'last');
       return;
     }
 

@@ -19,8 +19,12 @@ mock.module('../../public/js/roadmap.js', {
   namedExports: { getAllSprints: () => [], applyEpicFocus: () => {} },
 });
 
-const { computeColumnMoveTarget, computeAdjacentColumn } =
-  await import('../../public/js/roadmap-drag.js');
+const {
+  computeColumnMoveTarget,
+  computeColumnEdgeMoveTarget,
+  computeAdjacentColumn,
+  buildColumnEdgeMoveAnnouncement,
+} = await import('../../public/js/roadmap-drag.js');
 
 // ── computeColumnMoveTarget ──────────────────────────────────────────────────
 describe('computeColumnMoveTarget()', () => {
@@ -54,6 +58,58 @@ describe('computeColumnMoveTarget()', () => {
   test('single-item column: both directions are a no-op', () => {
     assert.equal(computeColumnMoveTarget(['a.md'], 'a.md', 'up'), undefined);
     assert.equal(computeColumnMoveTarget(['a.md'], 'a.md', 'down'), undefined);
+  });
+});
+
+// ── computeColumnEdgeMoveTarget (#486 Home/End jump to top/bottom) ───────────
+describe('computeColumnEdgeMoveTarget()', () => {
+  const column = ['a.md', 'b.md', 'c.md', 'd.md'];
+
+  test('jumping to the top targets the current first card', () => {
+    assert.equal(computeColumnEdgeMoveTarget(column, 'c.md', 'first'), 'a.md');
+  });
+
+  test('jumping to the bottom targets null (append to the end)', () => {
+    assert.equal(computeColumnEdgeMoveTarget(column, 'b.md', 'last'), null);
+  });
+
+  test('jumping the second card to the top still moves it', () => {
+    assert.equal(computeColumnEdgeMoveTarget(column, 'b.md', 'first'), 'a.md');
+  });
+
+  test('jumping the first card to the top is a no-op (undefined)', () => {
+    assert.equal(computeColumnEdgeMoveTarget(column, 'a.md', 'first'), undefined);
+  });
+
+  test('jumping the last card to the bottom is a no-op (undefined)', () => {
+    assert.equal(computeColumnEdgeMoveTarget(column, 'd.md', 'last'), undefined);
+  });
+
+  test('a card not present in the column is a no-op (undefined)', () => {
+    assert.equal(computeColumnEdgeMoveTarget(column, 'missing.md', 'first'), undefined);
+    assert.equal(computeColumnEdgeMoveTarget(column, 'missing.md', 'last'), undefined);
+  });
+
+  test('single-card column: both edges are a no-op', () => {
+    assert.equal(computeColumnEdgeMoveTarget(['a.md'], 'a.md', 'first'), undefined);
+    assert.equal(computeColumnEdgeMoveTarget(['a.md'], 'a.md', 'last'), undefined);
+  });
+});
+
+// ── buildColumnEdgeMoveAnnouncement (#486 Home/End aria-live announcement) ────
+describe('buildColumnEdgeMoveAnnouncement()', () => {
+  test('announces position 1 when jumping to the top of the column', () => {
+    assert.equal(
+      buildColumnEdgeMoveAnnouncement('My Story', 'first', 4),
+      'Moved My Story to the top of this column. Now position 1 of 4.'
+    );
+  });
+
+  test('announces the last position when jumping to the bottom of the column', () => {
+    assert.equal(
+      buildColumnEdgeMoveAnnouncement('My Story', 'last', 4),
+      'Moved My Story to the bottom of this column. Now position 4 of 4.'
+    );
   });
 });
 
