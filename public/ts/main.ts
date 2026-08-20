@@ -113,13 +113,11 @@ import {
 import {
   togglePiConfigSection,
   addSprintRow,
-  selectPiConfigTab,
   saveSprintConfig,
   saveSplitThreshold,
   loadAllSprintConfigs,
   renderPiConfigTabs,
   _updatePiFromConfig,
-  syncPiFromJira,
 } from './piconfig.js';
 import {
   openDistributionModal,
@@ -1087,11 +1085,16 @@ document.addEventListener('change', (e: Event) => {
 //     renderBugFileList). Its one handler (removeBugFile) is intentionally
 //     absent below — see BUGCREATE_ACTIONS in bugcreate.ts.
 //   - The PI sprint config's per-row remove button (piconfig.ts's
-//     renderSprintRows) and its JIRA sprint-import banner's three buttons
+//     renderSprintRows), its JIRA sprint-import banner's three buttons
 //     (renderJiraImportOffer's Import/Skip, renderJiraImportConfirmation's
-//     dismiss ×). Its four handlers (removeSprintRow, confirmJiraSprintImport,
-//     skipJiraSprintImport, dismissJiraImportBanner) are intentionally
-//     absent below — see PICONFIG_ACTIONS in piconfig.ts.
+//     dismiss ×), and its two PI-header "Sync from JIRA" buttons plus the PI
+//     tab bar (renderPiConfigTabs / _renderPiTabButtons). Its six handlers
+//     (removeSprintRow, confirmJiraSprintImport, skipJiraSprintImport,
+//     dismissJiraImportBanner, syncPiFromJira, selectPiConfigTab) are
+//     intentionally absent below — see PICONFIG_ACTIONS in piconfig.ts.
+//     _updatePiFromConfig stays on this bridge: it backs the two version
+//     `onchange="..."` selects, which the data-action click dispatcher
+//     doesn't cover.
 //   - The detail view's dependency chip "remove" button (detail-links.ts's
 //     renderDetailDeps) and its hierarchy panel's per-child expand/collapse
 //     header and "Link existing" button (detail-links.ts's loadHierarchy).
@@ -1190,9 +1193,7 @@ const _dynGlobals: Record<string, unknown> = {
   pullSprintSelectAllItems,
   _pullSprintUpdateCount,
   // piconfig.ts
-  selectPiConfigTab,
   _updatePiFromConfig,
-  syncPiFromJira,
   // jira-pull.ts
   submitUpdateFromJiraKey,
   // bugcreate.ts
