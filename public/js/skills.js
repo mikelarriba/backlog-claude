@@ -46,7 +46,9 @@ const DOC_COMMANDS = [
 const UTILITY_COMMANDS = ['refine-epics', 'backlog-analysis-agent'];
 let _skillsCache = [];
 // ── Product Context ──────────────────────────────────────────────────────────
-function renderProductContext(ctx) {
+// Exported for unit testing (#460): a pure ProductContext -> HTML string
+// builder, same as detail-fields.ts's _serializeComments.
+export function renderProductContext(ctx) {
   const badgeClass = ctx.source === 'custom' ? 'custom' : 'template';
   const badgeLabel = ctx.source === 'custom' ? 'Custom' : 'Template';
   const showReset = ctx.source === 'custom';
@@ -124,7 +126,8 @@ export async function resetProductContext() {
   }
 }
 // ── Render ────────────────────────────────────────────────────────────────────
-function renderSkillCard(skill) {
+// Exported for unit testing (#460): a pure Skill -> HTML string builder.
+export function renderSkillCard(skill) {
   const badgeClass = skill.source === 'custom' ? 'custom' : 'template';
   const badgeLabel = skill.source === 'custom' ? 'Custom' : 'Template';
   const showReset = skill.source === 'custom';
