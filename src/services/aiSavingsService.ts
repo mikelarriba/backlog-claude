@@ -64,9 +64,8 @@ export interface AiSavingsLogInput {
   notes?: string;
 }
 
-export function createAiSavingsService(rootDir: string) {
-  const DATA_DIR = path.join(rootDir, 'data');
-  const FILE_PATH = path.join(DATA_DIR, 'ai-savings.json');
+export function createAiSavingsService(dataDir: string) {
+  const FILE_PATH = path.join(dataDir, 'ai-savings.json');
 
   async function readEntries(): Promise<AiSavingsEntry[]> {
     try {
@@ -80,7 +79,7 @@ export function createAiSavingsService(rootDir: string) {
   }
 
   async function writeEntries(entries: AiSavingsEntry[]): Promise<void> {
-    if (!fs.existsSync(DATA_DIR)) await fs.promises.mkdir(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(dataDir)) await fs.promises.mkdir(dataDir, { recursive: true });
     await fs.promises.writeFile(FILE_PATH, JSON.stringify(entries, null, 2));
   }
 

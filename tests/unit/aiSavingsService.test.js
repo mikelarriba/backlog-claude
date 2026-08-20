@@ -52,15 +52,15 @@ describe('isValidActionType()', () => {
 // ── createAiSavingsService ───────────────────────────────────────────────────
 describe('createAiSavingsService()', () => {
   test('getAll returns an empty log when no file exists yet', async () => {
-    const svc = createAiSavingsService(path.join(tmpDir, 'empty-root'));
+    const svc = createAiSavingsService(path.join(tmpDir, 'empty-data'));
     const { entries, totalMinutes } = await svc.getAll();
     assert.deepEqual(entries, []);
     assert.equal(totalMinutes, 0);
   });
 
   test('appendEntry persists an entry and computes time_saved_minutes', async () => {
-    const root = path.join(tmpDir, 'append-root');
-    const svc = createAiSavingsService(root);
+    const dataDir = path.join(tmpDir, 'append-data');
+    const svc = createAiSavingsService(dataDir);
     const entry = await svc.appendEntry({
       action_type: 'story_push',
       item_count: 2,
@@ -74,7 +74,7 @@ describe('createAiSavingsService()', () => {
     assert.deepEqual(entry.jira_keys, ['MIDAS-1', 'MIDAS-2']);
 
     // File was created on first write
-    assert.ok(fs.existsSync(path.join(root, 'data', 'ai-savings.json')));
+    assert.ok(fs.existsSync(path.join(dataDir, 'ai-savings.json')));
 
     const { entries, totalMinutes } = await svc.getAll();
     assert.equal(entries.length, 1);
@@ -82,19 +82,19 @@ describe('createAiSavingsService()', () => {
   });
 
   test('appendEntry rejects an invalid action_type', async () => {
-    const svc = createAiSavingsService(path.join(tmpDir, 'invalid-root'));
+    const svc = createAiSavingsService(path.join(tmpDir, 'invalid-data'));
     await assert.rejects(() => svc.appendEntry({ action_type: 'bogus', item_count: 1 }));
   });
 
   test('appendEntry defaults jira_keys and notes when omitted', async () => {
-    const svc = createAiSavingsService(path.join(tmpDir, 'defaults-root'));
+    const svc = createAiSavingsService(path.join(tmpDir, 'defaults-data'));
     const entry = await svc.appendEntry({ action_type: 'doc_ai_run', item_count: 1 });
     assert.deepEqual(entry.jira_keys, []);
     assert.equal(entry.notes, '');
   });
 
   test('multiple appendEntry calls accumulate in order', async () => {
-    const svc = createAiSavingsService(path.join(tmpDir, 'accumulate-root'));
+    const svc = createAiSavingsService(path.join(tmpDir, 'accumulate-data'));
     await svc.appendEntry({ action_type: 'bug_create', item_count: 1 });
     await svc.appendEntry({ action_type: 'doc_confluence_modify', item_count: 3 });
     const { entries, totalMinutes } = await svc.getAll();
@@ -108,7 +108,7 @@ describe('createAiSavingsService()', () => {
   });
 
   test('concurrent appendEntry calls do not lose an entry to a lost update', async () => {
-    const svc = createAiSavingsService(path.join(tmpDir, 'concurrent-root'));
+    const svc = createAiSavingsService(path.join(tmpDir, 'concurrent-data'));
     await Promise.all([
       svc.appendEntry({ action_type: 'story_push', item_count: 1 }),
       svc.appendEntry({ action_type: 'spike_push', item_count: 1 }),
@@ -120,7 +120,7 @@ describe('createAiSavingsService()', () => {
   });
 
   test('many concurrent appendEntry calls all survive', async () => {
-    const svc = createAiSavingsService(path.join(tmpDir, 'concurrent-many-root'));
+    const svc = createAiSavingsService(path.join(tmpDir, 'concurrent-many-data'));
     await Promise.all(
       Array.from({ length: 10 }, () =>
         svc.appendEntry({ action_type: 'bug_create', item_count: 1 })
