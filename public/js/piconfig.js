@@ -12,18 +12,22 @@ import { refreshRoadmapView } from './roadmap.js';
 import { showJiraSelectModal, performJiraPull } from './jira-import.js';
 import { registerActions } from './actions.js';
 // Typed data-action names for the per-sprint-row remove button in
-// renderSprintRows and the JIRA sprint-import banner's three buttons in
-// renderJiraImportOffer/renderJiraImportConfirmation (issue #461 migration —
-// see actions.ts and list-filters.ts's CTX_ACTIONS for the established
-// pattern). Replaces onclick="removeSprintRow(${i})" /
+// renderSprintRows, the JIRA sprint-import banner's three buttons in
+// renderJiraImportOffer/renderJiraImportConfirmation, and the two PI-header
+// "Sync from JIRA" buttons plus the PI tab bar in renderPiConfigTabs (issue
+// #461 migration — see actions.ts and list-filters.ts's CTX_ACTIONS for the
+// established pattern). Replaces onclick="removeSprintRow(${i})" /
 // onclick="confirmJiraSprintImport()" / onclick="skipJiraSprintImport()" /
-// onclick="dismissJiraImportBanner()" strings previously built by hand
-// (the first with the row index interpolated into the template).
+// onclick="dismissJiraImportBanner()" / onclick="syncPiFromJira('currentPi')" /
+// onclick="selectPiConfigTab('${escHtml(p.name)}')" strings previously built
+// by hand (several with a value interpolated into the template).
 export const PICONFIG_ACTIONS = {
   removeSprintRow: 'piconfigRemoveSprintRow',
   confirmJiraImport: 'piconfigConfirmJiraImport',
   skipJiraImport: 'piconfigSkipJiraImport',
   dismissJiraImportBanner: 'piconfigDismissJiraImportBanner',
+  syncFromJira: 'piconfigSyncFromJira',
+  selectTab: 'piconfigSelectTab',
 };
 registerActions({
   [PICONFIG_ACTIONS.removeSprintRow]: (el) => {
@@ -37,6 +41,12 @@ registerActions({
   },
   [PICONFIG_ACTIONS.dismissJiraImportBanner]: () => {
     dismissJiraImportBanner();
+  },
+  [PICONFIG_ACTIONS.syncFromJira]: (el) => {
+    void syncPiFromJira(el.dataset.section);
+  },
+  [PICONFIG_ACTIONS.selectTab]: (el) => {
+    void selectPiConfigTab(el.dataset.piName ?? '');
   },
 });
 function _sprintsFor(piName) {
@@ -72,7 +82,7 @@ export function renderPiConfigTabs() {
         ${versionOptions.replace(`value="${escHtml(currentSelected)}"`, `value="${escHtml(currentSelected)}" selected`)}
       </select>
     </div>
-    <button class="btn-pi-sync-jira" id="pi-config-sync-btn-currentPi" onclick="syncPiFromJira('currentPi')">
+    <button class="btn-pi-sync-jira" id="pi-config-sync-btn-currentPi" data-action="${PICONFIG_ACTIONS.syncFromJira}" data-section="currentPi">
       <span class="pi-config-sync-btn-label">↓ Sync from JIRA</span>
     </button>
     <div class="pi-config-version-row">
@@ -82,7 +92,7 @@ export function renderPiConfigTabs() {
         ${versionOptions.replace(`value="${escHtml(nextSelected)}"`, `value="${escHtml(nextSelected)}" selected`)}
       </select>
     </div>
-    <button class="btn-pi-sync-jira" id="pi-config-sync-btn-nextPi" onclick="syncPiFromJira('nextPi')">
+    <button class="btn-pi-sync-jira" id="pi-config-sync-btn-nextPi" data-action="${PICONFIG_ACTIONS.syncFromJira}" data-section="nextPi">
       <span class="pi-config-sync-btn-label">↓ Sync from JIRA</span>
     </button>
     <div class="pi-config-tab-bar">${_renderPiTabButtons()}</div>`;
@@ -98,7 +108,7 @@ function _renderPiTabButtons() {
   return pis
     .map(
       (p) => `<button class="pi-config-tab${_piConfigActivePi === p.name ? ' active' : ''}"
-             onclick="selectPiConfigTab('${escHtml(p.name)}')">${escHtml(p.label)}<span class="pi-config-tab-name">${escHtml(p.name)}</span></button>`
+             data-action="${PICONFIG_ACTIONS.selectTab}" data-pi-name="${escHtml(p.name)}">${escHtml(p.label)}<span class="pi-config-tab-name">${escHtml(p.name)}</span></button>`
     )
     .join('');
 }
