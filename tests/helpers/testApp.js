@@ -16,11 +16,14 @@ export async function startTestApp() {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'backlog-test-'));
   const docsRoot = path.join(tmpRoot, 'docs');
   const inboxDir = path.join(tmpRoot, 'inbox');
+  const dataRoot = path.join(tmpRoot, 'data');
   fs.mkdirSync(docsRoot, { recursive: true });
   fs.mkdirSync(inboxDir, { recursive: true });
+  fs.mkdirSync(dataRoot, { recursive: true });
 
   process.env.TEST_DOCS_ROOT = docsRoot;
   process.env.TEST_INBOX_DIR = inboxDir;
+  process.env.TEST_DATA_ROOT = dataRoot;
   process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'error';
   process.env.MOCK_CLAUDE = '1';
   // Ensure .env does not inject a real JIRA token into tests.
@@ -74,10 +77,11 @@ export async function startTestApp() {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
     delete process.env.TEST_DOCS_ROOT;
     delete process.env.TEST_INBOX_DIR;
+    delete process.env.TEST_DATA_ROOT;
     delete process.env.MOCK_CLAUDE;
     delete process.env.JIRA_API_TOKEN;
     delete process.env.JIRA_BOARD_ID;
   }
 
-  return { api, stop, docsRoot, inboxDir, baseUrl: `http://localhost:${port}` };
+  return { api, stop, docsRoot, inboxDir, dataRoot, baseUrl: `http://localhost:${port}` };
 }

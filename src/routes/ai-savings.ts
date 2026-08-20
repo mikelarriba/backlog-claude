@@ -10,9 +10,9 @@ import {
 } from '../services/aiSavingsService.js';
 import type { AiSavingsRouteContext } from '../types.js';
 
-export default function aiSavingsRoutes({ rootDir, logInfo, logError }: AiSavingsRouteContext) {
+export default function aiSavingsRoutes({ dataDir, logInfo, logError }: AiSavingsRouteContext) {
   const router = Router();
-  const service = createAiSavingsService(rootDir);
+  const service = createAiSavingsService(dataDir);
 
   // ── GET /api/ai-savings ─────────────────────────────────────────────────────
   router.get('/api/ai-savings', async (_req, res) => {

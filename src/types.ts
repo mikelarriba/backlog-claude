@@ -141,6 +141,7 @@ export interface RouteContext {
   SPIKES_DIR: string;
   BUGS_DIR: string;
   INBOX_DIR: string;
+  DATA_DIR: string;
   broadcast: BroadcastFn;
   loadCommand: (name: string) => string | null;
   callClaude: (prompt: string) => Promise<string>;
@@ -231,7 +232,7 @@ export interface SkillsRouteContext {
 // ── AI Time Saved route context ────────────────────────────────────────────────────────
 
 export interface AiSavingsRouteContext {
-  rootDir: string;
+  dataDir: string;
   logInfo: Logger['logInfo'];
   logError: Logger['logError'];
 }

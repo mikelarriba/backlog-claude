@@ -48,6 +48,7 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
 
   const DOCS_ROOT = process.env.TEST_DOCS_ROOT || path.join(rootDir, 'docs');
   const INBOX_DIR = process.env.TEST_INBOX_DIR || path.join(rootDir, 'inbox');
+  const DATA_DIR = process.env.TEST_DATA_ROOT || path.join(rootDir, 'data');
   const TYPE_CONFIG = createTypeConfig(DOCS_ROOT);
 
   const JIRA_BASE = config.JIRA_BASE_URL.replace(/\/$/, '');
@@ -137,6 +138,7 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
     SPIKES_DIR,
     BUGS_DIR,
     INBOX_DIR,
+    DATA_DIR,
     broadcast,
     loadCommand,
     callClaude,
