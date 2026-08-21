@@ -1,9 +1,50 @@
 // ── Roadmap rendering helpers and render functions ─────────────
 import { escHtml, TYPE_LABEL } from './state.js';
 import type { DocEntry, SprintConfig } from './state.js';
-import { applyEpicFocus, getAllSprints } from './roadmap.js';
+import { applyEpicFocus, getAllSprints, openDepModal } from './roadmap.js';
 import { initRoadmapDragDrop, attachRoadmapDepHoverListeners } from './roadmap-drag.js';
-import { syncRoadmapSelectionUI } from './roadmap-select.js';
+import {
+  syncRoadmapSelectionUI,
+  handleRoadmapEpicClick,
+  handleRoadmapCardClick,
+} from './roadmap-select.js';
+import { registerActions } from './actions.js';
+
+// Typed data-action names for the epic-row click, story-card click, and
+// dependency-modal button in this module's render functions (issue #461
+// migration — see actions.ts and piconfig.ts's PICONFIG_ACTIONS for the
+// established pattern). Replaces onclick="handleRoadmapEpicClick(...)" /
+// onclick="handleRoadmapCardClick(...)" /
+// onclick="event.stopPropagation();openDepModal(...)" strings previously
+// built by hand. Note: openDepModal was never reachable through the old
+// onclick string at runtime — it was never added to main.ts's window
+// bridge (_dynGlobals), so the dependency-manage button (⛓) has been
+// silently broken (a ReferenceError on click); this migration fixes that
+// as a side effect of routing it through the typed dispatcher instead.
+export const ROADMAP_RENDER_ACTIONS = {
+  epicClick: 'roadmapRenderEpicClick',
+  cardClick: 'roadmapRenderCardClick',
+  openDepModal: 'roadmapRenderOpenDepModal',
+} as const;
+
+registerActions({
+  [ROADMAP_RENDER_ACTIONS.epicClick]: (el, e) => {
+    const filename = el.dataset.filename as string;
+    const docType = el.dataset.doctype as string;
+    handleRoadmapEpicClick(e, filename, docType);
+  },
+  [ROADMAP_RENDER_ACTIONS.cardClick]: (el, e) => {
+    const filename = el.dataset.filename as string;
+    const docType = el.dataset.doctype as string;
+    handleRoadmapCardClick(e, filename, docType);
+  },
+  [ROADMAP_RENDER_ACTIONS.openDepModal]: (el, e) => {
+    e.stopPropagation();
+    const filename = el.dataset.filename as string;
+    const docType = el.dataset.doctype as string;
+    void openDepModal(filename, docType);
+  },
+});
 
 interface RoadmapSprint {
   name: string;
@@ -220,7 +261,7 @@ export function renderEpicPanel(sprints: RoadmapSprint[]): void {
     rowsHtml += `
       <div class="rm-epic-card${isNone ? ' rm-epic-unlinked' : ''}"
            data-filename="${escHtml(fn || '__none__')}" data-doctype="${epicDocType}"${tooltipAttrs}
-           onclick="${fn || isNone ? `handleRoadmapEpicClick(event,'${fn ? escHtml(fn) : '__none__'}','${epicDocType}')` : ''}"
+           ${fn || isNone ? `data-action="${ROADMAP_RENDER_ACTIONS.epicClick}"` : ''}
            oncontextmenu="${fn ? `handleEpicContextMenu(event,'${escHtml(fn)}','${epicDocType}')` : ''}">
         <div class="rm-epic-name-col">
           <div class="rm-epic-dot" style="background:${color}"></div>
@@ -413,7 +454,7 @@ export function buildRoadmapCardHtml(
 
   return `
     <div class="roadmap-card${depBlockedClass}${noEstimateClass}" draggable="true"
-         onclick="handleRoadmapCardClick(event,'${escHtml(d.filename)}','${d.docType}')"
+         data-action="${ROADMAP_RENDER_ACTIONS.cardClick}"
          oncontextmenu="handleStoryContextMenu(event,'${escHtml(d.filename)}','${d.docType}')"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
@@ -435,7 +476,8 @@ export function buildRoadmapCardHtml(
         <span class="${spClass}">${spLabel}</span>
       </div>
       <button class="rm-dep-btn" title="Manage dependencies (blocks / blocked by)"
-              onclick="event.stopPropagation();openDepModal('${escHtml(d.filename)}','${d.docType}')">⛓</button>
+              data-action="${ROADMAP_RENDER_ACTIONS.openDepModal}"
+              data-filename="${escHtml(d.filename)}" data-doctype="${d.docType}">⛓</button>
     </div>`;
 }
 

@@ -156,11 +156,7 @@ import {
   confirmPullSprint,
 } from './roadmap-jira-sync.js';
 import { handleEpicContextMenu, handleStoryContextMenu } from './roadmap-context-menus.js';
-import {
-  handleRoadmapCardClick,
-  handleRoadmapEpicClick,
-  clearRoadmapSelection,
-} from './roadmap-select.js';
+import { clearRoadmapSelection } from './roadmap-select.js';
 import { loadSkillsView, handleSkillSSE } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
 import {
@@ -1059,8 +1055,8 @@ document.addEventListener('change', (e: Event) => {
 // listeners without refactoring each template — that is out of scope
 // for this issue.
 //
-// Twelve views have been migrated off this bridge so far (issue #461) — see
-// actions.ts for the pattern:
+// Fourteen views have been migrated off this bridge so far (issue #461) —
+// see actions.ts for the pattern:
 //   - The list multi-select context menu (list-filters.ts's showContextMenu).
 //     Its four handlers (contextMoveToPI, contextDeleteSelected,
 //     contextAssignField, contextSplitItem) are intentionally absent below.
@@ -1134,7 +1130,24 @@ document.addEventListener('change', (e: Event) => {
 //     removed openRefinePanel from this bridge: an audit found no remaining
 //     onclick="..." caller anywhere — every call site is a direct function
 //     import — so it no longer needs to be here at all.
-// All twelve views now self-register via registerActions() instead.
+//   - The documentation panel's issue-row click, pager buttons, and
+//     suggestion-row expand/collapse toggle (documentation.ts's
+//     renderDocIssueRow / pager / suggestion templates). Its three handlers
+//     (docRowClick, docSetPage, toggleSuggestionRow) are intentionally
+//     absent below — see DOC_ACTIONS in documentation.ts. (This bullet was
+//     missing from an earlier pass despite the migration having landed —
+//     added here for an accurate count.)
+//   - The roadmap board's epic-row click, story-card click, and
+//     dependency-manage button (roadmap-render.ts's renderRoadmapBoard /
+//     buildRoadmapCardHtml templates). Its three handlers
+//     (handleRoadmapEpicClick, handleRoadmapCardClick, openDepModal) are
+//     intentionally absent below — see ROADMAP_RENDER_ACTIONS in
+//     roadmap-render.ts. (openDepModal was previously unreachable at
+//     runtime: it was never added to this bridge, so the dependency-manage
+//     button [⛓] silently threw on click — this migration fixed it as a
+//     side effect, the same class of latent bug the detail-links.ts and
+//     roadmap.ts passes above each fixed in turn.)
+// All fourteen views now self-register via registerActions() instead.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1182,9 +1195,11 @@ const _dynGlobals: Record<string, unknown> = {
   _moveCardToEdge,
   // roadmap.ts
   toggleRoadmapPi,
-  // roadmap-render.ts
-  handleRoadmapCardClick,
-  handleRoadmapEpicClick,
+  // roadmap-render.ts — handleRoadmapCardClick/handleRoadmapEpicClick/
+  // openDepModal moved off this bridge onto ROADMAP_RENDER_ACTIONS (issue
+  // #461); see that module. openDepModal was in fact never on this bridge
+  // in the first place — the dep-manage button's onclick was unreachable
+  // at runtime before this migration.
   // roadmap-context-menus.ts
   handleEpicContextMenu,
   handleStoryContextMenu,
