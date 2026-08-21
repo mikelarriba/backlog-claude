@@ -27,6 +27,7 @@ const {
   computeAdjacentSwimlane,
   buildSwimlaneMoveAnnouncement,
   buildEdgeMoveAnnouncement,
+  isCenterDropZone,
 } = await import('../../public/js/dragdrop.js');
 
 function makeDoc(overrides = {}) {
@@ -311,5 +312,35 @@ describe('buildSwimlaneMoveAnnouncement()', () => {
       buildSwimlaneMoveAnnouncement('My Story', 'Backlog', 0),
       'Moved My Story to Backlog.'
     );
+  });
+});
+
+// ── isCenterDropZone (#460: dedupe zone-detection math shared by
+// resolveDropTargets() and the mousemove handler) ─────────────────────────
+describe('isCenterDropZone()', () => {
+  test('the vertical middle of the target is in the center zone', () => {
+    assert.equal(isCenterDropZone(50, 100), true);
+  });
+
+  test('exactly at the 25% boundary is excluded (strictly greater required)', () => {
+    assert.equal(isCenterDropZone(25, 100), false);
+  });
+
+  test('exactly at the 75% boundary is excluded (strictly less required)', () => {
+    assert.equal(isCenterDropZone(75, 100), false);
+  });
+
+  test('just inside the 25%/75% boundaries is included', () => {
+    assert.equal(isCenterDropZone(25.01, 100), true);
+    assert.equal(isCenterDropZone(74.99, 100), true);
+  });
+
+  test('above or below the center band is excluded', () => {
+    assert.equal(isCenterDropZone(10, 100), false);
+    assert.equal(isCenterDropZone(90, 100), false);
+  });
+
+  test('a zero-height rect has no center zone', () => {
+    assert.equal(isCenterDropZone(0, 0), false);
   });
 });

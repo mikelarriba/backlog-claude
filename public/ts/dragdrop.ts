@@ -592,6 +592,15 @@ interface DragState {
   rerankInsertBefore: string | null | undefined;
 }
 
+// Pure: is a point (relY from the top of a drop-target rect of the given
+// height) within the "center zone" — the middle 50% — where dropping
+// offers a link/dependency action instead of a rerank/swimlane move?
+// Extracted from the near-identical math previously duplicated between
+// resolveDropTargets() and the mousemove handler below.
+export function isCenterDropZone(relY: number, height: number): boolean {
+  return relY > height * 0.25 && relY < height * 0.75;
+}
+
 function resolveDropTargets(
   snap: DragState,
   e: MouseEvent
@@ -608,11 +617,7 @@ function resolveDropTargets(
     if (itemUnder && itemUnder.dataset.filename !== snap.srcFilename) {
       const rect = itemUnder.getBoundingClientRect();
       const relY = e.clientY - rect.top;
-      const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
-      const tgtType = itemUnder.dataset.doctype as string;
-      const canLink = (DRAG_TARGETS[snap.srcDocType] || []).includes(tgtType);
-      const canDep = !canLink;
-      if (inCenter && (canLink || canDep)) dropTarget = itemUnder;
+      if (isCenterDropZone(relY, rect.height)) dropTarget = itemUnder;
     }
 
     if (!dropTarget) {
@@ -794,12 +799,8 @@ export function initDragDrop(): void {
     if (targetItem && targetItem.dataset.filename !== state.srcFilename) {
       const rect = targetItem.getBoundingClientRect();
       const relY = e.clientY - rect.top;
-      const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
-      const tgtType = targetItem.dataset.doctype as string;
-      const canLink = (DRAG_TARGETS[state.srcDocType] || []).includes(tgtType);
-      const canDep = !canLink;
 
-      if (inCenter && (canLink || canDep)) {
+      if (isCenterDropZone(relY, rect.height)) {
         // Center of a valid target → highlight for action popup
         targetItem.classList.add('drag-target-hover');
         state.currentTarget = targetItem;
