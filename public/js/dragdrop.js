@@ -451,6 +451,14 @@ async function moveDocRankToEdgeByKeyboard(filename, docType, edge) {
       ?.focus();
   }, 200);
 }
+// Pure: is a point (relY from the top of a drop-target rect of the given
+// height) within the "center zone" — the middle 50% — where dropping
+// offers a link/dependency action instead of a rerank/swimlane move?
+// Extracted from the near-identical math previously duplicated between
+// resolveDropTargets() and the mousemove handler below.
+export function isCenterDropZone(relY, height) {
+  return relY > height * 0.25 && relY < height * 0.75;
+}
 function resolveDropTargets(snap, e) {
   let dropTarget = null,
     dropSwimlane = null;
@@ -462,11 +470,7 @@ function resolveDropTargets(snap, e) {
     if (itemUnder && itemUnder.dataset.filename !== snap.srcFilename) {
       const rect = itemUnder.getBoundingClientRect();
       const relY = e.clientY - rect.top;
-      const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
-      const tgtType = itemUnder.dataset.doctype;
-      const canLink = (DRAG_TARGETS[snap.srcDocType] || []).includes(tgtType);
-      const canDep = !canLink;
-      if (inCenter && (canLink || canDep)) dropTarget = itemUnder;
+      if (isCenterDropZone(relY, rect.height)) dropTarget = itemUnder;
     }
     if (!dropTarget) {
       const sectionUnder = elUnder?.closest('.swimlane-section');
@@ -623,11 +627,7 @@ export function initDragDrop() {
     if (targetItem && targetItem.dataset.filename !== state.srcFilename) {
       const rect = targetItem.getBoundingClientRect();
       const relY = e.clientY - rect.top;
-      const inCenter = relY > rect.height * 0.25 && relY < rect.height * 0.75;
-      const tgtType = targetItem.dataset.doctype;
-      const canLink = (DRAG_TARGETS[state.srcDocType] || []).includes(tgtType);
-      const canDep = !canLink;
-      if (inCenter && (canLink || canDep)) {
+      if (isCenterDropZone(relY, rect.height)) {
         // Center of a valid target → highlight for action popup
         targetItem.classList.add('drag-target-hover');
         state.currentTarget = targetItem;
