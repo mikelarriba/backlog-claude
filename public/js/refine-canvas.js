@@ -823,6 +823,25 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
     hit.addEventListener('click', onClick);
     svg.appendChild(hit);
   }
+  // Keyboard-operable alternative to addHitArea's mouse click — the edge's
+  // invisible hit-area <path> can't receive focus, so its text label
+  // doubles as a focusable proxy: Enter/Space opens the same _showEdgePopup
+  // the mouse click opens, positioned at the label's own screen rect
+  // instead of a cursor position, mirroring the canvas-handle keyboard
+  // link-creation flow above (getBoundingClientRect() in place of
+  // clientX/clientY) (#486).
+  function makeEdgeLabelFocusable(label, ariaLabel, onActivate) {
+    label.setAttribute('tabindex', '0');
+    label.setAttribute('role', 'button');
+    label.setAttribute('aria-label', ariaLabel);
+    label.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = label.getBoundingClientRect();
+      onActivate(rect.left, rect.top);
+    });
+  }
   // SEC arrows: cards sharing a column, consecutive rows (skipped where a
   // BLOCKS edge already connects the pair — BLOCKS takes precedence)
   const blocksList = _activePanelState.blocks;
@@ -871,10 +890,20 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
     label.setAttribute('class', 'canvas-edge-label canvas-edge-label--blocks');
     label.textContent = 'BLOCKS';
     svg.appendChild(label);
+    const openBlocksPopup = (clientX, clientY) => {
+      _showEdgePopup(clientX, clientY, 'blocks', src, srcDt || '', tgt, tgtDt || '');
+    };
     addHitArea(svg, d, (e) => {
       e.stopPropagation();
-      _showEdgePopup(e.clientX, e.clientY, 'blocks', src, srcDt || '', tgt, tgtDt || '');
+      openBlocksPopup(e.clientX, e.clientY);
     });
+    const srcTitle = allDocs.find((doc) => doc.filename === src)?.title ?? src;
+    const tgtTitle = allDocs.find((doc) => doc.filename === tgt)?.title ?? tgt;
+    makeEdgeLabelFocusable(
+      label,
+      `BLOCKS dependency: ${srcTitle} blocks ${tgtTitle}. Press Enter to manage this dependency.`,
+      openBlocksPopup
+    );
   }
   // PARALLEL brackets — clickable
   for (const { a, b } of parallelList) {
@@ -898,10 +927,20 @@ function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _total
     label.setAttribute('class', 'canvas-edge-label canvas-edge-label--parallel');
     label.textContent = 'PARALLEL';
     svg.appendChild(label);
+    const openParallelPopup = (clientX, clientY) => {
+      _showEdgePopup(clientX, clientY, 'parallel', a, aDt || '', b, bDt || '');
+    };
     addHitArea(svg, d, (e) => {
       e.stopPropagation();
-      _showEdgePopup(e.clientX, e.clientY, 'parallel', a, aDt || '', b, bDt || '');
+      openParallelPopup(e.clientX, e.clientY);
     });
+    const aTitle = allDocs.find((doc) => doc.filename === a)?.title ?? a;
+    const bTitle = allDocs.find((doc) => doc.filename === b)?.title ?? b;
+    makeEdgeLabelFocusable(
+      label,
+      `PARALLEL dependency between ${aTitle} and ${bTitle}. Press Enter to manage this dependency.`,
+      openParallelPopup
+    );
   }
 }
 export async function saveCanvasLayout(ps = _activePanelState, parentFilename) {
