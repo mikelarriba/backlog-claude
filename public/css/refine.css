@@ -590,6 +590,15 @@
   font-weight: 600;
 }
 
+/* Keyboard-focusable proxy for BLOCKS/PARALLEL edges — the edge's own
+   hit-area <path> can't receive focus, so the label doubles as one and
+   needs a visible focus ring like the canvas's other keyboard handles (#486). */
+.canvas-edge-label:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  cursor: pointer;
+}
+
 /* Source card while keyboard link-mode is active — Enter/Space on a handle
    picked it up; Tab to another card's handle and press Enter/Space to
    confirm, or Escape to cancel (#486 phase 4/N). */
