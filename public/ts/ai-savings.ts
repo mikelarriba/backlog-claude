@@ -14,7 +14,10 @@ export type AiSavingsActionType =
   | 'spike_push'
   | 'bug_create'
   | 'doc_ai_run'
-  | 'doc_confluence_modify';
+  | 'doc_confluence_modify'
+  | 'description_generate'
+  | 'issue_upgrade'
+  | 'epic_refine';
 
 interface AiSavingsEntry {
   id: string;
@@ -34,6 +37,9 @@ const CATEGORY_LABELS: Record<AiSavingsActionType, string> = {
   bug_create: 'Bugs',
   doc_ai_run: 'Doc AI',
   doc_confluence_modify: 'Confluence',
+  description_generate: 'Descriptions',
+  issue_upgrade: 'Upgrades',
+  epic_refine: 'Epic Refine',
 };
 const CATEGORY_COLORS: Record<AiSavingsActionType, string> = {
   story_push: '#6366f1',
@@ -41,6 +47,9 @@ const CATEGORY_COLORS: Record<AiSavingsActionType, string> = {
   bug_create: '#f59e0b',
   doc_ai_run: '#ef4444',
   doc_confluence_modify: '#06b6d4',
+  description_generate: '#ec4899',
+  issue_upgrade: '#14b8a6',
+  epic_refine: '#f97316',
 };
 
 let _entries: AiSavingsEntry[] = [];

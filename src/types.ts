@@ -2,6 +2,7 @@
 
 import type { Logger } from './utils/logger.js';
 import type { ConfluencePage, ConfluenceSpace } from './services/confluenceService.js';
+import type { AiSavingsServiceInstance } from './services/aiSavingsService.js';
 
 // Re-export frontend-shared types not defined below (PISettings, SprintConfig, etc.)
 export type { PISettings, SprintConfig, SwimlaneCollapsed, PanelState } from './shared/types.js';
@@ -151,6 +152,7 @@ export interface RouteContext {
   logWarn: Logger['logWarn'];
   logError: Logger['logError'];
   docIndex: DocIndexInstance;
+  aiSavings: AiSavingsServiceInstance;
 }
 
 export interface JiraRouteContext extends RouteContext {
@@ -232,7 +234,7 @@ export interface SkillsRouteContext {
 // ── AI Time Saved route context ────────────────────────────────────────────────────────
 
 export interface AiSavingsRouteContext {
-  dataDir: string;
+  aiSavings: AiSavingsServiceInstance;
   logInfo: Logger['logInfo'];
   logError: Logger['logError'];
 }

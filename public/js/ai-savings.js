@@ -6,6 +6,9 @@ const CATEGORY_LABELS = {
   bug_create: 'Bugs',
   doc_ai_run: 'Doc AI',
   doc_confluence_modify: 'Confluence',
+  description_generate: 'Descriptions',
+  issue_upgrade: 'Upgrades',
+  epic_refine: 'Epic Refine',
 };
 const CATEGORY_COLORS = {
   story_push: '#6366f1',
@@ -13,6 +16,9 @@ const CATEGORY_COLORS = {
   bug_create: '#f59e0b',
   doc_ai_run: '#ef4444',
   doc_confluence_modify: '#06b6d4',
+  description_generate: '#ec4899',
+  issue_upgrade: '#14b8a6',
+  epic_refine: '#f97316',
 };
 let _entries = [];
 let _chart = null;

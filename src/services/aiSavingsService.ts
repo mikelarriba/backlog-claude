@@ -13,7 +13,10 @@ export type AiSavingsActionType =
   | 'spike_push'
   | 'bug_create'
   | 'doc_ai_run'
-  | 'doc_confluence_modify';
+  | 'doc_confluence_modify'
+  | 'description_generate'
+  | 'issue_upgrade'
+  | 'epic_refine';
 
 export interface AiSavingsEntry {
   id: string;
@@ -33,6 +36,9 @@ export const BENCHMARK_MINUTES: Record<AiSavingsActionType, number> = {
   bug_create: 10,
   doc_ai_run: 30,
   doc_confluence_modify: 20,
+  description_generate: 20,
+  issue_upgrade: 5,
+  epic_refine: 30,
 };
 
 export const ACTION_LABELS: Record<AiSavingsActionType, string> = {
@@ -41,6 +47,9 @@ export const ACTION_LABELS: Record<AiSavingsActionType, string> = {
   bug_create: 'Bugs created',
   doc_ai_run: 'Documentation AI analysis',
   doc_confluence_modify: 'Confluence pages modified',
+  description_generate: 'Descriptions generated',
+  issue_upgrade: 'Issues upgraded',
+  epic_refine: 'Epics refined',
 };
 
 const ACTION_TYPES = Object.keys(BENCHMARK_MINUTES) as AiSavingsActionType[];
@@ -122,6 +131,8 @@ export function createAiSavingsService(dataDir: string) {
 
   return { appendEntry, getAll, readEntries };
 }
+
+export type AiSavingsServiceInstance = ReturnType<typeof createAiSavingsService>;
 
 // ── Report builders ────────────────────────────────────────────────────────
 

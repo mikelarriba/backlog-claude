@@ -100,7 +100,7 @@ export function registerRoutes(app: Express, ctx: AppContext, rootDir: string): 
   app.use(bugsDashboardRoutes(jiraShared));
   app.use(
     aiSavingsRoutes({
-      dataDir: shared.DATA_DIR,
+      aiSavings: shared.aiSavings,
       logInfo: shared.logInfo,
       logError: shared.logError,
     })

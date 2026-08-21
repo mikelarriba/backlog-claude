@@ -3,16 +3,15 @@ import { Router } from 'express';
 import { sendError, parseApiError } from '../utils/routeHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { AiSavingsLogSchema } from '../schemas/ai-savings.js';
-import {
-  createAiSavingsService,
-  buildSavingsPdf,
-  buildSavingsPptx,
-} from '../services/aiSavingsService.js';
+import { buildSavingsPdf, buildSavingsPptx } from '../services/aiSavingsService.js';
 import type { AiSavingsRouteContext } from '../types.js';
 
-export default function aiSavingsRoutes({ dataDir, logInfo, logError }: AiSavingsRouteContext) {
+export default function aiSavingsRoutes({
+  aiSavings: service,
+  logInfo,
+  logError,
+}: AiSavingsRouteContext) {
   const router = Router();
-  const service = createAiSavingsService(dataDir);
 
   // ── GET /api/ai-savings ─────────────────────────────────────────────────────
   router.get('/api/ai-savings', async (_req, res) => {

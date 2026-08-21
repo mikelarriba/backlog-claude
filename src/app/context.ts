@@ -12,6 +12,7 @@ import {
   type ConfluenceServiceInstance,
 } from '../services/confluenceService.js';
 import { createDocIndex } from '../services/docIndex.js';
+import { createAiSavingsService } from '../services/aiSavingsService.js';
 import { validateJiraConfig } from '../services/jiraValidator.js';
 import { watchInbox } from '../services/inboxWatcher.js';
 import { createTypeConfig } from '../config/docTypes.js';
@@ -118,6 +119,11 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
 
   const _apiInFlight = new Set<string>();
 
+  // Single shared AI-savings service so its in-memory write-queue serializes
+  // all appends to data/ai-savings.json (route-triggered logs + POST /log).
+  // Built from DATA_DIR so TEST_DATA_ROOT isolation (see #524) is honored.
+  const aiSavings = createAiSavingsService(DATA_DIR);
+
   const loadCommand = (name: string): string | null => loadCommandService(rootDir, name);
   const callClaude = (prompt: string): Promise<string> => callClaudeService(rootDir, prompt);
   const streamClaude = (prompt: string, onChunk: (chunk: string) => void): Promise<void> =>
@@ -148,6 +154,7 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
     logWarn,
     logError,
     docIndex,
+    aiSavings,
   };
 
   const jiraShared: JiraRouteContext = {
