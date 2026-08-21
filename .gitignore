@@ -15,3 +15,4 @@ data/ai-savings.json
 playwright-report/
 test-results/
 public/js/*.js.map
+.claude/worktrees/

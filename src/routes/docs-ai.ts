@@ -30,9 +30,17 @@ export default function docsAiRoutes(ctx: RouteContext) {
     logError,
     docIndex,
     INBOX_DIR,
+    aiSavings,
   } = ctx;
 
   const router = Router();
+
+  // Best-effort AI-savings log — never let a logging failure break the action.
+  const logSaving = (actionType: Parameters<typeof aiSavings.appendEntry>[0]['action_type']) => {
+    void aiSavings
+      .appendEntry({ action_type: actionType, item_count: 1 })
+      .catch((e) => logError('ai-savings', e instanceof Error ? e.message : String(e)));
+  };
 
   // ── POST /api/generate ─────────────────────────────────────────────────────
   router.post('/api/generate', validateBody(GenerateDocSchema), async (req, res) => {
@@ -68,6 +76,7 @@ export default function docsAiRoutes(ctx: RouteContext) {
         ctx
       );
 
+      logSaving('description_generate');
       res.json({ success: true, filename, docType });
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -118,6 +127,7 @@ export default function docsAiRoutes(ctx: RouteContext) {
           (chunk) => send({ text: chunk })
         );
 
+        logSaving('issue_upgrade');
         send({ done: true, content: fullContent });
         res.end();
       } catch (err) {

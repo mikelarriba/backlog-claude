@@ -32,6 +32,7 @@ export default function storiesRoutes({
   streamClaude,
   logError,
   docIndex,
+  aiSavings,
 }: RouteContext) {
   const router = Router();
 
@@ -238,6 +239,13 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
         broadcast({ type: 'story_created', filename: storyFilename, docType: 'story' });
         createdFiles.push({ filename: storyFilename, title: storyTitle });
         send({ progress: { current: i + 1, total, title: storyTitle } });
+      }
+
+      // Credit an Epic-refine only when it actually produced stories.
+      if (createdFiles.length > 0) {
+        void aiSavings
+          .appendEntry({ action_type: 'epic_refine', item_count: 1 })
+          .catch((e) => logError('ai-savings', e instanceof Error ? e.message : String(e)));
       }
 
       send({ done: true, files: createdFiles });
