@@ -16,7 +16,7 @@ mock.module('../../public/js/list.js', {
   namedExports: { loadDocs: async () => {}, contextSplitItem: () => {} },
 });
 mock.module('../../public/js/roadmap.js', {
-  namedExports: { getAllSprints: () => [], applyEpicFocus: () => {} },
+  namedExports: { getAllSprints: () => [], applyEpicFocus: () => {}, openDepModal: async () => {} },
 });
 
 const {

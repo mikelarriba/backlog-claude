@@ -24,6 +24,7 @@ export function installRoadmapMocks() {
     namedExports: {
       applyEpicFocus: () => {},
       getAllSprints: () => [],
+      openDepModal: async () => {},
     },
   });
 
@@ -37,6 +38,8 @@ export function installRoadmapMocks() {
   mock.module('../../public/js/roadmap-select.js', {
     namedExports: {
       syncRoadmapSelectionUI: () => {},
+      handleRoadmapEpicClick: () => {},
+      handleRoadmapCardClick: () => {},
     },
   });
 }
