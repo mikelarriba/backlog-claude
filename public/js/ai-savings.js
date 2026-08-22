@@ -77,7 +77,10 @@ export async function exportAiSavingsPptx() {
   }
 }
 // ── Helpers ───────────────────────────────────────────────────────────────
-function _filterByRange(entries, range) {
+// Pure: keep only entries whose timestamp falls within `range` of now.
+// 'all' is a no-op pass-through; 'week'/'month' use fixed-width windows
+// (7/30 days) measured back from Date.now() at call time.
+export function _filterByRange(entries, range) {
   if (range === 'all') return entries;
   const now = Date.now();
   const spanMs = range === 'week' ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
@@ -105,18 +108,23 @@ function _renderStats(entries) {
     </div>
   `;
 }
-function _weekLabel(date) {
+// Pure: label a week by the calendar week-of-month its anchor date falls
+// in, e.g. "W3 Aug" for the 15th-21st of August. Week-of-month (not
+// week-of-year) so the label stays short in the chart's x-axis.
+export function _weekLabel(date) {
   const month = date.toLocaleString('en-US', { month: 'short' });
   const weekNum = Math.ceil(date.getDate() / 7);
   return `W${weekNum} ${month}`;
 }
-function _startOfWeek(d) {
+// Pure: start of the 7-day window ending on `d` (d minus 6 days, midnight).
+export function _startOfWeek(d) {
   const s = new Date(d);
   s.setDate(s.getDate() - 6);
   s.setHours(0, 0, 0, 0);
   return s;
 }
-function _endOfWeek(d) {
+// Pure: end of the day containing `d` (23:59:59.999).
+export function _endOfWeek(d) {
   const e = new Date(d);
   e.setHours(23, 59, 59, 999);
   return e;
