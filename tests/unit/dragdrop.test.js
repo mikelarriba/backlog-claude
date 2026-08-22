@@ -22,6 +22,7 @@ const {
   getSwimlaneSection,
   sectionToFixVersion,
   computeRerankedOrder,
+  computeRerankedDocs,
   computeMoveTarget,
   computeEdgeMoveTarget,
   computeAdjacentSwimlane,
@@ -140,6 +141,63 @@ describe('computeRerankedOrder()', () => {
   test('single-item group: dragging the only item to the end returns it unchanged', () => {
     const group = [makeDoc({ filename: 'a.md', rank: 1 })];
     assert.deepEqual(computeRerankedOrder(group, 'a.md', null), ['a.md']);
+  });
+});
+
+// ── computeRerankedDocs ────────────────────────────────────────────────────────
+// The local-state counterpart to computeRerankedOrder: given the same
+// pre-move group and the orderedFilenames it produced, mirrors the server's
+// batchRerank (rank = index + 1) so callers can update allDocs immediately
+// instead of waiting for a debounced reload (#486 — fixes the roadmap column
+// not visually re-sorting after a rerank, flagged in #525's status comment).
+describe('computeRerankedDocs()', () => {
+  test('assigns sequential 1-based rank matching orderedFilenames order', () => {
+    const group = [
+      makeDoc({ filename: 'a.md', rank: 1, title: 'A' }),
+      makeDoc({ filename: 'b.md', rank: 2, title: 'B' }),
+      makeDoc({ filename: 'c.md', rank: 3, title: 'C' }),
+    ];
+    const result = computeRerankedDocs(group, ['b.md', 'c.md', 'a.md']);
+    assert.deepEqual(
+      result.map((d) => [d.filename, d.rank]),
+      [
+        ['b.md', 1],
+        ['c.md', 2],
+        ['a.md', 3],
+      ]
+    );
+  });
+
+  test('preserves every other field on each doc, only overwriting rank', () => {
+    const group = [makeDoc({ filename: 'a.md', rank: 5, title: 'Keep me', priority: 'High' })];
+    const [result] = computeRerankedDocs(group, ['a.md']);
+    assert.equal(result.title, 'Keep me');
+    assert.equal(result.priority, 'High');
+    assert.equal(result.rank, 1);
+  });
+
+  test('a filename in orderedFilenames not present in group is skipped, not guessed at', () => {
+    const group = [makeDoc({ filename: 'a.md', rank: 1 })];
+    const result = computeRerankedDocs(group, ['ghost.md', 'a.md']);
+    assert.deepEqual(
+      result.map((d) => d.filename),
+      ['a.md']
+    );
+    // Still gets the index it actually occupies in orderedFilenames (1 -> rank 2),
+    // not re-numbered as if the missing entry weren't there.
+    assert.equal(result[0].rank, 2);
+  });
+
+  test('does not mutate the original doc objects in the group', () => {
+    const original = makeDoc({ filename: 'a.md', rank: 1 });
+    const group = [original];
+    computeRerankedDocs(group, ['a.md']);
+    assert.equal(original.rank, 1);
+  });
+
+  test('empty orderedFilenames returns an empty array', () => {
+    const group = [makeDoc({ filename: 'a.md', rank: 1 })];
+    assert.deepEqual(computeRerankedDocs(group, []), []);
   });
 });
 

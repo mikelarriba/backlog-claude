@@ -13,6 +13,7 @@ import {
   TYPE_LABEL,
   DRAG_TARGETS,
   SECTION_LABELS,
+  upsertDoc,
 } from './state.js';
 import { loadHierarchy } from './detail-links.js';
 import { clearSelection, itemKey, getSelectedDocs, applyFilters } from './list-filters.js';
@@ -295,6 +296,25 @@ export function computeRerankedOrder(group, srcFilename, insertBeforeFilename) {
   sorted.splice(insertIdx, 0, dragged);
   return sorted.map((d) => d.filename);
 }
+// Pure: given the pre-move group and the orderedFilenames computeRerankedOrder
+// above just produced, returns each doc with `rank` set to the sequential
+// 1-based value the server's own batchRerank assigns for that exact filename
+// order (rank = index + 1 — see src/services/batchService.ts). Lets callers
+// apply the deterministic result locally right away instead of waiting on
+// the debounced allDocs reload the rerank broadcast eventually triggers.
+// Mirrors the pattern list.ts's own (unused) moveDocRank already established
+// for this — "apply that same deterministic update locally instead of
+// refetching the full doc list." Filenames not present in `group` are
+// skipped rather than guessed at.
+export function computeRerankedDocs(group, orderedFilenames) {
+  const byFilename = new Map(group.map((d) => [d.filename, d]));
+  const result = [];
+  orderedFilenames.forEach((filename, i) => {
+    const doc = byFilename.get(filename);
+    if (doc) result.push({ ...doc, rank: i + 1 });
+  });
+  return result;
+}
 // Pure targeting logic for moveDocRank below, split out the same way
 // computeRerankedOrder is split from executeRerankDrop so it's testable
 // without a network call. Returns the insertBeforeFilename to pass to
@@ -371,6 +391,18 @@ export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFil
       type: srcDocType,
       orderedFilenames,
     });
+    // Apply the server's deterministic rank assignment locally right away
+    // (see computeRerankedDocs above) rather than waiting for the debounced
+    // allDocs reload the rerank broadcast triggers. Without this, a caller
+    // that re-renders synchronously right after this resolves — e.g.
+    // roadmap-drag.ts's patchStoryColumn — read stale rank order off allDocs
+    // and the column didn't visually re-sort even though the move had
+    // already persisted; for the roadmap specifically this was effectively
+    // permanent, since roadmap.ts doesn't subscribe to the docs:changed
+    // event the eventual reload emits. Pre-existing gap, not introduced by
+    // this change — the shipped mouse-drag rerank path called this same
+    // function and had the identical bug (#486).
+    computeRerankedDocs(group, orderedFilenames).forEach((d) => upsertDoc(d));
   } catch (e) {
     showJiraToast('error', e.message);
   }
