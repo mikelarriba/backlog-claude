@@ -15,21 +15,32 @@ import {
 import { upsertDoc } from './store.js';
 import { showJiraSelectModal } from './jira-import.js';
 import { registerActions } from './actions.js';
-// Typed data-action names for the dependency chip's "remove" button in
-// renderDetailDeps, and the hierarchy panel's per-child expand/collapse
-// header and "Link existing" button in loadHierarchy (issue #461 migration —
-// see actions.ts and list-filters.ts's CTX_ACTIONS for the established
-// pattern). Replaces the
+// Typed data-action names for the dependency chip's "remove" button and its
+// clickable label in renderDetailDeps, and the hierarchy panel's parent row,
+// per-child expand/collapse header, and "Link existing" button in
+// loadHierarchy (issue #461 migration — see actions.ts and list-filters.ts's
+// CTX_ACTIONS for the established pattern). Replaces the
 // onclick="event.stopPropagation(); deleteDepFromDetail(fn, dtype, linkType)" /
-// onclick="toggleHierarchyChild(this.parentElement)" /
+// onclick="openDoc(fn, dtype)" / onclick="toggleHierarchyChild(this.parentElement)" /
 // onclick="linkExistingChildren()" strings previously built by hand (the
 // first with the three args hand-interpolated into the template). The
 // deleteDep handler was never actually reachable at runtime — main.ts's
 // window bridge (_dynGlobals) never included deleteDepFromDetail, so the
 // button silently threw "deleteDepFromDetail is not defined" on click — that
 // migration also fixed a dead/broken "remove dependency" button.
+//
+// openDoc itself is intentionally referenced as the ambient global declared
+// in global.d.ts (var openDoc: ...) rather than imported from detail.ts:
+// detail.ts already imports loadHierarchy/renderDetailDeps from this module,
+// so a value import the other way would close a direct two-file cycle
+// pulling detail.ts's much heavier dependency graph (main.ts and friends)
+// into this module — the same reason currentFilename/currentDocType/allDocs
+// are referenced as bare globals below rather than imported. openDoc stays
+// on the window bridge for one remaining onclick="openDoc(...)" site outside
+// this module (roadmap-render.ts's cross-PI "ghost card"); see main.ts.
 export const DETAIL_LINKS_ACTIONS = {
   deleteDep: 'detailLinksDeleteDep',
+  openDoc: 'detailLinksOpenDoc',
   toggleHierarchyChild: 'detailLinksToggleHierarchyChild',
   linkExistingChildren: 'detailLinksLinkExistingChildren',
 };
@@ -41,6 +52,9 @@ registerActions({
       el.dataset.depType ?? '',
       el.dataset.linkType ?? ''
     );
+  },
+  [DETAIL_LINKS_ACTIONS.openDoc]: (el) => {
+    openDoc(el.dataset.filename ?? '', el.dataset.doctype ?? '');
   },
   [DETAIL_LINKS_ACTIONS.toggleHierarchyChild]: (el) => {
     void toggleHierarchyChild(el.parentElement);
@@ -67,7 +81,7 @@ export function renderDetailDeps(doc) {
     const short = title.length > 35 ? title.slice(0, 33) + '…' : title;
     return (
       `<span class="dep-chip ${chipClass}" title="${escHtml(linkType)}: ${escHtml(title)}">` +
-      `<span class="dep-chip-text" onclick="openDoc('${escHtml(fn)}','${dtype}')">${icon} ${escHtml(short)}</span>` +
+      `<span class="dep-chip-text" data-action="${DETAIL_LINKS_ACTIONS.openDoc}" data-filename="${escHtml(fn)}" data-doctype="${dtype}">${icon} ${escHtml(short)}</span>` +
       `<button class="dep-chip-delete" data-action="${DETAIL_LINKS_ACTIONS.deleteDep}" data-dep-fn="${escHtml(fn)}" data-dep-type="${escHtml(dtype)}" data-link-type="${escHtml(linkType)}" title="Remove dependency">&times;</button>` +
       `</span>`
     );
@@ -144,7 +158,7 @@ export async function loadHierarchy(filename, docType) {
     const rows = [];
     // Parent: simple clickable row that navigates to the parent doc
     const makeParentRow = (node) => `
-      <div class="hierarchy-row" onclick="openDoc('${escHtml(node.filename)}','${node.docType}')">
+      <div class="hierarchy-row" data-action="${DETAIL_LINKS_ACTIONS.openDoc}" data-filename="${escHtml(node.filename)}" data-doctype="${node.docType}">
         <span class="type-badge ${node.docType}">${TYPE_LABEL[node.docType] || node.docType}</span>
         <span class="hierarchy-title">${escHtml(node.title)}</span>
         ${node.jiraId !== 'TBD' ? `<span class="hierarchy-jira">${escHtml(node.jiraId)}</span>` : ''}

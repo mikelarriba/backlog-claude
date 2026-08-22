@@ -1091,15 +1091,19 @@ document.addEventListener('change', (e: Event) => {
 //     _updatePiFromConfig stays on this bridge: it backs the two version
 //     `onchange="..."` selects, which the data-action click dispatcher
 //     doesn't cover.
-//   - The detail view's dependency chip "remove" button (detail-links.ts's
-//     renderDetailDeps) and its hierarchy panel's per-child expand/collapse
-//     header and "Link existing" button (detail-links.ts's loadHierarchy).
-//     Its three handlers (deleteDepFromDetail, toggleHierarchyChild,
-//     linkExistingChildren) are intentionally absent below — see
+//   - The detail view's dependency chip "remove" button and its clickable
+//     label (detail-links.ts's renderDetailDeps), and its hierarchy panel's
+//     parent row, per-child expand/collapse header, and "Link existing"
+//     button (detail-links.ts's loadHierarchy). Its four handlers
+//     (deleteDepFromDetail, toggleHierarchyChild, linkExistingChildren, and —
+//     added in a later pass — the dep chip label's and parent row's
+//     onclick="openDoc(...)") are intentionally absent below — see
 //     DETAIL_LINKS_ACTIONS in detail-links.ts. (deleteDepFromDetail was
 //     previously unreachable at runtime: it was never added to this bridge,
 //     so the button silently threw on click — that migration fixed it as a
-//     side effect.)
+//     side effect.) openDoc itself stays on this bridge below: it's still
+//     reached via one onclick="openDoc(...)" site outside detail-links.ts
+//     (roadmap-render.ts's cross-PI "ghost card" — see that bullet below).
 //   - The detail view's comment CRUD buttons (detail-fields.ts's
 //     _renderComments). Its five handlers (addDocComment, startCommentEdit,
 //     cancelCommentEdit, saveCommentEdit, deleteDocComment) are intentionally
@@ -1146,7 +1150,11 @@ document.addEventListener('change', (e: Event) => {
 //     runtime: it was never added to this bridge, so the dependency-manage
 //     button [⛓] silently threw on click — this migration fixed it as a
 //     side effect, the same class of latent bug the detail-links.ts and
-//     roadmap.ts passes above each fixed in turn.)
+//     roadmap.ts passes above each fixed in turn.) A fourth site in this same
+//     file — the cross-PI "ghost card" in injectGhostCards, reached via
+//     onclick="openDoc(...)" — was not part of that pass and still routes
+//     through this bridge's openDoc entry below; worth folding into a future
+//     increment alongside detail-links.ts's now-migrated openDoc sites.
 // All fourteen views now self-register via registerActions() instead.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
@@ -1158,7 +1166,10 @@ const _dynGlobals: Record<string, unknown> = {
   showContextMenu,
   closeContextMenu,
   openDistributionModal,
-  // detail.js — still used from template-generated HTML (detail-links, etc.)
+  // detail.js — openDoc still used from template-generated HTML: the one
+  // remaining onclick="openDoc(...)" site is roadmap-render.ts's cross-PI
+  // "ghost card" (injectGhostCards) — detail-links.ts's two former sites
+  // moved onto DETAIL_LINKS_ACTIONS.openDoc (issue #461).
   openDoc,
   closeAllDropdowns,
   loadHierarchy,
