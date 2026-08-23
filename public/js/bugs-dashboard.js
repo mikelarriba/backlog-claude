@@ -309,7 +309,7 @@ function _showError(err) {
   if (detailEl) detailEl.textContent = detail;
   banner.style.display = '';
 }
-function _statusClass(status) {
+export function _statusClass(status) {
   const s = (status || '').toLowerCase().replace(/\s+/g, '-');
   return `bugs-status-${s}`;
 }

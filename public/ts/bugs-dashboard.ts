@@ -419,7 +419,7 @@ function _showError(err: unknown): void {
   banner.style.display = '';
 }
 
-function _statusClass(status: string): string {
+export function _statusClass(status: string): string {
   const s = (status || '').toLowerCase().replace(/\s+/g, '-');
   return `bugs-status-${s}`;
 }
