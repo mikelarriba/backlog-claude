@@ -42,7 +42,6 @@ import {
   closeDropdown,
   closeAllDropdowns,
   toggleOriginal,
-  openDoc,
 } from './detail.js';
 import {
   saveStoryPoints,
@@ -1101,9 +1100,7 @@ document.addEventListener('change', (e: Event) => {
 //     DETAIL_LINKS_ACTIONS in detail-links.ts. (deleteDepFromDetail was
 //     previously unreachable at runtime: it was never added to this bridge,
 //     so the button silently threw on click — that migration fixed it as a
-//     side effect.) openDoc itself stays on this bridge below: it's still
-//     reached via one onclick="openDoc(...)" site outside detail-links.ts
-//     (roadmap-render.ts's cross-PI "ghost card" — see that bullet below).
+//     side effect.)
 //   - The detail view's comment CRUD buttons (detail-fields.ts's
 //     _renderComments). Its five handlers (addDocComment, startCommentEdit,
 //     cancelCommentEdit, saveCommentEdit, deleteDocComment) are intentionally
@@ -1141,20 +1138,21 @@ document.addEventListener('change', (e: Event) => {
 //     absent below — see DOC_ACTIONS in documentation.ts. (This bullet was
 //     missing from an earlier pass despite the migration having landed —
 //     added here for an accurate count.)
-//   - The roadmap board's epic-row click, story-card click, and
-//     dependency-manage button (roadmap-render.ts's renderRoadmapBoard /
-//     buildRoadmapCardHtml templates). Its three handlers
-//     (handleRoadmapEpicClick, handleRoadmapCardClick, openDepModal) are
-//     intentionally absent below — see ROADMAP_RENDER_ACTIONS in
-//     roadmap-render.ts. (openDepModal was previously unreachable at
-//     runtime: it was never added to this bridge, so the dependency-manage
-//     button [⛓] silently threw on click — this migration fixed it as a
-//     side effect, the same class of latent bug the detail-links.ts and
-//     roadmap.ts passes above each fixed in turn.) A fourth site in this same
-//     file — the cross-PI "ghost card" in injectGhostCards, reached via
-//     onclick="openDoc(...)" — was not part of that pass and still routes
-//     through this bridge's openDoc entry below; worth folding into a future
-//     increment alongside detail-links.ts's now-migrated openDoc sites.
+//   - The roadmap board's epic-row click, story-card click, dependency-manage
+//     button, and cross-PI "ghost card" (roadmap-render.ts's
+//     renderRoadmapBoard / buildRoadmapCardHtml / injectGhostCards
+//     templates). Its four handlers (handleRoadmapEpicClick,
+//     handleRoadmapCardClick, openDepModal, and — added in a later pass —
+//     the ghost card's onclick="openDoc(...)") are intentionally absent
+//     below — see ROADMAP_RENDER_ACTIONS in roadmap-render.ts.
+//     (openDepModal was previously unreachable at runtime: it was never
+//     added to this bridge, so the dependency-manage button [⛓] silently
+//     threw on click — this migration fixed it as a side effect, the same
+//     class of latent bug the detail-links.ts and roadmap.ts passes above
+//     each fixed in turn.) The ghost card's onclick="openDoc(...)" was the
+//     last remaining onclick="openDoc(...)" site anywhere in public/ts/, so
+//     openDoc no longer needs this bridge at all and has been removed from
+//     it (and from this file's import of detail.js).
 // All fourteen views now self-register via registerActions() instead.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
@@ -1166,11 +1164,6 @@ const _dynGlobals: Record<string, unknown> = {
   showContextMenu,
   closeContextMenu,
   openDistributionModal,
-  // detail.js — openDoc still used from template-generated HTML: the one
-  // remaining onclick="openDoc(...)" site is roadmap-render.ts's cross-PI
-  // "ghost card" (injectGhostCards) — detail-links.ts's two former sites
-  // moved onto DETAIL_LINKS_ACTIONS.openDoc (issue #461).
-  openDoc,
   closeAllDropdowns,
   loadHierarchy,
   // detail-links.ts
