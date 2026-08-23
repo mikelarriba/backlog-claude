@@ -8,21 +8,32 @@ import {
   handleRoadmapCardClick,
 } from './roadmap-select.js';
 import { registerActions } from './actions.js';
-// Typed data-action names for the epic-row click, story-card click, and
-// dependency-modal button in this module's render functions (issue #461
-// migration — see actions.ts and piconfig.ts's PICONFIG_ACTIONS for the
-// established pattern). Replaces onclick="handleRoadmapEpicClick(...)" /
-// onclick="handleRoadmapCardClick(...)" /
-// onclick="event.stopPropagation();openDepModal(...)" strings previously
-// built by hand. Note: openDepModal was never reachable through the old
-// onclick string at runtime — it was never added to main.ts's window
-// bridge (_dynGlobals), so the dependency-manage button (⛓) has been
-// silently broken (a ReferenceError on click); this migration fixes that
-// as a side effect of routing it through the typed dispatcher instead.
+// Typed data-action names for the epic-row click, story-card click,
+// dependency-modal button, and cross-PI ghost card in this module's render
+// functions (issue #461 migration — see actions.ts and piconfig.ts's
+// PICONFIG_ACTIONS for the established pattern). Replaces
+// onclick="handleRoadmapEpicClick(...)" / onclick="handleRoadmapCardClick(...)" /
+// onclick="event.stopPropagation();openDepModal(...)" /
+// onclick="openDoc(...)" strings previously built by hand. Note:
+// openDepModal was never reachable through the old onclick string at
+// runtime — it was never added to main.ts's window bridge (_dynGlobals),
+// so the dependency-manage button (⛓) has been silently broken (a
+// ReferenceError on click); this migration fixes that as a side effect of
+// routing it through the typed dispatcher instead.
+//
+// openDoc itself is intentionally referenced as the ambient global declared
+// in global.d.ts (var openDoc: ...) rather than imported from detail.ts —
+// same treatment detail-links.ts already gives it (see that file's
+// DETAIL_LINKS_ACTIONS.openDoc), to avoid pulling detail.ts's much heavier
+// dependency graph (main.ts and friends) into this render module. This was
+// the last remaining onclick="openDoc(...)" site anywhere in public/ts/ —
+// detail-links.ts's two former sites moved onto its own action map earlier
+// — so openDoc no longer needs main.ts's window bridge at all.
 export const ROADMAP_RENDER_ACTIONS = {
   epicClick: 'roadmapRenderEpicClick',
   cardClick: 'roadmapRenderCardClick',
   openDepModal: 'roadmapRenderOpenDepModal',
+  ghostCardOpenDoc: 'roadmapRenderGhostCardOpenDoc',
 };
 registerActions({
   [ROADMAP_RENDER_ACTIONS.epicClick]: (el, e) => {
@@ -40,6 +51,9 @@ registerActions({
     const filename = el.dataset.filename;
     const docType = el.dataset.doctype;
     void openDepModal(filename, docType);
+  },
+  [ROADMAP_RENDER_ACTIONS.ghostCardOpenDoc]: (el) => {
+    openDoc(el.dataset.filename ?? '', el.dataset.doctype ?? '');
   },
 });
 // ── Story-point card heights (Fibonacci scale) ────────────────
@@ -469,7 +483,9 @@ export function injectGhostCards() {
     const color = epicColor(parent.workCategory);
     const ghostHtml = `
       <div class="roadmap-card ghost-card"
-           onclick="openDoc('${escHtml(story.filename)}','${story.docType}')"
+           data-action="${ROADMAP_RENDER_ACTIONS.ghostCardOpenDoc}"
+           data-filename="${escHtml(story.filename)}"
+           data-doctype="${story.docType}"
            title="Story is in ${escHtml(story.fixVersion)}; parent epic is in ${escHtml(parent.fixVersion)}">
         <div class="roadmap-card-parent">
           <span class="rm-parent-dot" style="background:${color}"></span>${escHtml(parent.title)}
