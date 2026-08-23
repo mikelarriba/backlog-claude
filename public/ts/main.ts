@@ -42,6 +42,7 @@ import {
   closeDropdown,
   closeAllDropdowns,
   toggleOriginal,
+  openDoc,
 } from './detail.js';
 import {
   saveStoryPoints,
@@ -1151,8 +1152,19 @@ document.addEventListener('change', (e: Event) => {
 //     class of latent bug the detail-links.ts and roadmap.ts passes above
 //     each fixed in turn.) The ghost card's onclick="openDoc(...)" was the
 //     last remaining onclick="openDoc(...)" site anywhere in public/ts/, so
-//     openDoc no longer needs this bridge at all and has been removed from
-//     it (and from this file's import of detail.js).
+//     openDoc itself still stays on this bridge below — not because of any
+//     remaining onclick="..." string (there are none left), but because
+//     list-filters.ts's handleItemClick and roadmap-select.ts's
+//     handleRoadmapCardClick/handleRoadmapEpicClick call the bare
+//     `openDoc(...)` global directly (as a plain function call, not an
+//     onclick attribute) rather than importing it from detail.ts, the same
+//     avoid-a-heavier-dependency-graph reasoning detail-links.ts and this
+//     module document for their own ambient-global use of it. A first pass
+//     at this migration removed openDoc from the bridge on the (incorrect)
+//     assumption that "last onclick=openDoc(...) site gone" meant "no more
+//     consumers" — CI's e2e suite caught the resulting regression (list/
+//     roadmap item clicks silently failing to open the detail view) before
+//     merge, so it's restored here.
 // All fourteen views now self-register via registerActions() instead.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
@@ -1164,6 +1176,9 @@ const _dynGlobals: Record<string, unknown> = {
   showContextMenu,
   closeContextMenu,
   openDistributionModal,
+  // detail.js — openDoc still used from list-filters.ts / roadmap-select.ts
+  // as a bare ambient global (see the narrative comment above this bridge).
+  openDoc,
   closeAllDropdowns,
   loadHierarchy,
   // detail-links.ts
