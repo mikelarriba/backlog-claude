@@ -1,5 +1,6 @@
 // ── Settings view: AI Time Saved dashboard ────────────────────────────────
 import { fetchJSON, postJSON, toggleSection } from './state.js';
+import { updateChart } from './chart-helpers.js';
 const CATEGORY_LABELS = {
   story_push: 'Stories',
   spike_push: 'Spikes',
@@ -131,48 +132,44 @@ export function _endOfWeek(d) {
 }
 function _renderChart(entries) {
   const canvas = document.getElementById('ai-savings-chart');
-  const ChartCtor = window.Chart;
-  if (!canvas || typeof ChartCtor === 'undefined') return;
-  if (_chart) {
-    _chart.destroy();
-    _chart = null;
-  }
-  if (!entries.length) return;
-  const now = new Date();
-  const weeks = [];
-  for (let i = 7; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i * 7);
-    weeks.push({ label: _weekLabel(d), start: _startOfWeek(d), end: _endOfWeek(d) });
-  }
-  const categories = Object.keys(CATEGORY_LABELS);
-  const datasets = categories.map((cat) => ({
-    label: CATEGORY_LABELS[cat],
-    data: weeks.map((w) =>
-      entries
-        .filter((e) => {
-          if (e.action_type !== cat) return false;
-          const t = new Date(e.timestamp);
-          return t >= w.start && t <= w.end;
-        })
-        .reduce((sum, e) => sum + (e.time_saved_minutes || 0) / 60, 0)
-    ),
-    backgroundColor: CATEGORY_COLORS[cat],
-  }));
-  _chart = new ChartCtor(canvas, {
-    type: 'bar',
-    data: { labels: weeks.map((w) => w.label), datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+  _chart = updateChart(canvas, _chart, () => {
+    if (!entries.length) return null;
+    const now = new Date();
+    const weeks = [];
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i * 7);
+      weeks.push({ label: _weekLabel(d), start: _startOfWeek(d), end: _endOfWeek(d) });
+    }
+    const categories = Object.keys(CATEGORY_LABELS);
+    const datasets = categories.map((cat) => ({
+      label: CATEGORY_LABELS[cat],
+      data: weeks.map((w) =>
+        entries
+          .filter((e) => {
+            if (e.action_type !== cat) return false;
+            const t = new Date(e.timestamp);
+            return t >= w.start && t <= w.end;
+          })
+          .reduce((sum, e) => sum + (e.time_saved_minutes || 0) / 60, 0)
+      ),
+      backgroundColor: CATEGORY_COLORS[cat],
+    }));
+    return {
+      type: 'bar',
+      data: { labels: weeks.map((w) => w.label), datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        },
+        scales: {
+          x: { stacked: true, ticks: { font: { size: 10 } }, grid: { display: false } },
+          y: { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } },
+        },
       },
-      scales: {
-        x: { stacked: true, ticks: { font: { size: 10 } }, grid: { display: false } },
-        y: { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } },
-      },
-    },
+    };
   });
 }
 //# sourceMappingURL=ai-savings.js.map

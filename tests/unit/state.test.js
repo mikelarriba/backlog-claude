@@ -5,7 +5,12 @@
 import '../helpers/domGlobals.js';
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildChildrenMap, getDescendants, getErrorMessage } from '../../public/js/state.js';
+import {
+  buildChildrenMap,
+  getDescendants,
+  getErrorMessage,
+  readSSELines,
+} from '../../public/js/state.js';
 
 function makeDoc(overrides = {}) {
   return {
@@ -104,5 +109,72 @@ describe('getErrorMessage', () => {
   test('falls back to a custom fallback message when provided', () => {
     assert.equal(getErrorMessage(null, 'Custom fallback'), 'Custom fallback');
     assert.equal(getErrorMessage({}, 'Custom fallback'), 'Custom fallback');
+  });
+});
+
+// ── readSSELines (#542) ──────────────────────────────────────────────────────
+// The low-level line-framing loop extracted out of streamSSE() so
+// bugs-dashboard.ts's loadBugsDashboard() (GET, differently-shaped chunks)
+// could build on it too instead of reimplementing the read/decode/buffer/split
+// loop from scratch.
+function makeSSEResponse(byteChunks) {
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const chunk of byteChunks) controller.enqueue(chunk);
+      controller.close();
+    },
+  });
+  return new Response(stream);
+}
+
+function textChunks(...strings) {
+  const encoder = new TextEncoder();
+  return strings.map((s) => encoder.encode(s));
+}
+
+describe('readSSELines', () => {
+  test('parses multiple "data: " lines delivered in a single chunk', async () => {
+    const res = makeSSEResponse(textChunks('data: {"a":1}\n\ndata: {"a":2}\n\n'));
+    const received = [];
+    await readSSELines(res, (raw) => received.push(raw));
+    assert.deepEqual(received, ['{"a":1}', '{"a":2}']);
+  });
+
+  test('reassembles a "data: " line split across two chunks', async () => {
+    const res = makeSSEResponse(textChunks('data: {"a":1', '23}\n'));
+    const received = [];
+    await readSSELines(res, (raw) => received.push(raw));
+    assert.deepEqual(received, ['{"a":123}']);
+  });
+
+  test('ignores non-"data: " lines (SSE comments, blank lines)', async () => {
+    const res = makeSSEResponse(textChunks(': keep-alive\ndata: {"x":true}\n\n'));
+    const received = [];
+    await readSSELines(res, (raw) => received.push(raw));
+    assert.deepEqual(received, ['{"x":true}']);
+  });
+
+  test('a trailing line with no terminating newline is dropped, matching the buffered-remainder convention', async () => {
+    const res = makeSSEResponse(textChunks('data: {"a":1}\n', 'data: {"a":2}'));
+    const received = [];
+    await readSSELines(res, (raw) => received.push(raw));
+    assert.deepEqual(received, ['{"a":1}']);
+  });
+
+  test('reassembles a multi-byte UTF-8 character split across a chunk boundary', async () => {
+    const encoder = new TextEncoder();
+    const full = encoder.encode('data: {"emoji":"🎉"}\n');
+    // Split mid-way through the emoji's 4-byte UTF-8 sequence.
+    const res = makeSSEResponse([full.slice(0, 12), full.slice(12)]);
+    const received = [];
+    await readSSELines(res, (raw) => received.push(raw));
+    assert.deepEqual(received, ['{"emoji":"🎉"}']);
+  });
+
+  test('onChunk is called once per line, in order', async () => {
+    const res = makeSSEResponse(textChunks('data: 1\ndata: 2\ndata: 3\n'));
+    const received = [];
+    await readSSELines(res, (raw) => received.push(raw));
+    assert.deepEqual(received, ['1', '2', '3']);
   });
 });

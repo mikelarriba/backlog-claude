@@ -1,5 +1,6 @@
 // ── Bug Dashboard ────────────────────────────────────────────────────────────
-import { streamSSE, renderMarkdown, escHtml } from './state.js';
+import { streamSSE, renderMarkdown, escHtml, readSSELines } from './state.js';
+import { updateChart } from './chart-helpers.js';
 let _chart = null;
 let _allBugs = [];
 let _filteredBugs = [];
@@ -26,40 +27,35 @@ export async function loadBugsDashboard(force = false) {
     const qs = params.toString();
     const url = `/api/bugs/dashboard${qs ? `?${qs}` : ''}`;
     // Raw fetch: this streams SSE progress events, not a single JSON response —
-    // the shared fetchJSON/postJSON helpers don't apply here.
+    // the shared fetchJSON/postJSON helpers don't apply here. readSSELines
+    // handles the transport-level line framing (state.js's streamSSE() builds
+    // on the same helper); this callback owns the dashboard's own chunk shape.
     const res = await fetch(url);
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let data = null;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        let parsed;
-        try {
-          parsed = JSON.parse(line.slice(6));
-        } catch {
-          continue;
-        }
-        if (parsed.type === 'progress') {
-          if (loadingMsg) loadingMsg.textContent = parsed.message || 'Loading…';
-          if (loadingBar && parsed.total && parsed.fetched != null) {
-            const pct = Math.round((parsed.fetched / parsed.total) * 100);
-            loadingBar.style.width = `${pct}%`;
-          }
-        } else if (parsed.type === 'complete') {
-          data = parsed.data;
-        } else if (parsed.type === 'error') {
-          throw new DashboardError(parsed.message, parsed.code);
-        }
+    // Plain `let data` here defeats TS's post-call null-narrowing below since
+    // the only assignment is inside the nested onChunk callback — a holder
+    // object keeps `result.data` narrowable via normal property access.
+    const result = { data: null };
+    await readSSELines(res, (raw) => {
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return;
       }
-    }
-    if (!data) throw new DashboardError('No data received from server', 'EMPTY_RESPONSE');
+      if (parsed.type === 'progress') {
+        if (loadingMsg) loadingMsg.textContent = parsed.message || 'Loading…';
+        if (loadingBar && parsed.total && parsed.fetched != null) {
+          const pct = Math.round((parsed.fetched / parsed.total) * 100);
+          loadingBar.style.width = `${pct}%`;
+        }
+      } else if (parsed.type === 'complete') {
+        result.data = parsed.data;
+      } else if (parsed.type === 'error') {
+        throw new DashboardError(parsed.message, parsed.code);
+      }
+    });
+    if (!result.data) throw new DashboardError('No data received from server', 'EMPTY_RESPONSE');
+    const data = result.data;
     // Hide loading
     if (loadingEl) loadingEl.style.display = 'none';
     _allBugs = data.bugs || [];
@@ -98,13 +94,8 @@ export function renderBugsStats(stats) {
   set('bugs-stat-avg', stats.avgResolutionDays != null ? `${stats.avgResolutionDays}d` : '—');
 }
 export function renderBugsChart(timeSeries) {
+  if (!timeSeries?.length) return;
   const canvas = document.getElementById('bugs-chart');
-  const ChartCtor = window.Chart;
-  if (!canvas || typeof ChartCtor === 'undefined' || !timeSeries?.length) return;
-  if (_chart) {
-    _chart.destroy();
-    _chart = null;
-  }
   const labels = timeSeries.map((p) => p.week);
   const isProjected = timeSeries.map((p) => !!p.projected);
   const firstProjectedIdx = isProjected.findIndex(Boolean);
@@ -125,7 +116,7 @@ export function renderBugsChart(timeSeries) {
       pointHoverRadius: 4,
     };
   }
-  _chart = new ChartCtor(canvas, {
+  _chart = updateChart(canvas, _chart, () => ({
     type: 'line',
     data: {
       labels,
@@ -162,7 +153,7 @@ export function renderBugsChart(timeSeries) {
         },
       },
     },
-  });
+  }));
 }
 export function renderBugsTable(bugs) {
   const wrap = document.getElementById('bugs-table-wrap');
