@@ -542,6 +542,36 @@ describe('POST /api/confluence/execute — partial failure (one target page not 
     assert.equal(missing.success, false);
     assert.match(missing.error, /not found/i);
   });
+
+  // #539: execute now applies suggestions with bounded concurrency (pMap)
+  // instead of one at a time — this asserts that parallelizing the batch
+  // didn't lose the "one failing page doesn't block the others" guarantee,
+  // and that results stay in source order regardless of completion order.
+  test('a mixed batch with a failing page in the middle still applies every other suggestion, in source order', async () => {
+    const { status, data } = await api('POST', '/api/confluence/execute', {
+      suggestions: [
+        { pageTitle: 'Page One', action: 'Create', proposedContent: '<p>1</p>' },
+        { pageTitle: 'Missing Page 2', action: 'Delete', proposedContent: '' },
+        { pageTitle: 'Page Three', action: 'Create', proposedContent: '<p>3</p>' },
+        { pageTitle: 'Missing Page 4', action: 'Update', proposedContent: '<p>x</p>' },
+        { pageTitle: 'Page Five', action: 'Create', proposedContent: '<p>5</p>' },
+      ],
+    });
+    assert.equal(status, 200);
+    assert.equal(data.results.length, 5);
+
+    assert.deepEqual(
+      data.results.map((r) => r.pageTitle),
+      ['Page One', 'Missing Page 2', 'Page Three', 'Missing Page 4', 'Page Five']
+    );
+    assert.deepEqual(
+      data.results.map((r) => r.success),
+      [true, false, true, false, true]
+    );
+    for (const title of ['Page One', 'Page Three', 'Page Five']) {
+      assert.ok(pages.has(title), `${title} should have been created`);
+    }
+  });
 });
 
 describe('POST /api/confluence/undo/:snapshotId — unknown snapshot', () => {
