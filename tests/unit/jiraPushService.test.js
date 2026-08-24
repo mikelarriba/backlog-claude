@@ -182,4 +182,56 @@ describe('pushMultiStory', () => {
     assert.match(updated, /## Story 1: First Story <!-- JIRA:NEW-2 -->/);
     assert.ok(calls.broadcast.some((e) => e.type === 'story_created'));
   });
+
+  test('preserves story order and isolates one story’s failure from the others (#538 parallelization)', async () => {
+    const multiFilepath = path.join(STORY_DIR, 'three-stories.md');
+    fs.writeFileSync(
+      multiFilepath,
+      '---\nTeam: TBD\n---\n\n' +
+        '## Story 1: Alpha\n\nBody A.\n\n' +
+        '## Story 2: Beta <!-- JIRA:EXIST-2 -->\n\nBody B.\n\n' +
+        '## Story 3: Gamma\n\nBody C.\n'
+    );
+
+    const { service } = makeService({
+      jiraRequest: async (method, urlPath, body) => {
+        if (method === 'POST' && urlPath === '/issue') {
+          const summary = body.fields.summary;
+          if (summary === 'Alpha') return { key: 'NEW-ALPHA' };
+          if (summary === 'Gamma') return { key: 'NEW-GAMMA' };
+          throw new Error(`unexpected create for ${summary}`);
+        }
+        if (method === 'PUT' && urlPath === '/issue/EXIST-2') {
+          throw new Error('JIRA is down');
+        }
+        throw new Error(`unexpected call ${method} ${urlPath}`);
+      },
+    });
+
+    const content = fs.readFileSync(multiFilepath, 'utf-8');
+    const { frontmatter, sections } = (
+      await import('../../src/services/storyService.js')
+    ).parseStorySections(content);
+
+    const result = await service.pushMultiStory({
+      filename: 'three-stories.md',
+      filepath: multiFilepath,
+      sections,
+      frontmatter,
+      type: 'story',
+    });
+
+    assert.equal(result.errors.length, 1);
+    assert.deepEqual(result.errors[0], { story: 'Beta', error: 'JIRA is down' });
+    assert.deepEqual(result.results.map((r) => r.key).sort(), ['NEW-ALPHA', 'NEW-GAMMA']);
+
+    // Story order in the rewritten file must match source order regardless of
+    // which concurrent pMap worker finished first.
+    const updated = fs.readFileSync(multiFilepath, 'utf-8');
+    const alphaIdx = updated.indexOf('## Story 1: Alpha <!-- JIRA:NEW-ALPHA -->');
+    const betaIdx = updated.indexOf('## Story 2: Beta <!-- JIRA:EXIST-2 -->');
+    const gammaIdx = updated.indexOf('## Story 3: Gamma <!-- JIRA:NEW-GAMMA -->');
+    assert.ok(alphaIdx >= 0 && betaIdx >= 0 && gammaIdx >= 0);
+    assert.ok(alphaIdx < betaIdx && betaIdx < gammaIdx);
+  });
 });
