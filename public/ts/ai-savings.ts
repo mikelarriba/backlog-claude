@@ -1,13 +1,6 @@
 // ── Settings view: AI Time Saved dashboard ────────────────────────────────
 import { fetchJSON, postJSON, toggleSection } from './state.js';
-
-interface ChartInstance {
-  destroy(): void;
-}
-
-interface ChartConstructor {
-  new (ctx: HTMLCanvasElement, config: Record<string, unknown>): ChartInstance;
-}
+import { updateChart, type ChartInstance } from './chart-helpers.js';
 
 export type AiSavingsActionType =
   | 'story_push'
@@ -177,50 +170,45 @@ export function _endOfWeek(d: Date): Date {
 
 function _renderChart(entries: AiSavingsEntry[]): void {
   const canvas = document.getElementById('ai-savings-chart') as HTMLCanvasElement | null;
-  const ChartCtor = (window as unknown as { Chart?: ChartConstructor }).Chart;
-  if (!canvas || typeof ChartCtor === 'undefined') return;
+  _chart = updateChart(canvas, _chart, () => {
+    if (!entries.length) return null;
 
-  if (_chart) {
-    _chart.destroy();
-    _chart = null;
-  }
-  if (!entries.length) return;
+    const now = new Date();
+    const weeks: Array<{ label: string; start: Date; end: Date }> = [];
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i * 7);
+      weeks.push({ label: _weekLabel(d), start: _startOfWeek(d), end: _endOfWeek(d) });
+    }
+    const categories = Object.keys(CATEGORY_LABELS) as AiSavingsActionType[];
+    const datasets = categories.map((cat) => ({
+      label: CATEGORY_LABELS[cat],
+      data: weeks.map((w) =>
+        entries
+          .filter((e) => {
+            if (e.action_type !== cat) return false;
+            const t = new Date(e.timestamp);
+            return t >= w.start && t <= w.end;
+          })
+          .reduce((sum, e) => sum + (e.time_saved_minutes || 0) / 60, 0)
+      ),
+      backgroundColor: CATEGORY_COLORS[cat],
+    }));
 
-  const now = new Date();
-  const weeks: Array<{ label: string; start: Date; end: Date }> = [];
-  for (let i = 7; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i * 7);
-    weeks.push({ label: _weekLabel(d), start: _startOfWeek(d), end: _endOfWeek(d) });
-  }
-  const categories = Object.keys(CATEGORY_LABELS) as AiSavingsActionType[];
-  const datasets = categories.map((cat) => ({
-    label: CATEGORY_LABELS[cat],
-    data: weeks.map((w) =>
-      entries
-        .filter((e) => {
-          if (e.action_type !== cat) return false;
-          const t = new Date(e.timestamp);
-          return t >= w.start && t <= w.end;
-        })
-        .reduce((sum, e) => sum + (e.time_saved_minutes || 0) / 60, 0)
-    ),
-    backgroundColor: CATEGORY_COLORS[cat],
-  }));
-
-  _chart = new ChartCtor(canvas, {
-    type: 'bar',
-    data: { labels: weeks.map((w) => w.label), datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+    return {
+      type: 'bar',
+      data: { labels: weeks.map((w) => w.label), datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        },
+        scales: {
+          x: { stacked: true, ticks: { font: { size: 10 } }, grid: { display: false } },
+          y: { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } },
+        },
       },
-      scales: {
-        x: { stacked: true, ticks: { font: { size: 10 } }, grid: { display: false } },
-        y: { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } },
-      },
-    },
+    };
   });
 }

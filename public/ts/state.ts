@@ -261,6 +261,35 @@ export async function deleteJSON(url: string): Promise<unknown> {
   return fetchJSON(url, { method: 'DELETE' });
 }
 
+// ── Shared low-level SSE line reader ──────────────────────────────────────────
+// Reads a fetch Response body as newline-delimited `data: <json>` SSE chunks —
+// fetch → reader.read() → decoder.decode → split on '\n', carrying the trailing
+// partial line (and partial UTF-8 sequences) across chunk boundaries. `onChunk`
+// receives each line's raw JSON text and owns its own payload shape/parsing;
+// this only handles the transport-level line framing, so it works for any
+// request method or response shape (streamSSE()'s POST + fixed payload below,
+// bugs-dashboard.ts's GET + differently-shaped chunks).
+export async function readSSELines(
+  response: Response,
+  onChunk: (data: string) => void
+): Promise<void> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop()!;
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      onChunk(line.slice(6));
+    }
+  }
+}
+
 // ── Shared streaming SSE fetch helper ─────────────────────────────────────────
 export interface SSEStreamCallbacks {
   onText?: (text: string) => void;
@@ -287,31 +316,19 @@ export async function streamSSE(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop()!;
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      try {
-        const payload = JSON.parse(line.slice(6)) as SSEPayloadChunk;
-        if (payload.error) throw new Error(getErrorMessage(payload.error, 'Request failed'));
-        if (payload.text && onText) onText(payload.text);
-        if (payload.progress && onProgress) onProgress(payload.progress);
-        if (payload.done && onDone) onDone(payload as Record<string, unknown>);
-      } catch (e) {
-        if (e instanceof Error && e.message.includes('Unexpected token')) continue;
-        if (onError) onError(e instanceof Error ? e : new Error(String(e)));
-        else throw e;
-      }
+  await readSSELines(res, (raw) => {
+    try {
+      const payload = JSON.parse(raw) as SSEPayloadChunk;
+      if (payload.error) throw new Error(getErrorMessage(payload.error, 'Request failed'));
+      if (payload.text && onText) onText(payload.text);
+      if (payload.progress && onProgress) onProgress(payload.progress);
+      if (payload.done && onDone) onDone(payload as Record<string, unknown>);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('Unexpected token')) return;
+      if (onError) onError(e instanceof Error ? e : new Error(String(e)));
+      else throw e;
     }
-  }
+  });
 }
 
 // ── Shared modal helpers ──────────────────────────────────────────────────────
