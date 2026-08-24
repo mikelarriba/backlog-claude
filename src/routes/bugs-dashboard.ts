@@ -330,10 +330,25 @@ export default function bugsDashboardRoutes({
         return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
       const { bugKeys } = req.body as { bugKeys: string[] };
-      const cachedBugs = [
-        ...(_cacheOpen?.data?.bugs ?? []),
-        ...(_cacheAll?.data?.bugs ?? []),
-      ].filter((b, i, arr) => arr.findIndex((x) => x.key === b.key) === i);
+
+      // Apply the same freshness check the GET route uses for cache reuse —
+      // without it this route could silently analyze arbitrarily stale
+      // status/resolution/assignee data (#540).
+      const now = Date.now();
+      const freshOpen = _cacheOpen && now - _cacheOpen.fetchedAt < CACHE_TTL_MS ? _cacheOpen : null;
+      const freshAll = _cacheAll && now - _cacheAll.fetchedAt < CACHE_TTL_MS ? _cacheAll : null;
+      if (!freshOpen && !freshAll) {
+        return sendError(
+          res,
+          400,
+          'STALE_CACHE',
+          'Dashboard data is stale — reload the dashboard before analyzing.'
+        );
+      }
+
+      const cachedBugs = [...(freshOpen?.data?.bugs ?? []), ...(freshAll?.data?.bugs ?? [])].filter(
+        (b, i, arr) => arr.findIndex((x) => x.key === b.key) === i
+      );
       const selected = cachedBugs.filter((b) => bugKeys.includes(b.key));
 
       if (selected.length === 0)
