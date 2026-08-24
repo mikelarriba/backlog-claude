@@ -90,14 +90,20 @@ export function createAiSavingsService(dataDir: string) {
     }
   }
 
+  // Writes to a temp file in the same directory then renames it over FILE_PATH
+  // (rename is atomic on the same filesystem) so a concurrent read (see
+  // readEntries' queueing below) can never observe a truncated/partial file.
   async function writeEntries(entries: AiSavingsEntry[]): Promise<void> {
     if (!fs.existsSync(dataDir)) await fs.promises.mkdir(dataDir, { recursive: true });
-    await fs.promises.writeFile(FILE_PATH, JSON.stringify(entries, null, 2));
+    const tmpPath = `${FILE_PATH}.tmp`;
+    await fs.promises.writeFile(tmpPath, JSON.stringify(entries, null, 2));
+    await fs.promises.rename(tmpPath, FILE_PATH);
   }
 
   // Serializes read-modify-write cycles so concurrent appendEntry() calls
   // (e.g. two logAiSaving() calls fired back-to-back from a single JIRA push
-  // batch) can't race and silently drop one entry's write.
+  // batch) can't race and silently drop one entry's write. getAll() (below)
+  // is chained through the same queue so a read can never land mid-write.
   let writeQueue: Promise<unknown> = Promise.resolve();
 
   async function appendEntry(input: AiSavingsLogInput): Promise<AiSavingsEntry> {
@@ -127,7 +133,11 @@ export function createAiSavingsService(dataDir: string) {
   }
 
   async function getAll(): Promise<{ entries: AiSavingsEntry[]; totalMinutes: number }> {
-    const entries = await readEntries();
+    const task = writeQueue.then(() => readEntries());
+    // Keep chaining from `task` (same pattern as appendEntry above) so this
+    // read can't land between a subsequent write's truncate and its rename.
+    writeQueue = task.catch(() => {});
+    const entries = await task;
     const totalMinutes = entries.reduce((sum, e) => sum + (e.time_saved_minutes || 0), 0);
     return { entries, totalMinutes };
   }
