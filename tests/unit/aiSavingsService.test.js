@@ -130,6 +130,40 @@ describe('createAiSavingsService()', () => {
     assert.equal(entries.length, 10);
     assert.equal(new Set(entries.map((e) => e.id)).size, 10);
   });
+
+  // #541: getAll() (via readEntries) now chains through the same writeQueue
+  // appendEntry uses, so a read can't land between a write's truncate and its
+  // rename. Before this fix, a getAll() racing an in-flight appendEntry() could
+  // read the file mid-write and silently fall back to an empty list (readEntries'
+  // JSON.parse failure is swallowed by its own catch).
+  test('a getAll() issued concurrently with an in-flight appendEntry() never observes a truncated/partial file', async () => {
+    const svc = createAiSavingsService(path.join(tmpDir, 'concurrent-read-write-data'));
+
+    // Seed with enough entries that the JSON file is non-trivial in size, so a
+    // read landing mid-write would have had a real chance of seeing a
+    // truncated/partial file pre-#541.
+    for (let i = 0; i < 20; i++) {
+      await svc.appendEntry({ action_type: 'bug_create', item_count: 1 });
+    }
+
+    const readLengths = [];
+    const ops = [];
+    for (let i = 0; i < 20; i++) {
+      ops.push(svc.appendEntry({ action_type: 'story_push', item_count: 1 }));
+      ops.push(svc.getAll().then(({ entries }) => readLengths.push(entries.length)));
+    }
+    await Promise.all(ops);
+
+    // Every concurrent read must see at least the 20 entries durably persisted
+    // before the burst started — never a truncated/empty read.
+    assert.ok(
+      readLengths.every((len) => len >= 20),
+      `saw a short read: ${JSON.stringify(readLengths)}`
+    );
+
+    const { entries } = await svc.getAll();
+    assert.equal(entries.length, 40);
+  });
 });
 
 // ── Report builders ──────────────────────────────────────────────────────────
