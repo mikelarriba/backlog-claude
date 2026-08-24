@@ -52,7 +52,10 @@ export const ACTION_LABELS: Record<AiSavingsActionType, string> = {
   epic_refine: 'Epics refined',
 };
 
-const ACTION_TYPES = Object.keys(BENCHMARK_MINUTES) as AiSavingsActionType[];
+export const ACTION_TYPES = Object.keys(BENCHMARK_MINUTES) as [
+  AiSavingsActionType,
+  ...AiSavingsActionType[],
+];
 
 export function isValidActionType(value: string): value is AiSavingsActionType {
   return (ACTION_TYPES as string[]).includes(value);

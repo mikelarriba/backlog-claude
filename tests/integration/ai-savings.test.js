@@ -105,6 +105,31 @@ describe('POST /api/ai-savings/log', () => {
   });
 });
 
+// ── POST /api/ai-savings/log — full action_type coverage (#537) ──────────────
+describe('POST /api/ai-savings/log accepts every action type', () => {
+  const ALL_ACTION_TYPES = [
+    'story_push',
+    'spike_push',
+    'bug_create',
+    'doc_ai_run',
+    'doc_confluence_modify',
+    'description_generate',
+    'issue_upgrade',
+    'epic_refine',
+  ];
+
+  for (const action_type of ALL_ACTION_TYPES) {
+    test(`accepts action_type "${action_type}"`, async () => {
+      const { status, data } = await api('POST', '/api/ai-savings/log', {
+        action_type,
+        item_count: 1,
+      });
+      assert.equal(status, 200);
+      assert.equal(data.entry.action_type, action_type);
+    });
+  }
+});
+
 // ── GET /api/ai-savings/export/pdf ────────────────────────────────────────────
 describe('GET /api/ai-savings/export/pdf', () => {
   test('returns a PDF document', async () => {
