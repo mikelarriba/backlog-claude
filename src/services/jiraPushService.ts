@@ -4,6 +4,8 @@
 // services/jiraService.ts (#339) and are reused here, not reimplemented.
 import fs from 'fs';
 import path from 'path';
+import { pMap } from '../utils/pMap.js';
+import { config } from '../config/env.js';
 import {
   setFrontmatterField,
   extractFrontmatterField,
@@ -87,49 +89,64 @@ export function createJiraPushService({
 
     const results: Array<{ action: string; key: string }> = [];
     const errors: Array<{ story: string; error: string }> = [];
-    const updatedSections: string[] = [];
 
-    for (let section of sections) {
-      const headerMatch = section.match(
-        /^(## Story \d+:\s*.+?)(?:\s*<!--\s*JIRA:(\S+?)\s*-->)?\s*$/m
-      );
-      const existingKey = headerMatch?.[2] || null;
-      const storyTitle = headerMatch
-        ? headerMatch[1].replace(/^## Story \d+:\s*/, '').trim()
-        : extractJiraSummary(section);
+    // Pushed with bounded concurrency (capped at JIRA_CONCURRENCY) instead of one
+    // sequential round-trip per story; pMap preserves each story's original index
+    // so `updatedSections` below stays in source order regardless of completion order.
+    const perStory = await pMap(
+      sections,
+      async (initialSection) => {
+        let section = initialSection;
+        const headerMatch = section.match(
+          /^(## Story \d+:\s*.+?)(?:\s*<!--\s*JIRA:(\S+?)\s*-->)?\s*$/m
+        );
+        const existingKey = headerMatch?.[2] || null;
+        const storyTitle = headerMatch
+          ? headerMatch[1].replace(/^## Story \d+:\s*/, '').trim()
+          : extractJiraSummary(section);
 
-      try {
-        let key;
-        if (existingKey) {
-          await jiraRequest('PUT', `/issue/${existingKey}`, {
-            fields: { description: markdownToJira(section) },
-          });
-          key = existingKey;
-          results.push({ action: 'updated', key });
-        } else {
-          const fmTeam = extractFrontmatterField(frontmatter, 'Team');
-          const fmTeamLabel =
-            fmTeam && fmTeam !== 'TBD' ? (TEAM_TO_JIRA_LABEL[fmTeam] ?? null) : null;
-          const multiLabels = fmTeamLabel ? [JIRA_LABEL, fmTeamLabel] : [JIRA_LABEL];
-          const fields: Record<string, unknown> = {
-            project: { key: JIRA_PROJECT },
-            summary: storyTitle,
-            description: markdownToJira(section),
-            issuetype: { name: 'Story' },
-            labels: multiLabels,
-          };
-          if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
-          const created = (await jiraRequest('POST', '/issue', { fields })) as { key: string };
-          key = created.key;
-          results.push({ action: 'created', key });
-          section = section.replace(/^(## Story \d+:\s*.+?)(\s*)$/m, `$1 <!-- JIRA:${key} -->`);
+        try {
+          let key;
+          let result: { action: string; key: string };
+          if (existingKey) {
+            await jiraRequest('PUT', `/issue/${existingKey}`, {
+              fields: { description: markdownToJira(section) },
+            });
+            key = existingKey;
+            result = { action: 'updated', key };
+          } else {
+            const fmTeam = extractFrontmatterField(frontmatter, 'Team');
+            const fmTeamLabel =
+              fmTeam && fmTeam !== 'TBD' ? (TEAM_TO_JIRA_LABEL[fmTeam] ?? null) : null;
+            const multiLabels = fmTeamLabel ? [JIRA_LABEL, fmTeamLabel] : [JIRA_LABEL];
+            const fields: Record<string, unknown> = {
+              project: { key: JIRA_PROJECT },
+              summary: storyTitle,
+              description: markdownToJira(section),
+              issuetype: { name: 'Story' },
+              labels: multiLabels,
+            };
+            if (epicJiraId) fields[FIELD_EPIC_LINK] = epicJiraId;
+            const created = (await jiraRequest('POST', '/issue', { fields })) as { key: string };
+            key = created.key;
+            result = { action: 'created', key };
+            section = section.replace(/^(## Story \d+:\s*.+?)(\s*)$/m, `$1 <!-- JIRA:${key} -->`);
+          }
+          return { section, result, error: null };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          logWarn('jira/pushMultiStory', `Failed to push story "${storyTitle}": ${msg}`);
+          return { section, result: null, error: { story: storyTitle, error: msg } };
         }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        errors.push({ story: storyTitle, error: msg });
-        logWarn('jira/pushMultiStory', `Failed to push story "${storyTitle}": ${msg}`);
-      }
+      },
+      { concurrency: config.JIRA_CONCURRENCY }
+    );
+
+    const updatedSections: string[] = [];
+    for (const { section, result, error } of perStory) {
       updatedSections.push(section);
+      if (result) results.push(result);
+      if (error) errors.push(error);
     }
 
     await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, updatedSections));
