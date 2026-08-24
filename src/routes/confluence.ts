@@ -229,82 +229,105 @@ export default function confluenceRoutes({
           );
         }
 
-        const results: ConfluenceExecuteResult[] = [];
-        const operations: SnapshotOperation[] = [];
-
-        for (const suggestion of suggestions as ConfluenceSuggestion[]) {
-          const { pageTitle, action, proposedContent } = suggestion;
-          try {
-            if (action === 'Create') {
-              const page = await confluenceCreatePage(pageTitle, proposedContent);
-              results.push({ pageTitle, action, pageId: page.id, success: true });
-              operations.push({
-                action: 'Create',
-                pageTitle,
-                pageId: page.id,
-                previousContent: null,
-                previousVersion: null,
-              });
-            } else if (action === 'Update') {
-              const page = await confluenceGetPageByTitle(pageTitle);
-              if (!page) {
-                results.push({
+        // Applied with bounded concurrency (capped at JIRA_CONCURRENCY, shared with
+        // the JIRA push/pull routes' identical pattern) instead of one sequential
+        // Confluence round-trip per suggestion; pMap preserves each suggestion's
+        // original index so `results`/`operations` below stay in source order
+        // regardless of completion order.
+        const perSuggestion = await pMap(
+          suggestions as ConfluenceSuggestion[],
+          async (
+            suggestion
+          ): Promise<{
+            result: ConfluenceExecuteResult;
+            operation: SnapshotOperation | null;
+          }> => {
+            const { pageTitle, action, proposedContent } = suggestion;
+            try {
+              if (action === 'Create') {
+                const page = await confluenceCreatePage(pageTitle, proposedContent);
+                return {
+                  result: { pageTitle, action, pageId: page.id, success: true },
+                  operation: {
+                    action: 'Create',
+                    pageTitle,
+                    pageId: page.id,
+                    previousContent: null,
+                    previousVersion: null,
+                  },
+                };
+              } else if (action === 'Update') {
+                const page = await confluenceGetPageByTitle(pageTitle);
+                if (!page) {
+                  return {
+                    result: {
+                      pageTitle,
+                      action,
+                      pageId: null,
+                      success: false,
+                      error: `Page not found: ${pageTitle}`,
+                    },
+                    operation: null,
+                  };
+                }
+                const updated = await confluenceUpdatePage(
+                  page.id,
+                  page.version,
                   pageTitle,
-                  action,
-                  pageId: null,
-                  success: false,
-                  error: `Page not found: ${pageTitle}`,
-                });
-                continue;
+                  proposedContent
+                );
+                return {
+                  result: { pageTitle, action, pageId: updated.id, success: true },
+                  operation: {
+                    action: 'Update',
+                    pageTitle,
+                    pageId: page.id,
+                    previousContent: page.body,
+                    previousVersion: page.version,
+                  },
+                };
+              } else {
+                // action === 'Delete'
+                const page = await confluenceGetPageByTitle(pageTitle);
+                if (!page) {
+                  return {
+                    result: {
+                      pageTitle,
+                      action,
+                      pageId: null,
+                      success: false,
+                      error: `Page not found: ${pageTitle}`,
+                    },
+                    operation: null,
+                  };
+                }
+                await confluenceDeletePage(page.id);
+                return {
+                  result: { pageTitle, action, pageId: page.id, success: true },
+                  operation: {
+                    action: 'Delete',
+                    pageTitle,
+                    pageId: page.id,
+                    previousContent: page.body,
+                    previousVersion: page.version,
+                  },
+                };
               }
-              const updated = await confluenceUpdatePage(
-                page.id,
-                page.version,
-                pageTitle,
-                proposedContent
-              );
-              results.push({ pageTitle, action, pageId: updated.id, success: true });
-              operations.push({
-                action: 'Update',
-                pageTitle,
-                pageId: page.id,
-                previousContent: page.body,
-                previousVersion: page.version,
-              });
-            } else {
-              // action === 'Delete'
-              const page = await confluenceGetPageByTitle(pageTitle);
-              if (!page) {
-                results.push({
-                  pageTitle,
-                  action,
-                  pageId: null,
-                  success: false,
-                  error: `Page not found: ${pageTitle}`,
-                });
-                continue;
-              }
-              await confluenceDeletePage(page.id);
-              results.push({ pageTitle, action, pageId: page.id, success: true });
-              operations.push({
-                action: 'Delete',
-                pageTitle,
-                pageId: page.id,
-                previousContent: page.body,
-                previousVersion: page.version,
-              });
+            } catch (err) {
+              const apiErr = parseApiError(err);
+              return {
+                result: { pageTitle, action, pageId: null, success: false, error: apiErr.message },
+                operation: null,
+              };
             }
-          } catch (err) {
-            const apiErr = parseApiError(err);
-            results.push({
-              pageTitle,
-              action,
-              pageId: null,
-              success: false,
-              error: apiErr.message,
-            });
-          }
-        }
+          },
+          { concurrency: config.JIRA_CONCURRENCY }
+        );
+
+        const results: ConfluenceExecuteResult[] = perSuggestion.map((p) => p.result);
+        const operations: SnapshotOperation[] = perSuggestion
+          .map((p) => p.operation)
+          .filter((op): op is SnapshotOperation => op !== null);
 
         const snapshotId = createSnapshot(operations);
         res.json({ snapshotId, results });
@@ -352,51 +375,60 @@ export default function confluenceRoutes({
       const results: ConfluenceUndoResult[] = [];
       const reversed = [...snapshot.operations].reverse();
 
-      for (const op of reversed) {
-        try {
-          if (op.action === 'Create') {
-            if (!op.pageId) throw new Error('Snapshot is missing the created page id');
-            await confluenceDeletePage(op.pageId);
-          } else if (op.action === 'Update') {
-            if (!op.pageId || op.previousContent === null || op.previousVersion === null) {
-              throw new Error('Snapshot is missing data needed to undo this update');
+      // Applied with bounded concurrency (same JIRA_CONCURRENCY-capped pMap pattern
+      // as /execute above) instead of one sequential Confluence round-trip per
+      // reversal; pMap preserves each operation's index in `reversed` so `results`
+      // below stays in reverse-of-execute order regardless of completion order.
+      const undoResults: ConfluenceUndoResult[] = await pMap(
+        reversed,
+        async (op): Promise<ConfluenceUndoResult> => {
+          try {
+            if (op.action === 'Create') {
+              if (!op.pageId) throw new Error('Snapshot is missing the created page id');
+              await confluenceDeletePage(op.pageId);
+            } else if (op.action === 'Update') {
+              if (!op.pageId || op.previousContent === null || op.previousVersion === null) {
+                throw new Error('Snapshot is missing data needed to undo this update');
+              }
+              // The context only exposes getPageByTitle (no get-by-id), and the
+              // title is stable across the original update, so re-fetch by
+              // title to get the page's *actual current* version rather than
+              // trusting op.previousVersion + 2 (original version, +1 for
+              // execute's update, +1 again for this undo) — anything could have
+              // changed the page's version between execute and undo (e.g. a
+              // manual edit), so re-reading it right before the call is safer
+              // than assuming no drift.
+              const current = await confluenceGetPageByTitle(op.pageTitle);
+              const currentVersion = current ? current.version : op.previousVersion + 1;
+              await confluenceUpdatePage(
+                op.pageId,
+                currentVersion + 1,
+                op.pageTitle,
+                op.previousContent
+              );
+            } else {
+              // Undo Delete → re-create the page. Best-effort: this creates the
+              // page at the space root — the original hierarchy/parent-page
+              // placement is not restored (same caveat as the issue spec).
+              if (op.previousContent === null) {
+                throw new Error('Snapshot is missing data needed to undo this delete');
+              }
+              await confluenceCreatePage(op.pageTitle, op.previousContent);
             }
-            // The context only exposes getPageByTitle (no get-by-id), and the
-            // title is stable across the original update, so re-fetch by
-            // title to get the page's *actual current* version rather than
-            // trusting op.previousVersion + 2 (original version, +1 for
-            // execute's update, +1 again for this undo) — anything could have
-            // changed the page's version between execute and undo (e.g. a
-            // manual edit), so re-reading it right before the call is safer
-            // than assuming no drift.
-            const current = await confluenceGetPageByTitle(op.pageTitle);
-            const currentVersion = current ? current.version : op.previousVersion + 1;
-            await confluenceUpdatePage(
-              op.pageId,
-              currentVersion + 1,
-              op.pageTitle,
-              op.previousContent
-            );
-          } else {
-            // Undo Delete → re-create the page. Best-effort: this creates the
-            // page at the space root — the original hierarchy/parent-page
-            // placement is not restored (same caveat as the issue spec).
-            if (op.previousContent === null) {
-              throw new Error('Snapshot is missing data needed to undo this delete');
-            }
-            await confluenceCreatePage(op.pageTitle, op.previousContent);
+            return { pageTitle: op.pageTitle, action: op.action, success: true };
+          } catch (err) {
+            const apiErr = parseApiError(err);
+            return {
+              pageTitle: op.pageTitle,
+              action: op.action,
+              success: false,
+              error: apiErr.message,
+            };
           }
-          results.push({ pageTitle: op.pageTitle, action: op.action, success: true });
-        } catch (err) {
-          const apiErr = parseApiError(err);
-          results.push({
-            pageTitle: op.pageTitle,
-            action: op.action,
-            success: false,
-            error: apiErr.message,
-          });
-        }
-      }
+        },
+        { concurrency: config.JIRA_CONCURRENCY }
+      );
+      results.push(...undoResults);
 
       deleteSnapshot(snapshotId);
       res.json({ results });
