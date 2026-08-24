@@ -1,15 +1,12 @@
 import { z } from 'zod';
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
+import { ACTION_TYPES } from '../services/aiSavingsService.js';
 
 extendZodWithOpenApi(z);
 
-export const AiSavingsActionTypeSchema = z.enum([
-  'story_push',
-  'spike_push',
-  'bug_create',
-  'doc_ai_run',
-  'doc_confluence_modify',
-]);
+// Derived from ACTION_TYPES (aiSavingsService's BENCHMARK_MINUTES keys) so this
+// schema can't silently drift out of sync with the service's supported action types.
+export const AiSavingsActionTypeSchema = z.enum(ACTION_TYPES);
 
 export const AiSavingsLogSchema = z
   .object({
