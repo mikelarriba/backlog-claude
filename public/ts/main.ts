@@ -1055,7 +1055,7 @@ document.addEventListener('change', (e: Event) => {
 // listeners without refactoring each template — that is out of scope
 // for this issue.
 //
-// Fourteen views have been migrated off this bridge so far (issue #461) —
+// Fifteen views have been migrated off this bridge so far (issue #461) —
 // see actions.ts for the pattern:
 //   - The list multi-select context menu (list-filters.ts's showContextMenu).
 //     Its four handlers (contextMoveToPI, contextDeleteSelected,
@@ -1165,7 +1165,15 @@ document.addEventListener('change', (e: Event) => {
 //     consumers" — CI's e2e suite caught the resulting regression (list/
 //     roadmap item clicks silently failing to open the detail view) before
 //     merge, so it's restored here.
-// All fourteen views now self-register via registerActions() instead.
+//   - The inline "update from JIRA key" prompt's submit button
+//     (jira-pull.ts's showUpdateFromJiraKeyPrompt). Its one handler
+//     (submitUpdateFromJiraKey) is intentionally absent from the delegated
+//     switch above — see JIRA_PULL_ACTIONS in jira-pull.ts. It still appears
+//     below on this bridge: the same input's onkeydown (Enter/Escape) calls
+//     it as a bare global, and keydown is out of scope for the data-action
+//     click dispatcher — same carve-out as _updatePiFromConfig/saveRpTitle
+//     above.
+// All fifteen views now self-register via registerActions() instead.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1228,7 +1236,8 @@ const _dynGlobals: Record<string, unknown> = {
   _pullSprintUpdateCount,
   // piconfig.ts
   _updatePiFromConfig,
-  // jira-pull.ts
+  // jira-pull.ts — submitUpdateFromJiraKey backs the inline JIRA-key input's
+  // onkeydown; its button's onclick moved to JIRA_PULL_ACTIONS (issue #461).
   submitUpdateFromJiraKey,
   // bugcreate.ts
   onBugFilesSelected,

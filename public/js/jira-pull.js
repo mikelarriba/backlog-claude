@@ -11,6 +11,21 @@ import {
   updateJiraPushBtn,
 } from './jira-push.js';
 import { offerChildrenDownload } from './jira-import.js';
+import { registerActions } from './actions.js';
+// Typed data-action name for the inline "update from JIRA key" prompt's submit
+// button in showUpdateFromJiraKeyPrompt (issue #461 migration — see actions.ts
+// and list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
+// onclick="submitUpdateFromJiraKey()" string previously built by hand. The
+// input's onkeydown (Enter/Escape) stays on main.ts's window bridge — the
+// data-action click dispatcher doesn't cover keydown events.
+export const JIRA_PULL_ACTIONS = {
+  submitUpdateFromJiraKey: 'jiraPullSubmitUpdateFromJiraKey',
+};
+registerActions({
+  [JIRA_PULL_ACTIONS.submitUpdateFromJiraKey]: () => {
+    submitUpdateFromJiraKey();
+  },
+});
 // ── Pull from JIRA (consolidated: status + fields + children) ─
 export async function pullFromJira() {
   // Delegates to updateFromJira which already handles the full pull flow:
@@ -199,7 +214,7 @@ export function showUpdateFromJiraKeyPrompt() {
         <input id="jira-update-key-input" class="jira-key-prompt-input" type="text"
                placeholder="e.g. EAMDM-1234"
                onkeydown="if(event.key==='Enter'){event.preventDefault();submitUpdateFromJiraKey()} if(event.key==='Escape'){closeAllDropdowns()}" />
-        <button class="btn-jira-key" onclick="submitUpdateFromJiraKey()">→</button>
+        <button class="btn-jira-key" data-action="${JIRA_PULL_ACTIONS.submitUpdateFromJiraKey}">→</button>
       </div>
     </div>`;
   // Keep dropdown open and focus the input
