@@ -14,6 +14,10 @@ declare global {
   var openDoc: (filename: string, docType: string) => void;
   var focusEpic: (filename: string) => void;
   var updateSplitMode: () => void;
+  var toggleSwimlane: (sectionKey: 'currentPi' | 'nextPi' | 'backlog') => void;
+  var toggleItemCollapse: (filename: string, e: MouseEvent) => void;
+  var handleItemClick: (e: MouseEvent, filename: string, docType: string) => void;
+  var openDistributionModal: (piName: string) => Promise<void>;
 
   interface Window {
     setTheme: (preference: string) => void;

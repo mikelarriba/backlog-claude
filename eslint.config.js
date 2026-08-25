@@ -48,6 +48,10 @@ const FRONTEND_GLOBALS = {
   closeAllDropdowns: 'readonly',
   focusEpic: 'readonly',
   updateSplitMode: 'readonly',
+  toggleSwimlane: 'readonly',
+  toggleItemCollapse: 'readonly',
+  handleItemClick: 'readonly',
+  openDistributionModal: 'readonly',
   // Third-party libraries loaded via <script> tags
   marked: 'readonly',
   DOMPurify: 'readonly',
