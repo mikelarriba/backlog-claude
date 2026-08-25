@@ -1,6 +1,41 @@
 // ── List rendering: rank helpers, swimlane rendering, readiness, dep connectors ─
 import { escHtml, buildChildrenMap, TYPE_LABEL, STATUS_LABEL } from './state.js';
 import type { DocEntry } from './state.js';
+import { registerActions } from './actions.js';
+
+// Typed data-action names for this module's onclick sites (issue #461
+// migration — see actions.ts and list-filters.ts's CTX_ACTIONS for the
+// established pattern). toggleSwimlane/toggleItemCollapse/handleItemClick
+// (list-filters.ts) and openDistributionModal (distribution.ts) are called
+// as ambient globals here rather than imported directly: list-filters.ts
+// already imports render helpers *from* this module, so a value import the
+// other way would close a two-file cycle and pull list.ts/detail.ts's much
+// heavier dependency graph into this module's otherwise DOM-inert unit
+// test — the same tradeoff detail-links.ts documents for its own ambient
+// use of `openDoc`. All four are still attached to `window` by main.ts's
+// `_dynGlobals` bridge, which is what makes the ambient reference resolve
+// at runtime (see global.d.ts).
+export const LIST_ITEM_ACTIONS = {
+  toggleSwimlane: 'listToggleSwimlane',
+  toggleItemCollapse: 'listToggleItemCollapse',
+  itemClick: 'listItemClick',
+  openDistributionModal: 'listOpenDistributionModal',
+} as const;
+
+registerActions({
+  [LIST_ITEM_ACTIONS.toggleSwimlane]: (el) => {
+    toggleSwimlane(el.dataset.section as 'currentPi' | 'nextPi' | 'backlog');
+  },
+  [LIST_ITEM_ACTIONS.toggleItemCollapse]: (el, e) => {
+    toggleItemCollapse(el.dataset.filename ?? '', e);
+  },
+  [LIST_ITEM_ACTIONS.itemClick]: (el, e) => {
+    handleItemClick(e, el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+  [LIST_ITEM_ACTIONS.openDistributionModal]: (el) => {
+    void openDistributionModal(el.dataset.versionName ?? '');
+  },
+});
 
 // ── Local types ──────────────────────────────────────────────
 // jiraVersions is declared as `string[]` in global.d.ts (legacy ambient typing),
@@ -223,7 +258,7 @@ export function renderSwimlaneSectionHtml(
     const pct = totalCapacity > 0 ? Math.round((assignedSP / totalCapacity) * 100) : 0;
     const overClass = pct > 100 ? ' over' : '';
     capacitySummary = `<span class="swimlane-capacity${overClass}">${assignedSP} / ${totalCapacity} SP (${pct}%)</span>`;
-    distributeBtn = `<button class="btn-distribute" onclick="event.stopPropagation(); openDistributionModal('${escHtml(versionName)}')" title="Auto-distribute stories into sprints">Distribute</button>`;
+    distributeBtn = `<button class="btn-distribute" data-action="${LIST_ITEM_ACTIONS.openDistributionModal}" data-version-name="${escHtml(versionName)}" title="Auto-distribute stories into sprints">Distribute</button>`;
   }
 
   // Render items — sort by rank (nulls last) within each swimlane section
@@ -234,7 +269,7 @@ export function renderSwimlaneSectionHtml(
 
   return `
     <div class="swimlane-section" data-section="${sectionKey}">
-      <div class="swimlane-header" onclick="toggleSwimlane('${sectionKey}')">
+      <div class="swimlane-header" data-action="${LIST_ITEM_ACTIONS.toggleSwimlane}" data-section="${sectionKey}">
         <span class="swimlane-chevron">${chevron}</span>
         <span class="swimlane-label">${label}</span>
         ${versionDisplay}
@@ -314,7 +349,7 @@ export function renderDocItem(
   const isCollapsed = _collapsedItems.has(d.filename);
   const collapseBtn = isCollapsible
     ? `<button class="collapse-btn${isCollapsed ? ' is-collapsed' : ''}"
-               onclick="toggleItemCollapse('${escHtml(d.filename)}', event)"
+               data-action="${LIST_ITEM_ACTIONS.toggleItemCollapse}" data-filename="${escHtml(d.filename)}"
                title="${isCollapsed ? 'Expand children' : 'Collapse children'}">
          <svg viewBox="0 0 10 10" width="10" height="10"><polyline points="2,3 5,7 8,3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
        </button>`
@@ -364,7 +399,7 @@ export function renderDocItem(
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
          data-indent="${indent}"
-         onclick="handleItemClick(event,'${escHtml(d.filename)}','${d.docType}')"
+         data-action="${LIST_ITEM_ACTIONS.itemClick}"
          oncontextmenu="handleItemContextMenu(event,'${escHtml(d.filename)}','${d.docType}')">
       <div class="drag-handle" title="Drag to reorder or link, or use arrow keys"
            role="button" tabindex="0"
