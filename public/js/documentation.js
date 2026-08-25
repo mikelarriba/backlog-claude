@@ -507,13 +507,14 @@ function _setSuggestionStatus(index, status, message) {
 // ── Diff rendering ───────────────────────────────────────────────────────────
 // The actual diff algorithm + HTML rendering live in lineDiff.ts, a pure,
 // DOM-free module imported as renderDiffHtml() above (#458).
-function _renderSuggestionRow(s, index) {
-  const checked = _selectedSuggestionIndexes.has(index) ? 'checked' : '';
-  const rowClasses = [
-    'doc-suggestion-row',
-    _selectedSuggestionIndexes.has(index) ? 'selected' : '',
-    _expandedSuggestionIndexes.has(index) ? 'expanded' : '',
-  ]
+// Pure: builds one suggestion row's HTML from the suggestion, its index, and
+// its selected/expanded flags (passed explicitly instead of read from the
+// module-private _selectedSuggestionIndexes/_expandedSuggestionIndexes Sets)
+// so it's testable without DOM/module state \u2014 same signature-change extraction
+// roadmap-render.ts's buildRoadmapCardHtml(doc, parent) used (#460/#508).
+export function buildSuggestionRowHtml(s, index, selected, expanded) {
+  const checked = selected ? 'checked' : '';
+  const rowClasses = ['doc-suggestion-row', selected ? 'selected' : '', expanded ? 'expanded' : '']
     .filter(Boolean)
     .join(' ');
   const actionClass = `doc-action-${s.action.toLowerCase()}`;
@@ -537,6 +538,14 @@ function _renderSuggestionRow(s, index) {
       </div>
     </div>
   </div>`;
+}
+function _renderSuggestionRow(s, index) {
+  return buildSuggestionRowHtml(
+    s,
+    index,
+    _selectedSuggestionIndexes.has(index),
+    _expandedSuggestionIndexes.has(index)
+  );
 }
 function _updateSuggestionSelectionState() {
   const countEl = document.getElementById('doc-results-selection-count');
