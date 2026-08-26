@@ -1,8 +1,9 @@
 // ── Confluence AI-analysis routes ─────────────────────────────────────────────
 // Takes a list of JIRA issue IDs, fetches their descriptions, and asks Claude
 // to identify which Confluence pages need to be Created, Updated, or Deleted.
-// Confluence read/write access does not exist yet (see #373) — this endpoint
-// only *proposes* changes; it never talks to Confluence itself.
+// /analyze now (#557) also lists the space's existing page tree — titles and
+// hierarchy only, best-effort — to ground those suggestions in real pages.
+// It still never writes to Confluence itself; that's /execute below.
 import { Router } from 'express';
 import { sendError, parseApiError } from '../utils/routeHelpers.js';
 import { normalizeOutput } from '../services/claudeService.js';
@@ -109,6 +110,7 @@ export default function confluenceRoutes({
   logError,
   confluenceGetSpace,
   confluenceGetPageByTitle,
+  confluenceListPages,
   confluenceCreatePage,
   confluenceUpdatePage,
   confluenceDeletePage,
@@ -190,10 +192,30 @@ export default function confluenceRoutes({
             .filter((i): i is ConfluenceAnalysisIssue => i !== undefined),
         }));
 
+        // #557: ground the analysis in the space's real page tree — guarded
+        // so /analyze still runs JIRA-only, unchanged, when Confluence isn't
+        // configured, and best-effort (a listing failure is logged and
+        // swallowed rather than failing the whole analysis) since this is
+        // grounding context, not a hard requirement of the endpoint.
+        let existingPages: Array<{ title: string; hierarchyPath: string }> = [];
+        if (!confluenceNotConfigured()) {
+          try {
+            existingPages = (await confluenceListPages()).map((p) => ({
+              title: p.title,
+              hierarchyPath: p.hierarchyPath,
+            }));
+          } catch (err) {
+            const apiErr = parseApiError(err);
+            logError('POST /api/confluence/analyze', 'Failed to list Confluence pages', {
+              error: apiErr.message,
+            });
+          }
+        }
+
         const prompt =
           epicGroups.length > 0
-            ? buildConfluenceAnalysisPrompt({ epics: epicGroups })
-            : buildConfluenceAnalysisPrompt({ issues });
+            ? buildConfluenceAnalysisPrompt({ epics: epicGroups, existingPages })
+            : buildConfluenceAnalysisPrompt({ issues, existingPages });
         const rawResponse = await callClaude(prompt);
 
         let suggestions: ConfluenceSuggestion[];
