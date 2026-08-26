@@ -17,6 +17,10 @@ import { validateBody } from '../utils/validateMiddleware.js';
 import { JiraPullSchema } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
 
+// Shared JQL injection guard for any free-text value (sprint name, fix
+// version name, …) interpolated directly into a JQL string below.
+const JQL_INJECTION_RE = /\b(ORDER\s+BY|UNION|DROP|INSERT|UPDATE|DELETE|SELECT)\b/i;
+
 export default function jiraSearchRoutes({
   TYPE_CONFIG,
   JIRA_PROJECT,
@@ -62,7 +66,6 @@ export default function jiraSearchRoutes({
       }
 
       const sprintSanitised = String(sprint).trim().replace(/"/g, '');
-      const JQL_INJECTION_RE = /\b(ORDER\s+BY|UNION|DROP|INSERT|UPDATE|DELETE|SELECT)\b/i;
       if (sprintSanitised && JQL_INJECTION_RE.test(sprintSanitised)) {
         return sendError(res, 400, 'INVALID_PARAM', 'Invalid sprint parameter');
       }
@@ -211,6 +214,214 @@ export default function jiraSearchRoutes({
       const apiErr = parseApiError(err);
       logError(
         'GET /api/jira/by-fix-version/:version',
+        apiErr.message,
+        apiErr.details as Record<string, unknown> | undefined
+      );
+      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+    }
+  });
+
+  // ── GET /api/jira/closed-epics ──────────────────────────────────────────────
+  // Documentation view support (#554): given a sprint or fix version, resolve
+  // its date window and surface the Epics that contain issues *closed* (Done +
+  // resolved) during that window — the inverse of /search's "open work only"
+  // JQL. Used by the "Ask AI" Confluence-update flow so a PO can see what
+  // shipped in the sprint/PI, grouped under parent epics.
+  router.get('/api/jira/closed-epics', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN)
+      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+    const sprintRaw = String(req.query.sprint || '').trim();
+    const fixVersionRaw = String(req.query.fixVersion || '').trim();
+
+    if (!sprintRaw && !fixVersionRaw) {
+      return sendError(
+        res,
+        400,
+        'INVALID_PARAM',
+        'One of sprint or fixVersion query parameters is required'
+      );
+    }
+    if (sprintRaw && fixVersionRaw) {
+      return sendError(res, 400, 'INVALID_PARAM', 'Provide only one of sprint or fixVersion');
+    }
+
+    const scopeType: 'sprint' | 'fixversion' = sprintRaw ? 'sprint' : 'fixversion';
+    const scopeValue = (sprintRaw || fixVersionRaw).replace(/"/g, '');
+    if (JQL_INJECTION_RE.test(scopeValue)) {
+      return sendError(
+        res,
+        400,
+        'INVALID_PARAM',
+        `Invalid ${scopeType === 'sprint' ? 'sprint' : 'fixVersion'} parameter`
+      );
+    }
+
+    try {
+      // ── 1. Resolve the date window ────────────────────────────────────────
+      let start: string | null = null;
+      let end: string | null = null;
+      let windowResolved = true;
+
+      if (scopeType === 'sprint') {
+        if (!JIRA_BOARD_ID) {
+          return sendError(res, 400, 'BOARD_NOT_CONFIGURED', 'JIRA_BOARD_ID not configured');
+        }
+        const sprints = await fetchBoardSprints(jiraAgileRequest, JIRA_BOARD_ID);
+        const match = sprints.find((s) => s.name === scopeValue);
+        if (!match) {
+          return sendError(res, 404, 'SPRINT_NOT_FOUND', `Sprint "${scopeValue}" not found`);
+        }
+        start = match.startDate || null;
+        end = match.endDate || null;
+      } else {
+        type JiraVersion = { name: string; startDate?: string; releaseDate?: string };
+        const versions = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) ||
+          []) as JiraVersion[];
+        const match = versions.find((v) => v.name === scopeValue);
+        if (!match) {
+          return sendError(res, 404, 'VERSION_NOT_FOUND', `Fix version "${scopeValue}" not found`);
+        }
+        start = match.startDate || null;
+        end = match.releaseDate || null;
+      }
+
+      if (!start || !end) windowResolved = false;
+
+      // ── 2. Query closed issues in window ──────────────────────────────────
+      const resolvedClause = windowResolved
+        ? ` AND resolved >= "${String(start).slice(0, 10)}" AND resolved <= "${String(end).slice(0, 10)}"`
+        : '';
+      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory = Done${resolvedClause} ORDER BY updated DESC`;
+      const fields = `summary,issuetype,status,${FIELD_EPIC_LINK},${FIELD_EPIC_NAME},resolutiondate`;
+      type JiraClosedIssue = {
+        key: string;
+        fields: Record<string, unknown> & {
+          summary?: string;
+          issuetype?: { name?: string };
+          status?: { name?: string };
+        };
+      };
+      const rawIssues = (await jiraPagedRequest(jql, fields, {
+        maxResults: 100,
+        maxTotal: 500,
+      })) as JiraClosedIssue[];
+
+      // ── 3. Group into epics ────────────────────────────────────────────────
+      interface EpicGroup {
+        key: string;
+        summary: string;
+        epicName: string;
+        status: string;
+        epicClosedInScope: boolean;
+        isSynthetic: boolean;
+        closedChildren: Array<{ key: string; summary: string; issuetype: string; status: string }>;
+      }
+      const epicMap = new Map<string, EpicGroup>();
+      const NO_EPIC_KEY = '(no epic)';
+
+      for (const issue of rawIssues) {
+        const issuetypeName = issue.fields.issuetype?.name || '';
+        if (issuetypeName === 'Epic') {
+          const entry = epicMap.get(issue.key) || {
+            key: issue.key,
+            summary: '',
+            epicName: '',
+            status: '',
+            epicClosedInScope: false,
+            isSynthetic: false,
+            closedChildren: [],
+          };
+          entry.summary = String(issue.fields.summary || '');
+          entry.epicName = String(issue.fields[FIELD_EPIC_NAME] || '');
+          entry.status = issue.fields.status?.name || '';
+          entry.epicClosedInScope = true;
+          epicMap.set(issue.key, entry);
+        } else {
+          const epicKey = String(issue.fields[FIELD_EPIC_LINK] || '').trim() || NO_EPIC_KEY;
+          const isSynthetic = epicKey === NO_EPIC_KEY;
+          const entry = epicMap.get(epicKey) || {
+            key: epicKey,
+            summary: '',
+            epicName: '',
+            status: '',
+            epicClosedInScope: false,
+            isSynthetic,
+            closedChildren: [],
+          };
+          entry.closedChildren.push({
+            key: issue.key,
+            summary: String(issue.fields.summary || ''),
+            issuetype: issuetypeName,
+            status: issue.fields.status?.name || '',
+          });
+          epicMap.set(epicKey, entry);
+        }
+      }
+
+      // ── 4. Batch-fetch epic summaries for epics not already closed-in-scope ─
+      const keysToFetch = [...epicMap.values()]
+        .filter((e) => !e.epicClosedInScope && !e.isSynthetic)
+        .map((e) => e.key);
+      if (keysToFetch.length) {
+        const epicJql = `key in (${keysToFetch.join(',')})`;
+        const epicFields = `summary,status,${FIELD_EPIC_NAME}`;
+        type JiraEpicSummary = {
+          key: string;
+          fields: Record<string, unknown> & { summary?: string; status?: { name?: string } };
+        };
+        const epicIssues = (await jiraPagedRequest(epicJql, epicFields, {
+          maxResults: 100,
+          maxTotal: 500,
+        })) as JiraEpicSummary[];
+        for (const epicIssue of epicIssues) {
+          const entry = epicMap.get(epicIssue.key);
+          if (!entry) continue;
+          entry.summary = String(epicIssue.fields.summary || '');
+          entry.epicName = String(epicIssue.fields[FIELD_EPIC_NAME] || '');
+          entry.status = epicIssue.fields.status?.name || '';
+        }
+      }
+
+      // ── 5. Attach "✓ Local" badges ───────────────────────────────────────
+      const epics = await Promise.all(
+        [...epicMap.values()].map(async (e) => {
+          const existing = e.isSynthetic ? null : await _findExistingByJiraId(e.key);
+          const closedChildren = await Promise.all(
+            e.closedChildren.map(async (c) => {
+              const childExisting = await _findExistingByJiraId(c.key);
+              return {
+                ...c,
+                localExists: !!childExisting,
+                localFilename: childExisting?.filename || null,
+                localDocType: childExisting?.docType || null,
+              };
+            })
+          );
+          return {
+            key: e.key,
+            summary: e.summary,
+            epicName: e.epicName,
+            status: e.status,
+            epicClosedInScope: e.epicClosedInScope,
+            isSynthetic: e.isSynthetic,
+            localExists: !!existing,
+            localFilename: existing?.filename || null,
+            localDocType: existing?.docType || null,
+            closedChildren,
+          };
+        })
+      );
+
+      res.json({
+        scope: { type: scopeType, value: scopeValue, windowResolved },
+        epics,
+        total: epics.length,
+      });
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError(
+        'GET /api/jira/closed-epics',
         apiErr.message,
         apiErr.details as Record<string, unknown> | undefined
       );
