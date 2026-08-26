@@ -919,6 +919,48 @@ function _updateSuggestionSelectionState(): void {
   if (modifyBtn) modifyBtn.disabled = count === 0;
 }
 
+// ── Export PDF (#559) ─────────────────────────────────────────────────────────
+// Renders the current AI-analysis report as a PDF, purely from client-side
+// state (_suggestions) — no re-fetch, no Confluence/JIRA calls, nothing
+// applied. POSTs to the server (the suggestions array is client state, not
+// something the server can look up) and downloads the response the same way
+// exportAiSavingsPptx() does in ai-savings.ts: fetch → res.blob() →
+// createObjectURL → anchor.download.
+function _currentScopeLabel(): string {
+  if (_currentMode === 'sprint') {
+    const select = document.getElementById('doc-sprint-select') as HTMLSelectElement | null;
+    return select?.value ? `Sprint: ${select.value}` : '';
+  }
+  if (_currentMode === 'fixversion') {
+    const select = document.getElementById('doc-filter-version') as HTMLSelectElement | null;
+    return select?.value ? `Fix Version: ${select.value}` : '';
+  }
+  return 'Search Issues';
+}
+
+export async function exportDocumentationPdf(): Promise<void> {
+  if (!_suggestions.length) return;
+  try {
+    const res = await fetch('/api/confluence/export/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suggestions: _suggestions, scope: _currentScopeLabel() }),
+    });
+    if (!res.ok) throw new Error(`Export failed (${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'proposed-documentation-changes.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showJiraToast('error', `Failed to export PDF: ${(e as Error).message}`);
+  }
+}
+
 function _showResultsError(err: unknown, defaultTitle = 'AI analysis failed'): void {
   const banner = document.getElementById('doc-results-error-banner') as HTMLElement | null;
   const titleEl = document.getElementById('doc-results-error-title');

@@ -203,6 +203,7 @@ import {
   docSearch,
   docSetSprint,
   docSetFixVersionBulk,
+  exportDocumentationPdf,
 } from './documentation.js';
 
 if ('serviceWorker' in navigator) {
@@ -947,6 +948,9 @@ document.addEventListener('click', (e: MouseEvent) => {
       break;
     case 'modifyDocumentation':
       modifyDocumentation();
+      break;
+    case 'exportDocumentationPdf':
+      void exportDocumentationPdf();
       break;
     case 'undoChanges':
       void undoChanges();

@@ -198,6 +198,7 @@ import {
   docSearch,
   docSetSprint,
   docSetFixVersionBulk,
+  exportDocumentationPdf,
 } from './documentation.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -852,6 +853,9 @@ document.addEventListener('click', (e) => {
       break;
     case 'modifyDocumentation':
       modifyDocumentation();
+      break;
+    case 'exportDocumentationPdf':
+      void exportDocumentationPdf();
       break;
     case 'undoChanges':
       void undoChanges();
