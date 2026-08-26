@@ -230,6 +230,53 @@ describe('buildConfluenceAnalysisPrompt', () => {
       assert.doesNotMatch(prompt, /Confluence read access is not yet implemented/);
     });
   });
+
+  // ── documentationGuidance (#558) ────────────────────────────────────────────
+  describe('documentationGuidance', () => {
+    test('includes a "Documentation depth guidance" section with the given text when passed', () => {
+      const prompt = buildConfluenceAnalysisPrompt({
+        issues: [{ key: 'EAMDM-90', summary: 'Issue', description: 'Desc' }],
+        documentationGuidance: 'Only document user-facing changes. Skip internal refactors.',
+      });
+      assert.match(prompt, /Documentation depth guidance/);
+      assert.match(prompt, /Only document user-facing changes\. Skip internal refactors\./);
+      assert.match(prompt, /return an empty JSON array: \[\]/);
+    });
+
+    test('is absent from the prompt when not passed', () => {
+      const prompt = buildConfluenceAnalysisPrompt({
+        issues: [{ key: 'EAMDM-91', summary: 'Issue', description: 'Desc' }],
+      });
+      assert.doesNotMatch(prompt, /Documentation depth guidance/);
+    });
+
+    test('is absent when passed as an empty/whitespace-only string', () => {
+      const prompt = buildConfluenceAnalysisPrompt({
+        issues: [{ key: 'EAMDM-92', summary: 'Issue', description: 'Desc' }],
+        documentationGuidance: '   ',
+      });
+      assert.doesNotMatch(prompt, /Documentation depth guidance/);
+    });
+
+    test('composes with epics and existingPages — all three can coexist', () => {
+      const prompt = buildConfluenceAnalysisPrompt({
+        epics: [
+          {
+            epic: { key: 'EAMDM-93', summary: 'Epic', description: 'Epic desc' },
+            children: [{ key: 'EAMDM-94', summary: 'Child', description: 'Child desc' }],
+          },
+        ],
+        existingPages: [{ title: 'Auth Guide', hierarchyPath: 'MIDAS > Auth' }],
+        documentationGuidance: 'Prefer updating existing pages over creating new ones.',
+      });
+      assert.match(prompt, /Epics and their closed stories:/);
+      assert.match(prompt, /### EAMDM-93: Epic/);
+      assert.match(prompt, /current Confluence page tree/);
+      assert.match(prompt, /- Auth Guide \(MIDAS > Auth\)/);
+      assert.match(prompt, /Documentation depth guidance/);
+      assert.match(prompt, /Prefer updating existing pages over creating new ones\./);
+    });
+  });
 });
 
 describe('buildSplitStoryPrompt', () => {

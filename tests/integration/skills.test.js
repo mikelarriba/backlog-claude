@@ -66,11 +66,11 @@ after(async () => {
 
 // ── GET /api/skills ────────────────────────────────────────────────────────────
 describe('GET /api/skills', () => {
-  test('returns 200 with all 7 known skills', async () => {
+  test('returns 200 with all 8 known skills', async () => {
     const { status, data } = await api('GET', '/api/skills');
     assert.equal(status, 200);
     assert.ok(Array.isArray(data.skills));
-    assert.equal(data.skills.length, 7);
+    assert.equal(data.skills.length, 8);
   });
 
   test('each skill has name, description, content, and source', async () => {
@@ -195,6 +195,70 @@ describe('PUT /api/skills/:name/improve', () => {
     assert.equal(status, 200);
     assert.equal(typeof data.improved, 'string');
     assert.ok(data.improved.length > 0);
+  });
+});
+
+// ── documentation-guidance skill (#558) ───────────────────────────────────────
+// Regression check that step 1 (registering the name in KNOWN_SKILLS) needed
+// no route code changes: this skill round-trips through get/edit/reset/delete
+// exactly like any other known skill, following the same pattern as the
+// `create-spikes` tests above but with its own isolated file/snapshot.
+describe('documentation-guidance skill (get/edit/reset/delete, no route changes needed)', () => {
+  const DOC_GUIDANCE_SKILL = 'documentation-guidance';
+  const DOC_GUIDANCE_PATH = path.join(COMMANDS_DIR, `${DOC_GUIDANCE_SKILL}.md`);
+  let prevFile;
+
+  before(() => {
+    prevFile = readIfExists(DOC_GUIDANCE_PATH);
+  });
+
+  after(() => {
+    restore(DOC_GUIDANCE_PATH, prevFile);
+  });
+
+  test('GET /api/skills/:name returns the example template', async () => {
+    const { status, data } = await api('GET', `/api/skills/${DOC_GUIDANCE_SKILL}`);
+    assert.equal(status, 200);
+    assert.equal(data.name, DOC_GUIDANCE_SKILL);
+    assert.ok(data.content.length > 0);
+    assert.ok(['custom', 'example'].includes(data.source));
+  });
+
+  test('PUT /api/skills/:name saves custom content and echoes it back with source=custom', async () => {
+    const content =
+      '---\nname: documentation-guidance\ndescription: "Integration test override"\n---\n\nCustom guidance body.';
+    const { status, data } = await api('PUT', `/api/skills/${DOC_GUIDANCE_SKILL}`, { content });
+    assert.equal(status, 200);
+    assert.equal(data.success, true);
+    assert.equal(data.name, DOC_GUIDANCE_SKILL);
+    assert.equal(data.source, 'custom');
+    assert.equal(data.description, 'Integration test override');
+
+    assert.ok(fs.existsSync(DOC_GUIDANCE_PATH));
+    assert.equal(fs.readFileSync(DOC_GUIDANCE_PATH, 'utf-8'), content);
+
+    const get = await api('GET', `/api/skills/${DOC_GUIDANCE_SKILL}`);
+    assert.equal(get.data.source, 'custom');
+    assert.equal(get.data.content, content);
+  });
+
+  test('PUT /api/skills/:name/improve returns AI-improved content (mocked provider)', async () => {
+    const { status, data } = await api('PUT', `/api/skills/${DOC_GUIDANCE_SKILL}/improve`, {
+      content: 'Original guidance content',
+    });
+    assert.equal(status, 200);
+    assert.equal(typeof data.improved, 'string');
+    assert.ok(data.improved.length > 0);
+  });
+
+  test('DELETE /api/skills/:name resets the custom skill back to the example template', async () => {
+    assert.ok(fs.existsSync(DOC_GUIDANCE_PATH), 'custom file from the PUT test above should exist');
+
+    const { status, data } = await api('DELETE', `/api/skills/${DOC_GUIDANCE_SKILL}`);
+    assert.equal(status, 200);
+    assert.equal(data.success, true);
+    assert.equal(data.source, 'example');
+    assert.equal(fs.existsSync(DOC_GUIDANCE_PATH), false, 'custom file should be removed');
   });
 });
 
