@@ -1,6 +1,10 @@
 // ── E2E: Documentation panel — full flow (#376) ───────────────────────────────
 // Covers the complete Documentation feature end to end: JIRA filter (#370) →
 // AI analysis (#371) → results/diff view (#372) → execute (#374/#375) → undo.
+// Since #555, Sprint/Fix Version mode load epic roll-up rows from
+// GET /api/jira/closed-epics (#554) instead of the flat issue search below —
+// see the "epic roll-up" describe block near the bottom for that coverage.
+// Search mode is untouched and still uses GET /api/jira/search.
 // All JIRA/AI/Confluence calls are mocked at the network level via
 // page.route(), following the pattern established by piconfig.spec.js — the
 // real backend is never exercised for these calls.
@@ -63,6 +67,65 @@ const ISSUE_FIXTURES = [
     localExists: true,
     localFilename: '2026-01-01-auth-revamp.md',
     localDocType: 'epic',
+  },
+];
+
+// Epic roll-up rows for Sprint / Fix Version modes (#555) — the
+// GET /api/jira/closed-epics response shape introduced by #554. Search mode
+// (below) keeps using ISSUE_FIXTURES/the flat /api/jira/search mock.
+const CLOSED_EPICS_FIXTURE = [
+  {
+    key: 'DOC-103',
+    summary: 'Auth revamp epic',
+    epicName: 'Auth',
+    status: 'Done',
+    epicClosedInScope: true,
+    isSynthetic: false,
+    localExists: true,
+    localFilename: '2026-01-01-auth-revamp.md',
+    localDocType: 'epic',
+    closedChildren: [
+      {
+        key: 'DOC-101',
+        summary: 'Add SSO login flow',
+        issuetype: 'Story',
+        status: 'Done',
+        localExists: false,
+        localFilename: null,
+        localDocType: null,
+      },
+      {
+        key: 'DOC-102',
+        summary: 'Fix SSO login redirect bug',
+        issuetype: 'Bug',
+        status: 'Done',
+        localExists: false,
+        localFilename: null,
+        localDocType: null,
+      },
+    ],
+  },
+  {
+    key: 'DOC-201',
+    summary: 'Billing epic',
+    epicName: 'Billing',
+    status: 'Done',
+    epicClosedInScope: true,
+    isSynthetic: false,
+    localExists: false,
+    localFilename: null,
+    localDocType: null,
+    closedChildren: [
+      {
+        key: 'DOC-202',
+        summary: 'Add invoice export',
+        issuetype: 'Story',
+        status: 'Done',
+        localExists: false,
+        localFilename: null,
+        localDocType: null,
+      },
+    ],
   },
 ];
 
@@ -157,6 +220,7 @@ async function mockDocumentationRoutes(
     sprints = SPRINTS_FIXTURE,
     versions = VERSIONS_FIXTURE,
     issues = ISSUE_FIXTURES,
+    closedEpics = CLOSED_EPICS_FIXTURE,
     suggestions = SUGGESTIONS_FIXTURE,
     analyzeStatus = 200,
     executeResult = EXECUTE_SUCCESS,
@@ -193,6 +257,22 @@ async function mockDocumentationRoutes(
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ issues: filtered, total: filtered.length }),
+    });
+  });
+
+  // Sprint / Fix Version modes (#555) — epic roll-up rows.
+  await page.route('**/api/jira/closed-epics*', (route) => {
+    const url = new URL(route.request().url());
+    const scopeType = url.searchParams.get('sprint') ? 'sprint' : 'fixversion';
+    const scopeValue = url.searchParams.get('sprint') || url.searchParams.get('fixVersion') || '';
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        scope: { type: scopeType, value: scopeValue, windowResolved: true },
+        epics: closedEpics,
+        total: closedEpics.length,
+      }),
     });
   });
 
@@ -235,13 +315,16 @@ async function openDocView(page) {
   await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
 }
 
-// Load all issues by selecting a sprint — needed because the redesigned panel
-// (#384/#386) no longer auto-searches on open. Sprint mode pre-selects all
-// returned issues; tests that need to work on individual rows should call
-// this first then manipulate checkboxes as needed.
+// Load all epics by selecting a sprint — needed because the redesigned panel
+// (#384/#386) no longer auto-searches on open. Sprint mode loads epic
+// roll-up rows (#555) and pre-selects all of them; tests that need to work
+// on individual rows should call this first then manipulate checkboxes as
+// needed. The rest of this file uses epic key 'DOC-103' (the first row in
+// CLOSED_EPICS_FIXTURE) wherever it previously used a raw issue key, since
+// selection now happens at the epic level.
 async function loadIssuesViaSprint(page) {
   await Promise.all([
-    page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+    page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
     page.locator('#doc-sprint-select').selectOption('Sprint 1'),
   ]);
   await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
@@ -277,12 +360,19 @@ test.describe('Documentation — navigation & filter panel', () => {
     await expect(page.locator('.doc-issue-row')).toHaveCount(0);
   });
 
-  test('selecting a sprint loads all issues into the panel', async ({ page }) => {
+  test('selecting a sprint loads epics that had issues closed in that sprint, all pre-selected', async ({
+    page,
+  }) => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
     await loadIssuesViaSprint(page);
 
-    await expect(page.locator('.doc-issue-row')).toHaveCount(ISSUE_FIXTURES.length);
+    await expect(page.locator('.doc-issue-row')).toHaveCount(CLOSED_EPICS_FIXTURE.length);
+    for (const epic of CLOSED_EPICS_FIXTURE) {
+      await expect(
+        page.locator(`.doc-issue-row[data-key="${epic.key}"] input[type=checkbox]`)
+      ).toBeChecked();
+    }
   });
 });
 
@@ -307,23 +397,124 @@ test.describe('Documentation — JIRA search & filtering', () => {
     await expect(page.locator('#doc-issues-list')).not.toContainText('DOC-101');
   });
 
-  test('By Fix Version mode: selecting a fix version narrows the results', async ({ page }) => {
-    // After #386: fix-version selection lives in its own tab panel.
+  test('By Fix Version mode: selecting a fix version loads epics with issues closed in that version', async ({
+    page,
+  }) => {
+    // After #386: fix-version selection lives in its own tab panel. Since
+    // #555, this mode loads epic roll-up rows, same as Sprint mode.
     await mockDocumentationRoutes(page);
     await openDocView(page);
 
     await page.locator('.doc-mode-tab[data-mode="fixversion"]').click();
     await Promise.all([
       page.waitForResponse(
-        (r) => r.url().includes('/api/jira/search') && r.url().includes('fixVersion=v1.0')
+        (r) => r.url().includes('/api/jira/closed-epics') && r.url().includes('fixVersion=v1.0')
       ),
       page.locator('#doc-filter-version').selectOption('v1.0'),
     ]);
 
-    await expect(page.locator('.doc-issue-row')).toHaveCount(2);
-    await expect(page.locator('#doc-issues-list')).toContainText('DOC-101');
+    await expect(page.locator('.doc-issue-row')).toHaveCount(CLOSED_EPICS_FIXTURE.length);
+    await expect(page.locator('#doc-issues-list')).toContainText('DOC-103');
+    await expect(page.locator('#doc-issues-list')).toContainText('DOC-201');
+  });
+});
+
+// ── Epic roll-up (#555): expand/collapse, selection unit, Search mode parity ──
+test.describe('Documentation — epic roll-up rows (Sprint / Fix Version modes)', () => {
+  test('an epic row shows a closed-count badge and is pre-selected', async ({ page }) => {
+    await mockDocumentationRoutes(page);
+    await openDocView(page);
+    await loadIssuesViaSprint(page);
+
+    const epicRow = page.locator('.doc-issue-row[data-key="DOC-103"]');
+    await expect(epicRow.locator('.doc-epic-closed-badge')).toHaveText('2 closed');
+    await expect(epicRow.locator('input[type=checkbox]')).toBeChecked();
+  });
+
+  test('expanding an epic shows its closed child issues read-only; collapsing hides them again', async ({
+    page,
+  }) => {
+    await mockDocumentationRoutes(page);
+    await openDocView(page);
+    await loadIssuesViaSprint(page);
+
+    const item = page.locator('.doc-epic-item[data-key="DOC-103"]');
+    const childrenInner = item.locator('.doc-epic-children-inner');
+
+    await expect(childrenInner).toBeHidden();
+
+    await item.locator('.doc-epic-expand-btn').click();
+    await expect(item).toHaveClass(/expanded/);
+    await expect(childrenInner).toBeVisible({ timeout: 2000 });
+    await expect(childrenInner).toContainText('DOC-101');
+    await expect(childrenInner).toContainText('DOC-102');
+    // Children are read-only — no per-child checkbox.
+    await expect(childrenInner.locator('input[type=checkbox]')).toHaveCount(0);
+
+    await item.locator('.doc-epic-expand-btn').click();
+    await expect(item).not.toHaveClass(/expanded/);
+    await expect(childrenInner).toBeHidden({ timeout: 2000 });
+  });
+
+  test('expanding an epic does not change its selection state', async ({ page }) => {
+    await mockDocumentationRoutes(page);
+    await openDocView(page);
+    await loadIssuesViaSprint(page);
+
+    const checkbox = page.locator('.doc-issue-row[data-key="DOC-103"] input[type=checkbox]');
+    await expect(checkbox).toBeChecked();
+
+    await page.locator('.doc-epic-item[data-key="DOC-103"] .doc-epic-expand-btn').click();
+    await expect(checkbox).toBeChecked();
+  });
+
+  test('the selection count and "Ask AI" button reflect selected epics, not their children', async ({
+    page,
+  }) => {
+    await mockDocumentationRoutes(page);
+    await openDocView(page);
+    await loadIssuesViaSprint(page);
+
+    await expect(page.locator('#doc-selection-count')).toContainText(
+      `${CLOSED_EPICS_FIXTURE.length} epics loaded`
+    );
+
+    await page.locator('.doc-issue-row[data-key="DOC-201"] input[type=checkbox]').uncheck();
+    await expect(page.locator('#doc-selection-count')).toContainText('1 of 2 selected');
+    await expect(page.locator('#doc-ask-ai-btn')).toBeEnabled();
+
+    await page.locator('.doc-issue-row[data-key="DOC-103"] input[type=checkbox]').uncheck();
+    await expect(page.locator('#doc-ask-ai-btn')).toBeDisabled();
+  });
+
+  test('switching to Search mode behaves exactly as before: flat issue rows, no pre-selection, no expand toggle', async ({
+    page,
+  }) => {
+    await mockDocumentationRoutes(page);
+    await openDocView(page);
+    await loadIssuesViaSprint(page);
+
+    // Sprint mode pre-selects all epics, so switching modes prompts for
+    // confirmation (setDocMode()) — accept it, same as
+    // documentation-bulk-select.spec.js's mode-switching coverage.
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('.doc-mode-tab[data-mode="search"]').click();
+    await expect(page.locator('.doc-issue-row')).toHaveCount(0);
+    await expect(page.locator('#doc-placeholder')).toBeVisible();
+
+    await page.locator('#doc-filter-text').fill('redirect');
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes('/api/jira/search') && r.url().includes('text=redirect')
+      ),
+      page.locator('.doc-search-btn').click(),
+    ]);
+
+    await expect(page.locator('.doc-issue-row')).toHaveCount(1);
     await expect(page.locator('#doc-issues-list')).toContainText('DOC-102');
-    await expect(page.locator('#doc-issues-list')).not.toContainText('DOC-103');
+    // Search results aren't pre-selected, and issue rows carry no expand toggle.
+    await expect(page.locator('.doc-issue-row input[type=checkbox]')).not.toBeChecked();
+    await expect(page.locator('.doc-epic-expand-btn')).toHaveCount(0);
   });
 });
 
@@ -341,7 +532,7 @@ test.describe('Documentation — issue selection', () => {
     );
 
     await expect(page.locator('#doc-ask-ai-btn')).toBeDisabled();
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await expect(page.locator('#doc-ask-ai-btn')).toBeEnabled();
   });
 
@@ -372,7 +563,7 @@ test.describe('Documentation — Ask AI loading state', () => {
     await mockDocumentationRoutes(page, { analyzeGate: gate });
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
 
     await page.locator('#doc-ask-ai-btn').click();
     await expect(page.locator('#doc-results-panel')).toBeVisible();
@@ -390,7 +581,7 @@ test.describe('Documentation — AI analysis results', () => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
 
     await expect(page.locator('.doc-suggestion-row')).toHaveCount(SUGGESTIONS_FIXTURE.length);
@@ -402,7 +593,7 @@ test.describe('Documentation — AI analysis results', () => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
 
     const first = page.locator('.doc-suggestion-row[data-index="0"]');
@@ -424,7 +615,7 @@ test.describe('Documentation — AI analysis results', () => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
 
     const row = page.locator('.doc-suggestion-row[data-index="0"]');
@@ -449,7 +640,7 @@ test.describe('Documentation — AI analysis results', () => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
 
     const row = page.locator('.doc-suggestion-row[data-index="0"]');
@@ -471,7 +662,7 @@ test.describe('Documentation — AI results selection controls', () => {
     await mockDocumentationRoutes(page);
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
 
     const toolbar = page.locator('#doc-results-toolbar');
@@ -508,7 +699,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
     await mockDocumentationRoutes(page, { executeGate: gate, executeResult: EXECUTE_SUCCESS });
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
     await selectSuggestion(page, 1);
@@ -527,7 +718,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
     await mockDocumentationRoutes(page, { executeResult: EXECUTE_MIXED });
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
     await selectSuggestion(page, 1);
@@ -550,7 +741,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
     await mockDocumentationRoutes(page, { executeResult: EXECUTE_SUCCESS });
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
     await selectSuggestion(page, 1);
@@ -568,7 +759,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
     await mockDocumentationRoutes(page, { executeResult: EXECUTE_MIXED });
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
     await selectSuggestion(page, 1);
@@ -584,7 +775,7 @@ test.describe('Documentation — execute (Modify Documentation)', () => {
 async function executeAndReachUndo(page, executeResult = EXECUTE_SUCCESS) {
   await openDocView(page);
   await loadIssuesViaSprint(page);
-  await selectIssue(page, 'DOC-101');
+  await selectIssue(page, 'DOC-103');
   await askAIAndWaitResults(page);
   await selectSuggestion(page, 0);
   await selectSuggestion(page, 1);
@@ -677,13 +868,31 @@ test.describe('Documentation — undo', () => {
 
 // ── Edge cases ───────────────────────────────────────────────────────────────
 test.describe('Documentation — edge cases', () => {
-  test('zero JIRA results shows an empty state in the filter list', async ({ page }) => {
-    await mockDocumentationRoutes(page, { issues: [] });
+  test('zero epics shows an empty state in the filter list (Sprint mode)', async ({ page }) => {
+    await mockDocumentationRoutes(page, { closedEpics: [] });
     await openDocView(page);
     // Trigger a load via sprint mode — the empty fixture means 0 results.
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 1'),
+    ]);
+    await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
+
+    await expect(page.locator('#doc-issues-list')).toContainText(
+      'No epics had issues closed in this sprint/fix version.'
+    );
+    await expect(page.locator('#doc-ask-ai-btn')).toBeDisabled();
+  });
+
+  test('zero JIRA results shows an empty state in the filter list (Search mode)', async ({
+    page,
+  }) => {
+    await mockDocumentationRoutes(page, { issues: [] });
+    await openDocView(page);
+    await page.locator('.doc-mode-tab[data-mode="search"]').click();
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.locator('.doc-search-btn').click(),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
 
@@ -697,7 +906,7 @@ test.describe('Documentation — edge cases', () => {
     await mockDocumentationRoutes(page, { suggestions: [] });
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
 
     await expect(page.locator('#doc-results-list')).toContainText(
@@ -723,7 +932,7 @@ test.describe('Documentation — edge cases', () => {
     await mockDocumentationRoutes(page, { executeResult: EXECUTE_ALL_FAIL });
     await openDocView(page);
     await loadIssuesViaSprint(page);
-    await selectIssue(page, 'DOC-101');
+    await selectIssue(page, 'DOC-103');
     await askAIAndWaitResults(page);
     await selectSuggestion(page, 0);
     await selectSuggestion(page, 1);
