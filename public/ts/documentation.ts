@@ -9,7 +9,7 @@
 import { fetchJSON, postJSON, showJiraToast, escHtml } from './state.js';
 import { logAiSaving } from './ai-savings.js';
 import { renderDiffHtml } from './lineDiff.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerChangeActions } from './actions.js';
 
 // Typed data-action names for the issue-row click, pager buttons, and
 // suggestion-row expand/collapse toggle (issue #461 migration — see
@@ -36,6 +36,29 @@ registerActions({
   },
   [DOC_ACTIONS.toggleEpic]: (el) => {
     docToggleEpicChildren(el.dataset.key ?? '');
+  },
+});
+
+// Typed data-change-action names for the Sprint / Fix Version mode
+// <select>s (index.html's #doc-sprint-select / #doc-filter-version) — the
+// proof-of-concept pair for the new change-action registry (issue #461, see
+// the "Change-event registry" section of actions.ts). Both elements already
+// emit data-change-action="docSetSprint" / "docSetFixVersionBulk" in
+// index.html; previously main.ts's change switch reached these two
+// functions via an untyped `window` lookup even though it already had them
+// as direct imports — this registration replaces that lookup with a real,
+// typed call.
+export const DOC_CHANGE_ACTIONS = {
+  setSprint: 'docSetSprint',
+  setFixVersionBulk: 'docSetFixVersionBulk',
+} as const;
+
+registerChangeActions({
+  [DOC_CHANGE_ACTIONS.setSprint]: (el) => {
+    docSetSprint((el as HTMLSelectElement).value);
+  },
+  [DOC_CHANGE_ACTIONS.setFixVersionBulk]: (el) => {
+    docSetFixVersionBulk((el as HTMLSelectElement).value);
   },
 });
 

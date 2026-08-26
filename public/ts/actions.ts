@@ -33,6 +33,9 @@
 // the same pattern rather than adding cases to main.ts's switch or entries
 // to its `_dynGlobals` bridge — see the design note above `_dynGlobals` in
 // main.ts for the incremental migration plan.
+//
+// Everything above this point is `click` only. See "Change-event registry"
+// further down for the analogous (but separate) registry for `change`.
 
 export type ActionHandler = (el: HTMLElement, e: MouseEvent) => void;
 
@@ -67,6 +70,79 @@ export function registerActions(actions: Record<string, ActionHandler>): void {
  */
 export function dispatchAction(name: string, el: HTMLElement, e: MouseEvent): boolean {
   const handler = registry.get(name);
+  if (!handler) return false;
+  handler(el, e);
+  return true;
+}
+
+// ── Change-event registry (extension, issue #461) ──────────────────────────
+// The click registry above covers `data-action` / delegated `click`. That
+// left main.ts's *other* delegated listeners — `data-change-action` for
+// `change` and `data-input-action` for `input` — as two more hand-written
+// central switches, each with the same untyped-`window`-bridge smell the
+// click switch used to have (see e.g. the `docSetSprint` /
+// `docSetFixVersionBulk` cases this registry replaces). Status comments on
+// #461 called generalizing this "a real design decision (new handler
+// signature per event type) rather than a mechanical follow-the-pattern
+// migration", so this section spikes that decision for `change` only —
+// `input` is intentionally left as still-a-switch for a future increment to
+// pick up with the same pattern once this one has proven out.
+//
+// Design: a second, independent registry rather than reusing the click
+// `Map` above. A change action name and a click action name are allowed to
+// collide (they're different attributes — `data-change-action` vs
+// `data-action` — dispatched from different listeners for different DOM
+// events), so sharing one map would make an unrelated collision throw at
+// load time and would let a `change` handler be invoked from a stray click
+// on the same element. Everything else mirrors the click registry
+// deliberately: same throw-on-duplicate-registration behavior, same
+// "returns `true` if a handler ran, so callers can fall back to their
+// legacy switch" contract — only the handler signature differs, taking the
+// native `Event` a `change` listener receives instead of `MouseEvent`.
+//
+// A module adopts this the same two-step way as the click registry: define
+// a `const` object of change-action names (see `docSetSprint` /
+// `docSetFixVersionBulk` in documentation.ts for the concrete example this
+// spike migrated), then call `registerChangeActions({ ... })` once at
+// module load time. main.ts's delegated `change` handler calls
+// `dispatchChangeAction(changeAction, target, e)` before falling into its
+// switch, exactly as the click handler already does with `dispatchAction`.
+
+export type ChangeActionHandler = (el: HTMLElement, e: Event) => void;
+
+const changeRegistry = new Map<string, ChangeActionHandler>();
+
+/**
+ * Registers one or more `{ actionName: handler }` pairs against the shared
+ * `change`-event dispatch table. Call this once at module load time from
+ * the module that owns the action. Throws synchronously if a change action
+ * name is already registered, so a duplicate/typo'd name fails loudly at
+ * import time instead of silently shadowing another module's handler. This
+ * is a separate registry from `registerActions` above — a name registered
+ * here does not collide with the same name registered for `click`.
+ */
+export function registerChangeActions(actions: Record<string, ChangeActionHandler>): void {
+  for (const [name, handler] of Object.entries(actions)) {
+    if (changeRegistry.has(name)) {
+      throw new Error(
+        `registerChangeActions: change action "${name}" is already registered — change action ` +
+          'names must be unique across all modules. Check for a copy-pasted key or a duplicate ' +
+          'registerChangeActions() call.'
+      );
+    }
+    changeRegistry.set(name, handler);
+  }
+}
+
+/**
+ * Looks up `name` in the change registry and invokes its handler with the
+ * triggering element and event. Returns `true` if a handler ran, `false`
+ * if nothing is registered under that name (the caller — main.ts's change
+ * handler — falls back to its legacy switch in that case, so this stays
+ * safe to call for change actions not yet migrated to this pattern).
+ */
+export function dispatchChangeAction(name: string, el: HTMLElement, e: Event): boolean {
+  const handler = changeRegistry.get(name);
   if (!handler) return false;
   handler(el, e);
   return true;

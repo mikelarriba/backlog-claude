@@ -33,6 +33,9 @@
 // the same pattern rather than adding cases to main.ts's switch or entries
 // to its `_dynGlobals` bridge — see the design note above `_dynGlobals` in
 // main.ts for the incremental migration plan.
+//
+// Everything above this point is `click` only. See "Change-event registry"
+// further down for the analogous (but separate) registry for `change`.
 const registry = new Map();
 /**
  * Registers one or more `{ actionName: handler }` pairs against the shared
@@ -62,6 +65,41 @@ export function registerActions(actions) {
  */
 export function dispatchAction(name, el, e) {
   const handler = registry.get(name);
+  if (!handler) return false;
+  handler(el, e);
+  return true;
+}
+const changeRegistry = new Map();
+/**
+ * Registers one or more `{ actionName: handler }` pairs against the shared
+ * `change`-event dispatch table. Call this once at module load time from
+ * the module that owns the action. Throws synchronously if a change action
+ * name is already registered, so a duplicate/typo'd name fails loudly at
+ * import time instead of silently shadowing another module's handler. This
+ * is a separate registry from `registerActions` above — a name registered
+ * here does not collide with the same name registered for `click`.
+ */
+export function registerChangeActions(actions) {
+  for (const [name, handler] of Object.entries(actions)) {
+    if (changeRegistry.has(name)) {
+      throw new Error(
+        `registerChangeActions: change action "${name}" is already registered — change action ` +
+          'names must be unique across all modules. Check for a copy-pasted key or a duplicate ' +
+          'registerChangeActions() call.'
+      );
+    }
+    changeRegistry.set(name, handler);
+  }
+}
+/**
+ * Looks up `name` in the change registry and invokes its handler with the
+ * triggering element and event. Returns `true` if a handler ran, `false`
+ * if nothing is registered under that name (the caller — main.ts's change
+ * handler — falls back to its legacy switch in that case, so this stays
+ * safe to call for change actions not yet migrated to this pattern).
+ */
+export function dispatchChangeAction(name, el, e) {
+  const handler = changeRegistry.get(name);
   if (!handler) return false;
   handler(el, e);
   return true;
