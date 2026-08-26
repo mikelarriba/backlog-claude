@@ -93,3 +93,9 @@ List what will NOT be addressed in this fix to prevent scope creep.
 - "Expected vs Actual" must be distinct — do not merge them
 - If the reporter hasn't provided reproduction steps, infer the most likely flow from the description
 - Do NOT include fix implementation details — that belongs in a linked Story or Spike
+
+## Input
+
+The rough bug description (and any title, module, logs, or context) to turn into a structured Bug report:
+
+$ARGUMENTS

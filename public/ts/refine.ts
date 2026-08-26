@@ -23,6 +23,7 @@ import {
 import type { DocEntry, PanelState } from './state.js';
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
+import { _parseComments, _renderComments } from './detail-fields.js';
 import {
   buildCanvasGraph,
   renderCanvas,
@@ -116,26 +117,6 @@ registerActions({
     void executeRpCreate(el.dataset.doctype ?? '');
   },
 });
-
-// ── Local ambient declarations ─────────────────────────────────
-// _renderComments / _parseComments are module-local (non-exported, never
-// attached to window) functions defined in detail.js. The original
-// refine.js calls them as bare globals inside openRefinePanel — this is
-// pre-existing dead code (they are not reachable at runtime and the call
-// would throw a ReferenceError). Preserved here exactly as-is; see the
-// migration summary for details instead of adding a new ambient global.
-declare const _renderComments: (
-  comments: RpComment[],
-  filename: string,
-  docType: string,
-  containerEl?: HTMLElement | null
-) => void;
-declare const _parseComments: (content: string) => RpComment[];
-
-interface RpComment {
-  id: string;
-  text: string;
-}
 
 // ── Canvas state ─ all declared as window globals in state.js ─
 // _canvasEpicFilename, _canvasDocType, _canvasManageLinks,
@@ -558,7 +539,8 @@ export async function openRefinePanel(filename: string, docType: string): Promis
       docType,
       document.getElementById('rp-comments-section')
     );
-  } catch {
+  } catch (e) {
+    console.error('openRefinePanel failed for', filename, docType, e);
     panel.innerHTML = '<div class="rp-loading">Failed to load content.</div>';
   }
 }

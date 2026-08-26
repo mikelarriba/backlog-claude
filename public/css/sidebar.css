@@ -2,7 +2,7 @@
 .sidebar {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 12px 8px;
   overflow: hidden;
 }
@@ -50,6 +50,53 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+/* Push the savings widget + Tools group to the bottom; Views stay under the logo */
+.sidebar-savings {
+  margin-top: auto;
+}
+
+/* ── Compact AI Time Saved widget (non-interactive) ──────────── */
+.sidebar-savings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 4px 6px;
+  border-top: 1px solid var(--border);
+}
+.sidebar-savings-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.sidebar-savings-card {
+  background: var(--surface2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 4px;
+  text-align: center;
+}
+.sidebar-savings-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.1;
+}
+.sidebar-savings-label {
+  font-size: 0.56rem;
+  color: var(--muted);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.sidebar-savings-chart-wrap {
+  height: 62px;
+  position: relative;
+}
+.sidebar-savings-chart-wrap canvas {
+  width: 100% !important;
 }
 
 .sidebar-item {

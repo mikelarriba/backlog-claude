@@ -32,9 +32,77 @@ export async function loadAiSavingsSection() {
     const data = await fetchJSON('/api/ai-savings');
     _entries = data.entries || [];
     filterAiSavings(_activeRange);
+    renderSidebarSavings(_entries);
   } catch (e) {
     console.warn('Failed to load AI savings:', e.message);
   }
+}
+// ── Sidebar compact widget (non-interactive) ──────────────────────────────
+// Loaded once at app start; also refreshed whenever the Settings panel loads.
+export async function loadSidebarSavings() {
+  if (!document.getElementById('sidebar-savings')) return;
+  try {
+    const data = await fetchJSON('/api/ai-savings');
+    _entries = data.entries || [];
+    renderSidebarSavings(_entries);
+  } catch (e) {
+    console.warn('Failed to load sidebar AI savings:', e.message);
+  }
+}
+let _sidebarChart = null;
+function renderSidebarSavings(entries) {
+  const wrap = document.getElementById('sidebar-savings');
+  if (!wrap) return;
+  const totalMinutes = entries.reduce((sum, e) => sum + (e.time_saved_minutes || 0), 0);
+  const totalItems = entries.reduce((sum, e) => sum + (e.item_count || 0), 0);
+  const hoursEl = document.getElementById('sb-savings-hours');
+  if (hoursEl) hoursEl.textContent = `${(totalMinutes / 60).toFixed(1)}h`;
+  const itemsEl = document.getElementById('sb-savings-items');
+  if (itemsEl) itemsEl.textContent = String(totalItems);
+  _renderSidebarChart(entries);
+}
+function _renderSidebarChart(entries) {
+  const canvas = document.getElementById('sidebar-savings-chart');
+  // Last 4 weeks of total hours saved (single series).
+  const now = new Date();
+  const weeks = [];
+  for (let i = 3; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7);
+    weeks.push({ label: _weekLabel(d), start: _startOfWeek(d), end: _endOfWeek(d) });
+  }
+  const values = weeks.map((w) =>
+    entries
+      .filter((e) => {
+        const t = new Date(e.timestamp);
+        return t >= w.start && t <= w.end;
+      })
+      .reduce((sum, e) => sum + (e.time_saved_minutes || 0) / 60, 0)
+  );
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue('--accent').trim() || '#6366f1';
+  const muted = css.getPropertyValue('--muted').trim() || '#9ca3af';
+  _sidebarChart = updateChart(canvas, _sidebarChart, () => ({
+    type: 'bar',
+    data: {
+      labels: weeks.map((w) => w.label),
+      datasets: [{ data: values, backgroundColor: accent, borderRadius: 3, maxBarThickness: 20 }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      events: [], // non-interactive: no hover/tooltip/click
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: {
+          ticks: { font: { size: 9 }, color: muted },
+          grid: { display: false },
+          border: { display: false },
+        },
+        y: { display: false, beginAtZero: true },
+      },
+    },
+  }));
 }
 export function filterAiSavings(range) {
   _activeRange = range;

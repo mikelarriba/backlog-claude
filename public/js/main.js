@@ -167,6 +167,7 @@ import { _connectSSE } from './sse-client.js';
 import {
   toggleAiSavingsSection,
   loadAiSavingsSection,
+  loadSidebarSavings,
   filterAiSavings,
   exportAiSavingsPdf,
   exportAiSavingsPptx,
@@ -495,6 +496,7 @@ on('docs:changed', ({ docs, changedFilename, structural }) => {
   ]);
   await loadAllSprintConfigs();
   loadDocs();
+  void loadSidebarSavings();
 })();
 initDragDrop();
 updateSplitMode();
