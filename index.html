@@ -175,6 +175,23 @@
             <span class="sidebar-label">Bugs</span>
           </button>
         </div>
+        <!-- Compact, non-interactive AI Time Saved summary (last 4 weeks) -->
+        <div class="sidebar-savings" id="sidebar-savings" aria-label="AI time saved">
+          <span class="sidebar-section-label">AI Time Saved</span>
+          <div class="sidebar-savings-cards">
+            <div class="sidebar-savings-card">
+              <div class="sidebar-savings-value" id="sb-savings-hours">0h</div>
+              <div class="sidebar-savings-label">Time Saved</div>
+            </div>
+            <div class="sidebar-savings-card">
+              <div class="sidebar-savings-value" id="sb-savings-items">0</div>
+              <div class="sidebar-savings-label">Items</div>
+            </div>
+          </div>
+          <div class="sidebar-savings-chart-wrap">
+            <canvas id="sidebar-savings-chart"></canvas>
+          </div>
+        </div>
         <div class="sidebar-bottom">
           <span class="sidebar-section-label">Tools</span>
           <button

@@ -203,9 +203,21 @@
 
 .settings-body {
   padding: 20px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 12px;
+  align-items: start;
+}
+
+/* Use the screen width: place config panels side by side when there's room,
+   otherwise stack them. AI Time Saved always spans the full width. */
+@media (min-width: 960px) {
+  .settings-body {
+    grid-template-columns: 1fr 1fr;
+  }
+  .settings-body > .ai-savings-section {
+    grid-column: 1 / -1;
+  }
 }
 
 .btn-settings-nav {

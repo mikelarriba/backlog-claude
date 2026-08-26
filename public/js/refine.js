@@ -22,6 +22,7 @@ import {
 } from './state.js';
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
+import { _parseComments, _renderComments } from './detail-fields.js';
 import {
   buildCanvasGraph,
   renderCanvas,
@@ -430,7 +431,8 @@ export async function openRefinePanel(filename, docType) {
       docType,
       document.getElementById('rp-comments-section')
     );
-  } catch {
+  } catch (e) {
+    console.error('openRefinePanel failed for', filename, docType, e);
     panel.innerHTML = '<div class="rp-loading">Failed to load content.</div>';
   }
 }

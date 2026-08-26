@@ -86,6 +86,14 @@ export function closeRoadmapView(): void {
   _roadmapVisiblePis.clear();
   _roadmapFocusedEpic = null;
   clearRoadmapSelection();
+
+  // Returning to the backlog: sync the sidebar active state and restore the FAB
+  // (mirrors navigateTo('backlog') — closing here bypasses it).
+  document.querySelectorAll<HTMLElement>('.sidebar-item').forEach((el) => {
+    el.classList.toggle('active', el.dataset.view === 'backlog');
+  });
+  const fabContainer = document.getElementById('fab-container');
+  if (fabContainer) fabContainer.style.display = '';
 }
 
 export function isRoadmapOpen(): boolean {
