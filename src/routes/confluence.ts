@@ -19,7 +19,12 @@ import { jiraToMarkdown } from '../utils/transforms.js';
 import { pMap } from '../utils/pMap.js';
 import { config } from '../config/env.js';
 import { validateBody } from '../utils/validateMiddleware.js';
-import { ConfluenceAnalyzeSchema, ConfluenceExecuteSchema } from '../schemas/confluence.js';
+import {
+  ConfluenceAnalyzeSchema,
+  ConfluenceExecuteSchema,
+  ConfluenceExportSchema,
+} from '../schemas/confluence.js';
+import { buildConfluenceSuggestionsPdf } from '../services/confluencePdfExport.js';
 import {
   createSnapshot,
   getSnapshot,
@@ -253,6 +258,36 @@ export default function confluenceRoutes({
           apiErr.details as Record<string, unknown> | undefined
         );
         sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
+      }
+    }
+  );
+
+  // ── POST /api/confluence/export/pdf ─────────────────────────────────────────
+  // Renders the client's current AI-analysis report (from /analyze, possibly
+  // trimmed/edited client-side) as a PDF. POST (not GET) because the
+  // suggestions array is client-side state, not something this server can
+  // look up — there's no server-side "last analysis" to key a GET off of.
+  // Pure formatting: no Confluence/JIRA calls, no snapshot, nothing applied.
+  router.post(
+    '/api/confluence/export/pdf',
+    validateBody(ConfluenceExportSchema),
+    async (req, res) => {
+      try {
+        const { suggestions, scope } = req.body as {
+          suggestions: ConfluenceSuggestion[];
+          scope?: string;
+        };
+        const buffer = await buildConfluenceSuggestionsPdf(suggestions, { scope });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+          'Content-Disposition',
+          'attachment; filename="proposed-documentation-changes.pdf"'
+        );
+        res.send(buffer);
+      } catch (err) {
+        const apiErr = parseApiError(err, 'EXPORT_FAILED', 'PDF export failed');
+        logError('POST /api/confluence/export/pdf', apiErr.message);
+        sendError(res, 500, apiErr.code, apiErr.message);
       }
     }
   );

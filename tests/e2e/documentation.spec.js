@@ -305,6 +305,16 @@ async function mockDocumentationRoutes(
       body: JSON.stringify(undoResult),
     });
   });
+
+  // #559: minimal-but-valid PDF bytes so the browser's blob download actually
+  // resolves to something the OS/Playwright treats as a real file.
+  await page.route('**/api/confluence/export/pdf', async (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/pdf',
+      body: Buffer.from('%PDF-1.4\n%mock\n%%EOF'),
+    });
+  });
 }
 
 // ── Flow helpers ─────────────────────────────────────────────────────────────
@@ -684,6 +694,47 @@ test.describe('Documentation — AI results selection controls', () => {
     await expect(
       page.locator('.doc-suggestion-row[data-index="1"] input[type=checkbox]')
     ).not.toBeChecked();
+  });
+});
+
+// ── Export PDF (#559) ────────────────────────────────────────────────────────
+test.describe('Documentation — Export PDF', () => {
+  test('clicking "Export PDF" downloads a PDF and applies no changes to Confluence', async ({
+    page,
+  }) => {
+    let executeCalled = false;
+    await mockDocumentationRoutes(page);
+    // Assert exporting never calls /execute — no changes are applied.
+    await page.route('**/api/confluence/execute', () => {
+      executeCalled = true;
+    });
+    await openDocView(page);
+    await loadIssuesViaSprint(page);
+    await selectIssue(page, 'DOC-103');
+    await askAIAndWaitResults(page);
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('#doc-export-pdf-btn').click(),
+    ]);
+
+    expect(download.suggestedFilename()).toBe('proposed-documentation-changes.pdf');
+    expect(executeCalled).toBe(false);
+  });
+
+  test('the "Export PDF" button is visible whenever the results toolbar is (no selection required)', async ({
+    page,
+  }) => {
+    await mockDocumentationRoutes(page);
+    await openDocView(page);
+    await loadIssuesViaSprint(page);
+    await selectIssue(page, 'DOC-103');
+    await askAIAndWaitResults(page);
+
+    // Unlike "Modify Documentation", exporting the report needs no suggestion
+    // rows checked — it renders the full report the AI returned.
+    await expect(page.locator('#doc-modify-btn')).toBeDisabled();
+    await expect(page.locator('#doc-export-pdf-btn')).toBeEnabled();
   });
 });
 

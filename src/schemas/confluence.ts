@@ -52,3 +52,21 @@ export const ConfluenceExecuteSchema = z
       .openapi({ description: 'Suggestions to apply' }),
   })
   .openapi('ConfluenceExecute');
+
+// #559: PDF export of the proposed changes shown in the diff-review UI, ahead
+// of (and independent from) actually applying anything via /execute above.
+// `suggestions` reuses ConfluenceSuggestionSchema's exact shape but — unlike
+// /execute — has no `.min(1)`: exporting the current (possibly empty) report
+// is a meaningful edge case (e.g. the AI returned zero suggestions) that
+// should still produce a valid, if sparse, PDF rather than a 400.
+export const ConfluenceExportSchema = z
+  .object({
+    suggestions: z
+      .array(ConfluenceSuggestionSchema)
+      .openapi({ description: 'Suggestions to render in the PDF' }),
+    scope: z
+      .string()
+      .optional()
+      .openapi({ description: 'Human-readable scope label (e.g. sprint or fix version name)' }),
+  })
+  .openapi('ConfluenceExport');

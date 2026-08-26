@@ -67,11 +67,11 @@ function jsonRes(body, status = 200) {
   };
 }
 
-let api, stop;
+let api, stop, baseUrl;
 const originalFetch = globalThis.fetch;
 
 before(async () => {
-  ({ api, stop } = await startTestApp());
+  ({ api, stop, baseUrl } = await startTestApp());
 });
 
 after(async () => {
@@ -901,5 +901,71 @@ describe('POST /api/confluence/undo/:snapshotId — unknown snapshot', () => {
     );
     assert.equal(status, 404);
     assert.equal(data.code, 'SNAPSHOT_NOT_FOUND');
+  });
+});
+
+// ── POST /api/confluence/export/pdf (#559) ──────────────────────────────────
+// Renders the client's in-memory AI-analysis report as a PDF. Pure formatting
+// — no Confluence/JIRA I/O — so, unlike /execute, it works whether or not
+// Confluence credentials are configured (this suite has none set by the time
+// this block runs, every earlier describe() that sets them deletes them again
+// in its own after()).
+describe('POST /api/confluence/export/pdf', () => {
+  test('returns a non-empty PDF for a normal suggestions array', async () => {
+    const res = await fetch(`${baseUrl}/api/confluence/export/pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        suggestions: [
+          {
+            pageTitle: 'SSO Login Flow',
+            hierarchyPath: 'Product Docs / Auth / SSO Login Flow',
+            action: 'Update',
+            currentContent: 'Old content',
+            proposedContent: 'New content',
+          },
+          {
+            pageTitle: 'Auth Revamp Overview',
+            hierarchyPath: 'Product Docs / Auth / Auth Revamp Overview',
+            action: 'Create',
+            currentContent: '',
+            proposedContent: 'Brand new page content',
+          },
+        ],
+        scope: 'Sprint 42',
+      }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'application/pdf');
+    const buffer = Buffer.from(await res.arrayBuffer());
+    assert.ok(buffer.length > 0);
+    assert.equal(buffer.subarray(0, 4).toString(), '%PDF');
+  });
+
+  test('returns a valid (empty-report) PDF for an empty suggestions array — no 400', async () => {
+    const res = await fetch(`${baseUrl}/api/confluence/export/pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suggestions: [] }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'application/pdf');
+    const buffer = Buffer.from(await res.arrayBuffer());
+    assert.ok(buffer.length > 0);
+    assert.equal(buffer.subarray(0, 4).toString(), '%PDF');
+  });
+
+  test('returns 400 when suggestions is missing', async () => {
+    const { status, data } = await api('POST', '/api/confluence/export/pdf', {});
+    assert.equal(status, 400);
+    assert.equal(data.code, 'VALIDATION_ERROR');
+  });
+
+  test('returns 400 when a suggestion has an invalid action', async () => {
+    const { status, data } = await api('POST', '/api/confluence/export/pdf', {
+      suggestions: [{ pageTitle: 'Page A', action: 'Archive' }],
+    });
+    assert.equal(status, 400);
+    assert.equal(data.code, 'VALIDATION_ERROR');
   });
 });
