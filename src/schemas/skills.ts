@@ -11,6 +11,7 @@ export const KNOWN_SKILLS = [
   'create-bugs',
   'refine-epics',
   'backlog-analysis-agent',
+  'documentation-guidance',
 ] as const;
 
 export const SkillNameSchema = z.enum(KNOWN_SKILLS).openapi({

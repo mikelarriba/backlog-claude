@@ -64,10 +64,10 @@ describe('GET /api/skills/:name — no custom, no example file on disk', () => {
 });
 
 describe('GET /api/skills — with no files at all on disk', () => {
-  test('still returns 200 with all 7 skills, each falling back to empty/example', async () => {
+  test('still returns 200 with all 8 skills, each falling back to empty/example', async () => {
     const { status, data } = await api('GET', '/api/skills');
     assert.equal(status, 200);
-    assert.equal(data.skills.length, 7);
+    assert.equal(data.skills.length, 8);
     for (const skill of data.skills) {
       assert.equal(skill.source, 'example');
       assert.equal(skill.content, '');

@@ -19,11 +19,24 @@ import { startTestApp } from '../helpers/testApp.js';
 // needing a fresh process per test. Read lazily inside the mocked callClaude.
 let mockClaudeResponse = '[]';
 
+// #558: mutable so individual tests can control what loadCommand('documentation-guidance')
+// returns without a fresh process per test, and capture the last prompt handed
+// to callClaude so tests can assert the guidance text actually reached the AI.
+let mockLoadCommandResult = null;
+let lastPromptSentToClaude = null;
+
 mock.module('../../src/services/claudeService.ts', {
   namedExports: {
-    callClaude: async () => mockClaudeResponse,
+    // The real callClaude(rootDir, prompt, opts) is wrapped by src/app/context.ts
+    // into callClaude(prompt) before it reaches routes, but that wrapping calls
+    // straight through to this mocked module export with (rootDir, prompt) — so
+    // the prompt is the *second* argument here, not the first.
+    callClaude: async (_rootDir, prompt) => {
+      lastPromptSentToClaude = prompt;
+      return mockClaudeResponse;
+    },
     streamClaude: async (_prompt, onChunk) => onChunk(mockClaudeResponse),
-    loadCommand: () => null,
+    loadCommand: () => mockLoadCommandResult,
     loadCommandRaw: () => null,
     loadProductContext: () => ({ content: '', source: 'example' }),
     // Real fence-stripping logic (mirrors src/services/providers/claudeCli.ts)
@@ -314,6 +327,65 @@ describe('POST /api/confluence/analyze — epic mode (epics + closedChildKeys)',
     assert.equal(status, 400);
     assert.equal(data.code, 'JIRA_ISSUE_UNREACHABLE');
     assert.equal(data.details.unreachable[0].key, 'EAMDM-404');
+  });
+});
+
+// ── documentation-guidance skill injection (#558) ─────────────────────────────
+describe('POST /api/confluence/analyze — documentation-guidance skill injection', () => {
+  before(() => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    mockClaudeResponse = '[]';
+    lastPromptSentToClaude = null;
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+      return jsonRes({ fields: { summary: 'An issue', description: 'Some description' } });
+    });
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+    mockClaudeResponse = '[]';
+    mockLoadCommandResult = null;
+    lastPromptSentToClaude = null;
+  });
+
+  test('when the guidance skill has content, the prompt sent to Claude includes it', async () => {
+    mockLoadCommandResult = 'Only document user-facing changes. Skip internal refactors entirely.';
+
+    const { status } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-200'],
+    });
+
+    assert.equal(status, 200);
+    assert.match(lastPromptSentToClaude, /Documentation depth guidance/);
+    assert.match(
+      lastPromptSentToClaude,
+      /Only document user-facing changes\. Skip internal refactors entirely\./
+    );
+  });
+
+  test('when the guidance skill is missing (loadCommand returns null), the prompt has no guidance section', async () => {
+    mockLoadCommandResult = null;
+
+    const { status } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-201'],
+    });
+
+    assert.equal(status, 200);
+    assert.doesNotMatch(lastPromptSentToClaude, /Documentation depth guidance/);
+  });
+
+  test('editing the guidance text changes what is sent to the AI on the next run', async () => {
+    mockLoadCommandResult = 'First guidance version: be extremely terse.';
+    await api('POST', '/api/confluence/analyze', { jiraIds: ['EAMDM-202'] });
+    assert.match(lastPromptSentToClaude, /First guidance version: be extremely terse\./);
+
+    mockLoadCommandResult = 'Second guidance version: include a detailed changelog.';
+    await api('POST', '/api/confluence/analyze', { jiraIds: ['EAMDM-203'] });
+    assert.match(lastPromptSentToClaude, /Second guidance version: include a detailed changelog\./);
+    assert.doesNotMatch(lastPromptSentToClaude, /First guidance version/);
   });
 });
 

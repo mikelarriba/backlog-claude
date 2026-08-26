@@ -98,10 +98,12 @@ export function buildConfluenceAnalysisPrompt(opts: {
   issues?: ConfluenceAnalysisIssue[];
   epics?: ConfluenceAnalysisEpicGroup[];
   existingPages?: ConfluenceExistingPage[];
+  documentationGuidance?: string;
 }): string {
-  const { issues, epics, existingPages } = opts;
+  const { issues, epics, existingPages, documentationGuidance } = opts;
   const useEpics = Boolean(epics && epics.length > 0);
   const hasExistingPages = Boolean(existingPages && existingPages.length > 0);
+  const hasGuidance = Boolean(documentationGuidance && documentationGuidance.trim());
 
   const contextLabel = useEpics ? 'Epics and their closed stories' : 'JIRA issues';
   const contextBlock = useEpics
@@ -127,6 +129,20 @@ ${(existingPages as ConfluenceExistingPage[])
 For "Update" or "Delete" actions, "pageTitle" MUST be an EXACT existing title from the list above (and "hierarchyPath" its listed path) — do not invent or rename an existing page. Only use "Create" for pages that genuinely do not exist in the list above. You do not have each page's body, only its title and location, so set "currentContent" to an empty string (or a short note that current content is unavailable) — do not invent existing content. Put your effort into "proposedContent": your best proposal for what the page should contain (or, for "Delete", why it should be removed) after this change.`
     : `Confluence read access is not yet implemented, so you cannot see existing page content. For "Update" or "Delete" actions, set "currentContent" to an empty string (or a short note that current content is unavailable) — do not invent existing content. Put your effort into "proposedContent": your best proposal for what the page should contain (or, for "Delete", why it should be removed) after this change.`;
 
+  // #558: an editable skill (documentation-guidance) controlling how deep or
+  // shallow documentation updates go — e.g. "don't document internal
+  // refactors", "prefer updating an existing page over creating a new one".
+  // The route loads it (already frontmatter-stripped and {{PRODUCT_CONTEXT}}-
+  // substituted via loadCommand) and passes it through here. Omitted entirely
+  // when not supplied so every existing call site/test renders unchanged.
+  const guidanceBlock = hasGuidance
+    ? `\n\nDocumentation depth guidance (this governs how much to document, and whether to document at all — follow it strictly, it overrides your own judgement about what counts as worth writing up):
+---
+${(documentationGuidance as string).trim()}
+---
+If this guidance says the shipped work is too low-level, internal, or otherwise not worth documenting, return an empty JSON array: [].`
+    : '';
+
   return `You are a documentation analyst for the MIDAS product team. Given the JIRA issues below, identify which Confluence documentation pages need to change as a result of this work.
 
 ${contextLabel}:
@@ -134,7 +150,7 @@ ${contextLabel}:
 ${contextBlock}
 ---
 
-${readAccessBlock}
+${readAccessBlock}${guidanceBlock}
 
 For each impacted Confluence page, decide one action:
 - "Create" — a new page is needed that does not exist yet

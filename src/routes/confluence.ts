@@ -3,7 +3,10 @@
 // to identify which Confluence pages need to be Created, Updated, or Deleted.
 // /analyze now (#557) also lists the space's existing page tree — titles and
 // hierarchy only, best-effort — to ground those suggestions in real pages.
-// It still never writes to Confluence itself; that's /execute below.
+// (#558) It also loads the editable "documentation-guidance" skill and folds
+// it into the prompt, so the PO can tune how deep/shallow doc updates go
+// without a code change. It still never writes to Confluence itself; that's
+// /execute below.
 import { Router } from 'express';
 import { sendError, parseApiError } from '../utils/routeHelpers.js';
 import { normalizeOutput } from '../services/claudeService.js';
@@ -107,6 +110,7 @@ function confluenceNotConfigured(): boolean {
 export default function confluenceRoutes({
   jiraRequest,
   callClaude,
+  loadCommand,
   logError,
   confluenceGetSpace,
   confluenceGetPageByTitle,
@@ -212,10 +216,23 @@ export default function confluenceRoutes({
           }
         }
 
+        // #558: an editable "documentation-guidance" skill controls how deep or
+        // shallow the proposed doc updates go (e.g. "skip purely internal
+        // work", "prefer updating an existing page"). loadCommand (not
+        // loadCommandRaw) strips the frontmatter and substitutes
+        // {{PRODUCT_CONTEXT}} before we hand it to the prompt builder.
+        // Undefined/empty is handled by buildConfluenceAnalysisPrompt itself
+        // (renders no guidance section), so no repo file is required.
+        const documentationGuidance = loadCommand('documentation-guidance') ?? undefined;
+
         const prompt =
           epicGroups.length > 0
-            ? buildConfluenceAnalysisPrompt({ epics: epicGroups, existingPages })
-            : buildConfluenceAnalysisPrompt({ issues, existingPages });
+            ? buildConfluenceAnalysisPrompt({
+                epics: epicGroups,
+                existingPages,
+                documentationGuidance,
+              })
+            : buildConfluenceAnalysisPrompt({ issues, existingPages, documentationGuidance });
         const rawResponse = await callClaude(prompt);
 
         let suggestions: ConfluenceSuggestion[];
