@@ -20,6 +20,7 @@ export const DOC_ACTIONS = {
   rowClick: 'docRowClick',
   setPage: 'docSetPage',
   toggleSuggestion: 'toggleSuggestionRow',
+  toggleEpic: 'docToggleEpicChildren',
 };
 registerActions({
   [DOC_ACTIONS.rowClick]: (el, e) => {
@@ -31,10 +32,15 @@ registerActions({
   [DOC_ACTIONS.toggleSuggestion]: (el) => {
     toggleSuggestionRow(Number(el.dataset.index));
   },
+  [DOC_ACTIONS.toggleEpic]: (el) => {
+    docToggleEpicChildren(el.dataset.key ?? '');
+  },
 });
 const PAGE_SIZE = 20;
 let _allIssues = [];
+let _allEpics = [];
 const _selectedKeys = new Set();
+const _expandedEpicKeys = new Set();
 let _searchText = '';
 let _typeFilter = 'all';
 let _versions = [];
@@ -47,7 +53,9 @@ let _searchSeq = 0;
 // ── Init ─────────────────────────────────────────────────────────────────────
 export async function loadDocumentationView() {
   _allIssues = [];
+  _allEpics = [];
   _selectedKeys.clear();
+  _expandedEpicKeys.clear();
   _currentMode = 'sprint';
   _currentPage = 1;
   _clearIssuesList();
@@ -96,6 +104,11 @@ async function _loadDocVersions() {
         .join('');
   }
 }
+// Sprint and Fix Version modes both render epic roll-up rows (#555); Search
+// mode is untouched and keeps rendering flat JIRA issue rows.
+function _isEpicMode() {
+  return _currentMode === 'sprint' || _currentMode === 'fixversion';
+}
 // ── Mode switching ────────────────────────────────────────────────────────────
 export function setDocMode(mode) {
   if (_selectedKeys.size > 0) {
@@ -104,7 +117,9 @@ export function setDocMode(mode) {
   }
   _currentMode = mode;
   _allIssues = [];
+  _allEpics = [];
   _selectedKeys.clear();
+  _expandedEpicKeys.clear();
   document.querySelectorAll('.doc-mode-tab').forEach((el) => {
     el.classList.toggle('active', el.dataset.mode === mode);
   });
@@ -178,17 +193,32 @@ async function _fetchAndRender(extraParams, preSelectAll) {
   _setPlaceholderVisible(false);
   if (loadingEl) loadingEl.style.display = '';
   if (errorEl) errorEl.style.display = 'none';
+  // Sprint/Fix Version modes roll up into epics (#554's endpoint); Search
+  // mode keeps hitting the flat issue search unchanged.
+  const epicMode = _isEpicMode();
+  const endpoint = epicMode ? '/api/jira/closed-epics' : '/api/jira/search';
   try {
     const params = new URLSearchParams(extraParams);
-    const data = await fetchJSON(`/api/jira/search?${params}`);
+    const data = await fetchJSON(`${endpoint}?${params}`);
     if (seq !== _searchSeq) return;
-    _allIssues = data.issues || [];
     _selectedKeys.clear();
-    if (preSelectAll) {
-      _allIssues.forEach((i) => _selectedKeys.add(i.key));
-    }
+    _expandedEpicKeys.clear();
     _currentPage = 1;
-    renderIssuesList(_allIssues);
+    if (epicMode) {
+      _allEpics = data.epics || [];
+      _allIssues = [];
+      if (preSelectAll) {
+        _allEpics.forEach((e) => _selectedKeys.add(e.key));
+      }
+      renderEpicsList(_allEpics);
+    } else {
+      _allIssues = data.issues || [];
+      _allEpics = [];
+      if (preSelectAll) {
+        _allIssues.forEach((i) => _selectedKeys.add(i.key));
+      }
+      renderIssuesList(_allIssues);
+    }
     // Placeholder is the "before any search" state; after a search with 0
     // results the list renders its own empty-state message instead.
     _setPlaceholderVisible(false);
@@ -246,7 +276,120 @@ export function renderIssuesList(issues) {
 }
 export function docSetPage(page) {
   _currentPage = page;
-  renderIssuesList(_allIssues);
+  if (_isEpicMode()) renderEpicsList(_allEpics);
+  else renderIssuesList(_allIssues);
+}
+// ── Epic roll-up rendering (Sprint / Fix Version modes, #555) ────────────────
+// Modeled directly on renderIssuesList() above: same pager math,
+// _updateSelectionCount(), and empty-state handling — the only difference is
+// the per-row markup, produced by the pure buildEpicRowHtml() builder so it's
+// unit-testable without the DOM (same extraction pattern as
+// buildSuggestionRowHtml()).
+export function renderEpicsList(epics) {
+  const listEl = document.getElementById('doc-issues-list');
+  const pagerEl = document.getElementById('doc-pagination');
+  if (!listEl) return;
+  if (!epics.length) {
+    listEl.innerHTML =
+      '<p class="doc-empty">No epics had issues closed in this sprint/fix version.</p>';
+    if (pagerEl) pagerEl.innerHTML = '';
+    _updateSelectionCount();
+    return;
+  }
+  const totalPages = Math.max(1, Math.ceil(epics.length / PAGE_SIZE));
+  _currentPage = Math.min(Math.max(1, _currentPage), totalPages);
+  const start = (_currentPage - 1) * PAGE_SIZE;
+  const pageItems = epics.slice(start, start + PAGE_SIZE);
+  listEl.innerHTML = pageItems
+    .map((epic) =>
+      buildEpicRowHtml(epic, _selectedKeys.has(epic.key), _expandedEpicKeys.has(epic.key))
+    )
+    .join('');
+  if (pagerEl) {
+    pagerEl.innerHTML =
+      totalPages > 1
+        ? `<button class="btn-ghost btn-xs" ${_currentPage <= 1 ? 'disabled' : ''} data-action="${DOC_ACTIONS.setPage}" data-page="${_currentPage - 1}">‹ Prev</button>
+           <span class="doc-page-info">Page ${_currentPage} of ${totalPages} (${epics.length} epics)</span>
+           <button class="btn-ghost btn-xs" ${_currentPage >= totalPages ? 'disabled' : ''} data-action="${DOC_ACTIONS.setPage}" data-page="${_currentPage + 1}">Next ›</button>`
+        : `<span class="doc-page-info">${epics.length} epic${epics.length === 1 ? '' : 's'}</span>`;
+  }
+  _updateSelectionCount();
+}
+// Pure: builds one epic row's HTML (including its read-only, always-in-DOM
+// closed-children list, collapsed/expanded via CSS) from the epic and its
+// selected/expanded flags — no DOM/module-state reads, so it's directly
+// unit-testable (same signature-change extraction as buildSuggestionRowHtml
+// above). The epic row itself reuses the existing .doc-issue-row
+// class/structure/selection wiring (docRowClick / docToggleKey) unchanged;
+// the expand toggle is a separate data-action so a click on it doesn't also
+// toggle selection (main.ts's delegated handler resolves to the *nearest*
+// [data-action] ancestor-or-self of the click target).
+export function buildEpicRowHtml(epic, selected, expanded) {
+  const checked = selected ? 'checked' : '';
+  const selectedClass = selected ? 'selected' : '';
+  const statusClass = `doc-status-${(epic.status || '').toLowerCase().replace(/\s+/g, '-')}`;
+  const childCount = epic.closedChildren.length;
+  const itemClasses = ['doc-epic-item', expanded ? 'expanded' : ''].filter(Boolean).join(' ');
+  const title = epic.epicName || epic.summary;
+  const childrenHtml = childCount
+    ? epic.closedChildren.map((c) => _buildEpicChildRowHtml(c)).join('')
+    : '<p class="doc-empty doc-epic-children-empty">No closed issues.</p>';
+  return `<div class="${itemClasses}" data-key="${escHtml(epic.key)}">
+    <div class="doc-issue-row ${selectedClass}" data-key="${escHtml(epic.key)}" data-action="${DOC_ACTIONS.rowClick}">
+      <input type="checkbox" ${checked} onchange="docToggleKey('${escHtml(epic.key)}',this.checked)" onclick="event.stopPropagation()" />
+      <div class="doc-issue-body">
+        <div class="doc-issue-top">
+          <span class="doc-issue-key">${escHtml(epic.key)}</span>
+          <span class="doc-type-badge doc-type-epic">Epic</span>
+          <span class="doc-status-badge ${statusClass}">${escHtml(epic.status)}</span>
+          <span class="doc-epic-closed-badge">${childCount} closed</span>
+          ${epic.localExists ? '<span class="doc-local-badge" title="Already imported locally">✓ Local</span>' : ''}
+        </div>
+        <div class="doc-issue-title" title="${escHtml(title)}">${escHtml(title)}</div>
+      </div>
+      <button
+        type="button"
+        class="doc-epic-expand-btn"
+        data-action="${DOC_ACTIONS.toggleEpic}"
+        data-key="${escHtml(epic.key)}"
+        aria-expanded="${expanded ? 'true' : 'false'}"
+        aria-label="${expanded ? 'Collapse' : 'Expand'} closed issues for ${escHtml(epic.key)}"
+      >
+        <span class="doc-epic-expand-chevron">▾</span>
+      </button>
+    </div>
+    <div class="doc-epic-children-body">
+      <div class="doc-epic-children-inner">${childrenHtml}</div>
+    </div>
+  </div>`;
+}
+// Pure: one read-only closed-child row inside an expanded epic. No checkbox
+// / selection — children ride along with their parent epic's selection.
+function _buildEpicChildRowHtml(child) {
+  const typeClass = `doc-type-${(child.issuetype || '').toLowerCase().replace(/\s+/g, '-')}`;
+  const statusClass = `doc-status-${(child.status || '').toLowerCase().replace(/\s+/g, '-')}`;
+  return `<div class="doc-epic-child-row" data-key="${escHtml(child.key)}">
+    <span class="doc-issue-key">${escHtml(child.key)}</span>
+    <span class="doc-type-badge ${typeClass}">${escHtml(child.issuetype)}</span>
+    <span class="doc-status-badge ${statusClass}">${escHtml(child.status)}</span>
+    ${child.localExists ? '<span class="doc-local-badge" title="Already imported locally">✓ Local</span>' : ''}
+    <span class="doc-epic-child-title" title="${escHtml(child.summary)}">${escHtml(child.summary)}</span>
+  </div>`;
+}
+// Toggles one epic row's expanded state in place (no full re-render — the
+// children markup is already in the DOM from buildEpicRowHtml(), collapsed
+// via CSS, same pattern as toggleSuggestionRow()'s diff body).
+export function docToggleEpicChildren(key) {
+  if (_expandedEpicKeys.has(key)) _expandedEpicKeys.delete(key);
+  else _expandedEpicKeys.add(key);
+  const item = document.querySelector(`.doc-epic-item[data-key="${CSS.escape(key)}"]`);
+  const expanded = _expandedEpicKeys.has(key);
+  if (item) item.classList.toggle('expanded', expanded);
+  const btn = item?.querySelector('.doc-epic-expand-btn');
+  if (btn) {
+    btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    btn.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} closed issues for ${key}`);
+  }
 }
 // ── Selection ────────────────────────────────────────────────────────────────
 export function docRowClick(event, key) {
@@ -269,13 +412,15 @@ export function docToggleKey(key, checked) {
 function _updateSelectionCount() {
   const countEl = document.getElementById('doc-selection-count');
   const askBtn = document.getElementById('doc-ask-ai-btn');
+  const epicMode = _isEpicMode();
   const count = _selectedKeys.size;
-  const total = _allIssues.length;
+  const total = epicMode ? _allEpics.length : _allIssues.length;
+  const label = epicMode ? 'epics' : 'issues';
   if (countEl) {
     if (count === 0 || total === 0) {
       countEl.textContent = '';
     } else if (count === total) {
-      countEl.textContent = `${total} issues loaded \u2014 all selected`;
+      countEl.textContent = `${total} ${label} loaded \u2014 all selected`;
     } else {
       countEl.textContent = `${count} of ${total} selected`;
     }

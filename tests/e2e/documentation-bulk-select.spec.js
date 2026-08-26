@@ -2,8 +2,12 @@
 // Covers the redesigned Documentation panel introduced in #384/#385/#386:
 //   • No auto-search on open (placeholder shown instead)
 //   • Three-tab mode switcher: By Sprint / By Fix Version / Search Issues
-//   • Sprint and fix-version modes load all issues and pre-select them
-//   • Search mode requires explicit trigger (Enter or Search button)
+//   • Sprint and fix-version modes load epic roll-up rows and pre-select them
+//     (#555 — GET /api/jira/closed-epics, one row per epic with closed
+//     issues in the resolved sprint/version window; see the dedicated
+//     epic-expand coverage in documentation.spec.js)
+//   • Search mode requires explicit trigger (Enter or Search button) and is
+//     untouched by #555 — still flat GET /api/jira/search issue rows
 //   • Mode switching with a non-empty selection prompts for confirmation
 //   • JIRA-not-configured error path
 //
@@ -30,6 +34,7 @@ const VERSIONS_FIXTURE = [
   { id: '2', name: 'v2.0', released: false, archived: false },
 ];
 
+// Flat JIRA issues — only Search mode uses these (unchanged by #555).
 const ISSUE_FIXTURES = [
   {
     key: 'BS-101',
@@ -69,6 +74,64 @@ const ISSUE_FIXTURES = [
   },
 ];
 
+// Epic roll-up rows — Sprint and Fix Version modes use these (#555, the
+// GET /api/jira/closed-epics response shape from #554).
+const EPICS_FIXTURE = [
+  {
+    key: 'BS-103',
+    summary: 'Auth epic overview',
+    epicName: 'Auth',
+    status: 'Done',
+    epicClosedInScope: true,
+    isSynthetic: false,
+    localExists: true,
+    localFilename: '2026-01-01-auth-epic.md',
+    localDocType: 'epic',
+    closedChildren: [
+      {
+        key: 'BS-101',
+        summary: 'Implement login flow',
+        issuetype: 'Story',
+        status: 'Done',
+        localExists: false,
+        localFilename: null,
+        localDocType: null,
+      },
+      {
+        key: 'BS-102',
+        summary: 'Fix redirect bug',
+        issuetype: 'Bug',
+        status: 'Done',
+        localExists: false,
+        localFilename: null,
+        localDocType: null,
+      },
+    ],
+  },
+  {
+    key: 'BS-201',
+    summary: 'Billing epic overview',
+    epicName: 'Billing',
+    status: 'Done',
+    epicClosedInScope: true,
+    isSynthetic: false,
+    localExists: false,
+    localFilename: null,
+    localDocType: null,
+    closedChildren: [
+      {
+        key: 'BS-202',
+        summary: 'Add invoice export',
+        issuetype: 'Story',
+        status: 'Done',
+        localExists: false,
+        localFilename: null,
+        localDocType: null,
+      },
+    ],
+  },
+];
+
 // ── Route mocking ─────────────────────────────────────────────────────────────
 async function mockDocRoutes(
   page,
@@ -76,6 +139,7 @@ async function mockDocRoutes(
     sprints = SPRINTS_FIXTURE,
     versions = VERSIONS_FIXTURE,
     issues = ISSUE_FIXTURES,
+    epics = EPICS_FIXTURE,
     jiraConnected = true,
   } = {}
 ) {
@@ -145,6 +209,29 @@ async function mockDocRoutes(
       body: JSON.stringify({ issues: filtered, total: filtered.length }),
     });
   });
+
+  // Sprint / Fix Version modes (#555) — epic roll-up rows.
+  await page.route('**/api/jira/closed-epics*', (route) => {
+    if (!jiraConnected) {
+      return route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'JIRA not configured', code: 'JIRA_NOT_CONFIGURED' }),
+      });
+    }
+    const url = new URL(route.request().url());
+    const scopeType = url.searchParams.get('sprint') ? 'sprint' : 'fixversion';
+    const scopeValue = url.searchParams.get('sprint') || url.searchParams.get('fixVersion') || '';
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        scope: { type: scopeType, value: scopeValue, windowResolved: true },
+        epics,
+        total: epics.length,
+      }),
+    });
+  });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -203,17 +290,17 @@ test.describe('Documentation — By Sprint mode', () => {
     await expect(select.locator('option[value="Sprint 11"]')).toHaveCount(1);
   });
 
-  test('selecting a sprint shows loading then renders all issues pre-checked', async ({ page }) => {
+  test('selecting a sprint shows loading then renders all epics pre-checked', async ({ page }) => {
     await mockDocRoutes(page);
     await openDocView(page);
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 10'),
     ]);
 
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
-    await expect(page.locator('.doc-issue-row')).toHaveCount(ISSUE_FIXTURES.length);
+    await expect(page.locator('.doc-issue-row')).toHaveCount(EPICS_FIXTURE.length);
 
     // All checkboxes should be checked
     const checkboxes = page.locator('.doc-issue-row input[type=checkbox]');
@@ -223,19 +310,20 @@ test.describe('Documentation — By Sprint mode', () => {
     }
   });
 
-  test('selection count shows "N issues loaded — all selected" after sprint load', async ({
+  test('selection count shows "N epics loaded — all selected" after sprint load', async ({
     page,
   }) => {
     await mockDocRoutes(page);
     await openDocView(page);
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 10'),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
 
     const countEl = page.locator('#doc-selection-count');
+    await expect(countEl).toContainText('epics loaded');
     await expect(countEl).toContainText('all selected');
   });
 
@@ -244,7 +332,7 @@ test.describe('Documentation — By Sprint mode', () => {
     await openDocView(page);
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 10'),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
@@ -257,7 +345,7 @@ test.describe('Documentation — By Sprint mode', () => {
     await openDocView(page);
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 10'),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
@@ -266,7 +354,7 @@ test.describe('Documentation — By Sprint mode', () => {
     await page.locator('.doc-issue-row input[type=checkbox]').first().uncheck();
 
     const countEl = page.locator('#doc-selection-count');
-    await expect(countEl).toContainText(`${ISSUE_FIXTURES.length - 1} of ${ISSUE_FIXTURES.length}`);
+    await expect(countEl).toContainText(`${EPICS_FIXTURE.length - 1} of ${EPICS_FIXTURE.length}`);
     await expect(countEl).not.toContainText('all selected');
   });
 
@@ -275,7 +363,7 @@ test.describe('Documentation — By Sprint mode', () => {
     await openDocView(page);
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 10'),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
@@ -294,7 +382,7 @@ test.describe('Documentation — By Sprint mode', () => {
     await openDocView(page);
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 10'),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
@@ -336,21 +424,20 @@ test.describe('Documentation — By Fix Version mode', () => {
     await expect(select.locator('option[value="v2.0"]')).toHaveCount(1);
   });
 
-  test('selecting a fix version loads issues and pre-selects all', async ({ page }) => {
+  test('selecting a fix version loads epics and pre-selects all', async ({ page }) => {
     await mockDocRoutes(page);
     await openDocView(page);
 
     await page.locator('.doc-mode-tab[data-mode="fixversion"]').click();
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-filter-version').selectOption('v1.0'),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
 
-    // v1.0 matches BS-101 and BS-102
     const rows = page.locator('.doc-issue-row');
-    await expect(rows).toHaveCount(2);
+    await expect(rows).toHaveCount(EPICS_FIXTURE.length);
 
     const checkboxes = page.locator('.doc-issue-row input[type=checkbox]');
     await expect(checkboxes.nth(0)).toBeChecked();
@@ -364,7 +451,7 @@ test.describe('Documentation — By Fix Version mode', () => {
     await page.locator('.doc-mode-tab[data-mode="fixversion"]').click();
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-filter-version').selectOption('v1.0'),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
@@ -484,9 +571,9 @@ test.describe('Documentation — mode switching', () => {
     await mockDocRoutes(page);
     await openDocView(page);
 
-    // Load sprint issues (auto-selects all)
+    // Load sprint epics (auto-selects all)
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 10'),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
@@ -497,16 +584,16 @@ test.describe('Documentation — mode switching', () => {
 
     // Should still be on sprint mode — list unchanged
     await expect(page.locator('.doc-mode-tab[data-mode="sprint"]')).toHaveClass(/active/);
-    await expect(page.locator('.doc-issue-row')).toHaveCount(ISSUE_FIXTURES.length);
+    await expect(page.locator('.doc-issue-row')).toHaveCount(EPICS_FIXTURE.length);
   });
 
   test('confirming mode switch clears list and selection', async ({ page }) => {
     await mockDocRoutes(page);
     await openDocView(page);
 
-    // Load sprint issues
+    // Load sprint epics
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 10'),
     ]);
     await expect(page.locator('#doc-loading')).toBeHidden({ timeout: 5000 });
@@ -524,11 +611,12 @@ test.describe('Documentation — mode switching', () => {
 
 // ── JIRA not configured ───────────────────────────────────────────────────────
 test.describe('Documentation — JIRA not configured', () => {
-  test('selecting a sprint when JIRA search fails shows JIRA not connected banner', async ({
+  test('selecting a sprint when the closed-epics lookup fails shows JIRA not connected banner', async ({
     page,
   }) => {
-    // Board-sprints succeeds so the dropdown is populated, but the search
-    // endpoint returns JIRA_NOT_CONFIGURED — triggering _showDocError.
+    // Board-sprints succeeds so the dropdown is populated, but the
+    // closed-epics endpoint returns JIRA_NOT_CONFIGURED — triggering
+    // _showDocError.
     await page.route('**/api/jira/board-sprints', (route) =>
       route.fulfill({
         status: 200,
@@ -543,7 +631,7 @@ test.describe('Documentation — JIRA not configured', () => {
         body: JSON.stringify({ versions: VERSIONS_FIXTURE }),
       })
     );
-    await page.route('**/api/jira/search*', (route) =>
+    await page.route('**/api/jira/closed-epics*', (route) =>
       route.fulfill({
         status: 401,
         contentType: 'application/json',
@@ -556,7 +644,7 @@ test.describe('Documentation — JIRA not configured', () => {
     await openDocView(page);
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/jira/search')),
+      page.waitForResponse((r) => r.url().includes('/api/jira/closed-epics')),
       page.locator('#doc-sprint-select').selectOption('Sprint 10'),
     ]);
 

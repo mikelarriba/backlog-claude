@@ -337,6 +337,100 @@
   color: #047857;
 }
 
+/* Epic roll-up rows (Sprint / Fix Version modes, #555) — wraps the reused
+   .doc-issue-row plus its collapsible closed-children list so both toggle
+   together as one list item. */
+.doc-epic-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.doc-epic-item .doc-issue-row {
+  width: 100%;
+}
+
+.doc-epic-closed-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.doc-epic-expand-btn {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.doc-epic-expand-btn:hover {
+  background: var(--surface-hover, rgba(107, 114, 128, 0.12));
+  color: var(--text);
+}
+
+.doc-epic-expand-chevron {
+  display: inline-block;
+  transition: transform 0.15s;
+}
+
+.doc-epic-item.expanded .doc-epic-expand-chevron {
+  transform: rotate(180deg);
+}
+
+/* Collapsible closed-children list — same grid-template-rows trick as the
+   suggestion diff body below, so it works for any number of children
+   without a guessed max-height. */
+.doc-epic-children-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.doc-epic-item.expanded .doc-epic-children-body {
+  grid-template-rows: 1fr;
+}
+
+.doc-epic-children-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.doc-epic-child-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px 8px 34px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+.doc-epic-child-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-epic-children-empty {
+  padding: 8px 12px 8px 34px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  font-size: 0.8rem;
+}
+
 /* Pagination */
 .doc-pagination {
   display: flex;
