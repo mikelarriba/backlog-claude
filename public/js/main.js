@@ -8,7 +8,7 @@ import {
   closeIssueSplitModal,
   executeSplitIssue,
 } from './list.js';
-import { dispatchAction } from './actions.js';
+import { dispatchAction, dispatchChangeAction } from './actions.js';
 import {
   toggleItemCollapse,
   collapseAll,
@@ -196,8 +196,6 @@ import {
   undoChanges,
   setDocMode,
   docSearch,
-  docSetSprint,
-  docSetFixVersionBulk,
   exportDocumentationPdf,
 } from './documentation.js';
 if ('serviceWorker' in navigator) {
@@ -907,6 +905,12 @@ document.addEventListener('change', (e) => {
   if (!changeAction) return;
   const selectEl = target;
   const inputEl = target;
+  // Typed self-registered change actions (see actions.ts) take priority
+  // over the legacy switch below — mirrors how the click handler above
+  // checks dispatchAction() first. Currently migrated: docSetSprint /
+  // docSetFixVersionBulk in documentation.ts. Falls through to the switch
+  // for everything else.
+  if (dispatchChangeAction(changeAction, target, e)) return;
   switch (changeAction) {
     case 'updateDocStatus':
       updateDocStatus(selectEl.value);
@@ -938,16 +942,6 @@ document.addEventListener('change', (e) => {
     case 'toggleClosedBugsChange':
       toggleClosedBugs(inputEl.checked);
       break;
-    case 'docSetSprint': {
-      const fn = window['docSetSprint'];
-      if (typeof fn === 'function') fn(selectEl.value);
-      break;
-    }
-    case 'docSetFixVersionBulk': {
-      const fn = window['docSetFixVersionBulk'];
-      if (typeof fn === 'function') fn(selectEl.value);
-      break;
-    }
     default:
       break;
   }
@@ -1078,6 +1072,25 @@ document.addEventListener('change', (e) => {
 //     click dispatcher — same carve-out as _updatePiFromConfig/saveRpTitle
 //     above.
 // All fifteen views now self-register via registerActions() instead.
+//
+// The registry above is `click`-only; the delegated `change` handler defined
+// earlier still has its own hand-written switch, same shape as this bridge
+// used to have. As a proof-of-concept spike, one pair of sites has been
+// migrated off it onto a new, separately-namespaced change-action registry
+// (see the "Change-event registry" section of actions.ts):
+//   - The documentation panel's Sprint and Fix Version mode <select>s
+//     (index.html's #doc-sprint-select / #doc-filter-version, both already
+//     emitting data-change-action). Their two handlers (docSetSprint,
+//     docSetFixVersionBulk) are intentionally absent from both this bridge
+//     and the change switch below — see the registerChangeActions() call in
+//     documentation.ts. This migration also fixed an anti-pattern: the
+//     change switch previously reached these two handlers via an untyped
+//     `window` lookup even though main.ts already had them as direct
+//     imports — the exact class of bridge indirection issue #461 exists to
+//     remove.
+// The `input` listener (defined just above the `change` one) has not been
+// touched by this spike and remains a plain switch — a future increment can
+// extend the same pattern to it once this one has proven out.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1149,11 +1162,12 @@ const _dynGlobals = {
   bugToggleKey,
   bugToggleAll,
   // documentation.ts — docRowClick/docSetPage/toggleSuggestionRow moved off
-  // this bridge onto DOC_ACTIONS (issue #461); see that module.
+  // this bridge onto DOC_ACTIONS (issue #461); docSetSprint/
+  // docSetFixVersionBulk moved off it too, onto the new change-action
+  // registry (see the "Change-event registry" section of actions.ts and
+  // the registerChangeActions() call in documentation.ts).
   setDocMode,
   docSearch,
-  docSetSprint,
-  docSetFixVersionBulk,
   docToggleKey,
   toggleSuggestionCheck,
   // onkeydown handlers remaining in index.html inputs
