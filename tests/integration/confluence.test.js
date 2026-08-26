@@ -218,6 +218,141 @@ describe('POST /api/confluence/analyze — multiple issues fetched in parallel',
   });
 });
 
+// ── Epic mode (#556): epics + closed children fetched as a union, grouped ────
+describe('POST /api/confluence/analyze — epic mode (epics + closedChildKeys)', () => {
+  let fetchedKeys;
+
+  before(() => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    mockClaudeResponse = '[]';
+    fetchedKeys = [];
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+      const match = urlStr.match(/\/issue\/([^?]+)/);
+      const key = match ? decodeURIComponent(match[1]) : 'unknown';
+      fetchedKeys.push(key);
+      return jsonRes({ fields: { summary: `Summary for ${key}`, description: '' } });
+    });
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+    mockClaudeResponse = '[]';
+  });
+
+  test('fetches the union of epic keys and closed child keys exactly once each', async () => {
+    fetchedKeys = [];
+    const { status } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-1', 'EAMDM-2'],
+      epics: [
+        { key: 'EAMDM-1', summary: 'Epic One', closedChildKeys: ['EAMDM-10', 'EAMDM-11'] },
+        { key: 'EAMDM-2', summary: 'Epic Two', closedChildKeys: ['EAMDM-20'] },
+      ],
+    });
+    assert.equal(status, 200);
+    assert.deepEqual(
+      [...fetchedKeys].sort(),
+      ['EAMDM-1', 'EAMDM-10', 'EAMDM-11', 'EAMDM-2', 'EAMDM-20'].sort()
+    );
+  });
+
+  test('an epic with an empty closedChildKeys array still resolves (epic-only, no children fetched)', async () => {
+    fetchedKeys = [];
+    const { status } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-3'],
+      epics: [{ key: 'EAMDM-3', summary: 'Internal-only epic', closedChildKeys: [] }],
+    });
+    assert.equal(status, 200);
+    assert.deepEqual(fetchedKeys, ['EAMDM-3']);
+  });
+
+  test('propagates the AI\'s empty-array "no changes" response through in epic mode', async () => {
+    mockClaudeResponse = '[]';
+    const { status, data } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-4'],
+      epics: [{ key: 'EAMDM-4', summary: 'Internal cleanup epic', closedChildKeys: ['EAMDM-40'] }],
+    });
+    assert.equal(status, 200);
+    assert.deepEqual(data.suggestions, []);
+  });
+
+  test('a suggestion proposed from epic mode is returned like any other', async () => {
+    mockClaudeResponse = JSON.stringify([
+      {
+        pageTitle: 'Auth Guide',
+        hierarchyPath: 'MIDAS > Auth',
+        action: 'Update',
+        currentContent: '',
+        proposedContent: 'Document the new SSO login flow shipped under EAMDM-1.',
+      },
+    ]);
+    const { status, data } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-1'],
+      epics: [{ key: 'EAMDM-1', summary: 'Auth epic', closedChildKeys: ['EAMDM-10'] }],
+    });
+    assert.equal(status, 200);
+    assert.equal(data.suggestions.length, 1);
+    assert.equal(data.suggestions[0].pageTitle, 'Auth Guide');
+  });
+
+  test('an unreachable closed-child key is reported the same way an unreachable jiraId is', async () => {
+    mock.restoreAll();
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+      if (urlStr.includes('/issue/EAMDM-404')) {
+        return { ok: false, status: 404, text: async () => 'Issue Does Not Exist' };
+      }
+      return jsonRes({ fields: { summary: 'Reachable', description: '' } });
+    });
+    const { status, data } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-5'],
+      epics: [{ key: 'EAMDM-5', summary: 'Epic', closedChildKeys: ['EAMDM-404'] }],
+    });
+    assert.equal(status, 400);
+    assert.equal(data.code, 'JIRA_ISSUE_UNREACHABLE');
+    assert.equal(data.details.unreachable[0].key, 'EAMDM-404');
+  });
+});
+
+// ── jiraIds-only requests (no `epics` key) still work exactly as before ──────
+describe('POST /api/confluence/analyze — jiraIds-only requests still work exactly as before (#556 back-compat)', () => {
+  before(() => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    mockClaudeResponse = JSON.stringify([
+      {
+        pageTitle: 'Search Mode Page',
+        hierarchyPath: 'MIDAS',
+        action: 'Create',
+        currentContent: '',
+        proposedContent: 'New page from a flat jiraIds request.',
+      },
+    ]);
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+      return jsonRes({ fields: { summary: 'A search-mode issue', description: '' } });
+    });
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+    mockClaudeResponse = '[]';
+  });
+
+  test('returns 200 with suggestions, unaffected by the new epics field being absent', async () => {
+    const { status, data } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-123'],
+    });
+    assert.equal(status, 200);
+    assert.equal(data.suggestions.length, 1);
+    assert.equal(data.suggestions[0].pageTitle, 'Search Mode Page');
+  });
+});
+
 // ── Malformed AI response ─────────────────────────────────────────────────────
 describe('POST /api/confluence/analyze — AI returns unparseable content', () => {
   before(() => {

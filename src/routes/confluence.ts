@@ -6,7 +6,11 @@
 import { Router } from 'express';
 import { sendError, parseApiError } from '../utils/routeHelpers.js';
 import { normalizeOutput } from '../services/claudeService.js';
-import { buildConfluenceAnalysisPrompt } from '../services/aiPromptBuilder.js';
+import {
+  buildConfluenceAnalysisPrompt,
+  type ConfluenceAnalysisIssue,
+  type ConfluenceAnalysisEpicGroup,
+} from '../services/aiPromptBuilder.js';
 import { jiraToMarkdown } from '../utils/transforms.js';
 import { pMap } from '../utils/pMap.js';
 import { config } from '../config/env.js';
@@ -118,16 +122,33 @@ export default function confluenceRoutes({
     async (req, res) => {
       try {
         const { jiraIds } = req.body;
+        const epics = (req.body.epics ?? []) as Array<{
+          key: string;
+          summary?: string;
+          closedChildKeys?: string[];
+        }>;
 
         if (!process.env.JIRA_API_TOKEN) {
           return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
         }
 
-        const issues: Array<{ key: string; summary: string; description: string }> = [];
+        // Epic mode (#556): fetch summary+description for the *union* of the
+        // requested jiraIds (in epic mode these are the selected epic keys)
+        // and every epic's closed child keys, so the prompt can reason over
+        // what actually shipped, not just each epic's own summary. In
+        // search mode (no `epics`), this union is exactly `jiraIds` — the
+        // fetch loop below behaves identically to before #556.
+        const keysToFetch = new Set<string>(jiraIds as string[]);
+        for (const e of epics) {
+          keysToFetch.add(e.key);
+          for (const childKey of e.closedChildKeys ?? []) keysToFetch.add(childKey);
+        }
+
+        const issues: ConfluenceAnalysisIssue[] = [];
         const unreachable: Array<{ key: string; error: string }> = [];
 
         await pMap(
-          jiraIds as string[],
+          [...keysToFetch],
           async (key) => {
             try {
               const issue = (await jiraRequest(
@@ -152,12 +173,27 @@ export default function confluenceRoutes({
             res,
             400,
             'JIRA_ISSUE_UNREACHABLE',
-            `Could not fetch ${unreachable.length} of ${jiraIds.length} JIRA issue(s)`,
+            `Could not fetch ${unreachable.length} of ${keysToFetch.size} JIRA issue(s)`,
             { unreachable }
           );
         }
 
-        const prompt = buildConfluenceAnalysisPrompt({ issues });
+        const issuesByKey = new Map(issues.map((i) => [i.key, i]));
+        const epicGroups: ConfluenceAnalysisEpicGroup[] = epics.map((e) => ({
+          epic: issuesByKey.get(e.key) ?? {
+            key: e.key,
+            summary: e.summary || '',
+            description: '',
+          },
+          children: (e.closedChildKeys ?? [])
+            .map((childKey) => issuesByKey.get(childKey))
+            .filter((i): i is ConfluenceAnalysisIssue => i !== undefined),
+        }));
+
+        const prompt =
+          epicGroups.length > 0
+            ? buildConfluenceAnalysisPrompt({ epics: epicGroups })
+            : buildConfluenceAnalysisPrompt({ issues });
         const rawResponse = await callClaude(prompt);
 
         let suggestions: ConfluenceSuggestion[];

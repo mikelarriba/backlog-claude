@@ -61,20 +61,52 @@ export interface ConfluenceAnalysisIssue {
   description: string;
 }
 
-export function buildConfluenceAnalysisPrompt(opts: { issues: ConfluenceAnalysisIssue[] }): string {
-  const { issues } = opts;
-  const issuesBlock = issues
-    .map(
-      (i) =>
-        `### ${i.key}: ${i.summary || '(no summary)'}\n${i.description.trim() || '_No description provided._'}`
-    )
-    .join('\n\n');
+// An epic plus its closed children (#556): grouping used in epic mode so the
+// prompt reasons over what actually shipped under each epic, not just the
+// epic's own summary/description.
+export interface ConfluenceAnalysisEpicGroup {
+  epic: ConfluenceAnalysisIssue;
+  children: ConfluenceAnalysisIssue[];
+}
+
+function renderIssueSection(i: ConfluenceAnalysisIssue, headingLevel: '###' | '####'): string {
+  return `${headingLevel} ${i.key}: ${i.summary || '(no summary)'}\n${i.description.trim() || '_No description provided._'}`;
+}
+
+function renderEpicGroup(group: ConfluenceAnalysisEpicGroup): string {
+  const epicSection = renderIssueSection(group.epic, '###');
+  const childrenSection =
+    group.children.length > 0
+      ? group.children.map((c) => renderIssueSection(c, '####')).join('\n\n')
+      : '_No closed child stories — this epic has no shipped work in scope._';
+  return `${epicSection}\n\nClosed child stories (what actually shipped under this epic):\n${childrenSection}`;
+}
+
+// `epics` (epic mode, #556) takes precedence over the flat `issues` list
+// (search mode, unchanged since #371) when both are present — callers should
+// only ever pass one or the other. When `epics` is omitted/empty, this
+// renders identically to the pre-#556 flat-issues prompt.
+export function buildConfluenceAnalysisPrompt(opts: {
+  issues?: ConfluenceAnalysisIssue[];
+  epics?: ConfluenceAnalysisEpicGroup[];
+}): string {
+  const { issues, epics } = opts;
+  const useEpics = Boolean(epics && epics.length > 0);
+
+  const contextLabel = useEpics ? 'Epics and their closed stories' : 'JIRA issues';
+  const contextBlock = useEpics
+    ? (epics as ConfluenceAnalysisEpicGroup[]).map(renderEpicGroup).join('\n\n---\n\n')
+    : (issues ?? []).map((i) => renderIssueSection(i, '###')).join('\n\n');
+
+  const epicGuidance = useEpics
+    ? "\n\nFor each epic, base your analysis on the actual shipped work described in its closed child stories — not just the epic's own summary. If an epic's closed children represent only internal/technical work with no user-facing or documentable change, propose no changes for that epic."
+    : '';
 
   return `You are a documentation analyst for the MIDAS product team. Given the JIRA issues below, identify which Confluence documentation pages need to change as a result of this work.
 
-JIRA issues:
+${contextLabel}:
 ---
-${issuesBlock}
+${contextBlock}
 ---
 
 Confluence read access is not yet implemented, so you cannot see existing page content. For "Update" or "Delete" actions, set "currentContent" to an empty string (or a short note that current content is unavailable) — do not invent existing content. Put your effort into "proposedContent": your best proposal for what the page should contain (or, for "Delete", why it should be removed) after this change.
@@ -82,7 +114,7 @@ Confluence read access is not yet implemented, so you cannot see existing page c
 For each impacted Confluence page, decide one action:
 - "Create" — a new page is needed that does not exist yet
 - "Update" — an existing page's content needs to change
-- "Delete" — an existing page is no longer needed and should be removed
+- "Delete" — an existing page is no longer needed and should be removed${epicGuidance}
 
 Output ONLY a JSON array — no prose, no markdown code fences, no commentary before or after — matching exactly this schema:
 [

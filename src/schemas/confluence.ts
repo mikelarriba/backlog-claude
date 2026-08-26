@@ -3,12 +3,34 @@ import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
 
 extendZodWithOpenApi(z);
 
+// Epic-mode context (#556): alongside the flat `jiraIds` (which, in epic
+// mode, carry the selected epic keys), the frontend can send each epic's
+// closed child keys so /analyze can fetch and reason over the epic *and*
+// what actually shipped under it, not just the epic's own summary.
+// `epics` is optional and back-compat: when absent/empty, the route behaves
+// exactly as it did before this field existed (the search-mode/jiraIds-only
+// path).
+const ConfluenceAnalyzeEpicSchema = z
+  .object({
+    key: z.string().min(1).openapi({ description: 'Epic JIRA key' }),
+    summary: z.string().optional().openapi({ description: 'Epic summary' }),
+    closedChildKeys: z
+      .array(z.string().min(1))
+      .optional()
+      .openapi({ description: "Keys of the epic's closed child issues" }),
+  })
+  .openapi('ConfluenceAnalyzeEpic');
+
 export const ConfluenceAnalyzeSchema = z
   .object({
     jiraIds: z
       .array(z.string().min(1))
       .min(1)
       .openapi({ description: 'JIRA issue keys to analyze' }),
+    epics: z
+      .array(ConfluenceAnalyzeEpicSchema)
+      .optional()
+      .openapi({ description: 'Epics with closed child keys, for epic-mode analysis' }),
   })
   .openapi('ConfluenceAnalyze');
 
