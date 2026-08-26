@@ -95,6 +95,80 @@ describe('buildConfluenceAnalysisPrompt', () => {
     const prompt = buildConfluenceAnalysisPrompt({ issues: [] });
     assert.match(prompt, /JIRA issues:\n---\n\n---/);
   });
+
+  // ── Epic mode (#556) ──────────────────────────────────────────────────────
+  test('renders an "Epics and their closed stories" block per epic, with its closed children, when epics is passed', () => {
+    const prompt = buildConfluenceAnalysisPrompt({
+      epics: [
+        {
+          epic: { key: 'EAMDM-10', summary: 'Auth revamp epic', description: 'Overall goal.' },
+          children: [
+            { key: 'EAMDM-11', summary: 'Add SSO login', description: 'Users can log in via SSO.' },
+            { key: 'EAMDM-12', summary: 'Fix redirect bug', description: '' },
+          ],
+        },
+      ],
+    });
+    assert.match(prompt, /Epics and their closed stories:/);
+    assert.match(prompt, /### EAMDM-10: Auth revamp epic/);
+    assert.match(prompt, /Overall goal\./);
+    assert.match(prompt, /Closed child stories/);
+    assert.match(prompt, /#### EAMDM-11: Add SSO login/);
+    assert.match(prompt, /Users can log in via SSO\./);
+    assert.match(prompt, /#### EAMDM-12: Fix redirect bug/);
+    assert.match(prompt, /_No description provided\._/);
+    // The flat "JIRA issues:" label must not appear in epic mode.
+    assert.doesNotMatch(prompt, /JIRA issues:/);
+  });
+
+  test('an epic with no closed children says so explicitly, rather than an empty block', () => {
+    const prompt = buildConfluenceAnalysisPrompt({
+      epics: [
+        {
+          epic: { key: 'EAMDM-20', summary: 'Internal cleanup epic', description: 'Refactor.' },
+          children: [],
+        },
+      ],
+    });
+    assert.match(prompt, /_No closed child stories/);
+  });
+
+  test('multiple epics are each rendered, separated', () => {
+    const prompt = buildConfluenceAnalysisPrompt({
+      epics: [
+        { epic: { key: 'EAMDM-30', summary: 'Epic A', description: 'A' }, children: [] },
+        { epic: { key: 'EAMDM-31', summary: 'Epic B', description: 'B' }, children: [] },
+      ],
+    });
+    assert.match(prompt, /### EAMDM-30: Epic A/);
+    assert.match(prompt, /### EAMDM-31: Epic B/);
+  });
+
+  test('still outputs the strict JSON-array contract and empty-array instruction in epic mode', () => {
+    const prompt = buildConfluenceAnalysisPrompt({
+      epics: [{ epic: { key: 'EAMDM-40', summary: 'Epic', description: '' }, children: [] }],
+    });
+    assert.match(prompt, /"action": "Create" \| "Update" \| "Delete"/);
+    assert.match(prompt, /If no Confluence changes are needed, output an empty JSON array: \[\]/);
+  });
+
+  test('falls back to the flat issues rendering when epics is an empty array', () => {
+    const prompt = buildConfluenceAnalysisPrompt({
+      issues: [{ key: 'EAMDM-50', summary: 'Flat issue', description: 'Flat description.' }],
+      epics: [],
+    });
+    assert.match(prompt, /JIRA issues:/);
+    assert.match(prompt, /### EAMDM-50: Flat issue/);
+    assert.doesNotMatch(prompt, /Epics and their closed stories:/);
+  });
+
+  test('back-compat: the flat issues-only path (no epics key at all) is unchanged, empty-array instruction retained', () => {
+    const prompt = buildConfluenceAnalysisPrompt({
+      issues: [{ key: 'EAMDM-60', summary: 'Flat issue', description: 'Flat description.' }],
+    });
+    assert.match(prompt, /JIRA issues:/);
+    assert.match(prompt, /If no Confluence changes are needed, output an empty JSON array: \[\]/);
+  });
 });
 
 describe('buildSplitStoryPrompt', () => {

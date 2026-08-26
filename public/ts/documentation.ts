@@ -590,7 +590,27 @@ export async function askAI(): Promise<void> {
   _expandedSuggestionIndexes.clear();
 
   try {
-    const data = (await postJSON('/api/confluence/analyze', { jiraIds: [..._selectedKeys] })) as {
+    const payload: {
+      jiraIds: string[];
+      epics?: Array<{ key: string; summary?: string; closedChildKeys: string[] }>;
+    } = { jiraIds: [..._selectedKeys] };
+
+    // Epic mode (#556): also send each selected epic's closed child keys so
+    // /analyze can fetch and reason over what actually shipped, not just the
+    // epic's own summary. Derived from _allEpics (#555) — the epic-mode
+    // selection unit is the epic key, so filter to selected epics and map
+    // their closedChildren down to keys.
+    if (_isEpicMode()) {
+      payload.epics = _allEpics
+        .filter((e) => _selectedKeys.has(e.key))
+        .map((e) => ({
+          key: e.key,
+          summary: e.summary,
+          closedChildKeys: e.closedChildren.map((c) => c.key),
+        }));
+    }
+
+    const data = (await postJSON('/api/confluence/analyze', payload)) as {
       suggestions?: ConfluenceSuggestion[];
     };
     _suggestions = data.suggestions || [];
