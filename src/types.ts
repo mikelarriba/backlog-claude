@@ -1,7 +1,11 @@
 // ── Shared TypeScript type definitions ────────────────────────────────────────────
 
 import type { Logger } from './utils/logger.js';
-import type { ConfluencePage, ConfluenceSpace } from './services/confluenceService.js';
+import type {
+  ConfluencePage,
+  ConfluenceSpace,
+  ConfluencePageSummary,
+} from './services/confluenceService.js';
 import type { AiSavingsServiceInstance } from './services/aiSavingsService.js';
 
 // Re-export frontend-shared types not defined below (PISettings, SprintConfig, etc.)
@@ -185,6 +189,7 @@ export interface ConfluenceRouteContext extends JiraRouteContext {
   CONFLUENCE_SPACE_KEY: string;
   confluenceGetSpace: () => Promise<ConfluenceSpace>;
   confluenceGetPageByTitle: (title: string) => Promise<ConfluencePage | null>;
+  confluenceListPages: () => Promise<ConfluencePageSummary[]>;
   confluenceCreatePage: (title: string, body: string) => Promise<ConfluencePage>;
   confluenceUpdatePage: (
     id: string,

@@ -34,6 +34,15 @@ export interface ConfluenceSpace {
   key: string;
 }
 
+// Lightweight page-tree entry used to ground the AI analysis (#557) — title
+// and ancestor path only, no body, so listing the whole space stays cheap in
+// both API round-trip size and prompt token cost.
+export interface ConfluencePageSummary {
+  id: string;
+  title: string;
+  hierarchyPath: string;
+}
+
 interface ConfluenceServiceConfig {
   CONFLUENCE_BASE: string;
   CONFLUENCE_TOKEN: string;
@@ -44,6 +53,7 @@ interface ConfluenceServiceConfig {
 export interface ConfluenceServiceInstance {
   getSpace: () => Promise<ConfluenceSpace>;
   getPageByTitle: (title: string) => Promise<ConfluencePage | null>;
+  listPages: () => Promise<ConfluencePageSummary[]>;
   createPage: (title: string, body: string) => Promise<ConfluencePage>;
   updatePage: (id: string, version: number, title: string, body: string) => Promise<ConfluencePage>;
   deletePage: (id: string) => Promise<void>;
@@ -62,6 +72,12 @@ interface RawConfluencePage {
 interface RawConfluenceSpace {
   id: string | number;
   key: string;
+}
+
+interface RawConfluenceSearchResult {
+  id: string | number;
+  title: string;
+  ancestors?: Array<{ title: string }>;
 }
 
 export function createConfluenceService({
@@ -143,6 +159,37 @@ export function createConfluenceService({
     return mapPage(results[0]);
   }
 
+  function mapPageSummary(raw: RawConfluenceSearchResult): ConfluencePageSummary {
+    return {
+      id: String(raw.id),
+      title: raw.title,
+      hierarchyPath: (raw.ancestors ?? []).map((a) => a.title).join(' > '),
+    };
+  }
+
+  // ── Page tree listing (#557) ────────────────────────────────────────────
+  // Grounds the AI documentation analysis in the space's *real* page tree
+  // (titles + hierarchy only — no bodies, to bound prompt token cost) so
+  // Update/Delete suggestions can target actual existing pages instead of
+  // the AI guessing. Uses the v1 CQL search endpoint (same rationale as
+  // getPageByTitle above: v1 filters by space *key* directly). Capped at 200
+  // pages via `limit` — spaces larger than that are not fully enumerated,
+  // which is an accepted bound per the issue spec rather than a paged walk.
+  async function listPages(): Promise<ConfluencePageSummary[]> {
+    const cql = `space=${encodeURIComponent(CONFLUENCE_SPACE_KEY)}+and+type=page`;
+    const url = `${CONFLUENCE_BASE}/wiki/rest/api/content/search?cql=${cql}&limit=200&expand=ancestors`;
+    const data = (await _confluenceFetch(
+      url,
+      'GET',
+      undefined,
+      'Confluence GET content/search'
+    )) as {
+      results?: RawConfluenceSearchResult[];
+    };
+    const results = data.results || [];
+    return results.map(mapPageSummary);
+  }
+
   async function createPage(title: string, body: string): Promise<ConfluencePage> {
     const spaceId = await resolveSpaceId();
     const raw = (await _confluenceFetch(
@@ -192,6 +239,7 @@ export function createConfluenceService({
   return {
     getSpace,
     getPageByTitle,
+    listPages,
     createPage,
     updatePage,
     deletePage,

@@ -85,6 +85,7 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
   const {
     getSpace: confluenceGetSpace,
     getPageByTitle: confluenceGetPageByTitle,
+    listPages: confluenceListPages,
     createPage: confluenceCreatePage,
     updatePage: confluenceUpdatePage,
     deletePage: confluenceDeletePage,
@@ -181,6 +182,7 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
     CONFLUENCE_SPACE_KEY,
     confluenceGetSpace,
     confluenceGetPageByTitle,
+    confluenceListPages,
     confluenceCreatePage,
     confluenceUpdatePage,
     confluenceDeletePage,

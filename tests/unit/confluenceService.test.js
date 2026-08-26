@@ -94,6 +94,88 @@ describe('getPageByTitle', () => {
   });
 });
 
+// ── listPages (#557) ──────────────────────────────────────────────────────
+describe('listPages', () => {
+  after(() => {
+    global.fetch = origFetch;
+  });
+
+  test('builds the CQL search URL with space, type=page, limit=200, and expand=ancestors', async () => {
+    let capturedUrl;
+    global.fetch = async (url) => {
+      capturedUrl = String(url);
+      return jsonRes({ results: [] });
+    };
+    const service = makeService();
+    await service.listPages();
+    assert.ok(
+      capturedUrl.startsWith('https://example.atlassian.net/wiki/rest/api/content/search?')
+    );
+    assert.ok(
+      capturedUrl.includes('cql=space=MIDAS+and+type=page'),
+      `expected cql querystring in ${capturedUrl}`
+    );
+    assert.ok(capturedUrl.includes('limit=200'));
+    assert.ok(capturedUrl.includes('expand=ancestors'));
+  });
+
+  test('maps id/title/hierarchyPath, joining ancestor titles with " > "', async () => {
+    global.fetch = async () =>
+      jsonRes({
+        results: [
+          {
+            id: '111',
+            title: 'Upload API',
+            ancestors: [{ title: 'MIDAS' }, { title: 'API Reference' }],
+          },
+          {
+            id: '222',
+            title: 'Root Page',
+            ancestors: [],
+          },
+        ],
+      });
+    const service = makeService();
+    const pages = await service.listPages();
+    assert.deepEqual(pages, [
+      { id: '111', title: 'Upload API', hierarchyPath: 'MIDAS > API Reference' },
+      { id: '222', title: 'Root Page', hierarchyPath: '' },
+    ]);
+  });
+
+  test('a page with no ancestors field at all maps to an empty hierarchyPath', async () => {
+    global.fetch = async () => jsonRes({ results: [{ id: '333', title: 'No Ancestors' }] });
+    const service = makeService();
+    const pages = await service.listPages();
+    assert.deepEqual(pages, [{ id: '333', title: 'No Ancestors', hierarchyPath: '' }]);
+  });
+
+  test('returns an empty array when the space has no pages', async () => {
+    global.fetch = async () => jsonRes({ results: [] });
+    const service = makeService();
+    const pages = await service.listPages();
+    assert.deepEqual(pages, []);
+  });
+
+  test('returns an empty array when the response has no results field at all', async () => {
+    global.fetch = async () => jsonRes({});
+    const service = makeService();
+    const pages = await service.listPages();
+    assert.deepEqual(pages, []);
+  });
+
+  test('lets a real HTTP error propagate', async () => {
+    global.fetch = async () => ({
+      ok: false,
+      status: 500,
+      headers: { get: () => null },
+      text: async () => 'Internal Server Error',
+    });
+    const service = makeService();
+    await assert.rejects(() => service.listPages(), /500/);
+  });
+});
+
 // ── createPage ─────────────────────────────────────────────────────────────
 describe('createPage', () => {
   after(() => {

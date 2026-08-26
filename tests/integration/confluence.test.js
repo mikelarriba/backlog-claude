@@ -381,6 +381,118 @@ describe('POST /api/confluence/analyze — AI returns unparseable content', () =
   });
 });
 
+// ── /analyze Confluence page-tree grounding (#557) ────────────────────────────
+describe('POST /api/confluence/analyze — Confluence grounding (listPages)', () => {
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+    delete process.env.CONFLUENCE_BASE_URL;
+    delete process.env.CONFLUENCE_API_TOKEN;
+    mockClaudeResponse = '[]';
+  });
+
+  test('when Confluence is NOT configured, /analyze still succeeds JIRA-only without calling listPages', async () => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    delete process.env.CONFLUENCE_BASE_URL;
+    delete process.env.CONFLUENCE_API_TOKEN;
+    mockClaudeResponse = '[]';
+    let confluenceCalled = false;
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/wiki/')) {
+        confluenceCalled = true;
+        return jsonRes({ results: [] });
+      }
+      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+      return jsonRes({ fields: { summary: 'An issue', description: '' } });
+    });
+
+    const { status, data } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-100'],
+    });
+    assert.equal(status, 200);
+    assert.deepEqual(data.suggestions, []);
+    assert.equal(
+      confluenceCalled,
+      false,
+      'listPages must not be called when Confluence is unconfigured'
+    );
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+  });
+
+  test('when Confluence IS configured, /analyze calls listPages and passes real page titles through to the AI', async () => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    process.env.CONFLUENCE_BASE_URL = 'https://example.atlassian.net';
+    process.env.CONFLUENCE_API_TOKEN = 'fake-confluence-token';
+    mockClaudeResponse = JSON.stringify([
+      {
+        pageTitle: 'Upload API',
+        hierarchyPath: 'MIDAS > API Reference',
+        action: 'Update',
+        currentContent: '',
+        proposedContent: 'Document the new endpoint.',
+      },
+    ]);
+    let capturedListPagesUrl = null;
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/wiki/rest/api/content/search')) {
+        capturedListPagesUrl = urlStr;
+        return jsonRes({
+          results: [
+            {
+              id: '1',
+              title: 'Upload API',
+              ancestors: [{ title: 'MIDAS' }, { title: 'API Reference' }],
+            },
+            { id: '2', title: 'Getting Started', ancestors: [{ title: 'MIDAS' }] },
+          ],
+        });
+      }
+      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+      return jsonRes({ fields: { summary: 'Add bulk upload', description: '' } });
+    });
+
+    const { status, data } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-101'],
+    });
+    assert.equal(status, 200);
+    assert.ok(capturedListPagesUrl, 'listPages should have been called');
+    assert.equal(data.suggestions.length, 1);
+    assert.equal(data.suggestions[0].pageTitle, 'Upload API');
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+    delete process.env.CONFLUENCE_BASE_URL;
+    delete process.env.CONFLUENCE_API_TOKEN;
+  });
+
+  test('when Confluence IS configured but listPages fails, /analyze still succeeds (best-effort grounding)', async () => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    process.env.CONFLUENCE_BASE_URL = 'https://example.atlassian.net';
+    process.env.CONFLUENCE_API_TOKEN = 'fake-confluence-token';
+    mockClaudeResponse = '[]';
+    mock.method(globalThis, 'fetch', async (url, opts) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/wiki/rest/api/content/search')) {
+        return { ok: false, status: 500, text: async () => 'Internal Server Error' };
+      }
+      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+      return jsonRes({ fields: { summary: 'An issue', description: '' } });
+    });
+
+    const { status, data } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-102'],
+    });
+    assert.equal(status, 200);
+    assert.deepEqual(data.suggestions, []);
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+    delete process.env.CONFLUENCE_BASE_URL;
+    delete process.env.CONFLUENCE_API_TOKEN;
+  });
+});
+
 // ── GET /api/confluence/test (connection test, added by #373) ────────────────
 // The route reads process.env.CONFLUENCE_BASE_URL / CONFLUENCE_API_TOKEN
 // directly (same pattern as the JIRA_API_TOKEN check above), so these env

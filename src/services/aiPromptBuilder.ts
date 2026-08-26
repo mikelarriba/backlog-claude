@@ -69,6 +69,14 @@ export interface ConfluenceAnalysisEpicGroup {
   children: ConfluenceAnalysisIssue[];
 }
 
+// A single existing Confluence page, passed in by the route (#557) once it
+// has looked up the space's real page tree — grounds Update/Delete
+// suggestions in actual titles instead of the AI guessing at them.
+export interface ConfluenceExistingPage {
+  title: string;
+  hierarchyPath: string;
+}
+
 function renderIssueSection(i: ConfluenceAnalysisIssue, headingLevel: '###' | '####'): string {
   return `${headingLevel} ${i.key}: ${i.summary || '(no summary)'}\n${i.description.trim() || '_No description provided._'}`;
 }
@@ -89,9 +97,11 @@ function renderEpicGroup(group: ConfluenceAnalysisEpicGroup): string {
 export function buildConfluenceAnalysisPrompt(opts: {
   issues?: ConfluenceAnalysisIssue[];
   epics?: ConfluenceAnalysisEpicGroup[];
+  existingPages?: ConfluenceExistingPage[];
 }): string {
-  const { issues, epics } = opts;
+  const { issues, epics, existingPages } = opts;
   const useEpics = Boolean(epics && epics.length > 0);
+  const hasExistingPages = Boolean(existingPages && existingPages.length > 0);
 
   const contextLabel = useEpics ? 'Epics and their closed stories' : 'JIRA issues';
   const contextBlock = useEpics
@@ -102,6 +112,21 @@ export function buildConfluenceAnalysisPrompt(opts: {
     ? "\n\nFor each epic, base your analysis on the actual shipped work described in its closed child stories — not just the epic's own summary. If an epic's closed children represent only internal/technical work with no user-facing or documentable change, propose no changes for that epic."
     : '';
 
+  // #557: when the route has looked up the space's real page tree, ground
+  // Update/Delete suggestions in it and drop the "not yet implemented"
+  // disclaimer. Without a page list (Confluence unconfigured, listing
+  // failed, or an empty space) this renders identically to the pre-#557
+  // prompt, preserving back-compat for the epics-mode/flat-issues-mode
+  // prompts introduced in #556.
+  const readAccessBlock = hasExistingPages
+    ? `Here is the current Confluence page tree in this space (existing pages you may target with "Update" or "Delete"):
+${(existingPages as ConfluenceExistingPage[])
+  .map((p) => `- ${p.title}${p.hierarchyPath ? ` (${p.hierarchyPath})` : ''}`)
+  .join('\n')}
+
+For "Update" or "Delete" actions, "pageTitle" MUST be an EXACT existing title from the list above (and "hierarchyPath" its listed path) — do not invent or rename an existing page. Only use "Create" for pages that genuinely do not exist in the list above. You do not have each page's body, only its title and location, so set "currentContent" to an empty string (or a short note that current content is unavailable) — do not invent existing content. Put your effort into "proposedContent": your best proposal for what the page should contain (or, for "Delete", why it should be removed) after this change.`
+    : `Confluence read access is not yet implemented, so you cannot see existing page content. For "Update" or "Delete" actions, set "currentContent" to an empty string (or a short note that current content is unavailable) — do not invent existing content. Put your effort into "proposedContent": your best proposal for what the page should contain (or, for "Delete", why it should be removed) after this change.`;
+
   return `You are a documentation analyst for the MIDAS product team. Given the JIRA issues below, identify which Confluence documentation pages need to change as a result of this work.
 
 ${contextLabel}:
@@ -109,7 +134,7 @@ ${contextLabel}:
 ${contextBlock}
 ---
 
-Confluence read access is not yet implemented, so you cannot see existing page content. For "Update" or "Delete" actions, set "currentContent" to an empty string (or a short note that current content is unavailable) — do not invent existing content. Put your effort into "proposedContent": your best proposal for what the page should contain (or, for "Delete", why it should be removed) after this change.
+${readAccessBlock}
 
 For each impacted Confluence page, decide one action:
 - "Create" — a new page is needed that does not exist yet

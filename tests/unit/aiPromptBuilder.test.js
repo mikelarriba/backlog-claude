@@ -169,6 +169,67 @@ describe('buildConfluenceAnalysisPrompt', () => {
     assert.match(prompt, /JIRA issues:/);
     assert.match(prompt, /If no Confluence changes are needed, output an empty JSON array: \[\]/);
   });
+
+  // ── existingPages / Confluence grounding (#557) ────────────────────────────
+  describe('existingPages', () => {
+    test('replaces the "not yet implemented" disclaimer with the real page list when present and non-empty', () => {
+      const prompt = buildConfluenceAnalysisPrompt({
+        issues: [{ key: 'EAMDM-70', summary: 'Issue', description: 'Desc' }],
+        existingPages: [
+          { title: 'Upload API', hierarchyPath: 'MIDAS > API Reference' },
+          { title: 'Getting Started', hierarchyPath: 'MIDAS' },
+        ],
+      });
+      assert.doesNotMatch(prompt, /Confluence read access is not yet implemented/);
+      assert.match(prompt, /current Confluence page tree/);
+      assert.match(prompt, /- Upload API \(MIDAS > API Reference\)/);
+      assert.match(prompt, /- Getting Started \(MIDAS\)/);
+      assert.match(prompt, /EXACT existing title from the list above/);
+      assert.match(prompt, /Only use "Create" for pages that genuinely do not exist/);
+    });
+
+    test('renders a page with an empty hierarchyPath without a trailing " ()"', () => {
+      const prompt = buildConfluenceAnalysisPrompt({
+        issues: [{ key: 'EAMDM-71', summary: 'Issue', description: 'Desc' }],
+        existingPages: [{ title: 'Root Page', hierarchyPath: '' }],
+      });
+      assert.match(prompt, /- Root Page\n/);
+      assert.doesNotMatch(prompt, /Root Page \(\)/);
+    });
+
+    test('retains the disclaimer exactly as before when existingPages is absent', () => {
+      const prompt = buildConfluenceAnalysisPrompt({
+        issues: [{ key: 'EAMDM-72', summary: 'Issue', description: 'Desc' }],
+      });
+      assert.match(prompt, /Confluence read access is not yet implemented/);
+      assert.doesNotMatch(prompt, /current Confluence page tree/);
+    });
+
+    test('retains the disclaimer when existingPages is an empty array', () => {
+      const prompt = buildConfluenceAnalysisPrompt({
+        issues: [{ key: 'EAMDM-73', summary: 'Issue', description: 'Desc' }],
+        existingPages: [],
+      });
+      assert.match(prompt, /Confluence read access is not yet implemented/);
+    });
+
+    test('works together with epics mode: both the epic rendering and the page list appear', () => {
+      const prompt = buildConfluenceAnalysisPrompt({
+        epics: [
+          {
+            epic: { key: 'EAMDM-80', summary: 'Epic', description: 'Epic desc' },
+            children: [{ key: 'EAMDM-81', summary: 'Child', description: 'Child desc' }],
+          },
+        ],
+        existingPages: [{ title: 'Auth Guide', hierarchyPath: 'MIDAS > Auth' }],
+      });
+      assert.match(prompt, /Epics and their closed stories:/);
+      assert.match(prompt, /### EAMDM-80: Epic/);
+      assert.match(prompt, /current Confluence page tree/);
+      assert.match(prompt, /- Auth Guide \(MIDAS > Auth\)/);
+      assert.doesNotMatch(prompt, /Confluence read access is not yet implemented/);
+    });
+  });
 });
 
 describe('buildSplitStoryPrompt', () => {
