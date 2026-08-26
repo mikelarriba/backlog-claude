@@ -2,7 +2,7 @@
 // Three builders sharing the same popup mechanics: the epic (top panel),
 // the story (bottom panel), and the "Add to Sprint" submenu used by both.
 import { escHtml, postJSON, showJiraToast, patchJSON, getErrorMessage } from './state.js';
-import type { SprintConfig } from './state.js';
+import type { PISettings, SprintConfig } from './state.js';
 import { renderRoadmapBoard } from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
 import { openDoc } from './detail.js';
@@ -181,14 +181,25 @@ export async function rmCtxMoveEpic(
 }
 
 // ── Sprint submenu builder ───────────────────────────────────
-function _buildSprintSubmenu(filename: string, docType: string): string {
+// Pure string builder split out of the module-private wrapper below so it's
+// testable without the `piSettings`/`sprintConfig` ambient globals — callers
+// pass both explicitly, same signature-change extraction as
+// roadmap-render.ts's buildRoadmapCardHtml(doc, parent) (#508) and
+// documentation.ts's buildSuggestionRowHtml(s, index, selected, expanded)
+// (#552).
+export function buildSprintSubmenuHtml(
+  filename: string,
+  docType: string,
+  piSettings: PISettings,
+  sprintConfig: SprintConfig
+): string {
   const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
   const seen = new Set<string>();
   let items = '';
 
   const fnAttr = `data-filename="${escHtml(filename)}" data-doc-type="${escHtml(docType)}"`;
   for (const pi of pis) {
-    for (const s of ((sprintConfig as SprintConfig)[pi] as RoadmapSprint[] | undefined) || []) {
+    for (const s of (sprintConfig[pi] as RoadmapSprint[] | undefined) || []) {
       if (seen.has(s.name)) continue;
       seen.add(s.name);
       items += `<button class="ctx-item" data-action="${RM_CTX_ACTIONS.setSprint}" ${fnAttr} data-sprint="${escHtml(s.name)}">${escHtml(s.name)}</button>`;
@@ -205,6 +216,10 @@ function _buildSprintSubmenu(filename: string, docType: string): string {
       <button class="ctx-item ctx-has-sub">Add to Sprint ▸</button>
       <div class="ctx-submenu">${items}</div>
     </div>`;
+}
+
+function _buildSprintSubmenu(filename: string, docType: string): string {
+  return buildSprintSubmenuHtml(filename, docType, piSettings, sprintConfig as SprintConfig);
 }
 
 // ── Story context menu (bottom panel) ────────────────────────

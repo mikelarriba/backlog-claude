@@ -154,7 +154,13 @@ export async function rmCtxMoveEpic(filename, docType, direction) {
   }
 }
 // ── Sprint submenu builder ───────────────────────────────────
-function _buildSprintSubmenu(filename, docType) {
+// Pure string builder split out of the module-private wrapper below so it's
+// testable without the `piSettings`/`sprintConfig` ambient globals — callers
+// pass both explicitly, same signature-change extraction as
+// roadmap-render.ts's buildRoadmapCardHtml(doc, parent) (#508) and
+// documentation.ts's buildSuggestionRowHtml(s, index, selected, expanded)
+// (#552).
+export function buildSprintSubmenuHtml(filename, docType, piSettings, sprintConfig) {
   const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
   const seen = new Set();
   let items = '';
@@ -174,6 +180,9 @@ function _buildSprintSubmenu(filename, docType) {
       <button class="ctx-item ctx-has-sub">Add to Sprint ▸</button>
       <div class="ctx-submenu">${items}</div>
     </div>`;
+}
+function _buildSprintSubmenu(filename, docType) {
+  return buildSprintSubmenuHtml(filename, docType, piSettings, sprintConfig);
 }
 // ── Story context menu (bottom panel) ────────────────────────
 export function handleStoryContextMenu(e, filename, docType) {
