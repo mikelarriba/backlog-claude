@@ -9,6 +9,7 @@ interface BugEntry {
   priority: string;
   assignee: string | null;
   created: string | null;
+  isProduction?: boolean;
   [key: string]: unknown;
 }
 
@@ -58,6 +59,7 @@ let _allBugs: BugEntry[] = [];
 let _filteredBugs: BugEntry[] = [];
 const _selectedKeys = new Set<string>();
 let _includeClosed = false;
+let _envFilter: 'all' | 'production' | 'testing' = 'all';
 
 export async function loadBugsDashboard(force = false): Promise<void> {
   const refreshBtn = document.getElementById('bugs-refresh-btn') as HTMLButtonElement | null;
@@ -283,6 +285,14 @@ export function renderBugsTable(bugs: BugEntry[]): void {
   _updateAnalyzeButton();
 }
 
+export function setBugsEnvFilter(env: 'all' | 'production' | 'testing'): void {
+  _envFilter = env;
+  document.querySelectorAll('.bugs-env-toggle [data-env]').forEach((btn) => {
+    btn.classList.toggle('active', (btn as HTMLElement).dataset.env === env);
+  });
+  filterBugsTable();
+}
+
 export function filterBugsTable(): void {
   const priority =
     (document.getElementById('bugs-filter-priority') as HTMLSelectElement | null)?.value || 'all';
@@ -292,7 +302,9 @@ export function filterBugsTable(): void {
   _filteredBugs = _allBugs.filter((b) => {
     const priorityOk = priority === 'all' || (b.priority || '').toLowerCase() === priority;
     const statusOk = status === 'all' || (b.status || '').toLowerCase() === status.toLowerCase();
-    return priorityOk && statusOk;
+    const envOk =
+      _envFilter === 'all' || (b.isProduction ? 'production' : 'testing') === _envFilter;
+    return priorityOk && statusOk && envOk;
   });
 
   renderBugsTable(_filteredBugs);

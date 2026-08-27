@@ -176,6 +176,7 @@ import {
   loadBugsDashboard,
   refreshBugsDashboard,
   filterBugsTable,
+  setBugsEnvFilter,
   analyzeBugs,
   closeBugsAnalysis,
   bugToggleKey,
@@ -867,6 +868,9 @@ document.addEventListener('click', (e) => {
       break;
     case 'analyzeBugs':
       analyzeBugs();
+      break;
+    case 'filterBugsEnv':
+      setBugsEnvFilter(btn.dataset.env ?? 'all');
       break;
     case 'closeBugsAnalysis':
       closeBugsAnalysis();

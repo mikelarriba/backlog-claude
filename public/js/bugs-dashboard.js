@@ -6,6 +6,7 @@ let _allBugs = [];
 let _filteredBugs = [];
 const _selectedKeys = new Set();
 let _includeClosed = false;
+let _envFilter = 'all';
 export async function loadBugsDashboard(force = false) {
   const refreshBtn = document.getElementById('bugs-refresh-btn');
   const cachedAtEl = document.getElementById('bugs-cached-at');
@@ -204,13 +205,22 @@ export function renderBugsTable(bugs) {
   _syncSelectAllCheckbox();
   _updateAnalyzeButton();
 }
+export function setBugsEnvFilter(env) {
+  _envFilter = env;
+  document.querySelectorAll('.bugs-env-toggle [data-env]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.env === env);
+  });
+  filterBugsTable();
+}
 export function filterBugsTable() {
   const priority = document.getElementById('bugs-filter-priority')?.value || 'all';
   const status = document.getElementById('bugs-filter-status')?.value || 'all';
   _filteredBugs = _allBugs.filter((b) => {
     const priorityOk = priority === 'all' || (b.priority || '').toLowerCase() === priority;
     const statusOk = status === 'all' || (b.status || '').toLowerCase() === status.toLowerCase();
-    return priorityOk && statusOk;
+    const envOk =
+      _envFilter === 'all' || (b.isProduction ? 'production' : 'testing') === _envFilter;
+    return priorityOk && statusOk && envOk;
   });
   renderBugsTable(_filteredBugs);
   _updateSelectionCount();
