@@ -29,6 +29,7 @@ interface BugItem {
   assignee: string | null;
   created: string;
   resolutionDate: string | null;
+  isProduction: boolean;
 }
 
 interface DashboardData {
@@ -203,6 +204,8 @@ function buildBugItems(bugs: unknown[]): BugItem[] {
       assignee: (assigneeObj?.displayName as string) ?? null,
       created: (fields.created as string) ?? '',
       resolutionDate,
+      isProduction:
+        Array.isArray(fields.labels) && (fields.labels as string[]).includes('MIDAS_SC3'),
     };
   });
 }
