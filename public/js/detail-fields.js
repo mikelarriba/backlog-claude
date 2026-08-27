@@ -4,7 +4,7 @@
 import { fetchJSON, patchJSON, escHtml, showJiraToast } from './state.js';
 import { upsertDoc } from './store.js';
 import { getSprintsForPi } from './piconfig.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerChangeActions } from './actions.js';
 // Typed data-action names for the comment CRUD buttons in _renderComments
 // (issue #461 migration — see actions.ts and CTX_ACTIONS in list-filters.ts
 // for the established pattern). Replaces the onclick="addDocComment(...)" /
@@ -293,4 +293,21 @@ export async function updateDocWorkCategory(workCategory) {
     console.warn('Failed to save work category:', e.message);
   }
 }
+// Typed data-change-action registration for the Sprint/Team/Category selects
+// (issue #461 migration — see actions.ts and DOC_CHANGE_ACTIONS in
+// documentation.ts for the established registerChangeActions pattern).
+// Reuses each select's existing data-change-action="..." string value as the
+// registered name rather than introducing new constants, since each is a
+// single site with no other caller of that string.
+registerChangeActions({
+  updateDocSprint: (el) => {
+    void updateDocSprint(el.value);
+  },
+  updateDocTeam: (el) => {
+    void updateDocTeam(el.value);
+  },
+  updateDocWorkCategory: (el) => {
+    void updateDocWorkCategory(el.value);
+  },
+});
 //# sourceMappingURL=detail-fields.js.map

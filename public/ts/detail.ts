@@ -22,6 +22,7 @@ import { closeQuickCreate } from './quickcreate.js';
 import { resetUpgradePanel } from './upgrade.js';
 import { isSplitMode, highlightSelectedItem } from './main.js';
 import { isRoadmapOpen } from './roadmap.js';
+import { registerChangeActions } from './actions.js';
 import {
   updateStoryPointsUI,
   updateSprintSelect,
@@ -245,6 +246,18 @@ export async function updateDocStatus(status: string): Promise<void> {
     console.error('Failed to update status:', (e as Error).message);
   }
 }
+
+// Typed data-change-action registration for the Status select (issue #461
+// migration — see actions.ts and DOC_CHANGE_ACTIONS in documentation.ts for
+// the established registerChangeActions pattern). Reuses the existing
+// data-change-action="updateDocStatus" attribute's string value as the
+// registered name rather than introducing a new constant, since this is a
+// single site with no other caller of that string.
+registerChangeActions({
+  updateDocStatus: (el) => {
+    void updateDocStatus((el as HTMLSelectElement).value);
+  },
+});
 
 export function showList(): void {
   document.getElementById('detail-view')!.classList.remove('show');
