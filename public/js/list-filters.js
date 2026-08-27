@@ -105,14 +105,28 @@ export function setWorkCatFilter(cat) {
 function _currentSearchQuery() {
   return document.getElementById('search')?.value.toLowerCase() ?? '';
 }
-function _matchesFilters(d, q) {
-  if (activeTypeFilter !== 'all' && d.docType !== activeTypeFilter) return false;
-  if (activeStatusFilter !== 'all' && (d.status || 'Draft') !== activeStatusFilter) return false;
-  if (activeTeamFilter !== 'all' && d.team !== activeTeamFilter) return false;
-  if (activeWorkCatFilter !== 'all' && d.workCategory !== activeWorkCatFilter) return false;
+// Pure predicate extracted from _matchesFilters below so it takes the active
+// filters as an explicit parameter instead of reading the module's
+// activeTypeFilter/activeStatusFilter/activeTeamFilter/activeWorkCatFilter
+// globals directly — same signature-change extraction already used for
+// computeChildPoints() (detail-fields.ts) and buildSprintSubmenuHtml()
+// (roadmap-context-menus.ts). Byte-for-byte behavior-preserving.
+export function matchesListFilters(d, q, filters) {
+  if (filters.type !== 'all' && d.docType !== filters.type) return false;
+  if (filters.status !== 'all' && (d.status || 'Draft') !== filters.status) return false;
+  if (filters.team !== 'all' && d.team !== filters.team) return false;
+  if (filters.workCat !== 'all' && d.workCategory !== filters.workCat) return false;
   if (q && !(d.title.toLowerCase().includes(q) || d.filename.toLowerCase().includes(q)))
     return false;
   return true;
+}
+function _matchesFilters(d, q) {
+  return matchesListFilters(d, q, {
+    type: activeTypeFilter,
+    status: activeStatusFilter,
+    team: activeTeamFilter,
+    workCat: activeWorkCatFilter,
+  });
 }
 // The rest parameter is unused at runtime (this function always re-derives
 // from the `allDocs` global) but is accepted so callers — e.g. the
