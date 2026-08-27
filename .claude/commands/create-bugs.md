@@ -26,7 +26,7 @@ Start with YAML frontmatter:
 JIRA_ID: TBD
 Story_Points: TBD
 Status: Draft
-Priority: [infer from severity: Critical/High/Medium/Low]
+Priority: [propose from severity: Critical/High/Medium/Low — see Priority Assessment for rationale]
 Squad: TBD
 PI: TBD
 Sprint: TBD
@@ -66,6 +66,13 @@ What actually happens instead.
 
 - Affected component: [Frontend / Backend / Search / Upload / Export / other]
 - V1 / V2 / Both: [state which version is affected]
+- Production / Testing: [state which — a bug reported from Production, or carrying the `MIDAS_SC3` label, is Production; anything else is Testing]
+
+## Priority Assessment
+
+- **Proposed priority**: [Critical/High/Medium/Low] — [one-line rationale tied to the impact rubric below]
+- **Production impact**: [If this is a Production bug, say so explicitly and note it as a candidate for elevated priority]
+- **Re-prioritization flag**: [If the reporter stated or implied a different priority than the impact rubric supports, flag it here with a short reason, e.g. "Reporter marked Low, but data loss → suggest raising to Critical". Omit this line if there's no discrepancy.]
 
 ## Root Cause Hypothesis
 
@@ -84,11 +91,14 @@ List what will NOT be addressed in this fix to prevent scope creep.
 
 ## Writing Guidelines
 
-- **Priority** — infer from impact:
+- **Priority** — propose from impact, and always explain the reasoning in Priority Assessment:
   - `Critical`: system down, data loss, or security issue
   - `High`: core workflow broken for multiple users
   - `Medium`: workaround exists but degrades experience
   - `Low`: cosmetic or edge-case issue
+  - Never just state a priority — pair it with a one-line rationale tied to this rubric
+  - If the reporter's stated or assumed priority conflicts with what the impact rubric supports, flag the discrepancy and suggest the re-prioritized level rather than silently overriding it
+  - Treat **Production bugs** (reported from Production, or carrying the JIRA label `MIDAS_SC3`) as candidates for elevated priority — call this out explicitly in the Priority Assessment when applicable
 - Keep "Steps to Reproduce" concrete and numbered — vague steps slow down debugging
 - "Expected vs Actual" must be distinct — do not merge them
 - If the reporter hasn't provided reproduction steps, infer the most likely flow from the description
