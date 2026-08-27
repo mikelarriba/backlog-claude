@@ -33,7 +33,6 @@ import { dismissWelcomeBanner } from './list-render.js';
 import {
   saveTitle,
   cancelTitleEdit,
-  updateDocStatus,
   showList,
   confirmDelete,
   closeDeleteDialog,
@@ -44,12 +43,7 @@ import {
   toggleOriginal,
   openDoc,
 } from './detail.js';
-import {
-  saveStoryPoints,
-  updateDocSprint,
-  updateDocTeam,
-  updateDocWorkCategory,
-} from './detail-fields.js';
+import { saveStoryPoints } from './detail-fields.js';
 import { toggleHierarchy, loadHierarchy } from './detail-links.js';
 import { toggleUpgradePanel, executeUpgrade } from './upgrade.js';
 import {
@@ -1013,23 +1007,12 @@ document.addEventListener('change', (e: Event) => {
   // Typed self-registered change actions (see actions.ts) take priority
   // over the legacy switch below — mirrors how the click handler above
   // checks dispatchAction() first. Currently migrated: docSetSprint /
-  // docSetFixVersionBulk in documentation.ts. Falls through to the switch
-  // for everything else.
+  // docSetFixVersionBulk in documentation.ts; updateDocStatus in detail.ts;
+  // updateDocSprint / updateDocTeam / updateDocWorkCategory in
+  // detail-fields.ts. Falls through to the switch for everything else.
   if (dispatchChangeAction(changeAction, target, e)) return;
 
   switch (changeAction) {
-    case 'updateDocStatus':
-      updateDocStatus(selectEl.value);
-      break;
-    case 'updateDocTeam':
-      updateDocTeam(selectEl.value);
-      break;
-    case 'updateDocSprint':
-      updateDocSprint(selectEl.value);
-      break;
-    case 'updateDocWorkCategory':
-      updateDocWorkCategory(selectEl.value);
-      break;
     case 'onProviderChange':
       onProviderChange(selectEl.value);
       break;

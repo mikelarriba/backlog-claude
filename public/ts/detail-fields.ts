@@ -5,7 +5,7 @@ import { fetchJSON, patchJSON, escHtml, showJiraToast } from './state.js';
 import type { DocEntry } from './state.js';
 import { upsertDoc } from './store.js';
 import { getSprintsForPi } from './piconfig.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerChangeActions } from './actions.js';
 
 // ── Local types ──────────────────────────────────────────────
 interface Comment {
@@ -355,3 +355,21 @@ export async function updateDocWorkCategory(workCategory: string): Promise<void>
     console.warn('Failed to save work category:', (e as Error).message);
   }
 }
+
+// Typed data-change-action registration for the Sprint/Team/Category selects
+// (issue #461 migration — see actions.ts and DOC_CHANGE_ACTIONS in
+// documentation.ts for the established registerChangeActions pattern).
+// Reuses each select's existing data-change-action="..." string value as the
+// registered name rather than introducing new constants, since each is a
+// single site with no other caller of that string.
+registerChangeActions({
+  updateDocSprint: (el) => {
+    void updateDocSprint((el as HTMLSelectElement).value);
+  },
+  updateDocTeam: (el) => {
+    void updateDocTeam((el as HTMLSelectElement).value);
+  },
+  updateDocWorkCategory: (el) => {
+    void updateDocWorkCategory((el as HTMLSelectElement).value);
+  },
+});
