@@ -130,13 +130,14 @@ export function toggleRoadmapPanel(panel: string): void {
   _roadmapPanelState[panel] = !_roadmapPanelState[panel];
   const body = document.getElementById(`rm-body-${panel}`)!;
   const chevron = document.getElementById(`rm-chevron-${panel}`)!;
-  if (_roadmapPanelState[panel]) {
-    body.classList.remove('collapsed');
-    chevron.textContent = '▼';
-  } else {
-    body.classList.add('collapsed');
-    chevron.textContent = '▶';
-  }
+  // The panel container (not just its body) must shrink to its header when
+  // collapsed so the sibling panel's `flex: 1` can claim the freed height —
+  // collapsing only the body left the panel at `flex: 1` with an empty gap.
+  const panelEl = document.getElementById(`rm-panel-${panel}`);
+  const expanded = _roadmapPanelState[panel];
+  body.classList.toggle('collapsed', !expanded);
+  panelEl?.classList.toggle('rm-panel-collapsed', !expanded);
+  chevron.textContent = expanded ? '▼' : '▶';
 }
 
 // ── Epic search filter ──────────────────────────────────────

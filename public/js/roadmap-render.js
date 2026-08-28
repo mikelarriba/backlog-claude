@@ -34,6 +34,7 @@ export const ROADMAP_RENDER_ACTIONS = {
   cardClick: 'roadmapRenderCardClick',
   openDepModal: 'roadmapRenderOpenDepModal',
   ghostCardOpenDoc: 'roadmapRenderGhostCardOpenDoc',
+  estCardOpenEpic: 'roadmapRenderEstCardOpenEpic',
 };
 registerActions({
   [ROADMAP_RENDER_ACTIONS.epicClick]: (el, e) => {
@@ -54,6 +55,9 @@ registerActions({
   },
   [ROADMAP_RENDER_ACTIONS.ghostCardOpenDoc]: (el) => {
     openDoc(el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+  [ROADMAP_RENDER_ACTIONS.estCardOpenEpic]: (el) => {
+    openDoc(el.dataset.estEpic ?? '', 'epic');
   },
 });
 // ── Story-point card heights (Fibonacci scale) ────────────────
@@ -122,6 +126,74 @@ const _CATEGORY_COLORS = {
 const _CATEGORY_FALLBACK = '#94a3b8';
 export function epicColor(workCategory) {
   return (workCategory && _CATEGORY_COLORS[workCategory]) || _CATEGORY_FALLBACK;
+}
+// Pure: maps each column identifier (sprint name, or '' for Unassigned) to the
+// placeholder cards it should show. `knownSprintNames` are the sprint columns
+// currently rendered — placements pointing at a hidden PI's sprint are simply
+// not drawn. Split out so it's unit-testable without a DOM or the allDocs global.
+export function buildEstPlaceholders(epics, knownSprintNames) {
+  const map = new Map();
+  const push = (key, p) => {
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(p);
+  };
+  for (const epic of epics) {
+    const size = epic.estimatedSprintSize || 0;
+    if (size < 1) continue;
+    const color = epicColor(epic.workCategory);
+    const placements = epic.estimatedSprints || [];
+    for (const s of placements) {
+      if (!knownSprintNames.has(s)) continue;
+      push(s, { epicFilename: epic.filename, epicTitle: epic.title, color, fromSprint: s });
+    }
+    // Remaining placeholders (size minus every saved placement) sit unassigned.
+    const remaining = Math.max(0, size - placements.length);
+    for (let i = 0; i < remaining; i++) {
+      push('', { epicFilename: epic.filename, epicTitle: epic.title, color, fromSprint: '' });
+    }
+  }
+  return map;
+}
+export function buildEstPlaceholderCardHtml(p) {
+  return `
+    <div class="rm-est-card" draggable="true"
+         data-action="${ROADMAP_RENDER_ACTIONS.estCardOpenEpic}"
+         oncontextmenu="handleEstCardContextMenu(event,'${escHtml(p.epicFilename)}','${escHtml(p.fromSprint)}')"
+         data-est-epic="${escHtml(p.epicFilename)}"
+         data-sprint="${escHtml(p.fromSprint)}"
+         style="--rm-est-color:${p.color}"
+         title="Estimated sprint for &quot;${escHtml(p.epicTitle)}&quot; — not yet refined. Drag or right-click to plan the roadmap.">
+      <div class="rm-est-card-parent">
+        <span class="rm-parent-dot" style="background:${p.color}"></span>${escHtml(p.epicTitle)}
+      </div>
+      <div class="rm-est-card-label">≈ 1 sprint · estimate</div>
+    </div>`;
+}
+// Pure: applies a single placeholder move to an epic's persisted placement
+// multiset — removes one entry for `fromSprint` (a move out of Unassigned,
+// fromSprint null, removes nothing), adds one for `toSprint` (a move to
+// Unassigned, toSprint null, adds nothing) but never exceeds `size` placements.
+// Shared by the drag path (roadmap-drag.ts) and the context menu
+// (roadmap-context-menus.ts) so both mutate placements identically.
+export function updateEstPlacements(placements, size, fromSprint, toSprint) {
+  const next = [...placements];
+  if (fromSprint) {
+    const idx = next.indexOf(fromSprint);
+    if (idx !== -1) next.splice(idx, 1);
+  }
+  if (toSprint && next.length < size) next.push(toSprint);
+  return next;
+}
+// Selects epics eligible for placeholder rendering: type epic, a set estimate,
+// and either no PI yet or a currently-visible PI. Kept here (not pure) so both
+// renderStoryPanel and patchStoryColumn build the same set the same way.
+export function visibleEstimateEpics() {
+  return allDocs.filter(
+    (d) =>
+      d.docType === 'epic' &&
+      (d.estimatedSprintSize || 0) >= 1 &&
+      (!d.fixVersion || _roadmapVisiblePis.has(d.fixVersion))
+  );
 }
 // ── Main render ──────────────────────────────────────────────
 export function renderRoadmapBoard() {
@@ -211,20 +283,30 @@ export function renderEpicPanel(sprints) {
     const color = isNone ? 'var(--muted)' : epicColor(epicDoc?.workCategory);
     const fn = epicDoc?.filename || '';
     const snippet = epicDoc?.descriptionSnippet || '';
-    // Compute sprint span
-    const indices = [...sprintSet].filter((s) => sprintIdx.has(s)).map((s) => sprintIdx.get(s));
+    // Compute sprint span — union of story-derived sprints and, for unrefined
+    // epics, their estimated-sprint placements so the bar reflects the estimate.
+    const estSprints = (epicDoc?.estimatedSprints || []).filter((s) => sprintIdx.has(s));
+    const spanSprints = new Set([...sprintSet, ...estSprints]);
+    const indices = [...spanSprints].filter((s) => sprintIdx.has(s)).map((s) => sprintIdx.get(s));
     const minIdx = indices.length ? Math.min(...indices) : -1;
     const maxIdx = indices.length ? Math.max(...indices) : -1;
+    // A bar built purely from the estimate (no refined stories yet) is drawn
+    // in a lighter, dashed style to read as "estimated, not committed".
+    const isEstBar = storyCount === 0 && !!epicDoc?.estimatedSprintSize;
     // Bar geometry
     let barHtml = '';
     if (minIdx >= 0) {
       const leftPct = ((minIdx / N) * 100).toFixed(2);
       const widthPct = (((maxIdx - minIdx + 1) / N) * 100).toFixed(2);
-      barHtml = `<div class="rm-epic-bar" style="left:${leftPct}%;width:${widthPct}%;background:${color};"></div>`;
+      barHtml = `<div class="rm-epic-bar${isEstBar ? ' rm-epic-bar-est' : ''}" style="left:${leftPct}%;width:${widthPct}%;background:${color};"></div>`;
     }
     // Grid cells (vertical lines)
     const cells = sprints.map(() => '<div class="rm-grid-cell"></div>').join('');
-    const meta = `${storyCount} stor${storyCount !== 1 ? 'ies' : 'y'} · ${totalSP} SP`;
+    const estSize = epicDoc?.estimatedSprintSize || 0;
+    const meta =
+      storyCount === 0 && estSize
+        ? `~${estSize} sprint${estSize !== 1 ? 's' : ''} · estimate`
+        : `${storyCount} stor${storyCount !== 1 ? 'ies' : 'y'} · ${totalSP} SP`;
     // Tooltip data attributes for hover popup
     const tooltipAttrs = snippet
       ? ` data-tooltip-title="${escHtml(title)}" data-tooltip-desc="${escHtml(snippet)}"`
@@ -280,18 +362,21 @@ export function renderStoryPanel(sprints) {
       unassigned.push(d);
     }
   }
+  // Estimated-sprint placeholder cards for unrefined epics (keyed by column)
+  const knownSprintNames = new Set(sprints.map((s) => s.name));
+  const placeholderMap = buildEstPlaceholders(visibleEstimateEpics(), knownSprintNames);
   // Render columns (same sprint order as epic panel)
   let html = '';
   for (const s of sprints) {
     const docs = grouped.get(s.name) || [];
-    html += renderStoryColumn(s.name, docs, s.capacity);
+    html += renderStoryColumn(s.name, docs, s.capacity, placeholderMap.get(s.name) || []);
   }
   // Unassigned
-  html += renderStoryColumn(null, unassigned, 0);
+  html += renderStoryColumn(null, unassigned, 0, placeholderMap.get('') || []);
   body.innerHTML = `<div class="rm-story-columns">${html}</div>`;
   initRoadmapDragDrop();
 }
-export function renderStoryColumn(sprintName, docs, capacity) {
+export function renderStoryColumn(sprintName, docs, capacity, placeholders = []) {
   const isUnassigned = !sprintName;
   const label = isUnassigned ? 'Unassigned' : escHtml(sprintName);
   const columnClass = isUnassigned ? 'roadmap-column roadmap-unassigned' : 'roadmap-column';
@@ -311,9 +396,10 @@ export function renderStoryColumn(sprintName, docs, capacity) {
     statsHtml = `<span class="roadmap-col-stats">${docs.length} item(s)</span>`;
   }
   const sortedDocs = topoSortCards(docs);
-  const cardsHtml = sortedDocs.length
-    ? sortedDocs.map((d) => renderRoadmapCard(d, sprintName)).join('')
-    : '<div class="roadmap-card-empty">No items</div>';
+  const realCardsHtml = sortedDocs.map((d) => renderRoadmapCard(d, sprintName)).join('');
+  const estCardsHtml = placeholders.map(buildEstPlaceholderCardHtml).join('');
+  const cardsHtml =
+    realCardsHtml + estCardsHtml || '<div class="roadmap-card-empty">No items</div>';
   return `
     <div class="${columnClass}" data-sprint="${sprintName ? escHtml(sprintName) : ''}">
       <div class="roadmap-column-header">
@@ -349,8 +435,10 @@ export function patchStoryColumn(sprintName) {
     renderRoadmapBoard();
     return;
   }
+  const placeholders =
+    buildEstPlaceholders(visibleEstimateEpics(), knownSprintNames).get(sprintName ?? '') || [];
   const wrapper = document.createElement('div');
-  wrapper.innerHTML = renderStoryColumn(sprintName, docs, capacity).trim();
+  wrapper.innerHTML = renderStoryColumn(sprintName, docs, capacity, placeholders).trim();
   const newEl = wrapper.firstElementChild;
   if (!newEl) {
     renderRoadmapBoard();

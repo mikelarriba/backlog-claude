@@ -8,8 +8,15 @@ import assert from 'node:assert/strict';
 import { installRoadmapMocks } from '../helpers/mockRoadmapDeps.js';
 
 installRoadmapMocks();
-const { topoSortCards, epicColor, spCardHeight, buildRoadmapCardHtml } =
-  await import('../../public/js/roadmap-render.js');
+const {
+  topoSortCards,
+  epicColor,
+  spCardHeight,
+  buildRoadmapCardHtml,
+  buildEstPlaceholders,
+  buildEstPlaceholderCardHtml,
+  updateEstPlacements,
+} = await import('../../public/js/roadmap-render.js');
 
 function makeDoc(overrides = {}) {
   return {
@@ -33,6 +40,8 @@ function makeDoc(overrides = {}) {
     pi: null,
     team: null,
     workCategory: null,
+    estimatedSprintSize: null,
+    estimatedSprints: [],
     hasDescription: false,
     descriptionSnippet: null,
     ...overrides,
@@ -208,5 +217,147 @@ describe('buildRoadmapCardHtml', () => {
     assert.doesNotMatch(html, /<script>/);
     assert.match(html, /roadmap-card-title">&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;</);
     assert.match(html, /A &amp; B/);
+  });
+});
+
+// ── buildEstPlaceholders ──────────────────────────────────────────────────────
+describe('buildEstPlaceholders', () => {
+  const known = new Set(['S1', 'S2', 'S3']);
+
+  test('ignores epics without an estimated sprint size', () => {
+    const map = buildEstPlaceholders(
+      [makeDoc({ docType: 'epic', estimatedSprintSize: null })],
+      known
+    );
+    assert.equal(map.size, 0);
+  });
+
+  test('puts all placeholders in Unassigned when none are placed', () => {
+    const epic = makeDoc({ filename: 'e.md', docType: 'epic', estimatedSprintSize: 3 });
+    const map = buildEstPlaceholders([epic], known);
+    assert.equal(map.get('').length, 3);
+    assert.equal(map.get('S1'), undefined);
+  });
+
+  test('places one placeholder per saved sprint and leaves the rest unassigned', () => {
+    const epic = makeDoc({
+      filename: 'e.md',
+      docType: 'epic',
+      estimatedSprintSize: 3,
+      estimatedSprints: ['S1', 'S2'],
+    });
+    const map = buildEstPlaceholders([epic], known);
+    assert.equal(map.get('S1').length, 1);
+    assert.equal(map.get('S2').length, 1);
+    assert.equal(map.get('').length, 1); // 3 - 2 placed = 1 unassigned
+  });
+
+  test('stacks multiple placeholders of the same epic in one sprint', () => {
+    const epic = makeDoc({
+      filename: 'e.md',
+      docType: 'epic',
+      estimatedSprintSize: 2,
+      estimatedSprints: ['S1', 'S1'],
+    });
+    const map = buildEstPlaceholders([epic], known);
+    assert.equal(map.get('S1').length, 2);
+    assert.equal(map.get(''), undefined); // all placed
+  });
+
+  test('drops placements pointing at sprints not currently rendered', () => {
+    const epic = makeDoc({
+      filename: 'e.md',
+      docType: 'epic',
+      estimatedSprintSize: 2,
+      estimatedSprints: ['S1', 'HIDDEN'],
+    });
+    const map = buildEstPlaceholders([epic], known);
+    assert.equal(map.get('S1').length, 1);
+    // HIDDEN isn't drawn anywhere; unassigned count excludes it too (size - all placed)
+    assert.equal(map.get(''), undefined);
+  });
+
+  test('carries the epic identity and category colour onto each placeholder', () => {
+    const epic = makeDoc({
+      filename: 'e.md',
+      title: 'Big Epic',
+      docType: 'epic',
+      workCategory: 'User Features',
+      estimatedSprintSize: 1,
+      estimatedSprints: ['S2'],
+    });
+    const [p] = buildEstPlaceholders([epic], known).get('S2');
+    assert.equal(p.epicFilename, 'e.md');
+    assert.equal(p.epicTitle, 'Big Epic');
+    assert.equal(p.color, '#16a34a');
+    assert.equal(p.fromSprint, 'S2');
+  });
+});
+
+// ── buildEstPlaceholderCardHtml ───────────────────────────────────────────────
+describe('buildEstPlaceholderCardHtml', () => {
+  test('renders a draggable card wired to the epic and its source sprint', () => {
+    const html = buildEstPlaceholderCardHtml({
+      epicFilename: 'e.md',
+      epicTitle: 'Epic',
+      color: '#0891b2',
+      fromSprint: 'S1',
+    });
+    assert.match(html, /class="rm-est-card"/);
+    assert.match(html, /draggable="true"/);
+    assert.match(html, /data-est-epic="e\.md"/);
+    assert.match(html, /data-sprint="S1"/);
+    assert.match(html, /--rm-est-color:#0891b2/);
+  });
+
+  test('escapes HTML-significant characters in the epic title', () => {
+    const html = buildEstPlaceholderCardHtml({
+      epicFilename: 'e.md',
+      epicTitle: '<b>&"x"</b>',
+      color: '#000',
+      fromSprint: '',
+    });
+    assert.doesNotMatch(html, /<b>/);
+    assert.match(html, /&lt;b&gt;/);
+  });
+
+  test('wires up an oncontextmenu hook carrying the epic and source sprint', () => {
+    const html = buildEstPlaceholderCardHtml({
+      epicFilename: 'e.md',
+      epicTitle: 'Epic',
+      color: '#000',
+      fromSprint: 'S1',
+    });
+    assert.match(html, /oncontextmenu="handleEstCardContextMenu\(event,'e\.md','S1'\)"/);
+  });
+});
+
+// ── updateEstPlacements ───────────────────────────────────────────────────────
+describe('updateEstPlacements', () => {
+  test('assigning an unassigned placeholder adds the destination sprint', () => {
+    assert.deepEqual(updateEstPlacements(['S1'], 3, null, 'S2'), ['S1', 'S2']);
+  });
+
+  test('moving a placed placeholder to Unassigned removes one entry', () => {
+    assert.deepEqual(updateEstPlacements(['S1', 'S2'], 3, 'S1', null), ['S2']);
+  });
+
+  test('moving between sprints removes the source and adds the destination', () => {
+    assert.deepEqual(updateEstPlacements(['S1', 'S2'], 3, 'S1', 'S3'), ['S2', 'S3']);
+  });
+
+  test('removes only one occurrence when a sprint holds two placeholders', () => {
+    assert.deepEqual(updateEstPlacements(['S1', 'S1'], 2, 'S1', 'S2'), ['S1', 'S2']);
+  });
+
+  test('never exceeds the estimate size when assigning', () => {
+    // size 2, already 2 placed, no source removed → destination dropped
+    assert.deepEqual(updateEstPlacements(['S1', 'S2'], 2, null, 'S3'), ['S1', 'S2']);
+  });
+
+  test('does not mutate the input array', () => {
+    const input = ['S1'];
+    updateEstPlacements(input, 3, 'S1', 'S2');
+    assert.deepEqual(input, ['S1']);
   });
 });

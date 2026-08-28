@@ -91,6 +91,13 @@ export const PatchDocSchema = z
     team: z.string().optional().openapi({ description: 'Team name' }),
     workCategory: z.string().optional().openapi({ description: 'Work category' }),
     priority: z.string().optional().openapi({ description: 'Priority level' }),
+    estimatedSprintSize: z.union([z.number(), z.null()]).optional().openapi({
+      description: 'Estimated roadmap sprint size for an epic (1–4, or null to clear)',
+    }),
+    estimatedSprints: z
+      .array(z.string())
+      .optional()
+      .openapi({ description: 'Sprint assignments for an epic estimate placeholders' }),
     commentsSection: z.string().optional().openapi({ description: 'Comments section content' }),
   })
   .refine(
@@ -105,6 +112,8 @@ export const PatchDocSchema = z
         'team',
         'workCategory',
         'priority',
+        'estimatedSprintSize',
+        'estimatedSprints',
         'commentsSection',
       ].some((f) => body[f as keyof typeof body] !== undefined),
     { message: 'At least one field must be provided' }

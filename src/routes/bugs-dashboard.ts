@@ -1,5 +1,7 @@
 // ── Bug Dashboard routes — JIRA data pipeline & AI analysis ──────────────────
 import { Router } from 'express';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { sendError, setupSSE, parseApiError } from '../utils/routeHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { BugAnalyzeSchema } from '../schemas/bugs-dashboard.js';
@@ -210,15 +212,124 @@ function buildBugItems(bugs: unknown[]): BugItem[] {
   });
 }
 
+// ── AI analysis report persistence ──────────────────────────────────────────
+// Each analysis run is written to its own timestamped markdown file under
+// docs/bug-analysis/ so the history is preserved on disk and the UI can reopen
+// the most recent report at any time (even after a reload). docs/ is gitignored
+// runtime data, so these reports never reach the remote.
+interface SavedReport {
+  filename: string;
+  savedAt: string;
+  bugKeys: string[];
+  bugCount: number;
+  markdown: string;
+}
+
+function reportTimestamp(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+// Pipes and newlines would break a one-row-per-bug markdown table cell.
+function cell(v: string): string {
+  return (v || '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+}
+
+function buildReportMarkdown(
+  bugs: BugItem[],
+  analysis: string,
+  jiraBase: string,
+  generatedAt: Date
+): string {
+  const keys = bugs.map((b) => b.key);
+  const human = generatedAt.toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  const rows = bugs
+    .map((b) => {
+      const link = `[${b.key}](${jiraBase}/browse/${b.key})`;
+      return `| ${link} | ${cell(b.summary)} | ${cell(b.status)} | ${cell(b.priority)} | ${cell(b.assignee || '—')} |`;
+    })
+    .join('\n');
+
+  return (
+    `---\n` +
+    `Generated: ${generatedAt.toISOString()}\n` +
+    `Bug_Count: ${bugs.length}\n` +
+    `Bug_Keys: ${keys.join(', ')}\n` +
+    `---\n\n` +
+    `# 🐛 AI Bug Analysis — ${human}\n\n` +
+    `Analyzed **${bugs.length}** bug${bugs.length === 1 ? '' : 's'}.\n\n` +
+    `## Analyzed Bugs\n\n` +
+    `| Key | Summary | Status | Priority | Assignee |\n` +
+    `| --- | --- | --- | --- | --- |\n` +
+    `${rows}\n\n` +
+    `---\n\n` +
+    `${analysis.trim()}\n`
+  );
+}
+
+async function saveReport(
+  dir: string,
+  bugs: BugItem[],
+  analysis: string,
+  jiraBase: string
+): Promise<{ filename: string; savedAt: string }> {
+  await fs.mkdir(dir, { recursive: true });
+  const now = new Date();
+  const filename = `${reportTimestamp(now)}-analysis.md`;
+  const markdown = buildReportMarkdown(bugs, analysis, jiraBase, now);
+  await fs.writeFile(path.join(dir, filename), markdown, 'utf8');
+  return { filename, savedAt: now.toISOString() };
+}
+
+// Newest report on disk. Filenames are timestamped so a descending sort of the
+// *-analysis.md files yields the most recent without stat-ing every file.
+async function loadLatestReport(dir: string): Promise<SavedReport | null> {
+  let names: string[];
+  try {
+    names = await fs.readdir(dir);
+  } catch {
+    return null;
+  }
+  const reports = names.filter((n) => n.endsWith('-analysis.md')).sort();
+  const filename = reports[reports.length - 1];
+  if (!filename) return null;
+
+  const raw = await fs.readFile(path.join(dir, filename), 'utf8');
+  const fm = raw.match(/^---\n([\s\S]*?)\n---\n/);
+  const front = fm ? fm[1] : '';
+  const get = (k: string): string =>
+    front.match(new RegExp(`^${k}:\\s*(.*)$`, 'm'))?.[1]?.trim() ?? '';
+  const bugKeysRaw = get('Bug_Keys');
+  return {
+    filename,
+    savedAt: get('Generated'),
+    bugKeys: bugKeysRaw
+      ? bugKeysRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [],
+    bugCount: Number(get('Bug_Count')) || 0,
+    markdown: raw,
+  };
+}
+
 export default function bugsDashboardRoutes({
   JIRA_PROJECT,
   JIRA_LABEL,
+  JIRA_BASE,
+  BUGS_DIR,
   jiraRequest,
   streamClaude,
   logInfo,
   logError,
 }: JiraRouteContext) {
   const router = Router();
+  // Sibling of docs/bugs/ — e.g. docs/bug-analysis/.
+  const ANALYSIS_DIR = path.join(path.dirname(BUGS_DIR), 'bug-analysis');
 
   // GET /api/bugs/dashboard — SSE streaming with progress events
   router.get('/api/bugs/dashboard', async (_req, res) => {
@@ -376,11 +487,24 @@ export default function bugsDashboardRoutes({
       setupSSE(res);
       const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
+      let fullText = '';
       await streamClaude(prompt, (chunk: string) => {
+        fullText += chunk;
         send({ text: chunk });
       });
 
-      send({ done: true });
+      // Persist the completed analysis (with JIRA links) so it can be reopened
+      // later. A save failure must not fail the request — the user already has
+      // the streamed result — so it's logged and reported as report: null.
+      let report: { filename: string; savedAt: string } | null = null;
+      try {
+        report = await saveReport(ANALYSIS_DIR, selected, fullText, JIRA_BASE);
+        logInfo('bugs-dashboard', `Saved analysis report ${report.filename}`);
+      } catch (saveErr) {
+        logError('POST /api/bugs/dashboard/analyze (save)', parseApiError(saveErr).message);
+      }
+
+      send({ done: true, report });
       res.end();
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -396,6 +520,21 @@ export default function bugsDashboardRoutes({
       } catch {
         /* response already closed */
       }
+    }
+  });
+
+  // GET /api/bugs/dashboard/analyses/latest — most recent saved analysis report.
+  // Backs the "expand last analysis" floating button, which can reopen a report
+  // even after a page reload or server restart.
+  router.get('/api/bugs/dashboard/analyses/latest', async (_req, res) => {
+    try {
+      const report = await loadLatestReport(ANALYSIS_DIR);
+      if (!report) return sendError(res, 404, 'NO_REPORT', 'No saved analysis reports yet.');
+      res.json(report);
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('GET /api/bugs/dashboard/analyses/latest', apiErr.message);
+      sendError(res, 500, apiErr.code, apiErr.message);
     }
   });
 

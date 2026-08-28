@@ -81,6 +81,14 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
     const piRaw = extractFrontmatterField(content, 'PI');
     const teamRaw = extractFrontmatterField(content, 'Team');
     const workCatRaw = extractFrontmatterField(content, 'Work_Category');
+    const estSizeRaw = extractFrontmatterField(content, 'Estimated_Sprint_Size');
+    const estSprintsRaw = extractFrontmatterField(content, 'Estimated_Sprints');
+    const estimatedSprints = estSprintsRaw
+      ? estSprintsRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s && s !== 'TBD')
+      : [];
 
     let body = content;
     if (body.startsWith('---')) {
@@ -115,6 +123,11 @@ export function createDocIndex({ TYPE_CONFIG }: { TYPE_CONFIG: TypeConfig }): Do
       pi: piRaw && piRaw !== 'TBD' ? piRaw : null,
       team: teamRaw && teamRaw !== 'TBD' ? teamRaw : null,
       workCategory: workCatRaw && workCatRaw !== 'TBD' ? workCatRaw : null,
+      estimatedSprintSize:
+        estSizeRaw && estSizeRaw !== 'TBD' && !isNaN(Number(estSizeRaw))
+          ? Number(estSizeRaw)
+          : null,
+      estimatedSprints,
       hasDescription: body.length > 30,
       descriptionSnippet: body.length > 30 ? body.slice(0, 150) : null,
     };

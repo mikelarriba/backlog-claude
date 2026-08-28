@@ -33,6 +33,13 @@ export interface DocEntry {
   pi: string | null;
   team: string | null;
   workCategory: string | null;
+  // Roadmap planning estimate for unrefined epics: number of full sprints the
+  // epic is expected to take (1–4), or null when unset. Drives striped
+  // placeholder cards on the roadmap. Only meaningful for epics.
+  estimatedSprintSize: number | null;
+  // Per-placeholder sprint assignments (a multiset of sprint names, length ≤
+  // estimatedSprintSize). Entries not present here are unassigned placeholders.
+  estimatedSprints: string[];
   hasDescription: boolean;
   descriptionSnippet: string | null;
 }
@@ -316,6 +323,22 @@ export async function streamSSE(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  // A failing route (e.g. STALE_CACHE, JIRA_NOT_CONFIGURED) answers with a plain
+  // JSON error *before* the SSE stream starts — no `data:` lines ever arrive, so
+  // readSSELines() would resolve silently and the caller's onError/onDone would
+  // never fire. Surface the error explicitly instead of swallowing it.
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const payload = (await res.json()) as { error?: unknown };
+      message = getErrorMessage(payload.error, message);
+    } catch {
+      /* body was not JSON — keep the status-based message */
+    }
+    const err = new Error(message);
+    if (onError) return onError(err);
+    throw err;
+  }
   await readSSELines(res, (raw) => {
     try {
       const payload = JSON.parse(raw) as SSEPayloadChunk;

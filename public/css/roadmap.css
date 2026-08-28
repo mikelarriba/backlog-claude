@@ -189,6 +189,12 @@
   border-bottom: none;
 }
 
+/* Collapsed panel shrinks to just its header so the sibling panel expands to
+   fill the freed space (paired with toggleRoadmapPanel adding this class). */
+.rm-panel.rm-panel-collapsed {
+  flex: 0 0 auto;
+}
+
 .rm-panel-header {
   display: flex;
   align-items: center;
@@ -427,13 +433,23 @@
 }
 
 /* ── Story panel: sprint columns ──────────────────────────── */
+/* The story panel body itself does not scroll vertically — each column fills
+   the panel height and scrolls its own card list, so the column headers (the
+   drop targets) stay frozen in view no matter how far down a long backlog
+   column you scroll. Horizontal scrolling for many sprints stays on the
+   columns row. (The epic panel keeps its own scroll model via .rm-board-header.) */
+#rm-body-stories {
+  overflow: hidden;
+  min-height: 0;
+}
 .rm-story-columns {
   display: flex;
   gap: var(--space-3);
   padding: var(--space-4);
   overflow-x: auto;
-  align-items: flex-start;
-  min-height: 100%;
+  overflow-y: hidden;
+  align-items: stretch;
+  height: 100%;
 }
 
 /* ── Shared column (reused from old roadmap) ──────────────── */
@@ -821,6 +837,60 @@
   color: var(--muted);
   margin-top: 4px;
   font-style: italic;
+}
+
+/* ── Estimated-sprint placeholder cards (unrefined epics) ─────── */
+/* Lighter, desaturated tone of the epic's colour with a dashed border so they
+   read as "estimated, not yet refined". --rm-est-color is the epic colour set
+   inline per card. */
+.rm-est-card {
+  padding: 7px 9px;
+  border: 1px dashed var(--rm-est-color, var(--muted));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--rm-est-color, var(--muted)) 12%, var(--bg));
+  cursor: grab;
+  user-select: none;
+  transition:
+    background 0.12s,
+    box-shadow 0.12s,
+    opacity 0.15s;
+}
+.rm-est-card:hover {
+  background: color-mix(in srgb, var(--rm-est-color, var(--muted)) 22%, var(--bg));
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.rm-est-card:active {
+  cursor: grabbing;
+}
+.rm-est-card.dragging {
+  opacity: 0.35;
+}
+.rm-est-card-parent {
+  font-size: 0.58rem;
+  color: var(--muted);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.rm-est-card-label {
+  font-size: 0.62rem;
+  color: var(--muted);
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+
+/* Estimate-only epic timeline bar: lighter + dashed = uncommitted */
+.rm-epic-bar.rm-epic-bar-est {
+  opacity: 0.4;
+  border: 1.5px dashed rgba(148, 163, 184, 0.9);
+}
+.rm-epic-card:hover .rm-epic-bar.rm-epic-bar-est {
+  opacity: 0.6;
 }
 
 /* ── Dependency badges on roadmap cards ──────────────────────── */

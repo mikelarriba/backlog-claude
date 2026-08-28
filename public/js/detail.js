@@ -26,6 +26,7 @@ import {
   updateStoryPointsUI,
   updateSprintSelect,
   updateTeamWorkCatSelects,
+  updateEstSizeSelect,
   _renderComments,
   _parseComments,
 } from './detail-fields.js';
@@ -114,6 +115,7 @@ export async function openDoc(filename, docType) {
     updateStoryPointsUI(docType, doc?.storyPoints ?? null);
     updateSprintSelect(docType, doc?.fixVersion, doc?.sprint);
     updateTeamWorkCatSelects(doc);
+    updateEstSizeSelect(docType, doc);
     document.querySelector('.right').classList.add('has-selection');
     if (isSplitMode() || isRoadmapOpen()) {
       document.getElementById('detail-view').classList.add('show');
