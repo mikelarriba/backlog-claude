@@ -541,6 +541,20 @@
                   <option value="">No Sprint</option>
                 </select>
               </div>
+              <div class="detail-field-group hidden">
+                <label class="detail-field-label">Est. Sprint Size</label>
+                <select
+                  class="detail-field-select hidden"
+                  id="detail-est-size-select"
+                  data-change-action="updateDocEstimatedSprintSize"
+                >
+                  <option value="">No Estimate</option>
+                  <option value="1">1 sprint</option>
+                  <option value="2">2 sprints</option>
+                  <option value="3">3 sprints</option>
+                  <option value="4">4 sprints</option>
+                </select>
+              </div>
               <div class="detail-field-group">
                 <label class="detail-field-label">Category</label>
                 <select
@@ -1323,50 +1337,91 @@
             <div class="bugs-chart-wrap" id="bugs-chart-wrap">
               <canvas id="bugs-chart"></canvas>
             </div>
-            <!-- Filter bar -->
-            <div class="bugs-filter-bar">
-              <select id="bugs-filter-priority" data-change-action="filterBugsTable">
-                <option value="all">All Priorities</option>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-              <select id="bugs-filter-status" data-change-action="filterBugsTable">
-                <option value="all">All Statuses</option>
-                <option value="open">Open</option>
-                <option value="in progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-                <option value="closed">Closed</option>
-              </select>
-              <div class="bugs-env-toggle">
-                <button class="active" data-action="filterBugsEnv" data-env="all">All</button>
-                <button data-action="filterBugsEnv" data-env="production">Production</button>
-                <button data-action="filterBugsEnv" data-env="testing">Testing</button>
+            <div class="bugs-workspace" id="bugs-workspace">
+              <div class="bugs-workspace-left">
+                <!-- Filter bar -->
+                <div class="bugs-filter-bar">
+                  <select id="bugs-filter-priority" data-change-action="filterBugsTable">
+                    <option value="all">All Priorities</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                  <select id="bugs-filter-status" data-change-action="filterBugsTable">
+                    <option value="all">All Statuses</option>
+                    <option value="open">Open</option>
+                    <option value="in progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                  <div class="bugs-env-toggle">
+                    <button class="active" data-action="filterBugsEnv" data-env="all">All</button>
+                    <button data-action="filterBugsEnv" data-env="production">Production</button>
+                    <button data-action="filterBugsEnv" data-env="testing">Testing</button>
+                  </div>
+                  <label class="bugs-toggle-closed">
+                    <input
+                      type="checkbox"
+                      id="bugs-include-closed"
+                      data-change-action="toggleClosedBugsChange"
+                    />
+                    Include closed
+                  </label>
+                  <span class="bugs-selection-count" id="bugs-selection-count"></span>
+                </div>
+                <!-- Bug table -->
+                <div id="bugs-table-wrap"></div>
               </div>
-              <label class="bugs-toggle-closed">
-                <input
-                  type="checkbox"
-                  id="bugs-include-closed"
-                  data-change-action="toggleClosedBugsChange"
-                />
-                Include closed
-              </label>
-              <span class="bugs-selection-count" id="bugs-selection-count"></span>
-              <button class="btn-primary" id="bugs-analyze-btn" data-action="analyzeBugs" disabled>
-                ✨ AI Analyze
-              </button>
-            </div>
-            <!-- Bug table -->
-            <div id="bugs-table-wrap"></div>
-            <!-- AI Analysis panel -->
-            <div class="bugs-analysis-panel" id="bugs-analysis-panel" style="display: none">
-              <div class="bugs-analysis-header">
-                <span>✨ AI Analysis</span>
-                <button class="btn-ghost btn-xs" data-action="closeBugsAnalysis">&times;</button>
+              <!-- AI analysis report (toggled by the floating buttons) -->
+              <div class="bugs-analysis-panel" id="bugs-analysis-panel">
+                <div class="bugs-analysis-panel-header">
+                  <h3>✨ AI Analysis</h3>
+                  <span class="bugs-analysis-meta" id="bugs-analysis-meta"></span>
+                  <button
+                    class="btn-ghost btn-xs"
+                    data-action="toggleBugsAnalysis"
+                    title="Close analysis"
+                    aria-label="Close analysis"
+                  >
+                    &times;
+                  </button>
+                </div>
+                <div
+                  class="bugs-analysis-progress"
+                  id="bugs-analysis-progress"
+                  style="display: none"
+                ></div>
+                <div class="bugs-analysis-body" id="bugs-analysis-body">
+                  <p class="bugs-analysis-placeholder">
+                    Select one or more bugs and use ✨ AI Analyze to generate insights, or reopen
+                    your last saved analysis.
+                  </p>
+                </div>
               </div>
-              <div class="bugs-analysis-body" id="bugs-analysis-body"></div>
             </div>
+          </div>
+          <!-- Floating action buttons: AI analyze + expand/close last analysis -->
+          <div class="bugs-fab" id="bugs-fab">
+            <button
+              class="bugs-fab-btn bugs-fab-secondary"
+              id="bugs-last-analysis-btn"
+              data-action="toggleBugsAnalysis"
+              title="Expand or close the last analysis report"
+            >
+              <span class="bugs-fab-icon">📄</span>
+              <span class="bugs-fab-label">Last analysis</span>
+            </button>
+            <button
+              class="bugs-fab-btn bugs-fab-primary"
+              id="bugs-analyze-btn"
+              data-action="analyzeBugs"
+              title="Analyze the selected bugs with AI"
+              disabled
+            >
+              <span class="bugs-fab-icon">✨</span>
+              <span class="bugs-fab-label">AI Analyze</span>
+            </button>
           </div>
         </div>
         <div id="suggestions-view" class="placeholder-view">

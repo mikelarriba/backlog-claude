@@ -44,7 +44,7 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
     '/api/canvas/layout/:epicFilename',
     validateBody(CanvasLayoutSchema),
     async (req, res) => {
-      const epicFilename = decodeURIComponent(req.params.epicFilename);
+      const epicFilename = decodeURIComponent(req.params.epicFilename as string);
       const { positions } = req.body;
 
       const layout = await loadLayout();

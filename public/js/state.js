@@ -226,6 +226,22 @@ export async function streamSSE(url, body, { onText, onDone, onError, onProgress
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  // A failing route (e.g. STALE_CACHE, JIRA_NOT_CONFIGURED) answers with a plain
+  // JSON error *before* the SSE stream starts — no `data:` lines ever arrive, so
+  // readSSELines() would resolve silently and the caller's onError/onDone would
+  // never fire. Surface the error explicitly instead of swallowing it.
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const payload = await res.json();
+      message = getErrorMessage(payload.error, message);
+    } catch {
+      /* body was not JSON — keep the status-based message */
+    }
+    const err = new Error(message);
+    if (onError) return onError(err);
+    throw err;
+  }
   await readSSELines(res, (raw) => {
     try {
       const payload = JSON.parse(raw);

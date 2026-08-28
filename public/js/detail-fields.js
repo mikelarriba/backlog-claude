@@ -264,6 +264,41 @@ export async function updateDocSprint(sprint) {
     console.warn('Failed to save sprint:', e.message);
   }
 }
+// ── Estimated Sprint Size (epic roadmap planning) ─────────────
+// Epic-only field (1–4) that drives striped placeholder cards on the roadmap
+// for epics that aren't refined into stories yet. Shown only for epics.
+export function updateEstSizeSelect(docType, doc) {
+  const sel = document.getElementById('detail-est-size-select');
+  if (!sel) return;
+  const group = sel.closest('.detail-field-group');
+  if (docType !== 'epic') {
+    sel.classList.add('hidden');
+    group?.classList.add('hidden');
+    return;
+  }
+  sel.value = doc?.estimatedSprintSize ? String(doc.estimatedSprintSize) : '';
+  sel.classList.remove('hidden');
+  group?.classList.remove('hidden');
+}
+export async function updateDocEstimatedSprintSize(value) {
+  if (!currentFilename || !currentDocType) return;
+  const size = value ? Number(value) : null;
+  const doc = allDocs.find((d) => d.filename === currentFilename && d.docType === currentDocType);
+  // Trim placements that no longer fit under the new size (clear all when unset)
+  // so we never persist more placed placeholders than the epic estimates.
+  let placements = doc?.estimatedSprints ? [...doc.estimatedSprints] : [];
+  if (size === null) placements = [];
+  else if (placements.length > size) placements = placements.slice(0, size);
+  try {
+    await patchJSON(`/api/doc/${currentDocType}/${encodeURIComponent(currentFilename)}`, {
+      estimatedSprintSize: size,
+      estimatedSprints: placements,
+    });
+    if (doc) upsertDoc({ ...doc, estimatedSprintSize: size, estimatedSprints: placements });
+  } catch (e) {
+    console.warn('Failed to save estimated sprint size:', e.message);
+  }
+}
 // ── Team & Work Category helpers ──────────────────────────────
 export function updateTeamWorkCatSelects(doc) {
   document.getElementById('detail-team-select').value = doc?.team || '';
@@ -308,6 +343,9 @@ registerChangeActions({
   },
   updateDocWorkCategory: (el) => {
     void updateDocWorkCategory(el.value);
+  },
+  updateDocEstimatedSprintSize: (el) => {
+    void updateDocEstimatedSprintSize(el.value);
   },
 });
 //# sourceMappingURL=detail-fields.js.map

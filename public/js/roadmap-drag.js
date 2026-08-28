@@ -1,6 +1,6 @@
 // ── Roadmap drag-and-drop (sprint move + in-column rerank) ─
 import { patchJSON, buildChildrenMap, getDescendants } from './state.js';
-import { renderEpicPanel, patchStoryColumn } from './roadmap-render.js';
+import { renderEpicPanel, patchStoryColumn, updateEstPlacements } from './roadmap-render.js';
 import { executeRerankDrop } from './dragdrop.js';
 import { showDepConnectors, hideDepConnectors } from './list-render.js';
 import { getAllSprints } from './roadmap.js';
@@ -135,6 +135,16 @@ export function initRoadmapDragDrop(root = document) {
       clearCardDropClasses();
       try {
         const data = JSON.parse(dragEvent.dataTransfer.getData('text/plain'));
+        // A placeholder dropped onto a real card just joins that card's sprint
+        // column — placeholders don't participate in dependency rerank ordering.
+        if (data.placeholder) {
+          await applyPlaceholderMove(
+            data.epicFilename ?? '',
+            data.fromSprint || null,
+            card.dataset['sprint'] || null
+          );
+          return;
+        }
         if (data.filename === card.dataset['filename']) return;
         // Rerank: determine insertBefore filename
         let insertBeforeFilename;
@@ -162,6 +172,25 @@ export function initRoadmapDragDrop(root = document) {
       }
     });
   });
+  // ── Estimated-sprint placeholder cards ───────────────────────
+  // Draggable like real cards but carry a placeholder payload; their drop is
+  // handled by the per-card and column drop handlers below via applyPlaceholderMove.
+  root.querySelectorAll('.rm-est-card[draggable]').forEach((card) => {
+    card.addEventListener('dragstart', (e) => {
+      const dragEvent = e;
+      card.classList.add('dragging');
+      dragEvent.dataTransfer.effectAllowed = 'move';
+      dragEvent.dataTransfer.setData(
+        'text/plain',
+        JSON.stringify({
+          placeholder: true,
+          epicFilename: card.dataset['estEpic'],
+          fromSprint: card.dataset['sprint'],
+        })
+      );
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  });
   // ── Column-level drop (cross-sprint move) ────────────────────
   dropZones.forEach((zone) => {
     zone.addEventListener('dragover', (e) => {
@@ -183,6 +212,10 @@ export function initRoadmapDragDrop(root = document) {
         const data = JSON.parse(dragEvent.dataTransfer.getData('text/plain'));
         const toSprint = zone.dataset['sprint'] || null;
         if (data.fromSprint === (toSprint || '')) return;
+        if (data.placeholder) {
+          await applyPlaceholderMove(data.epicFilename ?? '', data.fromSprint || null, toSprint);
+          return;
+        }
         await applySprintMove(data.filename, data.docType, data.fromSprint || null, toSprint);
       } catch (err) {
         console.warn('Failed to update sprint assignment:', err.message);
@@ -214,6 +247,28 @@ async function applySprintMove(filename, docType, fromSprint, toSprint) {
   // full (but inexpensive) re-render.
   patchStoryColumn(fromSprint);
   patchStoryColumn(toSprint);
+  renderEpicPanel(getAllSprints());
+}
+// Moves one of an epic's estimated-sprint placeholder cards between columns by
+// updating the epic's persisted `estimatedSprints` multiset: remove one entry
+// for the source sprint (a move out of Unassigned removes nothing), add one for
+// the destination (a move to Unassigned adds nothing), capped at the epic's
+// estimatedSprintSize. Then patches the two affected columns and the epic panel.
+async function applyPlaceholderMove(epicFilename, fromSprint, toSprint) {
+  const epic = allDocs.find((d) => d.filename === epicFilename && d.docType === 'epic');
+  if (!epic) return;
+  const placements = updateEstPlacements(
+    epic.estimatedSprints || [],
+    epic.estimatedSprintSize || 0,
+    fromSprint,
+    toSprint
+  );
+  await patchJSON(`/api/doc/epic/${encodeURIComponent(epicFilename)}`, {
+    estimatedSprints: placements,
+  });
+  epic.estimatedSprints = placements;
+  patchStoryColumn(fromSprint);
+  if ((toSprint || '') !== (fromSprint || '')) patchStoryColumn(toSprint);
   renderEpicPanel(getAllSprints());
 }
 // Focus is lost when patchStoryColumn re-renders a column's HTML, since the

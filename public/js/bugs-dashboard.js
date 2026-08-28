@@ -7,6 +7,10 @@ let _filteredBugs = [];
 const _selectedKeys = new Set();
 let _includeClosed = false;
 let _envFilter = 'all';
+// Whether the right-hand analysis panel is expanded, and whether it holds a
+// fresh analysis from this session (vs. a placeholder / last-saved report).
+let _analysisOpen = false;
+let _hasSessionAnalysis = false;
 export async function loadBugsDashboard(force = false) {
   const refreshBtn = document.getElementById('bugs-refresh-btn');
   const cachedAtEl = document.getElementById('bugs-cached-at');
@@ -81,7 +85,7 @@ export async function loadBugsDashboard(force = false) {
   }
 }
 export function refreshBugsDashboard() {
-  closeBugsAnalysis();
+  _setAnalysisOpen(false);
   loadBugsDashboard(true);
 }
 export function renderBugsStats(stats) {
@@ -238,16 +242,81 @@ export function bugToggleAll(checked) {
   else _filteredBugs.forEach((b) => _selectedKeys.delete(b.key));
   renderBugsTable(_filteredBugs);
 }
+const _ANALYSIS_STEPS = [
+  { label: 'Connecting', doing: 'Sending the selected bugs to the AI analyst…' },
+  { label: 'Prioritizing', doing: 'Ranking bugs by severity and impact…', match: /prioriti/i },
+  {
+    label: 'Fix strategy',
+    doing: 'Grouping bugs and finding common root causes…',
+    match: /fix strategy|batch|root cause/i,
+  },
+  {
+    label: 'Recommendations',
+    doing: 'Drafting next steps for the most critical bugs…',
+    match: /recommendation/i,
+  },
+  { label: 'Patterns', doing: 'Spotting trends and recurring patterns…', match: /pattern/i },
+];
+function _renderAnalysisProgress(el, activeIdx, done) {
+  const total = _ANALYSIS_STEPS.length;
+  // Fill sits mid-way through the active step so it always shows forward motion.
+  const pct = done ? 100 : Math.round(((activeIdx + 0.5) / total) * 100);
+  const doing = done ? 'Analysis complete' : _ANALYSIS_STEPS[activeIdx].doing;
+  const steps = _ANALYSIS_STEPS
+    .map((s, i) => {
+      const state = done || i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'pending';
+      return `<li class="bugs-progress-step ${state}"><span class="bugs-progress-dot"></span><span class="bugs-progress-step-label">${escHtml(s.label)}</span></li>`;
+    })
+    .join('');
+  el.innerHTML =
+    `<div class="bugs-progress-track"><div class="bugs-progress-fill" style="width:${pct}%"></div></div>` +
+    `<div class="bugs-progress-status">` +
+    (done
+      ? '<span class="bugs-progress-check">✓</span>'
+      : '<span class="bugs-progress-spinner"></span>') +
+    `<span class="bugs-progress-label">${escHtml(doing)}</span></div>` +
+    `<ol class="bugs-progress-steps">${steps}</ol>`;
+}
+// Furthest section reached given the markdown streamed so far. Once any text has
+// arrived the "Connecting" step is complete, so the floor is step 1.
+function _analysisStepFor(markdown) {
+  let furthest = 1;
+  for (let i = 1; i < _ANALYSIS_STEPS.length; i++) {
+    const m = _ANALYSIS_STEPS[i].match;
+    if (m && m.test(markdown)) furthest = i;
+  }
+  return furthest;
+}
 export async function analyzeBugs() {
   if (_selectedKeys.size === 0) return;
-  const panel = document.getElementById('bugs-analysis-panel');
   const body = document.getElementById('bugs-analysis-body');
-  if (!panel || !body) return;
-  panel.style.display = '';
-  body.innerHTML = '<em>Analyzing…</em>';
+  const progress = document.getElementById('bugs-analysis-progress');
+  const meta = document.getElementById('bugs-analysis-meta');
+  if (!body) return;
+  // Results render inline in the right-hand panel so they sit alongside the bug
+  // list. The panel is expanded for the duration of the run and the report is
+  // persisted server-side on completion (reopenable via the floating button).
+  _setAnalysisOpen(true);
+  _hasSessionAnalysis = true;
+  if (meta) meta.textContent = '';
+  body.innerHTML = '';
+  if (progress) {
+    progress.style.display = '';
+    _renderAnalysisProgress(progress, 0, false);
+  }
   const btn = document.getElementById('bugs-analyze-btn');
   if (btn) btn.disabled = true;
+  // `failed` swaps the progress bar for an error message; success leaves the
+  // completed bar in place. The trigger re-enables based on the live selection.
+  const finish = (failed) => {
+    if (failed !== undefined) {
+      if (progress) progress.style.display = 'none';
+      body.innerHTML = `<p class="bugs-error">Analysis failed: ${escHtml(failed)}</p>`;
+    }
+    if (btn) btn.disabled = _selectedKeys.size === 0;
+  };
   let markdown = '';
+  let activeIdx = 0;
   try {
     await streamSSE(
       '/api/bugs/dashboard/analyze',
@@ -256,24 +325,75 @@ export async function analyzeBugs() {
         onText: (chunk) => {
           markdown += chunk;
           body.innerHTML = renderMarkdown(markdown);
+          const next = _analysisStepFor(markdown);
+          if (next !== activeIdx && progress) {
+            activeIdx = next;
+            _renderAnalysisProgress(progress, activeIdx, false);
+          }
         },
-        onDone: () => {
-          if (btn) btn.disabled = false;
+        onDone: (payload) => {
+          if (progress) _renderAnalysisProgress(progress, _ANALYSIS_STEPS.length, true);
+          const report = payload?.report;
+          if (meta && report?.savedAt) {
+            meta.textContent = _formatSavedMeta(report.savedAt, _selectedKeys.size);
+          }
+          finish();
         },
-        onError: (err) => {
-          body.innerHTML = `<p class="bugs-error">Analysis failed: ${escHtml(err.message)}</p>`;
-          if (btn) btn.disabled = false;
-        },
+        onError: (err) => finish(err.message),
       }
     );
   } catch (err) {
-    body.innerHTML = `<p class="bugs-error">Analysis failed: ${escHtml(err.message || String(err))}</p>`;
-    if (btn) btn.disabled = false;
+    finish(err.message || String(err));
   }
 }
-export function closeBugsAnalysis() {
-  const panel = document.getElementById('bugs-analysis-panel');
-  if (panel) panel.style.display = 'none';
+// Floating "Last analysis" button: expand or collapse the report panel. Opening
+// it with no fresh session analysis pulls the most recent saved report so the
+// user can reread it even after a reload.
+export async function toggleBugsAnalysis() {
+  if (_analysisOpen) {
+    _setAnalysisOpen(false);
+    return;
+  }
+  _setAnalysisOpen(true);
+  if (!_hasSessionAnalysis) await loadLatestAnalysis();
+}
+async function loadLatestAnalysis() {
+  const body = document.getElementById('bugs-analysis-body');
+  const meta = document.getElementById('bugs-analysis-meta');
+  const progress = document.getElementById('bugs-analysis-progress');
+  if (!body) return;
+  if (progress) progress.style.display = 'none';
+  body.innerHTML = '<p class="bugs-analysis-placeholder">Loading last analysis…</p>';
+  try {
+    const res = await fetch('/api/bugs/dashboard/analyses/latest');
+    if (res.status === 404) {
+      if (meta) meta.textContent = '';
+      body.innerHTML =
+        '<p class="bugs-analysis-placeholder">No saved analysis yet. Select bugs and run ✨ AI Analyze.</p>';
+      return;
+    }
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const report = await res.json();
+    body.innerHTML = renderMarkdown(_stripFrontmatter(report.markdown));
+    if (meta) meta.textContent = _formatSavedMeta(report.savedAt, report.bugCount);
+  } catch (err) {
+    if (meta) meta.textContent = '';
+    body.innerHTML = `<p class="bugs-error">Could not load last analysis: ${escHtml(err.message)}</p>`;
+  }
+}
+function _setAnalysisOpen(open) {
+  _analysisOpen = open;
+  document.getElementById('bugs-workspace')?.classList.toggle('analysis-open', open);
+  document.getElementById('bugs-last-analysis-btn')?.classList.toggle('active', open);
+}
+function _stripFrontmatter(md) {
+  return md.replace(/^---\n[\s\S]*?\n---\n/, '');
+}
+function _formatSavedMeta(savedAt, bugCount) {
+  const d = savedAt ? new Date(savedAt) : null;
+  const when = d && !isNaN(d.getTime()) ? d.toLocaleString() : '';
+  const count = bugCount ? `${bugCount} bug${bugCount === 1 ? '' : 's'} · ` : '';
+  return when ? `Saved ${count}${when}` : '';
 }
 export function toggleClosedBugs(checked) {
   _includeClosed = checked;

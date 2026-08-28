@@ -149,7 +149,11 @@ import {
   _pullSprintUpdateCount,
   confirmPullSprint,
 } from './roadmap-jira-sync.js';
-import { handleEpicContextMenu, handleStoryContextMenu } from './roadmap-context-menus.js';
+import {
+  handleEpicContextMenu,
+  handleStoryContextMenu,
+  handleEstCardContextMenu,
+} from './roadmap-context-menus.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { loadSkillsView, handleSkillSSE } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
@@ -176,7 +180,7 @@ import {
   filterBugsTable,
   setBugsEnvFilter,
   analyzeBugs,
-  closeBugsAnalysis,
+  toggleBugsAnalysis,
   bugToggleKey,
   bugToggleAll,
   toggleClosedBugs,
@@ -324,6 +328,7 @@ function navigateTo(viewName: ViewName): void {
       break;
     case 'settings':
       document.getElementById('settings-view')?.classList.add('show');
+      openAllSettingsPanels();
       renderPiConfigTabs();
       void loadAiSavingsSection();
       break;
@@ -348,6 +353,24 @@ function navigateTo(viewName: ViewName): void {
 // ── Settings view ─────────────────────────────────────────────
 function closeSettingsView(): void {
   navigateTo('backlog');
+}
+
+// Settings collapsibles start expanded every time the view opens, so the user
+// sees all configuration at a glance rather than three closed accordions.
+function openAllSettingsPanels(): void {
+  const panels: Array<[string, string]> = [
+    ['model-section-body', 'model-chevron'],
+    ['pi-config-body', 'pi-config-chevron'],
+    ['ai-savings-section-body', 'ai-savings-chevron'],
+  ];
+  for (const [bodyId, chevronId] of panels) {
+    const body = document.getElementById(bodyId);
+    const chevron = document.getElementById(chevronId);
+    if (body && !body.classList.contains('open')) {
+      body.classList.add('open');
+      if (chevron) chevron.style.transform = 'rotate(90deg)';
+    }
+  }
 }
 
 // ── FAB (Floating Action Button) ──────────────────────────────
@@ -541,6 +564,10 @@ on(
     changedFilename?: string;
     structural?: boolean;
   }) => {
+    // Keep the roadmap board in sync with edits made from the detail panel
+    // (e.g. an epic's Estimated Sprint Size / placement) while it's open —
+    // the list-only patch/rebuild below doesn't touch the roadmap DOM.
+    refreshRoadmapView();
     if (changedFilename && !structural && patchSingleDoc(changedFilename)) return;
     applyFilters(docs);
   }
@@ -962,8 +989,8 @@ document.addEventListener('click', (e: MouseEvent) => {
     case 'filterBugsEnv':
       setBugsEnvFilter((btn.dataset.env as 'all' | 'production' | 'testing') ?? 'all');
       break;
-    case 'closeBugsAnalysis':
-      closeBugsAnalysis();
+    case 'toggleBugsAnalysis':
+      toggleBugsAnalysis();
       break;
 
     default:
@@ -1237,6 +1264,7 @@ const _dynGlobals: Record<string, unknown> = {
   // roadmap-context-menus.ts
   handleEpicContextMenu,
   handleStoryContextMenu,
+  handleEstCardContextMenu,
   // roadmap-jira-sync.ts
   _sprintPushUpdateCount,
   pullSprintSelectAllItems,

@@ -257,30 +257,99 @@
   color: var(--text-muted);
 }
 
-/* AI Analysis panel */
+/* ── Workspace: filters + bug list (left) · AI analysis (right) ─────── */
+.bugs-workspace {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Two columns only while the analysis panel is expanded; otherwise the bug
+   list gets the full width. */
+.bugs-workspace.analysis-open {
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 1.05fr);
+}
+
+.bugs-workspace-left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* AI Analysis panel (right column) */
 .bugs-analysis-panel {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
+  background: var(--surface-alt, var(--surface));
+  padding: 16px;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: calc(100vh - 200px);
   overflow: hidden;
 }
 
-.bugs-analysis-header {
+.bugs-workspace.analysis-open .bugs-analysis-panel {
+  display: flex;
+}
+
+.bugs-analysis-panel-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: var(--surface-alt, var(--surface));
-  border-bottom: 1px solid var(--border);
-  font-weight: 600;
-  font-size: 0.85rem;
+  gap: 8px;
+}
+
+.bugs-analysis-panel-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.bugs-analysis-meta {
+  flex: 1;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bugs-analysis-placeholder {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  margin: 8px 0;
 }
 
 .bugs-analysis-body {
-  padding: 14px;
   font-size: 0.85rem;
   line-height: 1.6;
-  max-height: 400px;
+  flex: 1;
   overflow-y: auto;
+}
+
+/* Keep the analysis table (with JIRA links) readable inside the panel */
+.bugs-analysis-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin: 0.5em 0;
+}
+
+.bugs-analysis-body th,
+.bugs-analysis-body td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.bugs-analysis-body a {
+  color: var(--accent);
 }
 
 .bugs-analysis-body h1,
@@ -298,6 +367,99 @@
 .bugs-analysis-body ol {
   margin: 0.3em 0 0.3em 1.2em;
   padding: 0;
+}
+
+/* AI analysis progress bar */
+.bugs-analysis-progress {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2, var(--surface));
+}
+
+.bugs-progress-track {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.bugs-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover, var(--accent)));
+  transition: width 0.4s ease;
+}
+
+.bugs-progress-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--text-body, var(--text));
+}
+
+.bugs-progress-spinner {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: bugs-spin 0.8s linear infinite;
+}
+
+.bugs-progress-check {
+  flex: 0 0 auto;
+  color: var(--success, #22c55e);
+  font-weight: 700;
+}
+
+.bugs-progress-steps {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.bugs-progress-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  transition: color 0.3s ease;
+}
+
+.bugs-progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.bugs-progress-step.active {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.bugs-progress-step.active .bugs-progress-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle, rgba(0, 150, 214, 0.2));
+}
+
+.bugs-progress-step.done {
+  color: var(--text-body, var(--text));
+}
+
+.bugs-progress-step.done .bugs-progress-dot {
+  background: var(--success, #22c55e);
 }
 
 /* Loading overlay */
@@ -407,9 +569,97 @@
   font-size: 0.85rem;
 }
 
+/* ── Floating action buttons (AI Analyze + Last analysis) ──────────── */
+.bugs-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.bugs-fab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 100px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition:
+    transform 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.bugs-fab-btn:hover {
+  transform: translateY(-1px);
+}
+
+.bugs-fab-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.bugs-fab-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.bugs-fab-primary:hover {
+  background: var(--accent-hover, #0078b0);
+}
+
+.bugs-fab-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.bugs-fab-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.bugs-fab-secondary:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.bugs-fab-secondary.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Responsive */
+@media (max-width: 900px) {
+  /* Stack the analysis panel below the bug list on narrow viewports so neither
+     column gets squeezed; drop the sticky positioning while stacked. */
+  .bugs-workspace.analysis-open {
+    grid-template-columns: 1fr;
+  }
+  .bugs-analysis-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
 @media (max-width: 640px) {
   .bugs-stats-row {
     grid-template-columns: 1fr 1fr;
+  }
+  .bugs-fab-label {
+    display: none;
+  }
+  .bugs-fab-btn {
+    padding: 14px;
   }
 }

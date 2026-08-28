@@ -65,6 +65,8 @@ export default function docsCrudRoutes({
         team,
         workCategory,
         priority,
+        estimatedSprintSize,
+        estimatedSprints,
         commentsSection,
       } = req.body;
 
@@ -144,6 +146,36 @@ export default function docsCrudRoutes({
         content = setFrontmatterField(content, 'Priority', priority);
       }
 
+      if (estimatedSprintSize !== undefined) {
+        if (estimatedSprintSize !== null) {
+          const numVal = Number(estimatedSprintSize);
+          if (!Number.isInteger(numVal) || numVal < 1 || numVal > 4) {
+            return sendError(
+              res,
+              400,
+              'VALIDATION_ERROR',
+              'estimatedSprintSize must be an integer between 1 and 4'
+            );
+          }
+        }
+        content = setFrontmatterField(
+          content,
+          'Estimated_Sprint_Size',
+          estimatedSprintSize === null ? 'TBD' : String(estimatedSprintSize)
+        );
+      }
+
+      if (estimatedSprints !== undefined) {
+        const list = (estimatedSprints as string[])
+          .map((s) => String(s).trim())
+          .filter((s) => s && s !== 'TBD');
+        content = setFrontmatterField(
+          content,
+          'Estimated_Sprints',
+          list.length ? list.join(', ') : 'TBD'
+        );
+      }
+
       if (title !== undefined) {
         const trimmed = title.trim();
         if (!trimmed) return sendError(res, 400, 'INVALID_TITLE', 'Title cannot be empty');
@@ -182,6 +214,8 @@ export default function docsCrudRoutes({
           team,
           workCategory,
           priority,
+          estimatedSprintSize,
+          estimatedSprints,
         }).filter(([, v]) => v !== undefined)
       );
       logAudit({ op: 'update', docType, filename, fields: changedFields, source: 'api' });
@@ -200,6 +234,8 @@ export default function docsCrudRoutes({
         ...(team !== undefined && { team }),
         ...(workCategory !== undefined && { workCategory }),
         ...(priority !== undefined && { priority }),
+        ...(estimatedSprintSize !== undefined && { estimatedSprintSize }),
+        ...(estimatedSprints !== undefined && { estimatedSprints }),
       });
     } catch (err) {
       handleRouteError(res, err);

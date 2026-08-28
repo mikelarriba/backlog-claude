@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import '../helpers/domGlobals.js';
 
 mock.module('../../public/js/roadmap-render.js', {
-  namedExports: { renderRoadmapBoard: () => {} },
+  namedExports: { renderRoadmapBoard: () => {}, updateEstPlacements: () => [] },
 });
 mock.module('../../public/js/detail.js', {
   namedExports: { openDoc: () => {} },

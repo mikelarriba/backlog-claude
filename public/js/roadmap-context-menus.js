@@ -2,7 +2,7 @@
 // Three builders sharing the same popup mechanics: the epic (top panel),
 // the story (bottom panel), and the "Add to Sprint" submenu used by both.
 import { escHtml, postJSON, showJiraToast, patchJSON, getErrorMessage } from './state.js';
-import { renderRoadmapBoard } from './roadmap-render.js';
+import { renderRoadmapBoard, updateEstPlacements } from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
 import { openDoc } from './detail.js';
 import { upsertDoc } from './store.js';
@@ -23,6 +23,7 @@ export const RM_CTX_ACTIONS = {
   moveEpic: 'rmCtxMoveEpicAction',
   moveStory: 'rmCtxMoveStoryAction',
   setSprint: 'rmCtxSetSprintAction',
+  setEstSprint: 'rmCtxSetEstSprintAction',
 };
 registerActions({
   [RM_CTX_ACTIONS.openEpic]: (el) => {
@@ -48,6 +49,9 @@ registerActions({
       el.dataset.docType ?? '',
       el.dataset.sprint ?? ''
     );
+  },
+  [RM_CTX_ACTIONS.setEstSprint]: (el) => {
+    void rmCtxSetEstSprint(el.dataset.epic ?? '', el.dataset.from ?? '', el.dataset.sprint ?? '');
   },
 });
 function _closeRoadmapCtx() {
@@ -253,6 +257,73 @@ export async function rmCtxMoveStory(filename, docType, direction) {
     // full doc list.
     sorted.forEach((d, i) => upsertDoc({ ...d, rank: i + 1 }));
     refreshRoadmapView();
+  } catch (e) {
+    showJiraToast('error', getErrorMessage(e));
+  }
+}
+// ── Estimated-sprint placeholder card context menu ───────────
+// Phantom cards from an epic's "Estimated Sprint Size" aren't real docs, so
+// they get their own menu: open the epic + move the placeholder between sprints
+// (which edits the epic's persisted estimatedSprints multiset). Rerank/move
+// up-down don't apply — placeholders have no rank.
+export function handleEstCardContextMenu(e, epicFilename, fromSprint) {
+  e.preventDefault();
+  e.stopPropagation();
+  const doc = allDocs.find((d) => d.filename === epicFilename);
+  const title = doc?.title || epicFilename;
+  const shortTitle = title.length > 36 ? title.substring(0, 33) + '…' : title;
+  const html = `
+    <div class="ctx-header">${escHtml(shortTitle)} · estimate</div>
+    <div class="ctx-separator"></div>
+    <button class="ctx-item" data-action="${RM_CTX_ACTIONS.openEpic}" data-filename="${escHtml(epicFilename)}" data-doc-type="epic">Open Epic</button>
+    ${_buildEstSprintSubmenu(epicFilename, fromSprint)}
+  `;
+  _showRoadmapCtx(e.clientX, e.clientY, html);
+}
+function _buildEstSprintSubmenu(epicFilename, fromSprint) {
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  const seen = new Set();
+  let items = '';
+  const base = `data-epic="${escHtml(epicFilename)}" data-from="${escHtml(fromSprint)}"`;
+  for (const pi of pis) {
+    for (const s of sprintConfig[pi] || []) {
+      if (seen.has(s.name)) continue;
+      seen.add(s.name);
+      const mark = s.name === fromSprint ? ' ✓' : '';
+      items += `<button class="ctx-item" data-action="${RM_CTX_ACTIONS.setEstSprint}" ${base} data-sprint="${escHtml(s.name)}">${escHtml(s.name)}${mark}</button>`;
+    }
+  }
+  if (!items) return '';
+  if (fromSprint) {
+    items += `<div class="ctx-separator"></div>`;
+    items += `<button class="ctx-item ctx-danger" data-action="${RM_CTX_ACTIONS.setEstSprint}" ${base} data-sprint="">Move to Unassigned</button>`;
+  }
+  return `
+    <div class="ctx-submenu-wrap">
+      <button class="ctx-item ctx-has-sub">Add to Sprint ▸</button>
+      <div class="ctx-submenu">${items}</div>
+    </div>`;
+}
+export async function rmCtxSetEstSprint(epicFilename, fromSprint, toSprint) {
+  _closeRoadmapCtx();
+  const epic = allDocs.find((d) => d.filename === epicFilename && d.docType === 'epic');
+  if (!epic) return;
+  const placements = updateEstPlacements(
+    epic.estimatedSprints || [],
+    epic.estimatedSprintSize || 0,
+    fromSprint || null,
+    toSprint || null
+  );
+  try {
+    await patchJSON(`/api/doc/epic/${encodeURIComponent(epicFilename)}`, {
+      estimatedSprints: placements,
+    });
+    upsertDoc({ ...epic, estimatedSprints: placements });
+    renderRoadmapBoard();
+    showJiraToast(
+      'success',
+      toSprint ? `Estimate moved to ${toSprint}` : 'Estimate moved to Unassigned'
+    );
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
   }

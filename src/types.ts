@@ -50,6 +50,14 @@ export interface DocEntry {
   pi: string | null;
   team: string | null;
   workCategory: string | null;
+  // Roadmap planning estimate for unrefined epics: number of full sprints the
+  // epic is expected to take (1–4), or null when unset. Drives striped
+  // placeholder cards on the roadmap. Only meaningful for epics.
+  estimatedSprintSize: number | null;
+  // Per-placeholder sprint assignments (a multiset of sprint names, length ≤
+  // estimatedSprintSize). Entries not present here are shown as unassigned
+  // placeholder cards. Persisted so the estimated roadmap survives reloads.
+  estimatedSprints: string[];
   hasDescription: boolean;
   descriptionSnippet: string | null;
 }
