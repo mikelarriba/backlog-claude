@@ -2,6 +2,7 @@
 // Populates the provider/model dropdowns in the Settings view and
 // persists the selection.
 import { fetchJSON, putJSON, toggleSection } from './state.js';
+import { registerChangeActions } from './actions.js';
 export function toggleModelSection() {
   toggleSection('model-section-body', 'model-chevron');
 }
@@ -113,6 +114,23 @@ export async function updateEffortSetting(effort) {
   const model = modelSel ? modelSel.value : '';
   await _saveModelSetting(providerId, model, effort);
 }
+// Typed change-action registration (issue #461 migration — see actions.ts
+// and DOC_CHANGE_ACTIONS in documentation.ts / the detail-fields.ts sprint
+// selects for the established registerChangeActions pattern). Reuses each
+// select's existing data-change-action="..." string value (index.html) as
+// the registered name rather than introducing new constants, since each is
+// a single site with no other caller of that string.
+registerChangeActions({
+  onProviderChange: (el) => {
+    void onProviderChange(el.value);
+  },
+  updateModelSetting: (el) => {
+    void updateModelSetting(el.value);
+  },
+  updateEffortSetting: (el) => {
+    void updateEffortSetting(el.value);
+  },
+});
 async function _saveModelSetting(provider, model, effort) {
   const statusEl = document.getElementById('model-status');
   try {
