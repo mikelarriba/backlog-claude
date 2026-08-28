@@ -157,12 +157,14 @@ export function buildEstPlaceholders(epics, knownSprintNames) {
 export function buildEstPlaceholderCardHtml(p) {
   return `
     <div class="rm-est-card" draggable="true"
+         role="button" tabindex="0"
          data-action="${ROADMAP_RENDER_ACTIONS.estCardOpenEpic}"
          oncontextmenu="handleEstCardContextMenu(event,'${escHtml(p.epicFilename)}','${escHtml(p.fromSprint)}')"
          data-est-epic="${escHtml(p.epicFilename)}"
          data-sprint="${escHtml(p.fromSprint)}"
          style="--rm-est-color:${p.color}"
-         title="Estimated sprint for &quot;${escHtml(p.epicTitle)}&quot; — not yet refined. Drag or right-click to plan the roadmap.">
+         title="Estimated sprint for &quot;${escHtml(p.epicTitle)}&quot; — not yet refined. Drag, right-click, or use Left/Right arrow keys to plan the roadmap."
+         aria-label="Estimated sprint for ${escHtml(p.epicTitle)}. Left or Right arrow keys move it to the adjacent sprint. Right-click for more options.">
       <div class="rm-est-card-parent">
         <span class="rm-parent-dot" style="background:${p.color}"></span>${escHtml(p.epicTitle)}
       </div>
