@@ -157,14 +157,7 @@ import {
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { loadSkillsView, handleSkillSSE } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
-import {
-  toggleModelSection,
-  loadModelSetting,
-  onProviderChange,
-  refreshProviders,
-  updateModelSetting,
-  updateEffortSetting,
-} from './provider-settings.js';
+import { toggleModelSection, loadModelSetting, refreshProviders } from './provider-settings.js';
 import { _connectSSE } from './sse-client.js';
 import {
   toggleAiSavingsSection,
@@ -1036,19 +1029,12 @@ document.addEventListener('change', (e: Event) => {
   // checks dispatchAction() first. Currently migrated: docSetSprint /
   // docSetFixVersionBulk in documentation.ts; updateDocStatus in detail.ts;
   // updateDocSprint / updateDocTeam / updateDocWorkCategory in
-  // detail-fields.ts. Falls through to the switch for everything else.
+  // detail-fields.ts; onProviderChange / updateModelSetting /
+  // updateEffortSetting in provider-settings.ts. Falls through to the
+  // switch for everything else.
   if (dispatchChangeAction(changeAction, target, e)) return;
 
   switch (changeAction) {
-    case 'onProviderChange':
-      onProviderChange(selectEl.value);
-      break;
-    case 'updateModelSetting':
-      updateModelSetting(selectEl.value);
-      break;
-    case 'updateEffortSetting':
-      updateEffortSetting(selectEl.value);
-      break;
     case 'saveSplitThreshold':
       saveSplitThreshold(selectEl.value);
       break;
