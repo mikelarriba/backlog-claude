@@ -25,8 +25,14 @@ async function openPiConfigPanel(page) {
   await page.goto('/');
   await page.locator('.sidebar-item[data-view="settings"]').click();
   await expect(page.locator('#settings-view')).toBeVisible({ timeout: 5000 });
-  await page.locator('.pi-config-section .collapsible-header').click();
-  await expect(page.locator('#pi-config-body')).toHaveClass(/open/, { timeout: 5000 });
+  // Settings collapsibles now auto-expand when the view opens, so only click the
+  // PI Config header if the panel isn't already open — clicking an open panel
+  // would toggle it shut and defeat the point of this helper.
+  const body = page.locator('#pi-config-body');
+  if (!(await body.evaluate((el) => el.classList.contains('open')))) {
+    await page.locator('.pi-config-section .collapsible-header').click();
+  }
+  await expect(body).toHaveClass(/open/, { timeout: 5000 });
 }
 
 async function putSprints(piName, sprints) {

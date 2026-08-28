@@ -51,9 +51,18 @@ describe('_filterByRange()', () => {
   });
 
   test('"week" includes an entry exactly at the 7-day cutoff (inclusive lower bound)', () => {
+    // Freeze Date.now so the entry timestamp and _filterByRange's internal
+    // cutoff are computed from the exact same instant; otherwise the µs that
+    // elapse between them push a boundary entry just outside the window (flaky).
     const now = Date.now();
-    const entries = [entryAt(new Date(now - 7 * DAY).toISOString())];
-    assert.equal(_filterByRange(entries, 'week').length, 1);
+    const orig = Date.now;
+    Date.now = () => now;
+    try {
+      const entries = [entryAt(new Date(now - 7 * DAY).toISOString())];
+      assert.equal(_filterByRange(entries, 'week').length, 1);
+    } finally {
+      Date.now = orig;
+    }
   });
 
   test('"month" keeps entries from the last 30 days and drops older ones', () => {
@@ -69,9 +78,17 @@ describe('_filterByRange()', () => {
   });
 
   test('"month" includes an entry exactly at the 30-day cutoff (inclusive lower bound)', () => {
+    // See the "week" cutoff test: freeze Date.now so the boundary entry and the
+    // internal cutoff share one instant, making the inclusive check deterministic.
     const now = Date.now();
-    const entries = [entryAt(new Date(now - 30 * DAY).toISOString())];
-    assert.equal(_filterByRange(entries, 'month').length, 1);
+    const orig = Date.now;
+    Date.now = () => now;
+    try {
+      const entries = [entryAt(new Date(now - 30 * DAY).toISOString())];
+      assert.equal(_filterByRange(entries, 'month').length, 1);
+    } finally {
+      Date.now = orig;
+    }
   });
 
   test('an empty list stays empty for "week" and "month"', () => {
