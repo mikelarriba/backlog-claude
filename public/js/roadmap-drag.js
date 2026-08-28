@@ -190,6 +190,18 @@ export function initRoadmapDragDrop(root = document) {
       );
     });
     card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    // Keyboard-operable alternative to the mouse drag above (issue #486):
+    // placeholders only ever move between sprint columns (no in-column
+    // order of their own — they're an interchangeable multiset per
+    // sprint), so only Left/Right is meaningful here, unlike real cards'
+    // Up/Down/Home/End/Left/Right on .rm-reorder-handle. Purely additive:
+    // does not change or remove the existing mouse drag-and-drop behavior.
+    const epicFilename = card.dataset['estEpic'];
+    card.addEventListener('keydown', (e) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      void moveEstCardToAdjacentSprint(card, epicFilename, e.key === 'ArrowLeft' ? 'prev' : 'next');
+    });
   });
   // ── Column-level drop (cross-sprint move) ────────────────────
   dropZones.forEach((zone) => {
@@ -361,6 +373,47 @@ async function moveCardToAdjacentSprint(card, filename, docType, direction) {
     refocusHandle(filename);
   } catch (err) {
     console.warn('Failed to update sprint assignment:', err.message);
+  }
+}
+// Same re-focus-after-re-render pattern as refocusHandle, but for
+// placeholder cards: they have no stable per-card identity beyond
+// (epicFilename, sprint) — any placeholder rendered for that pair after
+// the move is the same interchangeable slot the keypress just moved into.
+function refocusEstCard(epicFilename, sprint) {
+  setTimeout(() => {
+    document
+      .querySelector(
+        `.rm-est-card[data-est-epic="${CSS.escape(epicFilename)}"][data-sprint="${CSS.escape(sprint)}"]`
+      )
+      ?.focus();
+  }, 50);
+}
+// Keyboard-operable alternative to the estimated-sprint placeholder cards'
+// mouse drag above (issue #486) — moves the card to the previous/next
+// sprint column, reusing the same applyPlaceholderMove() the mouse drop
+// handlers already call. Only Left/Right is meaningful here: placeholders
+// have no in-column order of their own (they're an interchangeable
+// multiset per sprint, capped at the epic's estimatedSprintSize), unlike
+// real cards which also support Up/Down/Home/End within a column. Purely
+// additive: does not change or remove the existing mouse drag-and-drop
+// behavior.
+async function moveEstCardToAdjacentSprint(card, epicFilename, direction) {
+  const columnIds = [...getAllSprints().map((s) => s.name), ''];
+  const fromId = card.dataset['sprint'] || '';
+  const toId = computeAdjacentColumn(columnIds, fromId, direction);
+  const title = allDocs.find((d) => d.filename === epicFilename)?.title ?? 'Item';
+  if (toId === undefined) {
+    _announceRoadmapDragStatus(
+      `Estimated sprint for ${title} is already in the ${direction === 'prev' ? 'first' : 'last'} sprint column.`
+    );
+    return;
+  }
+  try {
+    await applyPlaceholderMove(epicFilename, fromId || null, toId || null);
+    _announceRoadmapDragStatus(`Moved estimated sprint for ${title} to ${toId || 'Unassigned'}.`);
+    refocusEstCard(epicFilename, toId);
+  } catch (err) {
+    console.warn('Failed to update estimated sprint placement:', err.message);
   }
 }
 // ── Roadmap dep hover listeners ──────────────────────────────

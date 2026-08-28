@@ -865,6 +865,10 @@
 .rm-est-card.dragging {
   opacity: 0.35;
 }
+.rm-est-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-subtle);
+}
 .rm-est-card-parent {
   font-size: 0.58rem;
   color: var(--muted);
