@@ -158,13 +158,17 @@ export function applyEpicFocus() {
   });
 }
 // ── Gather all sprints across visible PIs ────────────────────
-export function getAllSprints() {
+// Pure: takes the PI list, visibility set, and sprint config as explicit
+// parameters instead of reading the piSettings/_roadmapVisiblePis/sprintConfig
+// globals directly, so it's testable in isolation. Same signature-change
+// extraction pattern as buildRoadmapCardHtml (#508), buildSprintSubmenuHtml
+// (#567), and matchesListFilters (#575).
+export function computeVisibleSprints(pis, visiblePis, config) {
   const all = [];
   const seen = new Set();
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
   for (const pi of pis) {
-    if (!_roadmapVisiblePis.has(pi)) continue; // skip unchecked PIs
-    for (const s of sprintConfig[pi] || []) {
+    if (!visiblePis.has(pi)) continue; // skip unchecked PIs
+    for (const s of config[pi] || []) {
       if (!seen.has(s.name)) {
         seen.add(s.name);
         all.push(s);
@@ -172,6 +176,10 @@ export function getAllSprints() {
     }
   }
   return all;
+}
+export function getAllSprints() {
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  return computeVisibleSprints(pis, _roadmapVisiblePis, sprintConfig);
 }
 // ── Dependency modal ─────────────────────────────────────────
 let _depModalFilename = null;

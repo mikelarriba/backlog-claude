@@ -186,13 +186,21 @@ export function applyEpicFocus(): void {
 }
 
 // ── Gather all sprints across visible PIs ────────────────────
-export function getAllSprints(): RoadmapSprint[] {
+// Pure: takes the PI list, visibility set, and sprint config as explicit
+// parameters instead of reading the piSettings/_roadmapVisiblePis/sprintConfig
+// globals directly, so it's testable in isolation. Same signature-change
+// extraction pattern as buildRoadmapCardHtml (#508), buildSprintSubmenuHtml
+// (#567), and matchesListFilters (#575).
+export function computeVisibleSprints(
+  pis: string[],
+  visiblePis: Set<string>,
+  config: SprintConfig
+): RoadmapSprint[] {
   const all: RoadmapSprint[] = [];
   const seen = new Set<string>();
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
   for (const pi of pis) {
-    if (!_roadmapVisiblePis.has(pi)) continue; // skip unchecked PIs
-    for (const s of ((sprintConfig as SprintConfig)[pi] as RoadmapSprint[] | undefined) || []) {
+    if (!visiblePis.has(pi)) continue; // skip unchecked PIs
+    for (const s of (config[pi] as RoadmapSprint[] | undefined) || []) {
       if (!seen.has(s.name)) {
         seen.add(s.name);
         all.push(s);
@@ -200,6 +208,11 @@ export function getAllSprints(): RoadmapSprint[] {
     }
   }
   return all;
+}
+
+export function getAllSprints(): RoadmapSprint[] {
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean) as string[];
+  return computeVisibleSprints(pis, _roadmapVisiblePis, sprintConfig as SprintConfig);
 }
 
 // ── Dependency modal ─────────────────────────────────────────
