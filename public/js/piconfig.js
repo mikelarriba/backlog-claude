@@ -10,7 +10,7 @@ import {
 } from './state.js';
 import { refreshRoadmapView } from './roadmap.js';
 import { showJiraSelectModal, performJiraPull } from './jira-import.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerChangeActions } from './actions.js';
 // Typed data-action names for the per-sprint-row remove button in
 // renderSprintRows, the JIRA sprint-import banner's three buttons in
 // renderJiraImportOffer/renderJiraImportConfirmation, and the two PI-header
@@ -414,6 +414,18 @@ export async function saveSplitThreshold(value) {
     console.warn('Failed to save split threshold:', e.message);
   }
 }
+// Typed change-action registration (issue #461 migration — see actions.ts
+// and onProviderChange/updateModelSetting/updateEffortSetting in
+// provider-settings.ts for the established registerChangeActions pattern).
+// Reuses the split-threshold input's existing data-change-action="..."
+// string value (index.html) as the registered name rather than introducing
+// a new constant, since it's a single site with no other caller of that
+// string.
+registerChangeActions({
+  saveSplitThreshold: (el) => {
+    void saveSplitThreshold(el.value);
+  },
+});
 // Get sprint names for a given PI version name
 export function getSprintsForPi(piVersionName) {
   return _sprintsFor(piVersionName);

@@ -108,7 +108,6 @@ import {
   togglePiConfigSection,
   addSprintRow,
   saveSprintConfig,
-  saveSplitThreshold,
   loadAllSprintConfigs,
   renderPiConfigTabs,
   _updatePiFromConfig,
@@ -170,13 +169,11 @@ import {
 import {
   loadBugsDashboard,
   refreshBugsDashboard,
-  filterBugsTable,
   setBugsEnvFilter,
   analyzeBugs,
   toggleBugsAnalysis,
   bugToggleKey,
   bugToggleAll,
-  toggleClosedBugs,
 } from './bugs-dashboard.js';
 import {
   loadDocumentationView,
@@ -1021,32 +1018,20 @@ document.addEventListener('change', (e: Event) => {
   const target = e.target as HTMLElement;
   const changeAction = target.dataset.changeAction;
   if (!changeAction) return;
-  const selectEl = target as HTMLSelectElement;
-  const inputEl = target as HTMLInputElement;
 
-  // Typed self-registered change actions (see actions.ts) take priority
-  // over the legacy switch below — mirrors how the click handler above
-  // checks dispatchAction() first. Currently migrated: docSetSprint /
-  // docSetFixVersionBulk in documentation.ts; updateDocStatus in detail.ts;
-  // updateDocSprint / updateDocTeam / updateDocWorkCategory in
-  // detail-fields.ts; onProviderChange / updateModelSetting /
-  // updateEffortSetting in provider-settings.ts. Falls through to the
-  // switch for everything else.
-  if (dispatchChangeAction(changeAction, target, e)) return;
-
-  switch (changeAction) {
-    case 'saveSplitThreshold':
-      saveSplitThreshold(selectEl.value);
-      break;
-    case 'filterBugsTable':
-      filterBugsTable();
-      break;
-    case 'toggleClosedBugsChange':
-      toggleClosedBugs(inputEl.checked);
-      break;
-    default:
-      break;
-  }
+  // All `data-change-action` sites are now typed self-registered change
+  // actions (see actions.ts) — the switch this listener used to fall
+  // through to for unmigrated cases (saveSplitThreshold in piconfig.ts;
+  // filterBugsTable / toggleClosedBugsChange in bugs-dashboard.ts, in
+  // addition to the docSetSprint / docSetFixVersionBulk / updateDocStatus /
+  // updateDocSprint / updateDocTeam / updateDocWorkCategory /
+  // onProviderChange / updateModelSetting / updateEffortSetting migrated
+  // earlier) has been removed. dispatchChangeAction() is a no-op (returns
+  // false) for an action name nothing has registered, so a future
+  // `data-change-action` added without a matching registerChangeActions()
+  // call fails silently on change rather than compiling — same tradeoff the
+  // click registry already accepts.
+  dispatchChangeAction(changeAction, target, e);
 });
 
 // ── Window globals for dynamically-generated HTML ─────────────

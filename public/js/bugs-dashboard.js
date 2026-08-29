@@ -1,6 +1,7 @@
 // ── Bug Dashboard ────────────────────────────────────────────────────────────
 import { streamSSE, renderMarkdown, escHtml, readSSELines } from './state.js';
 import { updateChart } from './chart-helpers.js';
+import { registerChangeActions } from './actions.js';
 let _chart = null;
 let _allBugs = [];
 let _filteredBugs = [];
@@ -399,6 +400,24 @@ export function toggleClosedBugs(checked) {
   _includeClosed = checked;
   loadBugsDashboard(true);
 }
+// Typed change-action registration (issue #461 migration — see actions.ts
+// and onProviderChange/updateModelSetting/updateEffortSetting in
+// provider-settings.ts for the established registerChangeActions pattern).
+// filterBugsTable reuses its existing data-change-action="..." string value
+// (index.html) as the registered name — it's shared by both the priority
+// and status <select>s, which is fine: a single handler that re-reads both
+// elements from the DOM regardless of which one fired the event, same as
+// before this migration. toggleClosedBugs keeps the "Change" suffix its
+// data-change-action string already used, distinguishing it from the plain
+// `toggleClosedBugs` function name.
+registerChangeActions({
+  filterBugsTable: () => {
+    filterBugsTable();
+  },
+  toggleClosedBugsChange: (el) => {
+    toggleClosedBugs(el.checked);
+  },
+});
 // ── Helpers ───────────────────────────────────────────────────────────────────
 class DashboardError extends Error {
   constructor(message, code) {
