@@ -104,4 +104,40 @@ export function dispatchChangeAction(name, el, e) {
   handler(el, e);
   return true;
 }
+const inputRegistry = new Map();
+/**
+ * Registers one or more `{ actionName: handler }` pairs against the shared
+ * `input`-event dispatch table. Call this once at module load time from the
+ * module that owns the action. Throws synchronously if an input action name
+ * is already registered, so a duplicate/typo'd name fails loudly at import
+ * time instead of silently shadowing another module's handler. This is a
+ * separate registry from `registerActions`/`registerChangeActions` above —
+ * a name registered here does not collide with the same name registered for
+ * `click` or `change`.
+ */
+export function registerInputActions(actions) {
+  for (const [name, handler] of Object.entries(actions)) {
+    if (inputRegistry.has(name)) {
+      throw new Error(
+        `registerInputActions: input action "${name}" is already registered — input action ` +
+          'names must be unique across all modules. Check for a copy-pasted key or a duplicate ' +
+          'registerInputActions() call.'
+      );
+    }
+    inputRegistry.set(name, handler);
+  }
+}
+/**
+ * Looks up `name` in the input registry and invokes its handler with the
+ * triggering element and event. Returns `true` if a handler ran, `false`
+ * if nothing is registered under that name (the caller — main.ts's input
+ * handler — falls back to its legacy switch in that case, so this stays
+ * safe to call for input actions not yet migrated to this pattern).
+ */
+export function dispatchInputAction(name, el, e) {
+  const handler = inputRegistry.get(name);
+  if (!handler) return false;
+  handler(el, e);
+  return true;
+}
 //# sourceMappingURL=actions.js.map

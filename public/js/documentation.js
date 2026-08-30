@@ -9,7 +9,7 @@
 import { fetchJSON, postJSON, showJiraToast, escHtml } from './state.js';
 import { logAiSaving } from './ai-savings.js';
 import { renderDiffHtml } from './lineDiff.js';
-import { registerActions, registerChangeActions } from './actions.js';
+import { registerActions, registerChangeActions, registerInputActions } from './actions.js';
 // Typed data-action names for the issue-row click, pager buttons, and
 // suggestion-row expand/collapse toggle (issue #461 migration — see
 // actions.ts and CTX_ACTIONS in list-filters.ts for the established
@@ -55,6 +55,17 @@ registerChangeActions({
   },
   [DOC_CHANGE_ACTIONS.setFixVersionBulk]: (el) => {
     docSetFixVersionBulk(el.value);
+  },
+});
+// Typed input-action registration (issue #461 migration — see actions.ts
+// for the registerInputActions pattern, generalized from the click/change
+// registries). Reuses the issue-filter box's existing
+// data-input-action="..." string value (index.html) as the registered
+// name, same single-site convention the registerChangeActions migrations
+// use.
+registerInputActions({
+  docFilterInputAction: (el) => {
+    docFilterInput(el.value);
   },
 });
 const PAGE_SIZE = 20;

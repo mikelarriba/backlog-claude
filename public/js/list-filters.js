@@ -13,7 +13,7 @@ import {
 } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { loadDocs, contextSplitItem } from './list.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerInputActions } from './actions.js';
 import {
   renderSwimlanes,
   renderDocItem,
@@ -294,6 +294,16 @@ registerActions({
   },
   [CTX_ACTIONS.splitItem]: () => {
     contextSplitItem();
+  },
+});
+// Typed input-action registration (issue #461 migration — see actions.ts
+// for the registerInputActions pattern, generalized from the click/change
+// registries). Reuses the search box's existing data-input-action="..."
+// string value (index.html) as the registered name, same convention the
+// registerChangeActions migrations use for a single-site action.
+registerInputActions({
+  applyFiltersDebounced: () => {
+    applyFiltersDebounced();
   },
 });
 export function showContextMenu(x, y) {

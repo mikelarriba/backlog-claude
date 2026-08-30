@@ -12,7 +12,7 @@ import { renderRoadmapBoard } from './roadmap-render.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { on, upsertDoc } from './store.js';
 import { resetRefineViewState } from './refine.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerInputActions } from './actions.js';
 // Typed data-action name for the dependency modal's per-item "remove"
 // button in renderDepLists (issue #461 migration — see actions.ts and
 // list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
@@ -28,6 +28,17 @@ registerActions({
       el.dataset.depType ?? '',
       el.dataset.direction ?? ''
     );
+  },
+});
+// Typed input-action registration (issue #461 migration — see actions.ts
+// for the registerInputActions pattern, generalized from the click/change
+// registries). Reuses the epic-filter box's existing
+// data-input-action="..." string value (index.html) as the registered
+// name, same single-site convention the registerChangeActions migrations
+// use.
+registerInputActions({
+  filterRoadmapEpicsInput: (el) => {
+    filterRoadmapEpics(el.value);
   },
 });
 // _roadmapVisiblePis is declared as a window global in state.js
