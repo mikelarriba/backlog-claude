@@ -10,6 +10,8 @@ import {
   getDescendants,
   getErrorMessage,
   readSSELines,
+  escHtml,
+  stripFrontmatter,
 } from '../../public/js/state.js';
 
 function makeDoc(overrides = {}) {
@@ -109,6 +111,58 @@ describe('getErrorMessage', () => {
   test('falls back to a custom fallback message when provided', () => {
     assert.equal(getErrorMessage(null, 'Custom fallback'), 'Custom fallback');
     assert.equal(getErrorMessage({}, 'Custom fallback'), 'Custom fallback');
+  });
+});
+
+// ── escHtml (#460) ────────────────────────────────────────────────────────────
+describe('escHtml', () => {
+  test('escapes &, <, >, and " ', () => {
+    assert.equal(escHtml('&<>"'), '&amp;&lt;&gt;&quot;');
+  });
+
+  test('leaves single quotes and plain text untouched', () => {
+    assert.equal(escHtml("it's fine"), "it's fine");
+  });
+
+  test('escapes a JIRA-style payload containing an HTML tag and attribute quotes', () => {
+    assert.equal(
+      escHtml('<img src="x" onerror="alert(1)">'),
+      '&lt;img src=&quot;x&quot; onerror=&quot;alert(1)&quot;&gt;'
+    );
+  });
+
+  test('empty string returns empty string', () => {
+    assert.equal(escHtml(''), '');
+  });
+
+  test('does not double-escape an already-escaped ampersand', () => {
+    assert.equal(escHtml('&amp;'), '&amp;amp;');
+  });
+});
+
+// ── stripFrontmatter (#460) ───────────────────────────────────────────────────
+describe('stripFrontmatter', () => {
+  test('removes a leading YAML frontmatter block', () => {
+    const content = '---\ntitle: Foo\nstatus: Draft\n---\nBody text here.';
+    assert.equal(stripFrontmatter(content), 'Body text here.');
+  });
+
+  test('trims surrounding whitespace after stripping', () => {
+    const content = '---\na: 1\n---\n\n  Body with leading blank line.  \n';
+    assert.equal(stripFrontmatter(content), 'Body with leading blank line.');
+  });
+
+  test('content with no frontmatter block is returned trimmed, unchanged', () => {
+    assert.equal(stripFrontmatter('  Just body text.  '), 'Just body text.');
+  });
+
+  test('only strips a frontmatter block anchored at the very start of the string', () => {
+    const content = 'Body first.\n---\nnot frontmatter: true\n---\n';
+    assert.equal(stripFrontmatter(content), content.trim());
+  });
+
+  test('empty string returns empty string', () => {
+    assert.equal(stripFrontmatter(''), '');
   });
 });
 
