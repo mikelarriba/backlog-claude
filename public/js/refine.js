@@ -32,7 +32,7 @@ import {
 } from './refine-canvas.js';
 import { toggleManageLinks } from './refine-edges.js';
 import { _fpCreateChild, _showEpicContextMenu } from './refine-nodes.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerInputActions } from './actions.js';
 // Typed data-action names for the refine panel's (epic/story/spike/bug
 // create & edit forms) buttons (issue #461 migration — see actions.ts and
 // CTX_ACTIONS in list-filters.ts / EDGE_ACTIONS in refine-edges.ts for the
@@ -112,6 +112,17 @@ registerActions({
   },
   [REFINE_ACTIONS.executeCreate]: (el) => {
     void executeRpCreate(el.dataset.doctype ?? '');
+  },
+});
+// Typed input-action registration (issue #461 migration — see actions.ts
+// for the registerInputActions pattern, generalized from the click/change
+// registries). Reuses the canvas search box's existing
+// data-input-action="..." string value (index.html) as the registered
+// name, same single-site convention the registerChangeActions migrations
+// use.
+registerInputActions({
+  onCanvasSearchInput: (el) => {
+    onCanvasSearch(el.value);
   },
 });
 // ── Card search / filter ──────────────────────────────────────

@@ -9,7 +9,7 @@ import {
   closeIssueSplitModal,
   executeSplitIssue,
 } from './list.js';
-import { dispatchAction, dispatchChangeAction } from './actions.js';
+import { dispatchAction, dispatchChangeAction, dispatchInputAction } from './actions.js';
 import {
   toggleItemCollapse,
   collapseAll,
@@ -21,7 +21,6 @@ import {
   setTeamFilter,
   setWorkCatFilter,
   applyFilters,
-  applyFiltersDebounced,
   patchSingleDoc,
   handleItemClick,
   handleItemContextMenu,
@@ -87,7 +86,6 @@ import {
   _moveCardToEdge,
 } from './refine-nodes.js';
 import {
-  onCanvasSearch,
   openManualRefine,
   closeRefineView,
   resetRefineViewState,
@@ -123,7 +121,6 @@ import {
   refreshRoadmapView,
   toggleRoadmapPi,
   toggleRoadmapPanel,
-  filterRoadmapEpics,
   focusEpic,
   addDepLink,
   addParallelLink,
@@ -177,7 +174,6 @@ import {
 } from './bugs-dashboard.js';
 import {
   loadDocumentationView,
-  docFilterInput,
   docSetTypeFilter,
   docSetFixVersion,
   searchDocumentationIssues,
@@ -993,24 +989,15 @@ document.addEventListener('input', (e: Event) => {
   const target = e.target as HTMLElement;
   const inputAction = target.dataset.inputAction;
   if (!inputAction) return;
-  const inputEl = target as HTMLInputElement;
 
-  switch (inputAction) {
-    case 'applyFiltersDebounced':
-      applyFiltersDebounced();
-      break;
-    case 'onCanvasSearchInput':
-      onCanvasSearch(inputEl.value);
-      break;
-    case 'filterRoadmapEpicsInput':
-      filterRoadmapEpics(inputEl.value);
-      break;
-    case 'docFilterInputAction':
-      docFilterInput(inputEl.value);
-      break;
-    default:
-      break;
-  }
+  // All `data-input-action` sites are now typed self-registered input
+  // actions (see actions.ts), the same migration the change handler above
+  // already completed. dispatchInputAction() is a no-op (returns false) for
+  // an action name nothing has registered, so a future `data-input-action`
+  // added without a matching registerInputActions() call fails silently on
+  // input rather than compiling — same tradeoff the click/change registries
+  // already accept.
+  dispatchInputAction(inputAction, target, e);
 });
 
 // ── Delegated change handler ──────────────────────────────────

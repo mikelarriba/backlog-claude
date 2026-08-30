@@ -147,3 +147,57 @@ export function dispatchChangeAction(name: string, el: HTMLElement, e: Event): b
   handler(el, e);
   return true;
 }
+
+// ── Input-event registry (extension, issue #461) ────────────────────────────
+// The change registry above proved the "just a Map plus a differently-typed
+// handler" approach also works for `data-change-action`. `input` is the
+// third and (per every status comment on #461) last of the three delegated
+// listeners main.ts hand-rolls a switch for — flagged repeatedly as "still a
+// switch for a future increment to pick up with the same pattern once this
+// one has proven out." That increment is this one. A third, independent
+// registry for the same reasons the change registry isn't merged into the
+// click one: `data-input-action` is a distinct attribute dispatched from a
+// distinct listener for a distinct DOM event, so an input action name is
+// allowed to collide with a click or change action name without either
+// throwing at load time or firing the wrong handler.
+
+export type InputActionHandler = (el: HTMLElement, e: Event) => void;
+
+const inputRegistry = new Map<string, InputActionHandler>();
+
+/**
+ * Registers one or more `{ actionName: handler }` pairs against the shared
+ * `input`-event dispatch table. Call this once at module load time from the
+ * module that owns the action. Throws synchronously if an input action name
+ * is already registered, so a duplicate/typo'd name fails loudly at import
+ * time instead of silently shadowing another module's handler. This is a
+ * separate registry from `registerActions`/`registerChangeActions` above —
+ * a name registered here does not collide with the same name registered for
+ * `click` or `change`.
+ */
+export function registerInputActions(actions: Record<string, InputActionHandler>): void {
+  for (const [name, handler] of Object.entries(actions)) {
+    if (inputRegistry.has(name)) {
+      throw new Error(
+        `registerInputActions: input action "${name}" is already registered — input action ` +
+          'names must be unique across all modules. Check for a copy-pasted key or a duplicate ' +
+          'registerInputActions() call.'
+      );
+    }
+    inputRegistry.set(name, handler);
+  }
+}
+
+/**
+ * Looks up `name` in the input registry and invokes its handler with the
+ * triggering element and event. Returns `true` if a handler ran, `false`
+ * if nothing is registered under that name (the caller — main.ts's input
+ * handler — falls back to its legacy switch in that case, so this stays
+ * safe to call for input actions not yet migrated to this pattern).
+ */
+export function dispatchInputAction(name: string, el: HTMLElement, e: Event): boolean {
+  const handler = inputRegistry.get(name);
+  if (!handler) return false;
+  handler(el, e);
+  return true;
+}
