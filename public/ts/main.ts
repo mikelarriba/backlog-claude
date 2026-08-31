@@ -9,7 +9,12 @@ import {
   closeIssueSplitModal,
   executeSplitIssue,
 } from './list.js';
-import { dispatchAction, dispatchChangeAction, dispatchInputAction } from './actions.js';
+import {
+  dispatchAction,
+  dispatchChangeAction,
+  dispatchInputAction,
+  dispatchContextAction,
+} from './actions.js';
 import {
   toggleItemCollapse,
   collapseAll,
@@ -23,7 +28,6 @@ import {
   applyFilters,
   patchSingleDoc,
   handleItemClick,
-  handleItemContextMenu,
   showContextMenu,
   closeContextMenu,
   closeBulkAssignDialog,
@@ -1000,6 +1004,25 @@ document.addEventListener('input', (e: Event) => {
   dispatchInputAction(inputAction, target, e);
 });
 
+// ── Delegated contextmenu handler ───────────────────────────────
+// Only the one migrated site (list-render.ts's row) emits
+// `data-context-action` so far — see the "Context-menu-event registry"
+// section of actions.ts. The remaining three `oncontextmenu="fn(event,...)"`
+// sites (roadmap-render.ts's estimated-sprint placeholder card, epic row,
+// and story card) are plain inline attributes, not delegated through this
+// listener at all; `target.closest('[data-context-action]')` simply finds
+// nothing for them and this listener no-ops, so they keep working exactly
+// as before via main.ts's `_dynGlobals` bridge until a future increment
+// migrates them too.
+document.addEventListener('contextmenu', (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  const btn = target.closest('[data-context-action]') as HTMLElement | null;
+  if (!btn) return;
+
+  const contextAction = btn.dataset.contextAction ?? '';
+  dispatchContextAction(contextAction, btn, e);
+});
+
 // ── Delegated change handler ──────────────────────────────────
 document.addEventListener('change', (e: Event) => {
   const target = e.target as HTMLElement;
@@ -1166,13 +1189,26 @@ document.addEventListener('change', (e: Event) => {
 // The `input` listener (defined just above the `change` one) has not been
 // touched by this spike and remains a plain switch — a future increment can
 // extend the same pattern to it once this one has proven out.
+//
+// A fourth, independent registry now covers `contextmenu` too (see the
+// "Context-menu-event registry" section of actions.ts), spiked on one site:
+//   - The backlog list row's context-menu opener (list-render.ts's
+//     `oncontextmenu="handleItemContextMenu(...)"`, now
+//     `data-context-action`). Its handler (handleItemContextMenu) is
+//     intentionally absent below — see the registerContextActions() call in
+//     list-filters.ts, where the handler is already defined.
+// The other three oncontextmenu="..." sites (roadmap-render.ts's estimated-
+// sprint placeholder card, epic row, and story card — see
+// handleEstCardContextMenu/handleEpicContextMenu/handleStoryContextMenu
+// below) are plain inline attributes, unreached by the new delegated
+// listener, and stay on this bridge for a future increment to migrate once
+// this one has proven out.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
   toggleSwimlane,
   updatePiVersion,
   handleItemClick,
-  handleItemContextMenu,
   showContextMenu,
   closeContextMenu,
   openDistributionModal,

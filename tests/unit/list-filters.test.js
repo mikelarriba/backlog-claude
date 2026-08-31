@@ -27,6 +27,7 @@ mock.module('../../public/js/list-render.js', {
     renderDocItem: () => '',
     attachDepHoverListenerFor: () => {},
     _invalidateDepElCache: () => {},
+    LIST_ITEM_CTX_ACTIONS: { itemContextMenu: 'listItemContextMenu' },
   },
 });
 mock.module('../../public/js/dragdrop.js', {

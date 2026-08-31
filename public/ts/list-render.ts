@@ -22,6 +22,14 @@ export const LIST_ITEM_ACTIONS = {
   openDistributionModal: 'listOpenDistributionModal',
 } as const;
 
+// Typed data-context-action name for this module's one oncontextmenu site
+// (issue #461 migration — see actions.ts's context-menu-event registry).
+// Registered from list-filters.ts, where handleItemContextMenu is defined,
+// not here — see the registerContextActions() call there.
+export const LIST_ITEM_CTX_ACTIONS = {
+  itemContextMenu: 'listItemContextMenu',
+} as const;
+
 registerActions({
   [LIST_ITEM_ACTIONS.toggleSwimlane]: (el) => {
     toggleSwimlane(el.dataset.section as 'currentPi' | 'nextPi' | 'backlog');
@@ -400,7 +408,7 @@ export function renderDocItem(
          data-doctype="${d.docType}"
          data-indent="${indent}"
          data-action="${LIST_ITEM_ACTIONS.itemClick}"
-         oncontextmenu="handleItemContextMenu(event,'${escHtml(d.filename)}','${d.docType}')">
+         data-context-action="${LIST_ITEM_CTX_ACTIONS.itemContextMenu}">
       <div class="drag-handle" title="Drag to reorder or link, or use arrow keys"
            role="button" tabindex="0"
            aria-label="Reorder ${escHtml(d.title)}. Use the up and down arrow keys to move it within the list, Home or End to move it to the top or bottom, or left and right to move it between Current PI, Next PI, and Backlog."
