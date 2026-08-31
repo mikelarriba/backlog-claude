@@ -30,7 +30,7 @@
     "express-rate-limit": "^8.5.2",
     "js-yaml": "^4.2.0",
     "multer": "^2.1.1",
-    "pdfkit": "^0.18.0",
+    "pdfkit": "^0.20.1",
     "pptxgenjs": "^4.0.1",
     "swagger-ui-dist": "^5.32.7",
     "tsx": "^4.22.2",
