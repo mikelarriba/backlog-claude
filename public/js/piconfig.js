@@ -49,9 +49,17 @@ registerActions({
     void selectPiConfigTab(el.dataset.piName ?? '');
   },
 });
-function _sprintsFor(piName) {
-  const cfg = sprintConfig;
+// Pure: given a PI name and the sprintConfig map, returns that PI's sprint
+// list (empty if not configured). Extracted from _sprintsFor, which read the
+// sprintConfig ambient global directly — same signature-change extraction as
+// roadmap.ts's getAllSprints -> computeVisibleSprints (#577) and
+// roadmap-context-menus.ts's _buildSprintSubmenu -> buildSprintSubmenuHtml
+// (#567).
+export function computeSprintsForPi(piName, cfg) {
   return cfg[piName] || [];
+}
+function _sprintsFor(piName) {
+  return computeSprintsForPi(piName, sprintConfig);
 }
 function _setSprintsFor(piName, sprints) {
   sprintConfig[piName] = sprints;
