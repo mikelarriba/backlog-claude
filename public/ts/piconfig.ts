@@ -115,9 +115,18 @@ interface JiraByFixVersionResponse {
 
 type PiSectionKey = 'currentPi' | 'nextPi';
 
-function _sprintsFor(piName: string): Sprint[] {
-  const cfg = sprintConfig as unknown as Record<string, Sprint[]>;
+// Pure: given a PI name and the sprintConfig map, returns that PI's sprint
+// list (empty if not configured). Extracted from _sprintsFor, which read the
+// sprintConfig ambient global directly — same signature-change extraction as
+// roadmap.ts's getAllSprints -> computeVisibleSprints (#577) and
+// roadmap-context-menus.ts's _buildSprintSubmenu -> buildSprintSubmenuHtml
+// (#567).
+export function computeSprintsForPi(piName: string, cfg: Record<string, Sprint[]>): Sprint[] {
   return cfg[piName] || [];
+}
+
+function _sprintsFor(piName: string): Sprint[] {
+  return computeSprintsForPi(piName, sprintConfig as unknown as Record<string, Sprint[]>);
 }
 
 function _setSprintsFor(piName: string, sprints: Sprint[]): void {
