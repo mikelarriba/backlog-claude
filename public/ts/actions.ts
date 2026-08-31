@@ -201,3 +201,67 @@ export function dispatchInputAction(name: string, el: HTMLElement, e: Event): bo
   handler(el, e);
   return true;
 }
+
+// ── Context-menu-event registry (extension, issue #461) ─────────────────────
+// click/change/input are now fully self-registered (see above). The one
+// remaining category of hand-rolled dispatch flagged in status comments on
+// this issue is `oncontextmenu="fn(event, ...)"` strings — four sites, all
+// context-menu *openers* (list-render.ts's row, roadmap-render.ts's
+// estimated-sprint placeholder card, epic row, and story card), reached via
+// main.ts's untyped `_dynGlobals` window bridge because there has never been
+// a delegated `contextmenu` listener for them to hook into. Same tradeoff
+// noted for `change`/`input`: a `data-context-action` name is dispatched
+// from a distinct listener for a distinct DOM event, so it's allowed to
+// collide with a click/change/input action name without either throwing at
+// load time or firing the wrong handler — hence a fourth independent
+// registry rather than reusing one of the three above.
+//
+// This spikes the pattern on the simplest of the four sites (list-render.ts,
+// single owner file, single handler) as proof; the three roadmap-render.ts /
+// roadmap-context-menus.ts sites — flagged in prior #461 status comments as
+// "the higher-risk, cross-module" case — are left for a future increment to
+// migrate once this one has proven out, the same staged approach the
+// change/input registries themselves followed.
+
+export type ContextActionHandler = (el: HTMLElement, e: MouseEvent) => void;
+
+const contextRegistry = new Map<string, ContextActionHandler>();
+
+/**
+ * Registers one or more `{ actionName: handler }` pairs against the shared
+ * `contextmenu`-event dispatch table. Call this once at module load time
+ * from the module that owns the action. Throws synchronously if a context
+ * action name is already registered, so a duplicate/typo'd name fails
+ * loudly at import time instead of silently shadowing another module's
+ * handler. This is a separate registry from `registerActions` /
+ * `registerChangeActions` / `registerInputActions` above — a name
+ * registered here does not collide with the same name registered for
+ * `click`, `change`, or `input`.
+ */
+export function registerContextActions(actions: Record<string, ContextActionHandler>): void {
+  for (const [name, handler] of Object.entries(actions)) {
+    if (contextRegistry.has(name)) {
+      throw new Error(
+        `registerContextActions: context action "${name}" is already registered — context ` +
+          'action names must be unique across all modules. Check for a copy-pasted key or a ' +
+          'duplicate registerContextActions() call.'
+      );
+    }
+    contextRegistry.set(name, handler);
+  }
+}
+
+/**
+ * Looks up `name` in the context registry and invokes its handler with the
+ * triggering element and event. Returns `true` if a handler ran, `false` if
+ * nothing is registered under that name (the caller — main.ts's contextmenu
+ * handler — no-ops in that case, since the remaining unmigrated
+ * `oncontextmenu="..."` sites are plain inline attributes, not routed
+ * through this delegated listener at all).
+ */
+export function dispatchContextAction(name: string, el: HTMLElement, e: MouseEvent): boolean {
+  const handler = contextRegistry.get(name);
+  if (!handler) return false;
+  handler(el, e);
+  return true;
+}

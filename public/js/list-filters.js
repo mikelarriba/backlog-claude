@@ -13,12 +13,13 @@ import {
 } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { loadDocs, contextSplitItem } from './list.js';
-import { registerActions, registerInputActions } from './actions.js';
+import { registerActions, registerInputActions, registerContextActions } from './actions.js';
 import {
   renderSwimlanes,
   renderDocItem,
   attachDepHoverListenerFor,
   _invalidateDepElCache,
+  LIST_ITEM_CTX_ACTIONS,
 } from './list-render.js';
 import { sectionToFixVersion } from './dragdrop.js';
 export function toggleItemCollapse(filename, e) {
@@ -304,6 +305,18 @@ registerActions({
 registerInputActions({
   applyFiltersDebounced: () => {
     applyFiltersDebounced();
+  },
+});
+// Typed context-action registration (issue #461 migration — see actions.ts's
+// context-menu-event registry, spiked on this one site). Replaces
+// oncontextmenu="handleItemContextMenu(event,'${filename}','${docType}')"
+// (list-render.ts's row template) with a `data-context-action` string and
+// this handler, reusing the row's existing `data-filename`/`data-doctype`
+// attributes (already read by LIST_ITEM_ACTIONS.itemClick above) rather
+// than adding duplicate ones.
+registerContextActions({
+  [LIST_ITEM_CTX_ACTIONS.itemContextMenu]: (el, e) => {
+    handleItemContextMenu(e, el.dataset.filename ?? '', el.dataset.doctype ?? '');
   },
 });
 export function showContextMenu(x, y) {
