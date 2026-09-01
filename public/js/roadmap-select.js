@@ -13,6 +13,28 @@ let _rmLastClicked = null;
 function _rmKey(filename, docType) {
   return `${docType}:${filename}`;
 }
+/**
+ * Pure shift-click range computation, shared by handleRoadmapCardClick's
+ * story-panel range and handleRoadmapEpicClick's epic-panel range (issue
+ * #460 — previously duplicated verbatim in both). Given the panel's visible
+ * cards (in DOM order) plus the last- and currently-clicked filenames,
+ * returns the cards to add to the selection: the inclusive index range
+ * between the two when both are found (in either click order), just the
+ * current card alone when only it is found, or nothing when neither is.
+ */
+export function computeShiftRangeSelection(cards, lastFilename, curFilename, curDocType) {
+  const lastIdx = cards.findIndex((c) => c.filename === lastFilename);
+  const curIdx = cards.findIndex((c) => c.filename === curFilename);
+  if (lastIdx >= 0 && curIdx >= 0) {
+    const start = Math.min(lastIdx, curIdx);
+    const end = Math.max(lastIdx, curIdx);
+    return cards.slice(start, end + 1);
+  }
+  if (curIdx >= 0) {
+    return [{ filename: curFilename, docType: curDocType }];
+  }
+  return [];
+}
 function _getVisibleStoryCards() {
   return [...document.querySelectorAll('.roadmap-card[data-filename]')].filter(
     (c) => c.dataset['filename']
@@ -68,17 +90,12 @@ export function handleRoadmapCardClick(e, filename, docType) {
   if (isShift && _rmLastClicked) {
     e.preventDefault();
     e.stopPropagation();
-    const cards = _getVisibleStoryCards();
-    const lastIdx = cards.findIndex((c) => c.dataset['filename'] === _rmLastClicked.filename);
-    const curIdx = cards.findIndex((c) => c.dataset['filename'] === filename);
-    if (lastIdx >= 0 && curIdx >= 0) {
-      const start = Math.min(lastIdx, curIdx);
-      const end = Math.max(lastIdx, curIdx);
-      for (let i = start; i <= end; i++) {
-        _rmSelectedItems.add(_rmKey(cards[i].dataset['filename'], cards[i].dataset['doctype']));
-      }
-    } else if (curIdx >= 0) {
-      _rmSelectedItems.add(key);
+    const cards = _getVisibleStoryCards().map((c) => ({
+      filename: c.dataset['filename'],
+      docType: c.dataset['doctype'],
+    }));
+    for (const c of computeShiftRangeSelection(cards, _rmLastClicked.filename, filename, docType)) {
+      _rmSelectedItems.add(_rmKey(c.filename, c.docType));
     }
     _rmLastClicked = { filename, docType, panel: 'story' };
     syncRoadmapSelectionUI();
@@ -108,17 +125,12 @@ export function handleRoadmapEpicClick(e, filename, docType) {
   if (isShift && _rmLastClicked) {
     e.preventDefault();
     e.stopPropagation();
-    const cards = _getVisibleEpicCards();
-    const lastIdx = cards.findIndex((c) => c.dataset['filename'] === _rmLastClicked.filename);
-    const curIdx = cards.findIndex((c) => c.dataset['filename'] === filename);
-    if (lastIdx >= 0 && curIdx >= 0) {
-      const start = Math.min(lastIdx, curIdx);
-      const end = Math.max(lastIdx, curIdx);
-      for (let i = start; i <= end; i++) {
-        _rmSelectedItems.add(_rmKey(cards[i].dataset['filename'], cards[i].dataset['doctype']));
-      }
-    } else if (curIdx >= 0) {
-      _rmSelectedItems.add(key);
+    const cards = _getVisibleEpicCards().map((c) => ({
+      filename: c.dataset['filename'],
+      docType: c.dataset['doctype'],
+    }));
+    for (const c of computeShiftRangeSelection(cards, _rmLastClicked.filename, filename, docType)) {
+      _rmSelectedItems.add(_rmKey(c.filename, c.docType));
     }
     _rmLastClicked = { filename, docType, panel: 'epic' };
     syncRoadmapSelectionUI();
