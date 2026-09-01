@@ -2,13 +2,17 @@
 // Three builders sharing the same popup mechanics: the epic (top panel),
 // the story (bottom panel), and the "Add to Sprint" submenu used by both.
 import { escHtml, postJSON, showJiraToast, patchJSON, getErrorMessage } from './state.js';
-import { renderRoadmapBoard, updateEstPlacements } from './roadmap-render.js';
+import {
+  renderRoadmapBoard,
+  updateEstPlacements,
+  ROADMAP_RENDER_CTX_ACTIONS,
+} from './roadmap-render.js';
 import { _rankSortFn } from './list-render.js';
 import { openDoc } from './detail.js';
 import { upsertDoc } from './store.js';
 import { refreshRoadmapView } from './roadmap.js';
 import { positionPopup } from './ui-helpers.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerContextActions } from './actions.js';
 // ── Context-menu action names ────────────────────────────────────────────
 // Typed data-action registration (issue #461 migration — see actions.ts and
 // CTX_ACTIONS in list-filters.ts for the established pattern). The menu HTML
@@ -52,6 +56,25 @@ registerActions({
   },
   [RM_CTX_ACTIONS.setEstSprint]: (el) => {
     void rmCtxSetEstSprint(el.dataset.epic ?? '', el.dataset.from ?? '', el.dataset.sprint ?? '');
+  },
+});
+// Typed data-context-action registration for the three menu *openers*
+// (issue #461 migration, extending the contextmenu-event registry spiked in
+// #597 on list-render.ts's single site — see the "Context-menu-event
+// registry" section of actions.ts). These previously reached this module via
+// `oncontextmenu="handleEpicContextMenu(...)"`-style strings routed through
+// main.ts's untyped `_dynGlobals` window bridge; roadmap-render.ts now emits
+// `data-context-action="${ROADMAP_RENDER_CTX_ACTIONS.x}"` instead (see that
+// module), so main.ts needs no import/bridge entry for any of these three.
+registerContextActions({
+  [ROADMAP_RENDER_CTX_ACTIONS.estCardContextMenu]: (el, e) => {
+    handleEstCardContextMenu(e, el.dataset.estEpic ?? '', el.dataset.sprint ?? '');
+  },
+  [ROADMAP_RENDER_CTX_ACTIONS.epicContextMenu]: (el, e) => {
+    handleEpicContextMenu(e, el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+  [ROADMAP_RENDER_CTX_ACTIONS.storyContextMenu]: (el, e) => {
+    handleStoryContextMenu(e, el.dataset.filename ?? '', el.dataset.doctype ?? '');
   },
 });
 function _closeRoadmapCtx() {
