@@ -149,11 +149,6 @@ import {
   _pullSprintUpdateCount,
   confirmPullSprint,
 } from './roadmap-jira-sync.js';
-import {
-  handleEpicContextMenu,
-  handleStoryContextMenu,
-  handleEstCardContextMenu,
-} from './roadmap-context-menus.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { loadSkillsView, handleSkillSSE } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
@@ -1067,9 +1062,12 @@ document.addEventListener('change', (e: Event) => {
 //     (roadmap-context-menus.ts's handleEpicContextMenu / handleStoryContextMenu
 //     submenus). Its four handlers (rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory,
 //     rmCtxSetSprint) are intentionally absent below — see RM_CTX_ACTIONS in
-//     roadmap-context-menus.ts. The two menu *openers* themselves stay on this
-//     bridge — they're reached via `oncontextmenu="..."` in roadmap-render.ts,
-//     a separate event the data-action click dispatcher doesn't cover.
+//     roadmap-context-menus.ts. The three menu *openers* themselves
+//     (handleEstCardContextMenu/handleEpicContextMenu/handleStoryContextMenu)
+//     are also absent below now — see the registerContextActions() call in
+//     roadmap-context-menus.ts and ROADMAP_RENDER_CTX_ACTIONS in
+//     roadmap-render.ts, the contextmenu-event registry migration that
+//     replaced their `oncontextmenu="..."` strings.
 //   - The Import tab's result-list toggle (jira-import.ts's renderJiraResults).
 //     Its one handler (toggleJiraItem) is intentionally absent below — see
 //     JIRA_IMPORT_ACTIONS in jira-import.ts.
@@ -1191,18 +1189,22 @@ document.addEventListener('change', (e: Event) => {
 // extend the same pattern to it once this one has proven out.
 //
 // A fourth, independent registry now covers `contextmenu` too (see the
-// "Context-menu-event registry" section of actions.ts), spiked on one site:
-//   - The backlog list row's context-menu opener (list-render.ts's
+// "Context-menu-event registry" section of actions.ts). What started as a
+// one-site spike now covers all four `oncontextmenu="..."` sites that ever
+// existed in public/ts/:
+//   - The backlog list row's context-menu opener (list-render.ts's former
 //     `oncontextmenu="handleItemContextMenu(...)"`, now
 //     `data-context-action`). Its handler (handleItemContextMenu) is
 //     intentionally absent below — see the registerContextActions() call in
 //     list-filters.ts, where the handler is already defined.
-// The other three oncontextmenu="..." sites (roadmap-render.ts's estimated-
-// sprint placeholder card, epic row, and story card — see
-// handleEstCardContextMenu/handleEpicContextMenu/handleStoryContextMenu
-// below) are plain inline attributes, unreached by the new delegated
-// listener, and stay on this bridge for a future increment to migrate once
-// this one has proven out.
+//   - roadmap-render.ts's estimated-sprint placeholder card, epic row, and
+//     story card (former `oncontextmenu="handleEstCardContextMenu(...)"` /
+//     `handleEpicContextMenu(...)"` / `handleStoryContextMenu(...)"`, now
+//     `data-context-action`). Their three handlers are intentionally absent
+//     below — see the registerContextActions() call in
+//     roadmap-context-menus.ts and ROADMAP_RENDER_CTX_ACTIONS in
+//     roadmap-render.ts.
+// A fresh `grep -rn 'oncontextmenu=' public/ts/` now returns nothing.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1255,10 +1257,6 @@ const _dynGlobals: Record<string, unknown> = {
   // #461); see that module. openDepModal was in fact never on this bridge
   // in the first place — the dep-manage button's onclick was unreachable
   // at runtime before this migration.
-  // roadmap-context-menus.ts
-  handleEpicContextMenu,
-  handleStoryContextMenu,
-  handleEstCardContextMenu,
   // roadmap-jira-sync.ts
   _sprintPushUpdateCount,
   pullSprintSelectAllItems,

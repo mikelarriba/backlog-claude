@@ -18,7 +18,15 @@ import assert from 'node:assert/strict';
 import '../helpers/domGlobals.js';
 
 mock.module('../../public/js/roadmap-render.js', {
-  namedExports: { renderRoadmapBoard: () => {}, updateEstPlacements: () => [] },
+  namedExports: {
+    renderRoadmapBoard: () => {},
+    updateEstPlacements: () => [],
+    ROADMAP_RENDER_CTX_ACTIONS: {
+      estCardContextMenu: 'roadmapRenderEstCardContextMenu',
+      epicContextMenu: 'roadmapRenderEpicContextMenu',
+      storyContextMenu: 'roadmapRenderStoryContextMenu',
+    },
+  },
 });
 mock.module('../../public/js/detail.js', {
   namedExports: { openDoc: () => {} },

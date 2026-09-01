@@ -39,6 +39,20 @@ export const ROADMAP_RENDER_ACTIONS = {
   estCardOpenEpic: 'roadmapRenderEstCardOpenEpic',
 } as const;
 
+// Typed data-context-action names for this module's three remaining
+// oncontextmenu="..." sites (issue #461 migration — see actions.ts's
+// context-menu-event registry and list-render.ts's LIST_ITEM_CTX_ACTIONS for
+// the established split: the name constant lives here, next to the markup
+// that emits it, while registerContextActions() is called from
+// roadmap-context-menus.ts, where the handlers (handleEstCardContextMenu /
+// handleEpicContextMenu / handleStoryContextMenu) are defined — the same
+// split list-filters.ts uses for LIST_ITEM_CTX_ACTIONS.
+export const ROADMAP_RENDER_CTX_ACTIONS = {
+  estCardContextMenu: 'roadmapRenderEstCardContextMenu',
+  epicContextMenu: 'roadmapRenderEpicContextMenu',
+  storyContextMenu: 'roadmapRenderStoryContextMenu',
+} as const;
+
 registerActions({
   [ROADMAP_RENDER_ACTIONS.epicClick]: (el, e) => {
     const filename = el.dataset.filename as string;
@@ -192,7 +206,7 @@ export function buildEstPlaceholderCardHtml(p: EstPlaceholder): string {
     <div class="rm-est-card" draggable="true"
          role="button" tabindex="0"
          data-action="${ROADMAP_RENDER_ACTIONS.estCardOpenEpic}"
-         oncontextmenu="handleEstCardContextMenu(event,'${escHtml(p.epicFilename)}','${escHtml(p.fromSprint)}')"
+         data-context-action="${ROADMAP_RENDER_CTX_ACTIONS.estCardContextMenu}"
          data-est-epic="${escHtml(p.epicFilename)}"
          data-sprint="${escHtml(p.fromSprint)}"
          style="--rm-est-color:${p.color}"
@@ -386,7 +400,7 @@ export function renderEpicPanel(sprints: RoadmapSprint[]): void {
       <div class="rm-epic-card${isNone ? ' rm-epic-unlinked' : ''}"
            data-filename="${escHtml(fn || '__none__')}" data-doctype="${epicDocType}"${tooltipAttrs}
            ${fn || isNone ? `data-action="${ROADMAP_RENDER_ACTIONS.epicClick}"` : ''}
-           oncontextmenu="${fn ? `handleEpicContextMenu(event,'${escHtml(fn)}','${epicDocType}')` : ''}">
+           ${fn ? `data-context-action="${ROADMAP_RENDER_CTX_ACTIONS.epicContextMenu}"` : ''}>
         <div class="rm-epic-name-col">
           <div class="rm-epic-dot" style="background:${color}"></div>
           <div class="rm-epic-info">
@@ -588,7 +602,7 @@ export function buildRoadmapCardHtml(
   return `
     <div class="roadmap-card${depBlockedClass}${noEstimateClass}" draggable="true"
          data-action="${ROADMAP_RENDER_ACTIONS.cardClick}"
-         oncontextmenu="handleStoryContextMenu(event,'${escHtml(d.filename)}','${d.docType}')"
+         data-context-action="${ROADMAP_RENDER_CTX_ACTIONS.storyContextMenu}"
          data-filename="${escHtml(d.filename)}"
          data-doctype="${d.docType}"
          data-sp="${sp}"

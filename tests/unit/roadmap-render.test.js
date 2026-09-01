@@ -16,6 +16,7 @@ const {
   buildEstPlaceholders,
   buildEstPlaceholderCardHtml,
   updateEstPlacements,
+  ROADMAP_RENDER_CTX_ACTIONS,
 } = await import('../../public/js/roadmap-render.js');
 
 function makeDoc(overrides = {}) {
@@ -321,14 +322,19 @@ describe('buildEstPlaceholderCardHtml', () => {
     assert.match(html, /&lt;b&gt;/);
   });
 
-  test('wires up an oncontextmenu hook carrying the epic and source sprint', () => {
+  test('wires up a data-context-action, carrying the epic and source sprint via data attributes', () => {
     const html = buildEstPlaceholderCardHtml({
       epicFilename: 'e.md',
       epicTitle: 'Epic',
       color: '#000',
       fromSprint: 'S1',
     });
-    assert.match(html, /oncontextmenu="handleEstCardContextMenu\(event,'e\.md','S1'\)"/);
+    assert.match(
+      html,
+      new RegExp(`data-context-action="${ROADMAP_RENDER_CTX_ACTIONS.estCardContextMenu}"`)
+    );
+    assert.match(html, /data-est-epic="e\.md"/);
+    assert.match(html, /data-sprint="S1"/);
   });
 });
 
