@@ -33,6 +33,13 @@ export function renderDistributionPreview(data) {
     document.getElementById('distribution-apply-btn').disabled = true;
     return;
   }
+  body.innerHTML = buildDistributionBodyHtml(data);
+  msgs.innerHTML = buildDistributionMessagesHtml(data);
+}
+// Pure HTML builder for the per-sprint capacity bars + item checklist, plus
+// the overflow section — split out of renderDistributionPreview() so the
+// string-building logic is testable without a DOM.
+export function buildDistributionBodyHtml(data) {
   let html = data.sprints
     .map((sprint, si) => {
       const effectiveCap = sprint.effectiveCapacity ?? sprint.capacity;
@@ -120,7 +127,11 @@ export function renderDistributionPreview(data) {
         <div class="distribution-sprint-items">${overflowItems}</div>
       </div>`;
   }
-  body.innerHTML = html;
+  return html;
+}
+// Pure HTML builder for the warnings/suggestions message list — split out of
+// renderDistributionPreview() alongside buildDistributionBodyHtml().
+export function buildDistributionMessagesHtml(data) {
   let msgsHtml = '';
   if (data.warnings.length) {
     msgsHtml += data.warnings
@@ -132,7 +143,7 @@ export function renderDistributionPreview(data) {
       .map((s) => `<div class="distribution-msg suggestion">${escHtml(s)}</div>`)
       .join('');
   }
-  msgs.innerHTML = msgsHtml;
+  return msgsHtml;
 }
 export async function applyDistribution() {
   if (!_distributionData) return;
