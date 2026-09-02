@@ -178,4 +178,42 @@ export function dispatchContextAction(name, el, e) {
   handler(el, e);
   return true;
 }
+const keydownRegistry = new Map();
+/**
+ * Registers one or more `{ actionName: handler }` pairs against the shared
+ * `keydown`-event dispatch table. Call this once at module load time from the
+ * module that owns the action. Throws synchronously if a keydown action name
+ * is already registered, so a duplicate/typo'd name fails loudly at import
+ * time instead of silently shadowing another module's handler. This is a
+ * separate registry from `registerActions` / `registerChangeActions` /
+ * `registerInputActions` / `registerContextActions` above — a name
+ * registered here does not collide with the same name registered for
+ * `click`, `change`, `input`, or `contextmenu`.
+ */
+export function registerKeydownActions(actions) {
+  for (const [name, handler] of Object.entries(actions)) {
+    if (keydownRegistry.has(name)) {
+      throw new Error(
+        `registerKeydownActions: keydown action "${name}" is already registered — keydown action ` +
+          'names must be unique across all modules. Check for a copy-pasted key or a duplicate ' +
+          'registerKeydownActions() call.'
+      );
+    }
+    keydownRegistry.set(name, handler);
+  }
+}
+/**
+ * Looks up `name` in the keydown registry and invokes its handler with the
+ * triggering element and event. Returns `true` if a handler ran, `false` if
+ * nothing is registered under that name (the caller — main.ts's keydown
+ * handler — no-ops in that case, since the remaining unmigrated
+ * `onkeydown="..."` sites are plain inline attributes, not routed through
+ * this delegated listener at all).
+ */
+export function dispatchKeydownAction(name, el, e) {
+  const handler = keydownRegistry.get(name);
+  if (!handler) return false;
+  handler(el, e);
+  return true;
+}
 //# sourceMappingURL=actions.js.map

@@ -265,3 +265,81 @@ export function dispatchContextAction(name: string, el: HTMLElement, e: MouseEve
   handler(el, e);
   return true;
 }
+
+// ── Keydown-event registry (extension, issue #461) ───────────────────────────
+// click/change/input/contextmenu are now all self-registered (see above). The
+// one remaining category flagged in status comments on this issue is
+// `onkeydown="if(event.key==='Enter'){...} if(event.key==='Escape'){...}"`
+// strings — a handful of inline-edit inputs (refine.ts's title-edit field,
+// jira-pull.ts's inline "update from JIRA key" prompt, a few static fields in
+// index.html) whose Enter/Escape branching calls back into a handler exposed
+// only through main.ts's untyped `_dynGlobals` window bridge, because there
+// has never been a delegated `keydown` listener for them to hook into
+// (main.ts's existing document-level `keydown` listener is a fixed set of
+// app-wide shortcuts — Ctrl+B, global Escape — not a per-element dispatcher).
+// Same tradeoff noted for change/input/contextmenu: a `data-keydown-action`
+// name is dispatched from a distinct listener for a distinct DOM event, so
+// it's allowed to collide with a click/change/input/context action name
+// without either throwing at load time or firing the wrong handler — hence a
+// fifth independent registry rather than reusing one of the four above.
+//
+// Unlike the other four events, a registered keydown handler still does its
+// own `event.key` branching (Enter vs Escape, etc.) inside the handler body —
+// the same branching the `onkeydown="..."` string used to do inline. "Which
+// key was pressed" isn't part of the dispatch key the way "which action" is
+// for the other registries; this registry only replaces *how* the handler is
+// reached (a typed, self-registered lookup instead of an untyped window
+// global reached from a hand-written HTML string), not what the handler does
+// once reached.
+//
+// This spikes the pattern on the two sites named most often in prior status
+// comments as the leading candidates — refine.ts's title-edit input and
+// jira-pull.ts's inline JIRA-key prompt — as proof, the same "1-2 sites,
+// extend later" precedent the change/contextmenu registries themselves used.
+// The remaining `onkeydown="..."` sites (a trivial Enter/Escape-both-blur
+// input in refine.ts, plus a few static fields in index.html) are left on
+// main.ts's bridge for a future increment to migrate once this one has
+// proven out.
+
+export type KeydownActionHandler = (el: HTMLElement, e: KeyboardEvent) => void;
+
+const keydownRegistry = new Map<string, KeydownActionHandler>();
+
+/**
+ * Registers one or more `{ actionName: handler }` pairs against the shared
+ * `keydown`-event dispatch table. Call this once at module load time from the
+ * module that owns the action. Throws synchronously if a keydown action name
+ * is already registered, so a duplicate/typo'd name fails loudly at import
+ * time instead of silently shadowing another module's handler. This is a
+ * separate registry from `registerActions` / `registerChangeActions` /
+ * `registerInputActions` / `registerContextActions` above — a name
+ * registered here does not collide with the same name registered for
+ * `click`, `change`, `input`, or `contextmenu`.
+ */
+export function registerKeydownActions(actions: Record<string, KeydownActionHandler>): void {
+  for (const [name, handler] of Object.entries(actions)) {
+    if (keydownRegistry.has(name)) {
+      throw new Error(
+        `registerKeydownActions: keydown action "${name}" is already registered — keydown action ` +
+          'names must be unique across all modules. Check for a copy-pasted key or a duplicate ' +
+          'registerKeydownActions() call.'
+      );
+    }
+    keydownRegistry.set(name, handler);
+  }
+}
+
+/**
+ * Looks up `name` in the keydown registry and invokes its handler with the
+ * triggering element and event. Returns `true` if a handler ran, `false` if
+ * nothing is registered under that name (the caller — main.ts's keydown
+ * handler — no-ops in that case, since the remaining unmigrated
+ * `onkeydown="..."` sites are plain inline attributes, not routed through
+ * this delegated listener at all).
+ */
+export function dispatchKeydownAction(name: string, el: HTMLElement, e: KeyboardEvent): boolean {
+  const handler = keydownRegistry.get(name);
+  if (!handler) return false;
+  handler(el, e);
+  return true;
+}
