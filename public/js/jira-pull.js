@@ -11,19 +11,35 @@ import {
   updateJiraPushBtn,
 } from './jira-push.js';
 import { offerChildrenDownload } from './jira-import.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerKeydownActions } from './actions.js';
 // Typed data-action name for the inline "update from JIRA key" prompt's submit
 // button in showUpdateFromJiraKeyPrompt (issue #461 migration — see actions.ts
 // and list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
-// onclick="submitUpdateFromJiraKey()" string previously built by hand. The
-// input's onkeydown (Enter/Escape) stays on main.ts's window bridge — the
-// data-action click dispatcher doesn't cover keydown events.
+// onclick="submitUpdateFromJiraKey()" string previously built by hand.
 export const JIRA_PULL_ACTIONS = {
   submitUpdateFromJiraKey: 'jiraPullSubmitUpdateFromJiraKey',
+  updateKeyPromptKeydown: 'jiraPullUpdateKeyPromptKeydown',
 };
 registerActions({
   [JIRA_PULL_ACTIONS.submitUpdateFromJiraKey]: () => {
     submitUpdateFromJiraKey();
+  },
+});
+// Typed data-keydown-action name for the same prompt's input, replacing the
+// onkeydown="if(event.key==='Enter'){...submitUpdateFromJiraKey()} if
+// (event.key==='Escape'){closeAllDropdowns()}" string previously built by
+// hand (issue #461's keydown-registry spike — see actions.ts's
+// "Keydown-event registry" section). Both functions were already directly
+// imported/defined in this module, so this also removes the last reason
+// either needed to be reachable through main.ts's untyped window bridge.
+registerKeydownActions({
+  [JIRA_PULL_ACTIONS.updateKeyPromptKeydown]: (_el, e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitUpdateFromJiraKey();
+    } else if (e.key === 'Escape') {
+      closeAllDropdowns();
+    }
   },
 });
 // ── Pull from JIRA (consolidated: status + fields + children) ─
@@ -213,7 +229,7 @@ export function showUpdateFromJiraKeyPrompt() {
       <div class="jira-key-prompt-row">
         <input id="jira-update-key-input" class="jira-key-prompt-input" type="text"
                placeholder="e.g. EAMDM-1234"
-               onkeydown="if(event.key==='Enter'){event.preventDefault();submitUpdateFromJiraKey()} if(event.key==='Escape'){closeAllDropdowns()}" />
+               data-keydown-action="${JIRA_PULL_ACTIONS.updateKeyPromptKeydown}" />
         <button class="btn-jira-key" data-action="${JIRA_PULL_ACTIONS.submitUpdateFromJiraKey}">→</button>
       </div>
     </div>`;

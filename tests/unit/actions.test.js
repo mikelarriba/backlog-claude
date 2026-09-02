@@ -6,10 +6,12 @@
 // cheap pure logic though, so this file adds direct coverage for the new
 // change-action registry added alongside it (issue #461 change-event spike) —
 // registerChangeActions/dispatchChangeAction, mirrored from registerActions/
-// dispatchAction. A fresh module instance is imported per test (via a cache-
-// busting query string) so one test's registrations can't collide with
-// another's — registerChangeActions throws on a duplicate name, and the
-// registry is shared module-level state with no reset function.
+// dispatchAction — and, further down, the keydown-action registry added in a
+// later pass (registerKeydownActions/dispatchKeydownAction). A fresh module
+// instance is imported per test (via a cache-busting query string) so one
+// test's registrations can't collide with another's — each register*Actions
+// function throws on a duplicate name, and every registry is shared
+// module-level state with no reset function.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -65,5 +67,65 @@ describe('registerChangeActions / dispatchChangeAction', () => {
     dispatchChangeAction('sharedName', {}, { type: 'change' });
     assert.deepEqual(clickCalls, ['click']);
     assert.deepEqual(changeCalls, ['change']);
+  });
+});
+
+describe('registerKeydownActions / dispatchKeydownAction', () => {
+  test('dispatchKeydownAction returns false and does not throw for an unregistered name', async () => {
+    const { dispatchKeydownAction } = await freshActionsModule();
+    const el = {};
+    const result = dispatchKeydownAction('nobodyRegisteredThis', el, { key: 'Enter' });
+    assert.equal(result, false);
+  });
+
+  test('a registered keydown action is invoked with the element and event, and dispatch returns true', async () => {
+    const { registerKeydownActions, dispatchKeydownAction } = await freshActionsModule();
+    const calls = [];
+    registerKeydownActions({
+      myKeydownAction: (el, e) => calls.push([el, e]),
+    });
+    const el = { tagName: 'INPUT' };
+    const e = { key: 'Escape' };
+    const result = dispatchKeydownAction('myKeydownAction', el, e);
+    assert.equal(result, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][0], el);
+    assert.equal(calls[0][1], e);
+  });
+
+  test('registering the same keydown action name twice throws', async () => {
+    const { registerKeydownActions } = await freshActionsModule();
+    registerKeydownActions({ dupeAction: () => {} });
+    assert.throws(() => registerKeydownActions({ dupeAction: () => {} }), /already registered/);
+  });
+
+  test('a keydown action name may collide with a click/change action name registered in the same module instance', async () => {
+    const {
+      registerActions,
+      registerChangeActions,
+      registerKeydownActions,
+      dispatchAction,
+      dispatchChangeAction,
+      dispatchKeydownAction,
+    } = await freshActionsModule();
+    const clickCalls = [];
+    const changeCalls = [];
+    const keydownCalls = [];
+    // Same name, registered against all three registries — should not throw,
+    // and each dispatcher should only ever invoke its own handler.
+    registerActions({ sharedName: () => clickCalls.push('click') });
+    registerChangeActions({ sharedName: () => changeCalls.push('change') });
+    registerKeydownActions({ sharedName: () => keydownCalls.push('keydown') });
+
+    dispatchKeydownAction('sharedName', {}, { key: 'Enter' });
+    assert.deepEqual(clickCalls, []);
+    assert.deepEqual(changeCalls, []);
+    assert.deepEqual(keydownCalls, ['keydown']);
+
+    dispatchAction('sharedName', {}, { type: 'click' });
+    dispatchChangeAction('sharedName', {}, { type: 'change' });
+    assert.deepEqual(clickCalls, ['click']);
+    assert.deepEqual(changeCalls, ['change']);
+    assert.deepEqual(keydownCalls, ['keydown']);
   });
 });

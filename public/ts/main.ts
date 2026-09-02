@@ -14,6 +14,7 @@ import {
   dispatchChangeAction,
   dispatchInputAction,
   dispatchContextAction,
+  dispatchKeydownAction,
 } from './actions.js';
 import {
   toggleItemCollapse,
@@ -42,7 +43,6 @@ import {
   executeDelete,
   toggleDropdown,
   closeDropdown,
-  closeAllDropdowns,
   toggleOriginal,
   openDoc,
 } from './detail.js';
@@ -72,7 +72,7 @@ import {
   syncPreviewConfirm,
   pushToJira,
 } from './jira-push.js';
-import { pullFromJira, checkAllJira, submitUpdateFromJiraKey } from './jira-pull.js';
+import { pullFromJira, checkAllJira } from './jira-pull.js';
 import { openBugForm, closeBugForm, onBugFilesSelected, submitBugReport } from './bugcreate.js';
 import { resetCanvasLayout } from './refine-canvas.js';
 import { _showEdgePopup, _deleteCanvasLink, _changeCanvasLinkType } from './refine-edges.js';
@@ -95,7 +95,6 @@ import {
   resetRefineViewState,
   renderFeatureMultiPanel,
   saveRpTitle,
-  cancelRpTitleEdit,
   saveRpStoryPoints,
 } from './refine.js';
 import {
@@ -1018,6 +1017,27 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
   dispatchContextAction(contextAction, btn, e);
 });
 
+// ── Delegated keydown handler ────────────────────────────────────
+// Two migrated sites so far — refine.ts's title-edit input and
+// jira-pull.ts's inline "update from JIRA key" prompt — see the
+// "Keydown-event registry" section of actions.ts. This is a separate
+// listener from the app-wide-shortcuts one above (Ctrl+B, global Escape):
+// that one is a fixed set of document-level shortcuts, this one dispatches
+// by `data-keydown-action` the same way the click/change/input/contextmenu
+// listeners dispatch by their own `data-*-action` attribute. The remaining
+// `onkeydown="if(event.key===...){...}"` sites are plain inline attributes,
+// not delegated through this listener at all; `target.dataset.keydownAction`
+// simply comes back undefined for them and this listener no-ops, so they
+// keep working exactly as before via main.ts's `_dynGlobals` bridge until a
+// future increment migrates them too.
+document.addEventListener('keydown', (e: KeyboardEvent) => {
+  const target = e.target as HTMLElement;
+  const keydownAction = target.dataset.keydownAction;
+  if (!keydownAction) return;
+
+  dispatchKeydownAction(keydownAction, target, e);
+});
+
 // ── Delegated change handler ──────────────────────────────────
 document.addEventListener('change', (e: Event) => {
   const target = e.target as HTMLElement;
@@ -1109,11 +1129,12 @@ document.addEventListener('change', (e: Event) => {
 //     refineClosePanel, refineToggleUpgrade, refineOpenDocAndClose,
 //     refineConfirmDelete, refineExecuteUpgrade, refineRemoveDep,
 //     refineExecuteCreate) are intentionally absent below — see
-//     REFINE_ACTIONS in refine.ts. (saveRpTitle, cancelRpTitleEdit and
-//     saveRpStoryPoints stay on this bridge: the inline-edit inputs'
-//     onblur/onkeydown attributes are out of scope for the data-action click
-//     dispatcher. The priority <select>'s onchange now calls saveRpPriority
-//     directly via addEventListener instead of the bridge.)
+//     REFINE_ACTIONS in refine.ts. (saveRpTitle and saveRpStoryPoints stay
+//     on this bridge: the inline-edit inputs' onblur attributes are out of
+//     scope for the data-action click dispatcher. cancelRpTitleEdit moved
+//     off this bridge in a later pass — see the "Keydown-event registry"
+//     paragraph below. The priority <select>'s onchange now calls
+//     saveRpPriority directly via addEventListener instead of the bridge.)
 //   - The empty-cell-create and split popups' close/confirm buttons
 //     (refine-nodes.ts's _openCellCreateForm/_openCanvasSplit templates —
 //     the last two sites that were still reached via
@@ -1162,11 +1183,10 @@ document.addEventListener('change', (e: Event) => {
 //   - The inline "update from JIRA key" prompt's submit button
 //     (jira-pull.ts's showUpdateFromJiraKeyPrompt). Its one handler
 //     (submitUpdateFromJiraKey) is intentionally absent from the delegated
-//     switch above — see JIRA_PULL_ACTIONS in jira-pull.ts. It still appears
-//     below on this bridge: the same input's onkeydown (Enter/Escape) calls
-//     it as a bare global, and keydown is out of scope for the data-action
-//     click dispatcher — same carve-out as _updatePiFromConfig/saveRpTitle
-//     above.
+//     switch above — see JIRA_PULL_ACTIONS in jira-pull.ts. It no longer
+//     appears below on this bridge at all: the same input's onkeydown
+//     (Enter/Escape) moved off the bridge in a later pass too — see the
+//     "Keydown-event registry" paragraph below.
 // All fifteen views now self-register via registerActions() instead.
 //
 // The registry above is `click`-only; the delegated `change` handler defined
@@ -1205,6 +1225,29 @@ document.addEventListener('change', (e: Event) => {
 //     roadmap-context-menus.ts and ROADMAP_RENDER_CTX_ACTIONS in
 //     roadmap-render.ts.
 // A fresh `grep -rn 'oncontextmenu=' public/ts/` now returns nothing.
+//
+// A fifth, independent registry now covers `keydown` too (see the
+// "Keydown-event registry" section of actions.ts) — a proof-of-concept spike
+// on the two sites named most often in prior status comments as the leading
+// candidates:
+//   - refine.ts's title-edit input (former
+//     `onkeydown="if(event.key==='Enter'){this.blur()}
+//     if(event.key==='Escape'){cancelRpTitleEdit()}"`, now
+//     `data-keydown-action`). cancelRpTitleEdit is intentionally absent
+//     below — see the registerKeydownActions() call in refine.ts.
+//   - jira-pull.ts's inline "update from JIRA key" prompt input (former
+//     `onkeydown="if(event.key==='Enter'){...submitUpdateFromJiraKey()}
+//     if(event.key==='Escape'){closeAllDropdowns()}"`, now
+//     `data-keydown-action`). closeAllDropdowns and submitUpdateFromJiraKey
+//     are intentionally absent below — see the registerKeydownActions() call
+//     in jira-pull.ts.
+// The remaining `onkeydown="..."` sites — refine.ts's story-points input
+// (both branches just call `this.blur()`, nothing to remove from this
+// bridge), and a handful of static fields in index.html (the detail title
+// input, the SP input, the docs/JIRA search boxes) — are left as plain
+// inline attributes for a future increment to migrate once this one has
+// proven out, the same staged approach the change/input/contextmenu
+// registries themselves followed.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1216,22 +1259,29 @@ const _dynGlobals: Record<string, unknown> = {
   openDistributionModal,
   // detail.js — openDoc still used from list-filters.ts / roadmap-select.ts
   // as a bare ambient global (see the narrative comment above this bridge).
+  // closeAllDropdowns moved off this bridge (issue #461's keydown-registry
+  // spike): its only inline-attribute caller was jira-pull.ts's JIRA-key
+  // prompt onkeydown, now migrated to registerKeydownActions, and every
+  // other call site already imports it directly.
   openDoc,
-  closeAllDropdowns,
   loadHierarchy,
   // detail-links.ts
   saveTitle,
+  // cancelTitleEdit backs the detail title input's onkeydown in index.html
+  // (Escape branch) — a future increment can migrate that static site the
+  // same way jira-pull.ts's and refine.ts's were this round.
   cancelTitleEdit,
   saveStoryPoints,
-  // refine.js — saveRpTitle/cancelRpTitleEdit/saveRpStoryPoints back the
-  // refine panel's inline-edit inputs' onblur/onkeydown attributes (out of
-  // scope for the data-action click dispatcher — see REFINE_ACTIONS in
-  // refine.ts). openRefinePanel was audited and confirmed to have no
-  // remaining onclick="..." caller anywhere — every call site is a direct
-  // function import (refine-canvas.ts, refine-nodes.ts, refine.ts) — so it's
-  // removed from this bridge rather than left pending.
+  // refine.js — saveRpTitle/saveRpStoryPoints back the refine panel's
+  // inline-edit inputs' onblur attributes (out of scope for the data-action
+  // click dispatcher — see REFINE_ACTIONS in refine.ts). cancelRpTitleEdit
+  // moved off this bridge (issue #461's keydown-registry spike): its only
+  // caller was the title input's onkeydown Escape branch, now migrated to
+  // registerKeydownActions. openRefinePanel was audited and confirmed to
+  // have no remaining onclick="..." caller anywhere — every call site is a
+  // direct function import (refine-canvas.ts, refine-nodes.ts, refine.ts) —
+  // so it's removed from this bridge rather than left pending.
   saveRpTitle,
-  cancelRpTitleEdit,
   saveRpStoryPoints,
   // refine-edges.ts
   _showEdgePopup,
@@ -1263,9 +1313,10 @@ const _dynGlobals: Record<string, unknown> = {
   _pullSprintUpdateCount,
   // piconfig.ts
   _updatePiFromConfig,
-  // jira-pull.ts — submitUpdateFromJiraKey backs the inline JIRA-key input's
-  // onkeydown; its button's onclick moved to JIRA_PULL_ACTIONS (issue #461).
-  submitUpdateFromJiraKey,
+  // jira-pull.ts — submitUpdateFromJiraKey's onclick moved to
+  // JIRA_PULL_ACTIONS (issue #461) and its onkeydown moved to
+  // registerKeydownActions in the same later pass, so it's gone from this
+  // bridge entirely.
   // bugcreate.ts
   onBugFilesSelected,
   // bugs-dashboard.ts

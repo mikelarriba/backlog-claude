@@ -32,7 +32,7 @@ import {
 } from './refine-canvas.js';
 import { toggleManageLinks } from './refine-edges.js';
 import { _fpCreateChild, _showEpicContextMenu } from './refine-nodes.js';
-import { registerActions, registerInputActions } from './actions.js';
+import { registerActions, registerInputActions, registerKeydownActions } from './actions.js';
 // Typed data-action names for the refine panel's (epic/story/spike/bug
 // create & edit forms) buttons (issue #461 migration — see actions.ts and
 // CTX_ACTIONS in list-filters.ts / EDGE_ACTIONS in refine-edges.ts for the
@@ -42,10 +42,13 @@ import { registerActions, registerInputActions } from './actions.js';
 // handlers through main.ts's untyped window bridge instead of a direct,
 // typed call.
 //
-// The refine panel's title/SP inline-edit inputs (onblur="saveRpTitle()" /
-// onblur="saveRpStoryPoints(...)" / onkeydown="...") are left as-is — they
-// aren't onclick/onchange handlers and the data-action dispatcher only
-// covers the delegated 'click' listener in main.ts, not 'blur'/'keydown'.
+// The refine panel's title/SP inline-edit inputs' onblur (`saveRpTitle()` /
+// `saveRpStoryPoints(...)`) is left as-is — the data-action dispatcher only
+// covers the delegated 'click' listener in main.ts, not 'blur'. The title
+// input's onkeydown is migrated below onto the registerKeydownActions
+// registry (issue #461's keydown spike — see actions.ts); the SP input's
+// onkeydown stays inline since both its branches just call `this.blur()`
+// with no bridge function to remove.
 // The priority <select>'s onchange is migrated below via a direct
 // addEventListener attached right after render (matching the existing
 // convention for 'change' listeners elsewhere, e.g. jira-push.ts /
@@ -123,6 +126,24 @@ registerActions({
 registerInputActions({
   onCanvasSearchInput: (el) => {
     onCanvasSearch(el.value);
+  },
+});
+// Typed data-keydown-action name for the refine panel's title-edit input
+// (issue #461's keydown-registry spike — see actions.ts's "Keydown-event
+// registry" section). Replaces the
+// onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape')
+// {cancelRpTitleEdit()}" string previously built by hand. cancelRpTitleEdit
+// is defined further down in this same module, so this also removes the
+// last reason it needed to be reachable through main.ts's untyped window
+// bridge.
+const RP_TITLE_KEYDOWN_ACTION = 'refineRpTitleKeydown';
+registerKeydownActions({
+  [RP_TITLE_KEYDOWN_ACTION]: (el, e) => {
+    if (e.key === 'Enter') {
+      el.blur();
+    } else if (e.key === 'Escape') {
+      cancelRpTitleEdit();
+    }
   },
 });
 // ── Card search / filter ──────────────────────────────────────
@@ -379,7 +400,7 @@ export async function openRefinePanel(filename, docType) {
         <input class="rp-title-input" id="rp-title-input" type="text"
           value="${escHtml(title)}" data-original="${escHtml(title)}"
           data-filename="${ef}" data-doctype="${et}"
-          onblur="saveRpTitle()" onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){cancelRpTitleEdit()}" />
+          onblur="saveRpTitle()" data-keydown-action="${RP_TITLE_KEYDOWN_ACTION}" />
         <div class="rp-edit-row">
           ${
             isLeaf
