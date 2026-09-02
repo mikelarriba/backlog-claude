@@ -70,6 +70,14 @@ export function renderDistributionPreview(data: DistributionData): void {
     return;
   }
 
+  body.innerHTML = buildDistributionBodyHtml(data);
+  msgs.innerHTML = buildDistributionMessagesHtml(data);
+}
+
+// Pure HTML builder for the per-sprint capacity bars + item checklist, plus
+// the overflow section — split out of renderDistributionPreview() so the
+// string-building logic is testable without a DOM.
+export function buildDistributionBodyHtml(data: DistributionData): string {
   let html = data.sprints
     .map((sprint, si) => {
       const effectiveCap = sprint.effectiveCapacity ?? sprint.capacity;
@@ -161,8 +169,12 @@ export function renderDistributionPreview(data: DistributionData): void {
       </div>`;
   }
 
-  body.innerHTML = html;
+  return html;
+}
 
+// Pure HTML builder for the warnings/suggestions message list — split out of
+// renderDistributionPreview() alongside buildDistributionBodyHtml().
+export function buildDistributionMessagesHtml(data: DistributionData): string {
   let msgsHtml = '';
   if (data.warnings.length) {
     msgsHtml += data.warnings
@@ -174,7 +186,7 @@ export function renderDistributionPreview(data: DistributionData): void {
       .map((s) => `<div class="distribution-msg suggestion">${escHtml(s)}</div>`)
       .join('');
   }
-  msgs.innerHTML = msgsHtml;
+  return msgsHtml;
 }
 
 export async function applyDistribution(): Promise<void> {
