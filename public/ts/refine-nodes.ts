@@ -7,6 +7,7 @@ import {
   fetchJSON,
   deleteJSON,
   getErrorMessage,
+  type DocEntry,
 } from './state.js';
 import { loadDocs } from './list.js';
 import { upsertDoc, removeDoc } from './store.js';
@@ -126,6 +127,29 @@ export function _showCardContextMenu(
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
 
+// Pure: builds the "Move to Epic" submenu HTML for _showFpCardContextMenu —
+// labels each open-panel epic filename from allDocs (falling back to the raw
+// filename), and marks/disables the current epic. Extracted so this
+// labeling/escaping logic is testable without a DOM (#460).
+export function buildFpEpicMenuItemsHtml(
+  epicFilenames: string[],
+  currentEpicFilename: string,
+  docs: Pick<DocEntry, 'filename' | 'docType' | 'title'>[]
+): string {
+  return epicFilenames
+    .map((ef) => {
+      const isCurrent = ef === currentEpicFilename;
+      const epicDoc = docs.find((d) => d.filename === ef && d.docType === 'epic');
+      const label = epicDoc?.title || ef;
+      return `<button class="fp-ctx-epic-btn${isCurrent ? ' fp-ctx-epic-current' : ''}"
+      ${isCurrent ? 'disabled' : ''}
+      data-epic="${escHtml(ef)}">
+      ${escHtml(label)}${isCurrent ? ' (current)' : ''}
+    </button>`;
+    })
+    .join('');
+}
+
 // ── Feature multi-panel card context menu ─────────────────────
 export function _showFpCardContextMenu(
   x: number,
@@ -141,18 +165,11 @@ export function _showFpCardContextMenu(
   positionPopup(popup, x, y);
 
   // Build "Move to Epic" submenu items from _panelStates
-  const epicItems = [..._panelStates.keys()]
-    .map((ef) => {
-      const isCurrent = ef === currentEpicFilename;
-      const epicDoc = allDocs.find((d) => d.filename === ef && d.docType === 'epic');
-      const label = epicDoc?.title || ef;
-      return `<button class="fp-ctx-epic-btn${isCurrent ? ' fp-ctx-epic-current' : ''}"
-      ${isCurrent ? 'disabled' : ''}
-      data-epic="${escHtml(ef)}">
-      ${escHtml(label)}${isCurrent ? ' (current)' : ''}
-    </button>`;
-    })
-    .join('');
+  const epicItems = buildFpEpicMenuItemsHtml(
+    [..._panelStates.keys()],
+    currentEpicFilename,
+    allDocs
+  );
 
   popup.innerHTML = `
     <div class="canvas-link-popup-title">Move to Epic</div>
