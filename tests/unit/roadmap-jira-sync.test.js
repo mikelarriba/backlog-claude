@@ -27,6 +27,7 @@ const {
   buildPullSprintResultItemHtml,
   summarizePullSprintResult,
   formatPullSprintConfirmLabel,
+  ROADMAP_JIRA_SYNC_CHANGE_ACTIONS,
 } = await import('../../public/js/roadmap-jira-sync.js');
 
 // ── splitSSEBuffer ────────────────────────────────────────────────────────────
@@ -196,7 +197,10 @@ describe('buildSprintPushRowHtml()', () => {
       html,
       /data-jira-id="PROJ-1" data-change-type="add"[\s\S]*data-filename="do-the-thing\.md" data-target-sprint="Sprint 3"[\s\S]*data-doc-type="story"/
     );
-    assert.match(html, /onchange="_sprintPushUpdateCount\(\)"/);
+    assert.match(
+      html,
+      new RegExp(`data-change-action="${ROADMAP_JIRA_SYNC_CHANGE_ACTIONS.sprintPushUpdateCount}"`)
+    );
   });
 
   test('missing filename, targetSprint, and docType fall back to empty attribute values', () => {
@@ -336,7 +340,10 @@ describe('buildPullSprintResultItemHtml()', () => {
   test('wires up the checkbox value and data-sprint attribute', () => {
     const html = buildPullSprintResultItemHtml(result());
     assert.match(html, /value="PROJ-1" data-sprint="Sprint 3"/);
-    assert.match(html, /onchange="_pullSprintUpdateCount\(\)"/);
+    assert.match(
+      html,
+      new RegExp(`data-change-action="${ROADMAP_JIRA_SYNC_CHANGE_ACTIONS.pullSprintUpdateCount}"`)
+    );
   });
 
   test('with story points: appends "N SP" to the meta line', () => {
