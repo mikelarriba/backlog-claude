@@ -100,6 +100,24 @@ export function _showCardContextMenu(x, y, filename, epicFilename, docType) {
   });
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
+// Pure: builds the "Move to Epic" submenu HTML for _showFpCardContextMenu —
+// labels each open-panel epic filename from allDocs (falling back to the raw
+// filename), and marks/disables the current epic. Extracted so this
+// labeling/escaping logic is testable without a DOM (#460).
+export function buildFpEpicMenuItemsHtml(epicFilenames, currentEpicFilename, docs) {
+  return epicFilenames
+    .map((ef) => {
+      const isCurrent = ef === currentEpicFilename;
+      const epicDoc = docs.find((d) => d.filename === ef && d.docType === 'epic');
+      const label = epicDoc?.title || ef;
+      return `<button class="fp-ctx-epic-btn${isCurrent ? ' fp-ctx-epic-current' : ''}"
+      ${isCurrent ? 'disabled' : ''}
+      data-epic="${escHtml(ef)}">
+      ${escHtml(label)}${isCurrent ? ' (current)' : ''}
+    </button>`;
+    })
+    .join('');
+}
 // ── Feature multi-panel card context menu ─────────────────────
 export function _showFpCardContextMenu(
   x,
@@ -114,18 +132,11 @@ export function _showFpCardContextMenu(
   popup.className = 'canvas-link-popup';
   positionPopup(popup, x, y);
   // Build "Move to Epic" submenu items from _panelStates
-  const epicItems = [..._panelStates.keys()]
-    .map((ef) => {
-      const isCurrent = ef === currentEpicFilename;
-      const epicDoc = allDocs.find((d) => d.filename === ef && d.docType === 'epic');
-      const label = epicDoc?.title || ef;
-      return `<button class="fp-ctx-epic-btn${isCurrent ? ' fp-ctx-epic-current' : ''}"
-      ${isCurrent ? 'disabled' : ''}
-      data-epic="${escHtml(ef)}">
-      ${escHtml(label)}${isCurrent ? ' (current)' : ''}
-    </button>`;
-    })
-    .join('');
+  const epicItems = buildFpEpicMenuItemsHtml(
+    [..._panelStates.keys()],
+    currentEpicFilename,
+    allDocs
+  );
   popup.innerHTML = `
     <div class="canvas-link-popup-title">Move to Epic</div>
     ${epicItems || '<div style="font-size:0.75rem;color:var(--muted);padding:4px 8px">No other epics</div>'}
