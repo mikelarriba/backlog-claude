@@ -16,7 +16,14 @@ import {
   upsertDoc,
 } from './state.js';
 import { loadHierarchy } from './detail-links.js';
-import { clearSelection, itemKey, getSelectedDocs, applyFilters } from './list-filters.js';
+import {
+  clearSelection,
+  itemKey,
+  getSelectedDocs,
+  applyFilters,
+  toggleItemSelection,
+  rangeSelectItems,
+} from './list-filters.js';
 import { _rankSortFn } from './list-render.js';
 // No aria-live region existed for list reorder before this; adds one,
 // visually hidden but announced to screen readers, following the same
@@ -36,6 +43,13 @@ function _listReorderStatusRegion() {
   return el;
 }
 function _announceListReorderStatus(message) {
+  _listReorderStatusRegion().textContent = message;
+}
+// Same lazily-created aria-live region as _announceListReorderStatus above,
+// just named for its own call sites (Ctrl/Cmd+Enter toggle and Shift+Enter
+// range-select below, #486) — the backlog list only needs one polite status
+// region, no reason to create a second DOM node for it.
+function _announceListSelectionStatus(message) {
   _listReorderStatusRegion().textContent = message;
 }
 export function getSwimlaneSection(doc) {
@@ -533,7 +547,11 @@ export function initDragDrop() {
   // working without re-tabbing. Announces the result via the aria-live
   // region above so screen-reader users get the same feedback sighted users
   // get from watching the item move (#486 phase 6/N, generalizing the
-  // announcement pattern introduced for canvas link mode).
+  // announcement pattern introduced for canvas link mode). Also handles
+  // Ctrl/Cmd+Enter and Shift+Enter on the same handle for building a
+  // multi-selection (see the block below) — the mouse-only gap this pass
+  // closes: without it a keyboard user could never populate `selectedItems`
+  // and so could never reach the multi-item batch context menu.
   list.addEventListener('keydown', (e) => {
     const handle = e.target.closest('.drag-handle');
     if (!handle) return;
@@ -541,6 +559,58 @@ export function initDragDrop() {
     if (!item) return;
     const filename = item.dataset.filename;
     const docType = item.dataset.doctype;
+    // Ctrl/Cmd+Enter and Shift+Enter: keyboard-operable equivalents of
+    // Cmd/Ctrl+Click and Shift+Click (list-filters.ts's handleItemClick) —
+    // the only way a keyboard-only user can build a multi-selection to
+    // reach the (already keyboard-reachable via the browser's native
+    // Shift+F10/Menu-key context-menu trigger) batch context menu (#486).
+    // Both call the exact same toggleItemSelection()/rangeSelectItems()
+    // helpers the mouse path uses, so the two entry points can't drift.
+    // Plain Enter does nothing on this handle today (no role=button
+    // keydown-to-click shim is wired up for it), so there's nothing to
+    // avoid double-triggering here — preventDefault is still applied so a
+    // future Enter behavior on this element doesn't fire alongside these.
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
+      const nowSelected = toggleItemSelection(filename, docType);
+      const count = selectedItems.size;
+      _announceListSelectionStatus(
+        nowSelected
+          ? `Selected ${title}. ${count} item${count === 1 ? '' : 's'} selected.`
+          : `Deselected ${title}. ${count} item${count === 1 ? '' : 's'} selected.`
+      );
+      return;
+    }
+    if (e.shiftKey && e.key === 'Enter') {
+      e.preventDefault();
+      if (!_lastClickedItem) {
+        _announceListSelectionStatus(
+          'No selection to extend. Press Ctrl+Enter (Cmd+Enter on Mac) to start a selection first.'
+        );
+        return;
+      }
+      const range = rangeSelectItems(filename, docType);
+      const count = selectedItems.size;
+      if (!range.length) {
+        _announceListSelectionStatus(`Selection unchanged. ${count} item(s) selected.`);
+        return;
+      }
+      if (range.length === 1) {
+        const title = allDocs.find((d) => d.filename === range[0].filename)?.title ?? 'Item';
+        _announceListSelectionStatus(
+          `Selected ${title}. ${count} item${count === 1 ? '' : 's'} selected.`
+        );
+      } else {
+        const startTitle = allDocs.find((d) => d.filename === range[0].filename)?.title ?? 'item';
+        const endTitle =
+          allDocs.find((d) => d.filename === range[range.length - 1].filename)?.title ?? 'item';
+        _announceListSelectionStatus(
+          `Selected ${range.length} items from ${startTitle} to ${endTitle}. ${count} item${count === 1 ? '' : 's'} selected.`
+        );
+      }
+      return;
+    }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
       void moveDocSwimlaneByKeyboard(filename, docType, e.key === 'ArrowLeft' ? 'prev' : 'next');

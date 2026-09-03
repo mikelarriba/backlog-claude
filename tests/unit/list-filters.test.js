@@ -34,7 +34,8 @@ mock.module('../../public/js/dragdrop.js', {
   namedExports: { sectionToFixVersion: () => null },
 });
 
-const { matchesListFilters } = await import('../../public/js/list-filters.js');
+const { matchesListFilters, computeListShiftRangeSelection } =
+  await import('../../public/js/list-filters.js');
 
 // A representative doc — individual tests override just the field(s) under test.
 const baseDoc = {
@@ -117,5 +118,76 @@ describe('matchesListFilters()', () => {
   test('all filters and a matching query together include the doc', () => {
     const filters = { type: 'story', status: 'In Progress', team: 'Platform', workCat: 'Feature' };
     assert.equal(matchesListFilters(baseDoc, 'relevance', filters), true);
+  });
+});
+
+// computeListShiftRangeSelection() is the pure range-computation helper
+// extracted from handleItemClick's Shift+Click branch (#460/#486), now also
+// backing the Shift+Enter keyboard range-select path (dragdrop.ts). Mirrors
+// roadmap-select.test.js's coverage shape for computeShiftRangeSelection(),
+// but this module's version matches on both filename AND docType, and
+// returns nothing (rather than falling back to "just the current item")
+// when either endpoint isn't found among the visible items — preserving the
+// original inline loop's exact behavior.
+describe('computeListShiftRangeSelection()', () => {
+  const items = [
+    { filename: 'a.md', docType: 'story' },
+    { filename: 'b.md', docType: 'story' },
+    { filename: 'c.md', docType: 'story' },
+    { filename: 'd.md', docType: 'story' },
+    { filename: 'e.md', docType: 'story' },
+  ];
+
+  test('returns the inclusive range when the last-clicked item precedes the current one', () => {
+    const result = computeListShiftRangeSelection(items, 'b.md', 'story', 'd.md', 'story');
+    assert.deepEqual(
+      result.map((c) => c.filename),
+      ['b.md', 'c.md', 'd.md']
+    );
+  });
+
+  test('returns the inclusive range in list order when selected in reverse (current precedes last)', () => {
+    const result = computeListShiftRangeSelection(items, 'd.md', 'story', 'b.md', 'story');
+    assert.deepEqual(
+      result.map((c) => c.filename),
+      ['b.md', 'c.md', 'd.md']
+    );
+  });
+
+  test('returns just the single item when last-clicked and current are the same', () => {
+    const result = computeListShiftRangeSelection(items, 'c.md', 'story', 'c.md', 'story');
+    assert.deepEqual(
+      result.map((c) => c.filename),
+      ['c.md']
+    );
+  });
+
+  test('returns nothing when only the current item is found (last-clicked no longer visible)', () => {
+    // Unlike roadmap-select's computeShiftRangeSelection, this module does
+    // not fall back to selecting just the current item — the original
+    // inline loop simply no-op'd in this case.
+    const result = computeListShiftRangeSelection(items, 'gone.md', 'story', 'c.md', 'story');
+    assert.deepEqual(result, []);
+  });
+
+  test('returns nothing when neither item is found among the visible items', () => {
+    const result = computeListShiftRangeSelection(
+      items,
+      'gone.md',
+      'story',
+      'also-gone.md',
+      'story'
+    );
+    assert.deepEqual(result, []);
+  });
+
+  test('returns nothing for an empty item list', () => {
+    assert.deepEqual(computeListShiftRangeSelection([], 'a.md', 'story', 'b.md', 'story'), []);
+  });
+
+  test('treats a docType mismatch as not found, even with a matching filename', () => {
+    // Same filename, different docType — should not match either endpoint.
+    const result = computeListShiftRangeSelection(items, 'b.md', 'epic', 'd.md', 'story');
+    assert.deepEqual(result, []);
   });
 });
