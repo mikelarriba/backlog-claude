@@ -314,7 +314,7 @@ export function renderDocItem(d, indent, childrenMap) {
          data-context-action="${LIST_ITEM_CTX_ACTIONS.itemContextMenu}">
       <div class="drag-handle" title="Drag to reorder or link, or use arrow keys"
            role="button" tabindex="0"
-           aria-label="Reorder ${escHtml(d.title)}. Use the up and down arrow keys to move it within the list, Home or End to move it to the top or bottom, or left and right to move it between Current PI, Next PI, and Backlog."
+           aria-label="Reorder ${escHtml(d.title)}. Use the up and down arrow keys to move it within the list, Home or End to move it to the top or bottom, or left and right to move it between Current PI, Next PI, and Backlog. Press Ctrl+Enter (Cmd+Enter on Mac) to add it to a multi-selection, or Shift+Enter to select a range, then open the context menu for batch actions."
            ><span></span><span></span><span></span><span></span><span></span><span></span></div>
       <div class="readiness-dot ${rdCls}" title="${rdTip}"></div>
       ${collapseBtn}

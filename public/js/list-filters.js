@@ -212,42 +212,89 @@ export function syncSelectionUI() {
     el.classList.toggle('multi-selected', selectedItems.has(key));
   });
 }
+// Pure range computation extracted from handleItemClick's Shift+Click branch
+// (was an inline loop here, lines duplicated the index-finding/slicing logic
+// verbatim) so the same range math can also back the Shift+Enter keyboard
+// path below (#460/#486) — mirroring roadmap-select.ts's own
+// computeShiftRangeSelection() extraction, same shape and same
+// "handle the shared math once, let each entry point supply its own
+// event/keys" motivation. Unlike roadmap-select's version, this one matches
+// on *both* filename and docType (not filename alone) and returns nothing
+// when either endpoint isn't found — preserving this module's original
+// inline behavior (no "just select the current item" fallback) rather than
+// adopting roadmap's fallback, since that's what the code being extracted
+// actually did. Byte-for-byte behavior-preserving.
+export function computeListShiftRangeSelection(
+  items,
+  lastFilename,
+  lastDocType,
+  curFilename,
+  curDocType
+) {
+  const lastIdx = items.findIndex((v) => v.filename === lastFilename && v.docType === lastDocType);
+  const curIdx = items.findIndex((v) => v.filename === curFilename && v.docType === curDocType);
+  if (lastIdx < 0 || curIdx < 0) return [];
+  const start = Math.min(lastIdx, curIdx);
+  const end = Math.max(lastIdx, curIdx);
+  return items.slice(start, end + 1);
+}
+// Toggle/range-select shared between the mouse path (handleItemClick below)
+// and the keyboard path (dragdrop.ts's list keydown handler, Ctrl/Cmd+Enter
+// and Shift+Enter — #486) so both entry points call the exact same
+// selection-mutation logic and can't drift apart. Returns whether the item
+// ended up selected (true) or deselected (false), for the caller's own
+// aria-live announcement.
+export function toggleItemSelection(filename, docType) {
+  const key = itemKey(filename, docType);
+  let nowSelected;
+  if (selectedItems.has(key)) {
+    selectedItems.delete(key);
+    nowSelected = false;
+  } else {
+    selectedItems.add(key);
+    nowSelected = true;
+  }
+  _lastClickedItem = { filename, docType };
+  syncSelectionUI();
+  return nowSelected;
+}
+// Range-selects from `_lastClickedItem` (the anchor) through (filename,
+// docType) using computeListShiftRangeSelection() above. No-ops (returns [])
+// when there's no anchor yet. Returns the items just added to the selection
+// (empty when neither endpoint could be resolved) so the caller can build
+// its own announcement/feedback.
+export function rangeSelectItems(filename, docType) {
+  if (!_lastClickedItem) return [];
+  const lastClicked = _lastClickedItem;
+  const range = computeListShiftRangeSelection(
+    getVisibleItems(),
+    lastClicked.filename,
+    lastClicked.docType,
+    filename,
+    docType
+  );
+  for (const item of range) {
+    selectedItems.add(itemKey(item.filename, item.docType));
+  }
+  syncSelectionUI();
+  return range;
+}
 export function handleItemClick(e, filename, docType) {
   if (_justDragged) return;
   // Clicks on collapse button are handled separately
   if (e.target.closest('.collapse-btn')) return;
-  const key = itemKey(filename, docType);
   const isMeta = e.metaKey || e.ctrlKey;
   const isShift = e.shiftKey;
   if (isMeta) {
     // Cmd/Ctrl+Click: toggle individual item
     e.preventDefault();
-    if (selectedItems.has(key)) {
-      selectedItems.delete(key);
-    } else {
-      selectedItems.add(key);
-    }
-    _lastClickedItem = { filename, docType };
-    syncSelectionUI();
+    toggleItemSelection(filename, docType);
     return;
   }
   if (isShift && _lastClickedItem) {
     // Shift+Click: range select
     e.preventDefault();
-    const lastClicked = _lastClickedItem;
-    const visible = getVisibleItems();
-    const lastIdx = visible.findIndex(
-      (v) => v.filename === lastClicked.filename && v.docType === lastClicked.docType
-    );
-    const curIdx = visible.findIndex((v) => v.filename === filename && v.docType === docType);
-    if (lastIdx >= 0 && curIdx >= 0) {
-      const start = Math.min(lastIdx, curIdx);
-      const end = Math.max(lastIdx, curIdx);
-      for (let i = start; i <= end; i++) {
-        selectedItems.add(itemKey(visible[i].filename, visible[i].docType));
-      }
-    }
-    syncSelectionUI();
+    rangeSelectItems(filename, docType);
     return;
   }
   // Plain click: clear selection and open the doc
