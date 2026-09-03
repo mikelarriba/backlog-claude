@@ -14,6 +14,29 @@ import {
 import type { SprintConfig } from './state.js';
 import { loadDocs } from './list.js';
 import type { RoadmapSprint } from './roadmap.js';
+import { registerChangeActions } from './actions.js';
+
+// Typed data-change-action names for the sprint-push and pull-sprint
+// checkboxes' onchange handlers (issue #461 migration — see the
+// "Change-event registry" section of actions.ts and DOC_CHANGE_ACTIONS in
+// documentation.ts for the established pattern).
+export const ROADMAP_JIRA_SYNC_CHANGE_ACTIONS = {
+  sprintPushUpdateCount: 'roadmapJiraSyncSprintPushUpdateCount',
+  pullSprintUpdateCount: 'roadmapJiraSyncPullSprintUpdateCount',
+  pullSprintSelectAllItems: 'roadmapJiraSyncPullSprintSelectAllItems',
+} as const;
+
+registerChangeActions({
+  [ROADMAP_JIRA_SYNC_CHANGE_ACTIONS.sprintPushUpdateCount]: () => {
+    _sprintPushUpdateCount();
+  },
+  [ROADMAP_JIRA_SYNC_CHANGE_ACTIONS.pullSprintUpdateCount]: () => {
+    _pullSprintUpdateCount();
+  },
+  [ROADMAP_JIRA_SYNC_CHANGE_ACTIONS.pullSprintSelectAllItems]: (el) => {
+    pullSprintSelectAllItems((el as HTMLInputElement).checked);
+  },
+});
 
 // ── Push Sprints to JIRA (modal-based) ──────────────────────
 interface SprintPushItem {
@@ -294,7 +317,7 @@ export function buildSprintPushRowHtml(c: SprintPushChange): string {
       <input type="checkbox" checked data-jira-id="${c.jiraId}" data-change-type="${c.changeType}"
              data-filename="${c.filename || ''}" data-target-sprint="${c.targetSprint || ''}"
              data-doc-type="${c.docType || ''}"
-             onchange="_sprintPushUpdateCount()">
+             data-change-action="${ROADMAP_JIRA_SYNC_CHANGE_ACTIONS.sprintPushUpdateCount}">
       <span class="sprint-push-item-title" title="${escHtml(c.title)}">${escHtml(c.title)}</span>
       <span class="sprint-push-item-key">${escHtml(c.jiraId)}</span>
       <span class="sprint-push-item-arrow">${escHtml(arrow)}</span>
@@ -590,7 +613,7 @@ export function buildPullSprintResultItemHtml(r: PullSprintResult): string {
   const typeBadge = `<span class="sprint-push-type sprint-push-type-${localType}">${escHtml(r.issuetype)}</span>`;
   const sp = r.storyPoints ? `${r.storyPoints} SP` : '';
   return `<label class="sprint-push-item">
-      <input type="checkbox" checked value="${escHtml(r.key)}" data-sprint="${escHtml(r.sprintName)}" onchange="_pullSprintUpdateCount()" />
+      <input type="checkbox" checked value="${escHtml(r.key)}" data-sprint="${escHtml(r.sprintName)}" data-change-action="${ROADMAP_JIRA_SYNC_CHANGE_ACTIONS.pullSprintUpdateCount}" />
       <div class="sprint-push-item-info">
         <div class="sprint-push-item-title">${typeBadge} <strong>${escHtml(r.key)}</strong> ${escHtml(r.summary)}</div>
         <div class="sprint-push-item-meta">${escHtml(r.sprintName)} ${sp ? '· ' + sp : ''}</div>
@@ -601,7 +624,7 @@ export function buildPullSprintResultItemHtml(r: PullSprintResult): string {
 function _renderPullSprintResults(results: PullSprintResult[]): void {
   const container = document.getElementById('pull-sprint-results')!;
   let html = `<div class="sprint-push-results-header">
-    <label><input type="checkbox" checked onchange="pullSprintSelectAllItems(this.checked)" /> Select all</label>
+    <label><input type="checkbox" checked data-change-action="${ROADMAP_JIRA_SYNC_CHANGE_ACTIONS.pullSprintSelectAllItems}" /> Select all</label>
     <span>${results.length} new issue${results.length !== 1 ? 's' : ''} found</span>
   </div>`;
 

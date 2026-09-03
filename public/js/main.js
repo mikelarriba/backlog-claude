@@ -137,13 +137,10 @@ import {
   sprintPushToggleAllSprints,
   startSprintPushPreview,
   confirmSprintPush,
-  _sprintPushUpdateCount,
   pullFromJiraSprints,
   closePullSprintModal,
   pullSprintToggleAll,
   startPullSprintPreview,
-  pullSprintSelectAllItems,
-  _pullSprintUpdateCount,
   confirmPullSprint,
 } from './roadmap-jira-sync.js';
 import { loadSkillsView } from './skills.js';
@@ -1201,10 +1198,9 @@ const _dynGlobals = {
   // #461); see that module. openDepModal was in fact never on this bridge
   // in the first place — the dep-manage button's onclick was unreachable
   // at runtime before this migration.
-  // roadmap-jira-sync.ts
-  _sprintPushUpdateCount,
-  pullSprintSelectAllItems,
-  _pullSprintUpdateCount,
+  // roadmap-jira-sync.ts — _sprintPushUpdateCount/_pullSprintUpdateCount/
+  // pullSprintSelectAllItems's onchange sites moved off this bridge onto
+  // ROADMAP_JIRA_SYNC_CHANGE_ACTIONS (issue #461); see that module.
   // piconfig.ts
   _updatePiFromConfig,
   // jira-pull.ts — submitUpdateFromJiraKey's onclick moved to
