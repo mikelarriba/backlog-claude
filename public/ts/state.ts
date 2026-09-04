@@ -380,6 +380,20 @@ export function closeModal(id: string): void {
   if (el) el.classList.remove('show');
 }
 
+// Wires a modal's backdrop so clicking outside the dialog closes it — call
+// once per modal at startup with its proper close function (not just
+// closeModal(id) directly) so modal-specific cleanup, like a resolved
+// promise or a cleared timer, still runs. Standardizes behavior that was
+// previously hand-rolled per modal: inline onclick, ad hoc addEventListener,
+// or missing entirely.
+export function wireModalBackdropClose(id: string, onClose: () => void): void {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('click', (e: MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  });
+}
+
 // ── Shared section toggle ─────────────────────────────────────────────────────
 export function toggleSection(bodyId: string, chevronId: string, rotateDeg = 90): void {
   const body = document.getElementById(bodyId);
