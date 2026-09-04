@@ -31,7 +31,7 @@ mock.module('../../public/js/list-render.js', {
   },
 });
 mock.module('../../public/js/dragdrop.js', {
-  namedExports: { sectionToFixVersion: () => null },
+  namedExports: { sectionToFixVersion: () => null, moveSelectionRank: async () => {} },
 });
 
 const { matchesListFilters, computeListShiftRangeSelection } =

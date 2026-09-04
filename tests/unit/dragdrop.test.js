@@ -25,6 +25,7 @@ const {
   computeRerankedDocs,
   computeMoveTarget,
   computeEdgeMoveTarget,
+  computeSelectionMove,
   computeAdjacentSwimlane,
   buildSwimlaneMoveAnnouncement,
   buildEdgeMoveAnnouncement,
@@ -297,6 +298,135 @@ describe('computeEdgeMoveTarget()', () => {
     assert.equal(computeEdgeMoveTarget(unsorted, 'b.md', 'first'), 'a.md');
     assert.equal(computeEdgeMoveTarget(unsorted, 'a.md', 'first'), undefined);
     assert.equal(computeEdgeMoveTarget(unsorted, 'c.md', 'last'), undefined);
+  });
+});
+
+// ── computeSelectionMove (context-menu multi-select reorder) ──────────────────
+describe('computeSelectionMove()', () => {
+  const group = [
+    makeDoc({ filename: 'a.md', rank: 1 }),
+    makeDoc({ filename: 'b.md', rank: 2 }),
+    makeDoc({ filename: 'c.md', rank: 3 }),
+    makeDoc({ filename: 'd.md', rank: 4 }),
+    makeDoc({ filename: 'e.md', rank: 5 }),
+  ];
+  const sel = (...names) => new Set(names);
+
+  test('empty selection is a no-op (null)', () => {
+    assert.equal(computeSelectionMove(group, sel(), 'up'), null);
+  });
+
+  test('single item up swaps with its predecessor', () => {
+    assert.deepEqual(computeSelectionMove(group, sel('c.md'), 'up'), [
+      'a.md',
+      'c.md',
+      'b.md',
+      'd.md',
+      'e.md',
+    ]);
+  });
+
+  test('single item down swaps with its successor', () => {
+    assert.deepEqual(computeSelectionMove(group, sel('c.md'), 'down'), [
+      'a.md',
+      'b.md',
+      'd.md',
+      'c.md',
+      'e.md',
+    ]);
+  });
+
+  test('single item to top / bottom', () => {
+    assert.deepEqual(computeSelectionMove(group, sel('d.md'), 'top'), [
+      'd.md',
+      'a.md',
+      'b.md',
+      'c.md',
+      'e.md',
+    ]);
+    assert.deepEqual(computeSelectionMove(group, sel('b.md'), 'bottom'), [
+      'a.md',
+      'c.md',
+      'd.md',
+      'e.md',
+      'b.md',
+    ]);
+  });
+
+  test('item already at the top edge is a no-op moving up', () => {
+    assert.equal(computeSelectionMove(group, sel('a.md'), 'up'), null);
+    assert.equal(computeSelectionMove(group, sel('a.md'), 'top'), null);
+  });
+
+  test('item already at the bottom edge is a no-op moving down', () => {
+    assert.equal(computeSelectionMove(group, sel('e.md'), 'down'), null);
+    assert.equal(computeSelectionMove(group, sel('e.md'), 'bottom'), null);
+  });
+
+  test('contiguous multi-selection moves up as a block', () => {
+    assert.deepEqual(computeSelectionMove(group, sel('c.md', 'd.md'), 'up'), [
+      'a.md',
+      'c.md',
+      'd.md',
+      'b.md',
+      'e.md',
+    ]);
+  });
+
+  test('contiguous multi-selection moves down as a block', () => {
+    assert.deepEqual(computeSelectionMove(group, sel('b.md', 'c.md'), 'down'), [
+      'a.md',
+      'd.md',
+      'b.md',
+      'c.md',
+      'e.md',
+    ]);
+  });
+
+  test('non-contiguous selection nudges each item up, collapsing gaps', () => {
+    // a b C d E  → move up: C jumps over b, E jumps over d
+    assert.deepEqual(computeSelectionMove(group, sel('c.md', 'e.md'), 'up'), [
+      'a.md',
+      'c.md',
+      'b.md',
+      'e.md',
+      'd.md',
+    ]);
+  });
+
+  test('multi-selection to top preserves internal order', () => {
+    assert.deepEqual(computeSelectionMove(group, sel('b.md', 'd.md'), 'top'), [
+      'b.md',
+      'd.md',
+      'a.md',
+      'c.md',
+      'e.md',
+    ]);
+  });
+
+  test('multi-selection to bottom preserves internal order', () => {
+    assert.deepEqual(computeSelectionMove(group, sel('a.md', 'c.md'), 'bottom'), [
+      'b.md',
+      'd.md',
+      'e.md',
+      'a.md',
+      'c.md',
+    ]);
+  });
+
+  test('selection spanning the top edge is a no-op moving up', () => {
+    // a and b are already the first two, moving up cannot change anything
+    assert.equal(computeSelectionMove(group, sel('a.md', 'b.md'), 'up'), null);
+    assert.equal(computeSelectionMove(group, sel('a.md', 'b.md'), 'top'), null);
+  });
+
+  test('operates in rank order, not array order', () => {
+    const unsorted = [
+      makeDoc({ filename: 'c.md', rank: 3 }),
+      makeDoc({ filename: 'a.md', rank: 1 }),
+      makeDoc({ filename: 'b.md', rank: 2 }),
+    ];
+    assert.deepEqual(computeSelectionMove(unsorted, sel('c.md'), 'top'), ['c.md', 'a.md', 'b.md']);
   });
 });
 
