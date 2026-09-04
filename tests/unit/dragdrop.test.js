@@ -26,6 +26,7 @@ const {
   computeMoveTarget,
   computeEdgeMoveTarget,
   computeSelectionMove,
+  buildSelectionMoveAnnouncement,
   computeAdjacentSwimlane,
   buildSwimlaneMoveAnnouncement,
   buildEdgeMoveAnnouncement,
@@ -427,6 +428,22 @@ describe('computeSelectionMove()', () => {
       makeDoc({ filename: 'b.md', rank: 2 }),
     ];
     assert.deepEqual(computeSelectionMove(unsorted, sel('c.md'), 'top'), ['c.md', 'a.md', 'b.md']);
+  });
+});
+
+// ── buildSelectionMoveAnnouncement (#486 context-menu move aria-live) ─────────
+describe('buildSelectionMoveAnnouncement()', () => {
+  test('singular item count', () => {
+    assert.equal(buildSelectionMoveAnnouncement(1, 'up'), 'Moved 1 item up.');
+  });
+
+  test('plural item count', () => {
+    assert.equal(buildSelectionMoveAnnouncement(3, 'down'), 'Moved 3 items down.');
+  });
+
+  test('top/bottom actions use "to the X" phrasing', () => {
+    assert.equal(buildSelectionMoveAnnouncement(2, 'top'), 'Moved 2 items to the top.');
+    assert.equal(buildSelectionMoveAnnouncement(1, 'bottom'), 'Moved 1 item to the bottom.');
   });
 });
 
