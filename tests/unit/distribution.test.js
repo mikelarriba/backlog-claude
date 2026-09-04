@@ -180,7 +180,9 @@ describe('buildDistributionMessagesHtml()', () => {
   });
 
   test('renders each warning in its own div', () => {
-    const html = buildDistributionMessagesHtml(data({ warnings: ['Over capacity', 'Late add'] }));
+    const html = buildDistributionMessagesHtml(
+      data({ warnings: [{ message: 'Over capacity' }, { message: 'Late add' }] })
+    );
     assert.match(html, /distribution-msg warning">Over capacity</);
     assert.match(html, /distribution-msg warning">Late add</);
   });
@@ -191,13 +193,15 @@ describe('buildDistributionMessagesHtml()', () => {
   });
 
   test('warnings are rendered before suggestions when both are present', () => {
-    const html = buildDistributionMessagesHtml(data({ warnings: ['W1'], suggestions: ['S1'] }));
+    const html = buildDistributionMessagesHtml(
+      data({ warnings: [{ message: 'W1' }], suggestions: ['S1'] })
+    );
     assert.ok(html.indexOf('W1') < html.indexOf('S1'));
   });
 
   test('HTML-escapes warning and suggestion text', () => {
     const html = buildDistributionMessagesHtml(
-      data({ warnings: ['<b>warn</b>'], suggestions: ['<i>sugg</i>'] })
+      data({ warnings: [{ message: '<b>warn</b>' }], suggestions: ['<i>sugg</i>'] })
     );
     assert.doesNotMatch(html, /<b>warn<\/b>/);
     assert.doesNotMatch(html, /<i>sugg<\/i>/);
