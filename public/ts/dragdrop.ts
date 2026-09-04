@@ -478,6 +478,21 @@ export function computeSelectionMove(
   return next;
 }
 
+// Pure: builds the aria-live announcement for the context-menu multi-select
+// move actions, mirroring the "Moved N item(s) to X" phrasing
+// contextMoveToPI's toast already uses in list-filters.ts — the sibling
+// batch action in the same context menu. Every other keyboard-operable
+// reorder path in this issue announces its result (#486); this one didn't
+// announce anything at all, unlike its own menu siblings which at least show
+// a toast.
+export function buildSelectionMoveAnnouncement(
+  count: number,
+  action: 'up' | 'down' | 'top' | 'bottom'
+): string {
+  const actionPhrase = action === 'top' || action === 'bottom' ? `to the ${action}` : action;
+  return `Moved ${count} item${count === 1 ? '' : 's'} ${actionPhrase}.`;
+}
+
 // Multi-select counterpart to executeRerankDrop for the context-menu move
 // actions. Groups the selected docs by type, reranks each type group
 // independently via computeSelectionMove, then persists + applies each changed
@@ -497,6 +512,8 @@ export async function moveSelectionRank(
     byType.get(docType)!.add(filename);
   }
 
+  let movedAny = false;
+  let erroredAny = false;
   for (const [docType, sel] of byType) {
     const group = allDocs.filter((d) => d.docType === docType);
     const orderedFilenames = computeSelectionMove(group, sel, action);
@@ -504,9 +521,22 @@ export async function moveSelectionRank(
     try {
       await postJSON('/api/docs/rerank', { type: docType, orderedFilenames });
       computeRerankedDocs(group, orderedFilenames).forEach((d) => upsertDoc(d));
+      movedAny = true;
     } catch (e) {
       showJiraToast('error', (e as Error).message);
+      erroredAny = true;
     }
+  }
+
+  // Same aria-live region every other keyboard-operable reorder path in this
+  // file already announces through (#486). Only announce the no-op edge case
+  // when nothing errored, so a real request failure isn't misreported as
+  // "already at the edge" — the error toast above already covers that case.
+  if (movedAny) {
+    _announceListReorderStatus(buildSelectionMoveAnnouncement(selected.length, action));
+  } else if (!erroredAny) {
+    const edge = action === 'up' || action === 'top' ? 'top' : 'bottom';
+    _announceListReorderStatus(`Selection is already at the ${edge} of the list.`);
   }
 }
 
