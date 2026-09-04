@@ -36,7 +36,6 @@ import {
 import { dismissWelcomeBanner } from './list-render.js';
 import {
   saveTitle,
-  cancelTitleEdit,
   showList,
   confirmDelete,
   closeDeleteDialog,
@@ -262,13 +261,7 @@ function toggleLeftPanel(): void {
 
 // ── Sidebar navigation ────────────────────────────────────────
 type ViewName =
-  | 'backlog'
-  | 'roadmap'
-  | 'settings'
-  | 'skills'
-  | 'documentation'
-  | 'bugs'
-  | 'suggestions';
+  'backlog' | 'roadmap' | 'settings' | 'skills' | 'documentation' | 'bugs' | 'suggestions';
 
 function navigateTo(viewName: ViewName): void {
   // Update active state in sidebar
@@ -1238,13 +1231,17 @@ document.addEventListener('change', (e: Event) => {
 //     `data-keydown-action`). closeAllDropdowns and submitUpdateFromJiraKey
 //     are intentionally absent below — see the registerKeydownActions() call
 //     in jira-pull.ts.
-// The remaining `onkeydown="..."` sites — refine.ts's story-points input
-// (both branches just call `this.blur()`, nothing to remove from this
-// bridge), and a handful of static fields in index.html (the detail title
-// input, the SP input, the docs/JIRA search boxes) — are left as plain
-// inline attributes for a future increment to migrate once this one has
-// proven out, the same staged approach the change/input/contextmenu
-// registries themselves followed.
+//   - index.html's detail title input (former
+//     `onkeydown="if(event.key==='Enter'){this.blur()}
+//     if(event.key==='Escape'){cancelTitleEdit()}"`, now
+//     `data-keydown-action`). cancelTitleEdit is intentionally absent below —
+//     see the registerKeydownActions() call in detail.ts.
+// The remaining `onkeydown="..."` sites — refine.ts's story-points input and
+// index.html's SP input (both branches of each just call `this.blur()`,
+// nothing to remove from this bridge), and index.html's docs/JIRA search
+// boxes (Enter-to-submit, calling docSearch/searchJira/pullByKey which stay
+// on this bridge as bare ambient globals regardless — see below) — are left
+// as plain inline attributes.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1264,10 +1261,10 @@ const _dynGlobals: Record<string, unknown> = {
   loadHierarchy,
   // detail-links.ts
   saveTitle,
-  // cancelTitleEdit backs the detail title input's onkeydown in index.html
-  // (Escape branch) — a future increment can migrate that static site the
-  // same way jira-pull.ts's and refine.ts's were this round.
-  cancelTitleEdit,
+  // cancelTitleEdit moved off this bridge (issue #461's keydown-registry):
+  // its only inline-attribute caller was the detail title input's onkeydown
+  // in index.html, now migrated to registerKeydownActions — see
+  // DETAIL_TITLE_KEYDOWN_ACTION in detail.ts.
   saveStoryPoints,
   // refine.js — saveRpTitle/saveRpStoryPoints back the refine panel's
   // inline-edit inputs' onblur attributes (out of scope for the data-action

@@ -21,7 +21,7 @@ import { closeQuickCreate } from './quickcreate.js';
 import { resetUpgradePanel } from './upgrade.js';
 import { isSplitMode, highlightSelectedItem } from './main.js';
 import { isRoadmapOpen } from './roadmap.js';
-import { registerChangeActions } from './actions.js';
+import { registerChangeActions, registerKeydownActions } from './actions.js';
 import {
   updateStoryPointsUI,
   updateSprintSelect,
@@ -185,6 +185,25 @@ export function cancelTitleEdit() {
   input.value = input.dataset.original || '';
   input.blur();
 }
+// Typed data-keydown-action registration for the detail title input (issue
+// #461's keydown-registry — see actions.ts and RP_TITLE_KEYDOWN_ACTION in
+// refine.ts / JIRA_PULL_ACTIONS.updateKeyPromptKeydown in jira-pull.ts for
+// the established pattern). Replaces the
+// onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape')
+// {cancelTitleEdit()}" string previously hand-written in index.html.
+// cancelTitleEdit is defined just above in this same module, so this also
+// removes the last reason it needed to be reachable through main.ts's
+// untyped window bridge.
+export const DETAIL_TITLE_KEYDOWN_ACTION = 'detailTitleKeydown';
+registerKeydownActions({
+  [DETAIL_TITLE_KEYDOWN_ACTION]: (el, e) => {
+    if (e.key === 'Enter') {
+      el.blur();
+    } else if (e.key === 'Escape') {
+      cancelTitleEdit();
+    }
+  },
+});
 export function toggleOriginal() {
   toggleSection('original-body', 'original-chevron', 180);
 }

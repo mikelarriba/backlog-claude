@@ -464,14 +464,7 @@
                 type="text"
                 placeholder="Title…"
                 onblur="saveTitle()"
-                onkeydown="
-                  if (event.key === 'Enter') {
-                    this.blur();
-                  }
-                  if (event.key === 'Escape') {
-                    cancelTitleEdit();
-                  }
-                "
+                data-keydown-action="detailTitleKeydown"
               />
               <a
                 id="detail-jira-link"
