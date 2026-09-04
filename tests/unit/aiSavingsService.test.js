@@ -34,6 +34,11 @@ describe('computeTimeSavedMinutes()', () => {
     assert.equal(computeTimeSavedMinutes('doc_ai_run', 1), BENCHMARK_MINUTES.doc_ai_run);
     assert.equal(computeTimeSavedMinutes('doc_ai_run', 10), BENCHMARK_MINUTES.doc_ai_run);
   });
+
+  test('bug_analysis is a flat benchmark regardless of item count', () => {
+    assert.equal(computeTimeSavedMinutes('bug_analysis', 1), BENCHMARK_MINUTES.bug_analysis);
+    assert.equal(computeTimeSavedMinutes('bug_analysis', 10), BENCHMARK_MINUTES.bug_analysis);
+  });
 });
 
 // ── isValidActionType ────────────────────────────────────────────────────────

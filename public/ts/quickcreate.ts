@@ -103,6 +103,56 @@ export function clearForm(): void {
   setStatus('hidden');
 }
 
+// ── Quick Create generation progress (estimated, timer-based) ──
+// `/api/generate` is a single blocking request that sends no progress events,
+// so these steps advance on a timer purely to fill the wait. The bar is capped
+// below 100% and never claims real completion: the final step holds until the
+// response lands (success closes the panel; failure swaps in the error text).
+const QUICK_CREATE_STEPS = [
+  'Analyzing your idea',
+  'Drafting COVE sections',
+  'Writing acceptance criteria',
+  'Finalizing',
+] as const;
+const QUICK_CREATE_STEP_MS = 2600;
+let _quickProgressTimer: ReturnType<typeof setInterval> | null = null;
+
+function renderQuickProgress(stream: HTMLElement, type: string, activeIdx: number): void {
+  // Fill up to the active step, capped at 90% so the bar never claims
+  // completion before the server actually returns.
+  const pct = Math.min(90, Math.round(((activeIdx + 1) / (QUICK_CREATE_STEPS.length + 1)) * 100));
+  const rows = QUICK_CREATE_STEPS.map((label, i) => {
+    const state = i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'pending';
+    const icon = state === 'done' ? '✔' : state === 'active' ? '▸' : '·';
+    return `<div class="qc-step ${state}"><span class="qc-step-icon">${icon}</span>${label}</div>`;
+  }).join('');
+  stream.innerHTML =
+    `<div class="qc-progress-head">⏳ Generating ${TYPE_LABEL[type] || type}…</div>` +
+    `<div class="qc-steps">${rows}</div>` +
+    `<div class="qc-progress-bar"><div class="qc-progress-fill" style="width:${pct}%"></div></div>` +
+    `<div class="qc-progress-note">~${pct}% · estimated</div>`;
+}
+
+function startQuickProgress(stream: HTMLElement, type: string): void {
+  stopQuickProgress();
+  let idx = 0;
+  renderQuickProgress(stream, type, idx);
+  _quickProgressTimer = setInterval(() => {
+    // Hold on the final step until the request resolves — never tick past it.
+    if (idx < QUICK_CREATE_STEPS.length - 1) {
+      idx += 1;
+      renderQuickProgress(stream, type, idx);
+    }
+  }, QUICK_CREATE_STEP_MS);
+}
+
+function stopQuickProgress(): void {
+  if (_quickProgressTimer !== null) {
+    clearInterval(_quickProgressTimer);
+    _quickProgressTimer = null;
+  }
+}
+
 // ── Quick Create (Story / Spike / Epic from detail view) ───────
 export function toggleQuickCreate(type: string): void {
   const panel = document.getElementById('quick-create-panel') as HTMLElement;
@@ -133,6 +183,7 @@ export function toggleQuickCreate(type: string): void {
 }
 
 export function closeQuickCreate(): void {
+  stopQuickProgress();
   const panel = document.getElementById('quick-create-panel');
   if (panel) panel.classList.remove('open');
   const titleInput = document.getElementById('quick-create-title-input') as HTMLInputElement | null;
@@ -180,8 +231,8 @@ export async function executeQuickCreate(): Promise<void> {
 
   btn.disabled = true;
   btn.textContent = '⏳ Generating…';
-  stream.textContent = '';
   stream.style.display = 'block';
+  startQuickProgress(stream, type);
 
   try {
     const body: QuickCreateBody = { idea, title, type, priority: 'Medium' };
@@ -198,6 +249,7 @@ export async function executeQuickCreate(): Promise<void> {
 
     const data = (await postJSON('/api/generate', body)) as GenerateResponse;
 
+    stopQuickProgress();
     closeQuickCreate();
     await loadDocs();
     if (currentFilename && (currentDocType === 'feature' || currentDocType === 'epic')) {
@@ -205,7 +257,8 @@ export async function executeQuickCreate(): Promise<void> {
     }
     showJiraToast('success', `✅ ${TYPE_LABEL[type]} created: ${data.filename}`);
   } catch (e) {
-    stream.textContent += `\n\n❌ ${e instanceof Error ? e.message : String(e)}`;
+    stopQuickProgress();
+    stream.textContent = `❌ ${e instanceof Error ? e.message : String(e)}`;
     btn.disabled = false;
     btn.textContent = 'Generate';
   }

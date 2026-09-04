@@ -235,6 +235,33 @@ function cell(v: string): string {
   return (v || '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
 }
 
+// Wrap bare bug keys in the AI-written analysis with links to JIRA. The AI
+// refers to bugs by key as plain text (e.g. "MIDAS-123"); this turns each
+// mention into `[MIDAS-123](…/browse/MIDAS-123)`. Segments already inside a
+// markdown link (the Analyzed Bugs table) are left untouched so keys are never
+// double-wrapped.
+function linkifyBugKeys(text: string, keys: string[], jiraBase: string): string {
+  const unique = [...new Set(keys)].filter(Boolean);
+  if (!jiraBase || unique.length === 0) return text;
+  // Longest-first so overlapping prefixes (MIDAS-1 vs MIDAS-12) match greedily.
+  const alternation = unique
+    .sort((a, b) => b.length - a.length)
+    .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const keyRe = new RegExp(`(?<![\\w/-])(${alternation})(?![\\w-])`, 'g');
+  const wrap = (segment: string): string =>
+    segment.replace(keyRe, (k) => `[${k}](${jiraBase}/browse/${k})`);
+
+  const linkRe = /\[[^\]]*\]\([^)]*\)/g;
+  let out = '';
+  let last = 0;
+  for (const m of text.matchAll(linkRe)) {
+    out += wrap(text.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  return out + wrap(text.slice(last));
+}
+
 function buildReportMarkdown(
   bugs: BugItem[],
   analysis: string,
@@ -266,7 +293,7 @@ function buildReportMarkdown(
     `| --- | --- | --- | --- | --- |\n` +
     `${rows}\n\n` +
     `---\n\n` +
-    `${analysis.trim()}\n`
+    `${linkifyBugKeys(analysis.trim(), keys, jiraBase)}\n`
   );
 }
 
@@ -324,6 +351,7 @@ export default function bugsDashboardRoutes({
   BUGS_DIR,
   jiraRequest,
   streamClaude,
+  aiSavings,
   logInfo,
   logError,
 }: JiraRouteContext) {
@@ -503,6 +531,20 @@ export default function bugsDashboardRoutes({
       } catch (saveErr) {
         logError('POST /api/bugs/dashboard/analyze (save)', parseApiError(saveErr).message);
       }
+
+      // Log the completed run to the AI Time Saved report. Flat per-run
+      // benchmark (item_count is metadata only — see computeTimeSavedMinutes).
+      // A logging failure must not fail the request — the user already has the
+      // streamed result — so it's fire-and-forget with its own catch.
+      aiSavings
+        .appendEntry({
+          action_type: 'bug_analysis',
+          item_count: selected.length,
+          jira_keys: selected.map((b) => b.key),
+        })
+        .catch((logErr) =>
+          logError('POST /api/bugs/dashboard/analyze (savings)', parseApiError(logErr).message)
+        );
 
       send({ done: true, report });
       res.end();

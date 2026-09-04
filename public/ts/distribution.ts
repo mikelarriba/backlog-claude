@@ -18,10 +18,17 @@ interface DistributionSprint {
   assigned: DistributionItem[];
 }
 
+interface DistributionWarning {
+  kind: string;
+  docId: string;
+  message: string;
+  context?: Record<string, unknown>;
+}
+
 interface DistributionData {
   sprints: DistributionSprint[];
   overflow: DistributionItem[];
-  warnings: string[];
+  warnings: DistributionWarning[];
   suggestions: string[];
 }
 
@@ -178,7 +185,7 @@ export function buildDistributionMessagesHtml(data: DistributionData): string {
   let msgsHtml = '';
   if (data.warnings.length) {
     msgsHtml += data.warnings
-      .map((w) => `<div class="distribution-msg warning">${escHtml(w)}</div>`)
+      .map((w) => `<div class="distribution-msg warning">${escHtml(w.message)}</div>`)
       .join('');
   }
   if (data.suggestions.length) {

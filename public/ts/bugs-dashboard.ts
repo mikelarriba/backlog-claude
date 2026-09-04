@@ -331,6 +331,30 @@ export function bugToggleAll(checked: boolean): void {
   renderBugsTable(_filteredBugs);
 }
 
+// Wrap bare bug keys in the streamed analysis with links to JIRA so the live
+// view matches the saved report (whose keys the server linkifies). Segments
+// already inside a markdown link are skipped so keys are never double-wrapped.
+function _linkifyBugKeys(text: string, keys: string[], base: string): string {
+  const unique = [...new Set(keys)].filter(Boolean);
+  if (!base || unique.length === 0) return text;
+  const alternation = unique
+    .sort((a, b) => b.length - a.length)
+    .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const keyRe = new RegExp(`(?<![\\w/-])(${alternation})(?![\\w-])`, 'g');
+  const wrap = (segment: string): string =>
+    segment.replace(keyRe, (k) => `[${k}](${base}/browse/${k})`);
+
+  const linkRe = /\[[^\]]*\]\([^)]*\)/g;
+  let out = '';
+  let last = 0;
+  for (const m of text.matchAll(linkRe)) {
+    out += wrap(text.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  return out + wrap(text.slice(last));
+}
+
 // ── AI analysis progress bar ──────────────────────────────────────────────────
 // The visible duration of an analysis run is almost entirely the AI streaming
 // its answer. The backend prompt asks for four labelled sections in order, so we
@@ -435,7 +459,7 @@ export async function analyzeBugs(): Promise<void> {
       {
         onText: (chunk: string) => {
           markdown += chunk;
-          body.innerHTML = renderMarkdown(markdown);
+          body.innerHTML = renderMarkdown(_linkifyBugKeys(markdown, [..._selectedKeys], jiraBase));
           const next = _analysisStepFor(markdown);
           if (next !== activeIdx && progress) {
             activeIdx = next;

@@ -12,6 +12,7 @@ export type AiSavingsActionType =
   | 'story_push'
   | 'spike_push'
   | 'bug_create'
+  | 'bug_analysis'
   | 'doc_ai_run'
   | 'doc_confluence_modify'
   | 'description_generate'
@@ -28,12 +29,13 @@ export interface AiSavingsEntry {
   notes: string;
 }
 
-// Minutes saved per item for each action type. `doc_ai_run` is a flat
-// per-run benchmark regardless of how many issues were analyzed.
+// Minutes saved per item for each action type. `doc_ai_run` and `bug_analysis`
+// are flat per-run benchmarks regardless of how many issues were analyzed.
 export const BENCHMARK_MINUTES: Record<AiSavingsActionType, number> = {
   story_push: 15,
   spike_push: 15,
   bug_create: 10,
+  bug_analysis: 30,
   doc_ai_run: 30,
   doc_confluence_modify: 20,
   description_generate: 20,
@@ -45,6 +47,7 @@ export const ACTION_LABELS: Record<AiSavingsActionType, string> = {
   story_push: 'Stories pushed to JIRA',
   spike_push: 'Spikes pushed to JIRA',
   bug_create: 'Bugs created',
+  bug_analysis: 'Bug AI analysis',
   doc_ai_run: 'Documentation AI analysis',
   doc_confluence_modify: 'Confluence pages modified',
   description_generate: 'Descriptions generated',
@@ -65,7 +68,8 @@ export function computeTimeSavedMinutes(
   actionType: AiSavingsActionType,
   itemCount: number
 ): number {
-  if (actionType === 'doc_ai_run') return BENCHMARK_MINUTES.doc_ai_run;
+  if (actionType === 'doc_ai_run' || actionType === 'bug_analysis')
+    return BENCHMARK_MINUTES[actionType];
   return BENCHMARK_MINUTES[actionType] * itemCount;
 }
 

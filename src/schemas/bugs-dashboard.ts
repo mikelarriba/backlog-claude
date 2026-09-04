@@ -8,7 +8,7 @@ export const BugAnalyzeSchema = z
     bugKeys: z
       .array(z.string().min(1))
       .min(1)
-      .max(20)
-      .openapi({ description: 'Jira bug keys to analyze' }),
+      .max(100)
+      .openapi({ description: 'Jira bug keys to analyze (max 100)' }),
   })
   .openapi('BugAnalyze');

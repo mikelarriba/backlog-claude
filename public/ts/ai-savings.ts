@@ -6,6 +6,7 @@ export type AiSavingsActionType =
   | 'story_push'
   | 'spike_push'
   | 'bug_create'
+  | 'bug_analysis'
   | 'doc_ai_run'
   | 'doc_confluence_modify'
   | 'description_generate'
@@ -28,6 +29,7 @@ const CATEGORY_LABELS: Record<AiSavingsActionType, string> = {
   story_push: 'Stories',
   spike_push: 'Spikes',
   bug_create: 'Bugs',
+  bug_analysis: 'Bug AI',
   doc_ai_run: 'Doc AI',
   doc_confluence_modify: 'Confluence',
   description_generate: 'Descriptions',
@@ -38,6 +40,7 @@ const CATEGORY_COLORS: Record<AiSavingsActionType, string> = {
   story_push: '#6366f1',
   spike_push: '#10b981',
   bug_create: '#f59e0b',
+  bug_analysis: '#a855f7',
   doc_ai_run: '#ef4444',
   doc_confluence_modify: '#06b6d4',
   description_generate: '#ec4899',

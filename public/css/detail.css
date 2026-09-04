@@ -762,6 +762,59 @@
   display: none;
 }
 
+/* Estimated, timer-based generation progress inside #quick-create-stream */
+.qc-progress-head {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-body);
+}
+.qc-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.qc-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+.qc-step-icon {
+  width: 1em;
+  text-align: center;
+  flex: none;
+}
+.qc-step.done,
+.qc-step.done .qc-step-icon {
+  color: var(--success);
+}
+.qc-step.active {
+  color: var(--text-body);
+  font-weight: 600;
+}
+.qc-step.pending {
+  opacity: 0.55;
+}
+.qc-progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.qc-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.qc-progress-note {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 /* ── Hierarchy panel ─────────────────────────────────────────── */
 .hierarchy-section {
   border-top: 1px solid var(--border);
