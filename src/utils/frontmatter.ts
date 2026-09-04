@@ -1,7 +1,10 @@
 // ── Safe YAML frontmatter helpers ────────────────────────────────────────────
 // Uses js-yaml to parse (safe, handles all YAML quirks) but writes individual
 // field updates line-by-line so values are not re-quoted by the serializer.
-import jsYaml from 'js-yaml';
+// js-yaml v5 dropped its default export; use a namespace import so `.load` /
+// `.dump` resolve at runtime under ESM (the default import typechecks but is
+// undefined at runtime with js-yaml 5).
+import * as jsYaml from 'js-yaml';
 
 const FENCE = '---';
 
