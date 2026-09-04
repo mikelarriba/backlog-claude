@@ -27,7 +27,7 @@
     "@kenjiuno/msgreader": "^1.28.0",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
-    "express-rate-limit": "^8.5.2",
+    "express-rate-limit": "^8.6.2",
     "js-yaml": "^5.4.1",
     "multer": "^2.1.1",
     "pdfkit": "^0.20.1",
