@@ -144,22 +144,21 @@ export function rmCtxOpenEpic(filename: string, docType: string): void {
   openDoc(filename, docType);
 }
 
-export async function rmCtxMoveEpic(
+// Shared move core for both the epic (top panel) and story (bottom panel)
+// context menus, which were previously near-identical copies. `visibleOrder` is
+// the list of filenames in current on-screen order for the relevant scope
+// (visible epic cards, or the cards within one sprint column) — adjacency for
+// up/down/top/bottom is taken from that so the move respects the active search
+// filter, while the rerank itself is applied over the full per-type group.
+async function _rmMoveByVisibleOrder(
   filename: string,
   docType: string,
-  direction: string
+  direction: string,
+  visibleOrder: string[]
 ): Promise<void> {
-  _closeRoadmapCtx();
-
-  // Get the visible epic cards in current order (respects search filter)
-  const cards = [
-    ...document.querySelectorAll<HTMLElement>('.rm-epic-card:not([style*="display: none"])'),
-  ];
-  const filenames = cards.map((c) => c.dataset['filename']).filter(Boolean) as string[];
-  const idx = filenames.indexOf(filename);
+  const idx = visibleOrder.indexOf(filename);
   if (idx < 0) return;
 
-  // Build the full ordered list of this docType for rerank
   const group = allDocs.filter((d) => d.docType === docType);
   const sorted = [...group].sort(_rankSortFn);
   const srcIdx = sorted.findIndex((d) => d.filename === filename);
@@ -170,23 +169,23 @@ export async function rmCtxMoveEpic(
   let targetIdx: number;
   if (direction === 'up') {
     // Move before the previous visible item in the full sorted list
-    const prevFn = filenames[idx - 1];
+    const prevFn = visibleOrder[idx - 1];
     if (!prevFn) return;
     targetIdx = sorted.findIndex((d) => d.filename === prevFn);
     if (targetIdx < 0) return;
   } else if (direction === 'down') {
-    const nextFn = filenames[idx + 1];
+    const nextFn = visibleOrder[idx + 1];
     if (!nextFn) return;
     targetIdx = sorted.findIndex((d) => d.filename === nextFn) + 1;
     if (targetIdx <= 0) return;
   } else if (direction === 'top') {
     // Move to the top position — before the first visible item
-    const firstFn = filenames[0];
+    const firstFn = visibleOrder[0];
     targetIdx = firstFn ? sorted.findIndex((d) => d.filename === firstFn) : 0;
     if (targetIdx < 0) targetIdx = 0;
   } else {
     // bottom — after the last visible item
-    const lastFn = filenames[filenames.length - 1];
+    const lastFn = visibleOrder[visibleOrder.length - 1];
     targetIdx = lastFn ? sorted.findIndex((d) => d.filename === lastFn) + 1 : sorted.length;
     if (targetIdx < 0) targetIdx = sorted.length;
   }
@@ -206,6 +205,21 @@ export async function rmCtxMoveEpic(
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
   }
+}
+
+export async function rmCtxMoveEpic(
+  filename: string,
+  docType: string,
+  direction: string
+): Promise<void> {
+  _closeRoadmapCtx();
+
+  // Get the visible epic cards in current order (respects search filter)
+  const cards = [
+    ...document.querySelectorAll<HTMLElement>('.rm-epic-card:not([style*="display: none"])'),
+  ];
+  const filenames = cards.map((c) => c.dataset['filename']).filter(Boolean) as string[];
+  await _rmMoveByVisibleOrder(filename, docType, direction, filenames);
 }
 
 // ── Sprint submenu builder ───────────────────────────────────
@@ -288,56 +302,10 @@ export async function rmCtxMoveStory(
   const column = card.closest('.roadmap-card-list');
   if (!column) return;
 
-  // Get the ordered filenames in this column
+  // Get the ordered filenames in this column (respects the story's sprint column)
   const cards = [...column.querySelectorAll<HTMLElement>('.roadmap-card')];
-  const filenames = cards.map((c) => c.dataset['filename']);
-  const idx = filenames.indexOf(filename);
-  if (idx < 0) return;
-
-  // Build the full sorted list for this docType
-  const group = allDocs.filter((d) => d.docType === docType);
-  const sorted = [...group].sort(_rankSortFn);
-  const srcIdx = sorted.findIndex((d) => d.filename === filename);
-  if (srcIdx < 0) return;
-
-  const [item] = sorted.splice(srcIdx, 1);
-
-  let targetIdx: number;
-  if (direction === 'up') {
-    const prevFn = filenames[idx - 1];
-    if (!prevFn) return;
-    targetIdx = sorted.findIndex((d) => d.filename === prevFn);
-    if (targetIdx < 0) return;
-  } else if (direction === 'down') {
-    const nextFn = filenames[idx + 1];
-    if (!nextFn) return;
-    targetIdx = sorted.findIndex((d) => d.filename === nextFn) + 1;
-    if (targetIdx <= 0) return;
-  } else if (direction === 'top') {
-    const firstFn = filenames[0];
-    targetIdx = firstFn ? sorted.findIndex((d) => d.filename === firstFn) : 0;
-    if (targetIdx < 0) targetIdx = 0;
-  } else {
-    const lastFn = filenames[filenames.length - 1];
-    targetIdx = lastFn ? sorted.findIndex((d) => d.filename === lastFn) + 1 : sorted.length;
-    if (targetIdx < 0) targetIdx = sorted.length;
-  }
-
-  sorted.splice(targetIdx, 0, item);
-
-  try {
-    await postJSON('/api/docs/rerank', {
-      type: docType,
-      orderedFilenames: sorted.map((d) => d.filename),
-    });
-    // The server assigns rank = index + 1 for every entry in orderedFilenames —
-    // apply that same deterministic update locally instead of refetching the
-    // full doc list.
-    sorted.forEach((d, i) => upsertDoc({ ...d, rank: i + 1 }));
-    refreshRoadmapView();
-  } catch (e) {
-    showJiraToast('error', getErrorMessage(e));
-  }
+  const filenames = cards.map((c) => c.dataset['filename']).filter(Boolean) as string[];
+  await _rmMoveByVisibleOrder(filename, docType, direction, filenames);
 }
 
 // ── Estimated-sprint placeholder card context menu ───────────

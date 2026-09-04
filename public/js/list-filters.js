@@ -21,7 +21,7 @@ import {
   _invalidateDepElCache,
   LIST_ITEM_CTX_ACTIONS,
 } from './list-render.js';
-import { sectionToFixVersion } from './dragdrop.js';
+import { sectionToFixVersion, moveSelectionRank } from './dragdrop.js';
 export function toggleItemCollapse(filename, e) {
   e.stopPropagation();
   if (_collapsedItems.has(filename)) {
@@ -329,8 +329,12 @@ export const CTX_ACTIONS = {
   assignField: 'ctxAssignField',
   deleteSelected: 'ctxDeleteSelected',
   splitItem: 'ctxSplitItem',
+  moveRank: 'ctxMoveRank',
 };
 registerActions({
+  [CTX_ACTIONS.moveRank]: (el) => {
+    void contextMoveRank(el.dataset.direction ?? '');
+  },
   [CTX_ACTIONS.moveToPi]: (el) => {
     void contextMoveToPI(el.dataset.section ?? '');
   },
@@ -424,8 +428,18 @@ export function showContextMenu(x, y) {
     <div class="ctx-separator"></div>
     <button class="ctx-item" data-action="${CTX_ACTIONS.splitItem}">✂ Split Issue</button>`
       : '';
+  // "Move" (reorder priority) — reranks the selection within each type group.
+  // Works for a single item or a whole multi-selection; children of a moved
+  // parent follow it via the tree's visual nesting, so their rank is untouched.
+  const moveItems = `
+    <button class="ctx-item" data-action="${CTX_ACTIONS.moveRank}" data-direction="up">Move up</button>
+    <button class="ctx-item" data-action="${CTX_ACTIONS.moveRank}" data-direction="down">Move down</button>
+    <button class="ctx-item" data-action="${CTX_ACTIONS.moveRank}" data-direction="top">Move to the top</button>
+    <button class="ctx-item" data-action="${CTX_ACTIONS.moveRank}" data-direction="bottom">Move to the bottom</button>`;
   menu.innerHTML = `
     <div class="ctx-header">${count} item${count > 1 ? 's' : ''} selected</div>
+    <div class="ctx-separator"></div>
+    ${moveItems}
     <div class="ctx-separator"></div>
     <div class="ctx-submenu-wrap">
       <button class="ctx-item ctx-has-sub">Move to PI →</button>
@@ -471,6 +485,17 @@ export function closeContextMenu() {
   if (menu) menu.remove();
   document.removeEventListener('mousedown', _closeContextMenuHandler);
   document.removeEventListener('contextmenu', _closeContextMenuOnRightClick);
+}
+export async function contextMoveRank(direction) {
+  closeContextMenu();
+  if (direction !== 'up' && direction !== 'down' && direction !== 'top' && direction !== 'bottom')
+    return;
+  const docs = getSelectedDocs();
+  if (!docs.length) return;
+  await moveSelectionRank(
+    docs.map((d) => ({ filename: d.filename, docType: d.docType })),
+    direction
+  );
 }
 export async function contextMoveToPI(section) {
   closeContextMenu();

@@ -355,6 +355,71 @@ export function computeEdgeMoveTarget(group, filename, edge) {
   if (edge === 'last' && idx === sorted.length - 1) return undefined;
   return edge === 'first' ? sorted[0].filename : null;
 }
+// Pure: reorders a multi-selection within a single type group's rank order.
+// `sorted` is the group already in _rankSortFn order; `selected` is the set of
+// filenames within that group to move. Returns the new filename order, or null
+// when the move is a no-op (nothing selected, or the whole selection already
+// sits at that edge). Non-contiguous selections are handled by nudging each
+// selected item one slot past its nearest unselected neighbour (up: top→bottom
+// scan, down: bottom→top), which collapses gaps toward the moved edge — the
+// behaviour list editors give "move selection up/down". top/bottom lift the
+// entire selection (preserving its internal order) to the front/back. This is
+// the multi-item counterpart to computeMoveTarget/computeEdgeMoveTarget, which
+// only target a single focused row.
+export function computeSelectionMove(group, selected, action) {
+  const order = [...group].sort(_rankSortFn).map((d) => d.filename);
+  const sel = order.filter((f) => selected.has(f));
+  if (!sel.length) return null;
+  let next;
+  if (action === 'top') {
+    next = [...sel, ...order.filter((f) => !selected.has(f))];
+  } else if (action === 'bottom') {
+    next = [...order.filter((f) => !selected.has(f)), ...sel];
+  } else if (action === 'up') {
+    next = [...order];
+    for (let i = 1; i < next.length; i++) {
+      if (selected.has(next[i]) && !selected.has(next[i - 1])) {
+        [next[i - 1], next[i]] = [next[i], next[i - 1]];
+      }
+    }
+  } else {
+    next = [...order];
+    for (let i = next.length - 2; i >= 0; i--) {
+      if (selected.has(next[i]) && !selected.has(next[i + 1])) {
+        [next[i + 1], next[i]] = [next[i], next[i + 1]];
+      }
+    }
+  }
+  if (next.length === order.length && next.every((f, i) => f === order[i])) return null;
+  return next;
+}
+// Multi-select counterpart to executeRerankDrop for the context-menu move
+// actions. Groups the selected docs by type, reranks each type group
+// independently via computeSelectionMove, then persists + applies each changed
+// group exactly the way executeRerankDrop does for a single dragged item
+// (POST /api/docs/rerank + the deterministic local upsert, which re-renders
+// the list via the store's docs:changed event). Selecting a parent and a child
+// together moves each within its own type group; children that aren't
+// explicitly selected simply follow their parent's subtree in the tree render
+// (visual nesting), so their rank is intentionally left untouched.
+export async function moveSelectionRank(selected, action) {
+  const byType = new Map();
+  for (const { filename, docType } of selected) {
+    if (!byType.has(docType)) byType.set(docType, new Set());
+    byType.get(docType).add(filename);
+  }
+  for (const [docType, sel] of byType) {
+    const group = allDocs.filter((d) => d.docType === docType);
+    const orderedFilenames = computeSelectionMove(group, sel, action);
+    if (!orderedFilenames) continue;
+    try {
+      await postJSON('/api/docs/rerank', { type: docType, orderedFilenames });
+      computeRerankedDocs(group, orderedFilenames).forEach((d) => upsertDoc(d));
+    } catch (e) {
+      showJiraToast('error', e.message);
+    }
+  }
+}
 // Fixed left-to-right order the three swimlane sections are rendered in
 // (list-render.ts's renderSwimlaneSectionHtml calls), used by
 // computeAdjacentSwimlane below for the keyboard-operable alternative to the
