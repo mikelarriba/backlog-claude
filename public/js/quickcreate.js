@@ -97,7 +97,10 @@ const QUICK_CREATE_STEPS = [
 ];
 const QUICK_CREATE_STEP_MS = 2600;
 let _quickProgressTimer = null;
-function renderQuickProgress(stream, type, activeIdx) {
+// Pure HTML builder for the estimated generation-progress panel — extracted
+// from renderQuickProgress (#460) so the step/percentage math is testable
+// without a live HTMLElement.
+export function buildQuickProgressHtml(type, activeIdx) {
   // Fill up to the active step, capped at 90% so the bar never claims
   // completion before the server actually returns.
   const pct = Math.min(90, Math.round(((activeIdx + 1) / (QUICK_CREATE_STEPS.length + 1)) * 100));
@@ -106,11 +109,15 @@ function renderQuickProgress(stream, type, activeIdx) {
     const icon = state === 'done' ? '✔' : state === 'active' ? '▸' : '·';
     return `<div class="qc-step ${state}"><span class="qc-step-icon">${icon}</span>${label}</div>`;
   }).join('');
-  stream.innerHTML =
+  return (
     `<div class="qc-progress-head">⏳ Generating ${TYPE_LABEL[type] || type}…</div>` +
     `<div class="qc-steps">${rows}</div>` +
     `<div class="qc-progress-bar"><div class="qc-progress-fill" style="width:${pct}%"></div></div>` +
-    `<div class="qc-progress-note">~${pct}% · estimated</div>`;
+    `<div class="qc-progress-note">~${pct}% · estimated</div>`
+  );
+}
+function renderQuickProgress(stream, type, activeIdx) {
+  stream.innerHTML = buildQuickProgressHtml(type, activeIdx);
 }
 function startQuickProgress(stream, type) {
   stopQuickProgress();
