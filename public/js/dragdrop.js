@@ -440,6 +440,21 @@ export async function moveSelectionRank(selected, action) {
   // "already at the edge" — the error toast above already covers that case.
   if (movedAny) {
     _announceListReorderStatus(buildSelectionMoveAnnouncement(selected.length, action));
+    // Every other keyboard-operable reorder path in this file restores focus
+    // to a drag-handle after the re-render (see moveDocRank's .then() below);
+    // this context-menu-driven multi-select path never did, so a keyboard/
+    // screen-reader user who moved a selection via Shift+F10/right-click lost
+    // their place entirely (focus fell back to <body>) — flagged as an open
+    // gap in #608's status comment. Restore it to the first selected item's
+    // handle, the same well-defined anchor moveDocRank uses for a single item.
+    const anchor = selected[0]?.filename;
+    if (anchor) {
+      setTimeout(() => {
+        document
+          .querySelector(`.epic-item[data-filename="${CSS.escape(anchor)}"] .drag-handle`)
+          ?.focus();
+      }, 200);
+    }
   } else if (!erroredAny) {
     const edge = action === 'up' || action === 'top' ? 'top' : 'bottom';
     _announceListReorderStatus(`Selection is already at the ${edge} of the list.`);
