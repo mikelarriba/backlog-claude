@@ -14,13 +14,19 @@ import {
 import type { DocEntry } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { loadDocs, contextSplitItem } from './list.js';
-import { registerActions, registerInputActions, registerContextActions } from './actions.js';
+import {
+  registerActions,
+  registerInputActions,
+  registerContextActions,
+  registerChangeActions,
+} from './actions.js';
 import {
   renderSwimlanes,
   renderDocItem,
   attachDepHoverListenerFor,
   _invalidateDepElCache,
   LIST_ITEM_CTX_ACTIONS,
+  LIST_ITEM_CHANGE_ACTIONS,
 } from './list-render.js';
 import type { SprintInfo } from './list-render.js';
 import { sectionToFixVersion, moveSelectionRank } from './dragdrop.js';
@@ -445,6 +451,19 @@ registerInputActions({
 registerContextActions({
   [LIST_ITEM_CTX_ACTIONS.itemContextMenu]: (el, e) => {
     handleItemContextMenu(e, el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+});
+
+// Typed change-action registration (issue #461 migration — see actions.ts's
+// change-event registry). Replaces
+// onchange="updatePiVersion('${sectionKey}', this.value)" (list-render.ts's
+// swimlane version-select) with a `data-change-action` string, reusing the
+// select's existing `data-section` attribute rather than adding a duplicate
+// one.
+registerChangeActions({
+  [LIST_ITEM_CHANGE_ACTIONS.updatePiVersion]: (el) => {
+    const select = el as HTMLSelectElement;
+    void updatePiVersion(select.dataset.section as 'currentPi' | 'nextPi', select.value);
   },
 });
 

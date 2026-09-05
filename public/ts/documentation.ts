@@ -48,9 +48,17 @@ registerActions({
 // functions via an untyped `window` lookup even though it already had them
 // as direct imports — this registration replaces that lookup with a real,
 // typed call.
+// toggleKey/toggleSuggestionCheck (added later) follow the same pattern for
+// the issue-row and closed-epic-row checkboxes' onchange (docToggleKey) and
+// the suggestion-row checkbox's onchange (toggleSuggestionCheck) — both
+// previously reached through main.ts's untyped window bridge. toggleKey is
+// shared by two markup sites (the JIRA-search issue list and the closed-
+// epic-children list), same as DOC_ACTIONS.rowClick already is.
 export const DOC_CHANGE_ACTIONS = {
   setSprint: 'docSetSprint',
   setFixVersionBulk: 'docSetFixVersionBulk',
+  toggleKey: 'docToggleKeyChange',
+  toggleSuggestionCheck: 'toggleSuggestionCheckChange',
 } as const;
 
 registerChangeActions({
@@ -59,6 +67,14 @@ registerChangeActions({
   },
   [DOC_CHANGE_ACTIONS.setFixVersionBulk]: (el) => {
     docSetFixVersionBulk((el as HTMLSelectElement).value);
+  },
+  [DOC_CHANGE_ACTIONS.toggleKey]: (el) => {
+    const input = el as HTMLInputElement;
+    docToggleKey(input.dataset.key ?? '', input.checked);
+  },
+  [DOC_CHANGE_ACTIONS.toggleSuggestionCheck]: (el) => {
+    const input = el as HTMLInputElement;
+    toggleSuggestionCheck(Number(input.dataset.index), input.checked);
   },
 });
 
@@ -373,7 +389,7 @@ export function renderIssuesList(issues: DocIssue[]): void {
       const typeClass = `doc-type-${(issue.issuetype || '').toLowerCase().replace(/\s+/g, '-')}`;
       const statusClass = `doc-status-${(issue.status || '').toLowerCase().replace(/\s+/g, '-')}`;
       return `<div class="doc-issue-row ${selected}" data-key="${escHtml(issue.key)}" data-action="${DOC_ACTIONS.rowClick}">
-        <input type="checkbox" ${checked} onchange="docToggleKey('${escHtml(issue.key)}',this.checked)" onclick="event.stopPropagation()" />
+        <input type="checkbox" ${checked} data-key="${escHtml(issue.key)}" data-change-action="${DOC_CHANGE_ACTIONS.toggleKey}" onclick="event.stopPropagation()" />
         <div class="doc-issue-body">
           <div class="doc-issue-top">
             <span class="doc-issue-key">${escHtml(issue.key)}</span>
@@ -470,7 +486,7 @@ export function buildEpicRowHtml(epic: DocEpic, selected: boolean, expanded: boo
 
   return `<div class="${itemClasses}" data-key="${escHtml(epic.key)}">
     <div class="doc-issue-row ${selectedClass}" data-key="${escHtml(epic.key)}" data-action="${DOC_ACTIONS.rowClick}">
-      <input type="checkbox" ${checked} onchange="docToggleKey('${escHtml(epic.key)}',this.checked)" onclick="event.stopPropagation()" />
+      <input type="checkbox" ${checked} data-key="${escHtml(epic.key)}" data-change-action="${DOC_CHANGE_ACTIONS.toggleKey}" onclick="event.stopPropagation()" />
       <div class="doc-issue-body">
         <div class="doc-issue-top">
           <span class="doc-issue-key">${escHtml(epic.key)}</span>
@@ -915,7 +931,7 @@ export function buildSuggestionRowHtml(
 
   return `<div class="${rowClasses}" data-index="${index}">
     <div class="doc-suggestion-header" data-action="${DOC_ACTIONS.toggleSuggestion}" data-index="${index}">
-      <input type="checkbox" ${checked} onclick="event.stopPropagation()" onchange="toggleSuggestionCheck(${index},this.checked)" />
+      <input type="checkbox" ${checked} data-index="${index}" data-change-action="${DOC_CHANGE_ACTIONS.toggleSuggestionCheck}" onclick="event.stopPropagation()" />
       <div class="doc-suggestion-body">
         <div class="doc-suggestion-top">
           <span class="doc-suggestion-title">${escHtml(s.pageTitle)}</span>

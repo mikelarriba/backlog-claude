@@ -186,7 +186,7 @@ export function renderBugsTable(bugs) {
       const priorityClass = `bugs-priority-${(b.priority || 'medium').toLowerCase()}`;
       const created = b.created ? b.created.slice(0, 10) : '—';
       return `<tr class="${_selectedKeys.has(b.key) ? 'selected' : ''}" data-key="${escHtml(b.key)}">
-        <td><input type="checkbox" ${checked} onchange="bugToggleKey('${escHtml(b.key)}',this.checked)" /></td>
+        <td><input type="checkbox" ${checked} data-key="${escHtml(b.key)}" data-change-action="bugToggleKeyChange" /></td>
         <td class="bugs-key-cell">${escHtml(b.key)}</td>
         <td class="bugs-summary-cell" title="${escHtml(b.summary)}">${escHtml(b.summary)}</td>
         <td><span class="bugs-status-badge ${statusClass}">${escHtml(b.status)}</span></td>
@@ -200,7 +200,7 @@ export function renderBugsTable(bugs) {
     <table class="bugs-table">
       <thead>
         <tr>
-          <th><input type="checkbox" id="bugs-select-all" onchange="bugToggleAll(this.checked)" /></th>
+          <th><input type="checkbox" id="bugs-select-all" data-change-action="bugToggleAllChange" /></th>
           <th>Key</th><th>Summary</th><th>Status</th><th>Priority</th><th>Assignee</th><th>Created</th>
         </tr>
       </thead>
@@ -430,13 +430,23 @@ export function toggleClosedBugs(checked) {
 // elements from the DOM regardless of which one fired the event, same as
 // before this migration. toggleClosedBugs keeps the "Change" suffix its
 // data-change-action string already used, distinguishing it from the plain
-// `toggleClosedBugs` function name.
+// `toggleClosedBugs` function name. bugToggleKeyChange/bugToggleAllChange
+// (added later) follow the same "Change" suffix convention for the per-row
+// and select-all checkboxes, reusing each row's existing `data-key`
+// attribute rather than adding a duplicate one.
 registerChangeActions({
   filterBugsTable: () => {
     filterBugsTable();
   },
   toggleClosedBugsChange: (el) => {
     toggleClosedBugs(el.checked);
+  },
+  bugToggleKeyChange: (el) => {
+    const input = el;
+    bugToggleKey(input.dataset.key ?? '', input.checked);
+  },
+  bugToggleAllChange: (el) => {
+    bugToggleAll(el.checked);
   },
 });
 // ── Helpers ───────────────────────────────────────────────────────────────────

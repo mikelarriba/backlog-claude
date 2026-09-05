@@ -28,6 +28,7 @@ mock.module('../../public/js/list-render.js', {
     attachDepHoverListenerFor: () => {},
     _invalidateDepElCache: () => {},
     LIST_ITEM_CTX_ACTIONS: { itemContextMenu: 'listItemContextMenu' },
+    LIST_ITEM_CHANGE_ACTIONS: { updatePiVersion: 'listUpdatePiVersion' },
   },
 });
 mock.module('../../public/js/dragdrop.js', {

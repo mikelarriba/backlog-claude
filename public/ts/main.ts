@@ -21,7 +21,6 @@ import {
   collapseAll,
   expandAll,
   toggleSwimlane,
-  updatePiVersion,
   setTypeFilter,
   setStatusFilter,
   setTeamFilter,
@@ -163,17 +162,13 @@ import {
   setBugsEnvFilter,
   analyzeBugs,
   toggleBugsAnalysis,
-  bugToggleKey,
-  bugToggleAll,
 } from './bugs-dashboard.js';
 import {
   loadDocumentationView,
   docSetTypeFilter,
   docSetFixVersion,
   searchDocumentationIssues,
-  docToggleKey,
   askAI,
-  toggleSuggestionCheck,
   selectAllSuggestions,
   deselectAllSuggestions,
   modifyDocumentation,
@@ -1246,7 +1241,6 @@ const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
   toggleSwimlane,
-  updatePiVersion,
   handleItemClick,
   showContextMenu,
   closeContextMenu,
@@ -1312,18 +1306,14 @@ const _dynGlobals: Record<string, unknown> = {
   // bridge entirely.
   // bugcreate.ts
   onBugFilesSelected,
-  // bugs-dashboard.ts
-  bugToggleKey,
-  bugToggleAll,
   // documentation.ts — docRowClick/docSetPage/toggleSuggestionRow moved off
   // this bridge onto DOC_ACTIONS (issue #461); docSetSprint/
-  // docSetFixVersionBulk moved off it too, onto the new change-action
-  // registry (see the "Change-event registry" section of actions.ts and
-  // the registerChangeActions() call in documentation.ts).
+  // docSetFixVersionBulk/docToggleKey/toggleSuggestionCheck moved off it
+  // too, onto the change-action registry (see the "Change-event registry"
+  // section of actions.ts and the registerChangeActions() call in
+  // documentation.ts).
   setDocMode,
   docSearch,
-  docToggleKey,
-  toggleSuggestionCheck,
   // onkeydown handlers remaining in index.html inputs
   searchJira,
   pullByKey,

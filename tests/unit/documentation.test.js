@@ -130,7 +130,10 @@ describe('buildEpicRowHtml()', () => {
     const html = buildEpicRowHtml(makeEpic(), false, false);
     assert.match(html, /class="doc-epic-item" data-key="DOC-103"/);
     assert.match(html, /class="doc-issue-row " data-key="DOC-103" data-action="docRowClick"/);
-    assert.match(html, /docToggleKey\('DOC-103',this\.checked\)/);
+    assert.match(
+      html,
+      /<input type="checkbox"[^>]* data-key="DOC-103" data-change-action="docToggleKeyChange"/
+    );
     assert.doesNotMatch(html, /data-key="DOC-101"[^>]*data-action="docRowClick"/);
   });
 
