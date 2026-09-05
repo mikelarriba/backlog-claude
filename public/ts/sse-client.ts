@@ -26,7 +26,7 @@ const _loadDocsDebounced = debounce(loadDocs, 100);
 let _sseRetryDelay = 1_000;
 const SSE_MAX_DELAY = 30_000;
 
-function _handleSSEMessage(payload: SSEPayload): void {
+export function _handleSSEMessage(payload: SSEPayload): void {
   // Granular in-memory update when server includes the full DocEntry.
   // Avoids a round-trip GET /api/docs for single-document operations.
   // upsertDoc / removeDoc emit domain events that trigger subscribers.
