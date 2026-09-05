@@ -26,6 +26,14 @@ export const LIST_ITEM_ACTIONS = {
 export const LIST_ITEM_CTX_ACTIONS = {
   itemContextMenu: 'listItemContextMenu',
 };
+// Typed data-change-action name for this module's one onchange site (the
+// swimlane header's version-select) — issue #461 migration, see actions.ts's
+// change-event registry. Registered from list-filters.ts, where
+// updatePiVersion is defined, not here — same const-in-render-module /
+// register-in-handler-module split LIST_ITEM_CTX_ACTIONS above uses.
+export const LIST_ITEM_CHANGE_ACTIONS = {
+  updatePiVersion: 'listUpdatePiVersion',
+};
 registerActions({
   [LIST_ITEM_ACTIONS.toggleSwimlane]: (el) => {
     toggleSwimlane(el.dataset.section);
@@ -176,7 +184,7 @@ export function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) 
     versionSelector = `
       <select class="swimlane-version-select"
               data-section="${sectionKey}"
-              onchange="updatePiVersion('${sectionKey}', this.value)"
+              data-change-action="${LIST_ITEM_CHANGE_ACTIONS.updatePiVersion}"
               onclick="event.stopPropagation()">
         <option value="">— Select version —</option>
         ${options}
