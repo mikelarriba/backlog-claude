@@ -873,8 +873,7 @@ export function renderCanvas(epicFilename: string, docType: string): void {
           if (!_canvasManageLinks) card.setAttribute('draggable', 'true');
           const els = document.elementsFromPoint(mu.clientX, mu.clientY);
           const tgtCard = els.find((el) => el.classList.contains('canvas-card') && el !== card) as
-            | HTMLElement
-            | undefined;
+            HTMLElement | undefined;
           if (tgtCard) {
             const tgtFn = tgtCard.dataset.filename;
             const tgtDt = tgtCard.dataset.doctype;

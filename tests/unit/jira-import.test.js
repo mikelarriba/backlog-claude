@@ -12,6 +12,7 @@ import {
   summarizeChildrenCounts,
   groupSelectedChildrenByParent,
   buildJiraResultItemHtml,
+  formatDownloadBtnState,
 } from '../../public/js/jira-import.js';
 
 // ── parseJiraKeysInput ───────────────────────────────────────────────────────
@@ -217,5 +218,20 @@ describe('buildJiraResultItemHtml()', () => {
       0
     );
     assert.match(html, /title="&quot;weird&quot; &lt;name&gt;\.md">✓ Local/);
+  });
+});
+
+// ── formatDownloadBtnState ────────────────────────────────────────────────────
+describe('formatDownloadBtnState()', () => {
+  test('zero selected: hidden with a plural "0 issues" label', () => {
+    assert.deepEqual(formatDownloadBtnState(0), { hidden: true, text: '⬇ Download 0 issues' });
+  });
+
+  test('one selected: visible with a singular label', () => {
+    assert.deepEqual(formatDownloadBtnState(1), { hidden: false, text: '⬇ Download 1 issue' });
+  });
+
+  test('multiple selected: visible with a plural label', () => {
+    assert.deepEqual(formatDownloadBtnState(4), { hidden: false, text: '⬇ Download 4 issues' });
   });
 });
