@@ -3,7 +3,7 @@ import { fetchJSON, escHtml, showJiraToast } from './state.js';
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
 import { logAiSaving } from './ai-savings.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerChangeActions } from './actions.js';
 
 // Typed data-action name for the per-file remove button in
 // renderBugFileList (issue #461 migration — see actions.ts and
@@ -17,6 +17,20 @@ export const BUGCREATE_ACTIONS = {
 registerActions({
   [BUGCREATE_ACTIONS.removeFile]: (el) => {
     removeBugFile(Number(el.dataset.index));
+  },
+});
+
+// Typed data-change-action name for index.html's file input (issue #461
+// migration — see the "Change-event registry" section of actions.ts).
+// Replaces the onchange="onBugFilesSelected(this.files)" string previously
+// reaching this handler through main.ts's untyped window bridge.
+export const BUGCREATE_CHANGE_ACTIONS = {
+  filesSelected: 'bugcreateFilesSelected',
+} as const;
+
+registerChangeActions({
+  [BUGCREATE_CHANGE_ACTIONS.filesSelected]: (el) => {
+    onBugFilesSelected((el as HTMLInputElement).files!);
   },
 });
 
