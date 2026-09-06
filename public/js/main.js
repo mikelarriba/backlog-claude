@@ -70,7 +70,7 @@ import {
   pushToJira,
 } from './jira-push.js';
 import { pullFromJira, checkAllJira } from './jira-pull.js';
-import { openBugForm, closeBugForm, onBugFilesSelected, submitBugReport } from './bugcreate.js';
+import { openBugForm, closeBugForm, submitBugReport } from './bugcreate.js';
 import { resetCanvasLayout } from './refine-canvas.js';
 import { _showEdgePopup, _deleteCanvasLink, _changeCanvasLinkType } from './refine-edges.js';
 import {
@@ -1089,6 +1089,12 @@ document.addEventListener('change', (e) => {
 //     `window` lookup even though main.ts already had them as direct
 //     imports — the exact class of bridge indirection issue #461 exists to
 //     remove.
+//   - The bug-report file input (index.html's #bug-files). Its handler
+//     (onBugFilesSelected) is intentionally absent from this bridge — see
+//     BUGCREATE_CHANGE_ACTIONS in bugcreate.ts. This was a bare
+//     onchange="onBugFilesSelected(this.files)" string reaching the handler
+//     through this bridge (not the change switch, which never carried it),
+//     the same bridge-indirection pattern the two bullets above remove.
 // The `input` listener (defined just above the `change` one) has not been
 // touched by this spike and remains a plain switch — a future increment can
 // extend the same pattern to it once this one has proven out.
@@ -1204,8 +1210,8 @@ const _dynGlobals = {
   // JIRA_PULL_ACTIONS (issue #461) and its onkeydown moved to
   // registerKeydownActions in the same later pass, so it's gone from this
   // bridge entirely.
-  // bugcreate.ts
-  onBugFilesSelected,
+  // bugcreate.ts — onBugFilesSelected's onchange moved off this bridge onto
+  // BUGCREATE_CHANGE_ACTIONS (issue #461); see that module.
   // documentation.ts — docRowClick/docSetPage/toggleSuggestionRow moved off
   // this bridge onto DOC_ACTIONS (issue #461); docSetSprint/
   // docSetFixVersionBulk/docToggleKey/toggleSuggestionCheck moved off it
