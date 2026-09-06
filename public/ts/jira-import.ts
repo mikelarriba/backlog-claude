@@ -212,12 +212,23 @@ export function toggleJiraItem(index: number): void {
   updateDownloadBtn();
 }
 
+// Pure: derives the download button's visibility + label from the selected
+// count. Extracted from updateDownloadBtn's DOM read/write so the pluralization
+// and hidden-when-zero rule are unit-testable without a DOM (#460).
+export function formatDownloadBtnState(count: number): { hidden: boolean; text: string } {
+  return {
+    hidden: count === 0,
+    text: `⬇ Download ${count} issue${count !== 1 ? 's' : ''}`,
+  };
+}
+
 export function updateDownloadBtn(): void {
   const count = document.querySelectorAll('#jira-results input[type=checkbox]:checked').length;
   const btn = document.getElementById('jira-download-btn') as HTMLElement | null;
   if (!btn) return;
-  btn.classList.toggle('hidden', count === 0);
-  btn.textContent = `⬇ Download ${count} issue${count !== 1 ? 's' : ''}`;
+  const { hidden, text } = formatDownloadBtnState(count);
+  btn.classList.toggle('hidden', hidden);
+  btn.textContent = text;
 }
 
 export async function downloadSelected(): Promise<void> {

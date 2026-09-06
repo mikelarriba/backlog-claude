@@ -172,12 +172,22 @@ export function toggleJiraItem(index) {
   item.classList.toggle('selected', cb.checked);
   updateDownloadBtn();
 }
+// Pure: derives the download button's visibility + label from the selected
+// count. Extracted from updateDownloadBtn's DOM read/write so the pluralization
+// and hidden-when-zero rule are unit-testable without a DOM (#460).
+export function formatDownloadBtnState(count) {
+  return {
+    hidden: count === 0,
+    text: `⬇ Download ${count} issue${count !== 1 ? 's' : ''}`,
+  };
+}
 export function updateDownloadBtn() {
   const count = document.querySelectorAll('#jira-results input[type=checkbox]:checked').length;
   const btn = document.getElementById('jira-download-btn');
   if (!btn) return;
-  btn.classList.toggle('hidden', count === 0);
-  btn.textContent = `⬇ Download ${count} issue${count !== 1 ? 's' : ''}`;
+  const { hidden, text } = formatDownloadBtnState(count);
+  btn.classList.toggle('hidden', hidden);
+  btn.textContent = text;
 }
 export async function downloadSelected() {
   const checked = [...document.querySelectorAll('#jira-results input[type=checkbox]:checked')];
