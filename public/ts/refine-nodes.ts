@@ -294,22 +294,14 @@ export function _showEmptyCellMenu(
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);
 }
 
-export function _openCellCreateForm(
-  type: string,
-  col: number,
-  row: number,
-  epicFilename: string,
-  epicDocType: string
-): void {
+// Pure: builds the empty-cell "generate & link" create-form HTML for a given
+// doc type (type badge, title, textarea copy, action buttons) — extracted
+// from _openCellCreateForm so its templating is testable without a DOM
+// (#460). `type` is always one of the fixed story/spike/bug doc types (never
+// user input), so no escaping is needed here, matching buildFpEpicMenuItemsHtml.
+export function buildCellCreateFormHtml(type: string): string {
   const typeName = TYPE_LABEL[type] || type;
-  const panel = document.getElementById('refine-panel');
-  if (!panel) return;
-  panel.classList.add('open');
-  document
-    .querySelectorAll('.canvas-card.selected')
-    .forEach((el) => el.classList.remove('selected'));
-
-  panel.innerHTML = `
+  return `
     <div class="rp-header">
       <div class="rp-meta">
         <span class="type-badge ${type}">${typeName}</span>
@@ -329,6 +321,23 @@ export function _openCellCreateForm(
       </div>
       <div class="rp-stream" id="rp-cell-stream" style="display:none"></div>
     </div>`;
+}
+
+export function _openCellCreateForm(
+  type: string,
+  col: number,
+  row: number,
+  epicFilename: string,
+  epicDocType: string
+): void {
+  const panel = document.getElementById('refine-panel');
+  if (!panel) return;
+  panel.classList.add('open');
+  document
+    .querySelectorAll('.canvas-card.selected')
+    .forEach((el) => el.classList.remove('selected'));
+
+  panel.innerHTML = buildCellCreateFormHtml(type);
 
   document
     .getElementById('rp-cell-create-btn')
