@@ -221,7 +221,18 @@ export function createJiraPushService({
       // Sync "contains" link for epics (best-effort, idempotent — JIRA errors if link exists)
       await syncContainsLink(content, type, key, FEATURES_DIR, jiraRequest, logWarn);
     } else {
-      const baseLabels = type === 'bug' ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues'] : [JIRA_LABEL];
+      // MIDAS_SC3 marks a bug as reported from Production (see the create-bugs
+      // skill's `Environment` frontmatter field) — only bugs explicitly marked
+      // Production get it, so the Bugs Dashboard's Production/Testing filter
+      // (which derives isProduction solely from this label) reflects reality.
+      const isProductionBug =
+        type === 'bug' && extractFrontmatterField(content, 'Environment') === 'Production';
+      const baseLabels =
+        type === 'bug'
+          ? isProductionBug
+            ? [JIRA_LABEL, 'MIDAS_SC3', 'MIDAS_Issues']
+            : [JIRA_LABEL, 'MIDAS_Issues']
+          : [JIRA_LABEL];
       if (teamLabel) baseLabels.push(teamLabel);
       const fields: Record<string, unknown> = {
         project: { key: JIRA_PROJECT },

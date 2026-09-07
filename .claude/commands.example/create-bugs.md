@@ -23,6 +23,7 @@ JIRA_ID: TBD
 Story_Points: TBD
 Status: Draft
 Priority: [propose from severity: Critical/High/Medium/Low — see Priority Assessment for rationale]
+Environment: [Production or Testing — must match the "Production / Testing" line in the ## Environment section below; this drives the Bugs Dashboard's Production/Testing filter and JIRA labeling]
 Squad: TBD
 PI: TBD
 Sprint: TBD
