@@ -751,6 +751,19 @@ interface ConfluenceUndoResult {
 
 type SuggestionStatus = 'pending' | 'spinner' | 'success' | 'error';
 
+// `POST /api/confluence/execute`'s `results` array is index-aligned with the
+// request's `suggestions` array (built via pMap, which preserves original
+// position — see confluence.ts), so results must be matched back to their
+// suggestion row by position within this execute batch, not by `pageTitle`:
+// two suggestions can share a pageTitle (e.g. duplicate AI output), in which
+// case a title-based lookup would incorrectly return the same result for both.
+export function matchExecuteResults(
+  selectedIndexes: number[],
+  results: ConfluenceExecuteResult[]
+): Array<{ index: number; result: ConfluenceExecuteResult | undefined }> {
+  return selectedIndexes.map((index, pos) => ({ index, result: results[pos] }));
+}
+
 const UNDO_WINDOW_SECONDS = 60;
 
 let _undoSnapshotId: string | null = null;
@@ -782,13 +795,11 @@ async function executeChanges(): Promise<void> {
     };
     const results = data.results || [];
 
-    selectedIndexes.forEach((i) => {
-      const suggestion = _suggestions[i];
-      const result = results.find((r) => r.pageTitle === suggestion.pageTitle);
+    matchExecuteResults(selectedIndexes, results).forEach(({ index, result }) => {
       if (result) {
-        _setSuggestionStatus(i, result.success ? 'success' : 'error', result.error);
+        _setSuggestionStatus(index, result.success ? 'success' : 'error', result.error);
       } else {
-        _setSuggestionStatus(i, 'error', 'No result returned for this item');
+        _setSuggestionStatus(index, 'error', 'No result returned for this item');
       }
     });
 
