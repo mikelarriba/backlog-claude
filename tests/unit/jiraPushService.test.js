@@ -99,6 +99,121 @@ describe('pushSingleIssue — create path (no existing JIRA_ID)', () => {
   });
 });
 
+// ── Bug labeling: MIDAS_SC3 must reflect the Environment frontmatter (#614) ──
+// Previously every bug got MIDAS_SC3 unconditionally, which made the Bugs
+// Dashboard's Production/Testing filter (isProduction := has 'MIDAS_SC3')
+// non-functional for the tool's own bug-creation path.
+describe('pushSingleIssue — bug labeling by Environment frontmatter', () => {
+  function writeBug(name, environment) {
+    const filepath = path.join(BUGS_DIR, name);
+    fs.writeFileSync(
+      filepath,
+      `---\nJIRA_ID: TBD\nStatus: Draft\nStory_Points: TBD\nTeam: TBD\nFix_Version: TBD\nEnvironment: ${environment}\n---\n\n## New Bug\n\nSome body text.\n`
+    );
+    return filepath;
+  }
+
+  test('a bug marked Environment: Production gets MIDAS_SC3', async () => {
+    const filepath = writeBug('prod-bug.md', 'Production');
+    let createdFields;
+    const { service } = makeService({
+      jiraRequest: async (method, urlPath, body) => {
+        if (method === 'POST' && urlPath === '/issue') {
+          createdFields = body.fields;
+          return { key: 'BUG-1' };
+        }
+        throw new Error(`unexpected call ${method} ${urlPath}`);
+      },
+    });
+
+    await service.pushSingleIssue({
+      filename: 'prod-bug.md',
+      filepath,
+      content: fs.readFileSync(filepath, 'utf-8'),
+      type: 'bug',
+    });
+
+    assert.deepEqual(createdFields.labels, ['midas', 'MIDAS_SC3', 'MIDAS_Issues']);
+  });
+
+  test('a bug marked Environment: Testing does not get MIDAS_SC3', async () => {
+    const filepath = writeBug('testing-bug.md', 'Testing');
+    let createdFields;
+    const { service } = makeService({
+      jiraRequest: async (method, urlPath, body) => {
+        if (method === 'POST' && urlPath === '/issue') {
+          createdFields = body.fields;
+          return { key: 'BUG-2' };
+        }
+        throw new Error(`unexpected call ${method} ${urlPath}`);
+      },
+    });
+
+    await service.pushSingleIssue({
+      filename: 'testing-bug.md',
+      filepath,
+      content: fs.readFileSync(filepath, 'utf-8'),
+      type: 'bug',
+    });
+
+    assert.deepEqual(createdFields.labels, ['midas', 'MIDAS_Issues']);
+  });
+
+  test('a bug with no Environment field does not get MIDAS_SC3 (safe default)', async () => {
+    const filepath = path.join(BUGS_DIR, 'no-env-bug.md');
+    fs.writeFileSync(
+      filepath,
+      '---\nJIRA_ID: TBD\nStatus: Draft\nStory_Points: TBD\nTeam: TBD\nFix_Version: TBD\n---\n\n## New Bug\n\nSome body text.\n'
+    );
+    let createdFields;
+    const { service } = makeService({
+      jiraRequest: async (method, urlPath, body) => {
+        if (method === 'POST' && urlPath === '/issue') {
+          createdFields = body.fields;
+          return { key: 'BUG-3' };
+        }
+        throw new Error(`unexpected call ${method} ${urlPath}`);
+      },
+    });
+
+    await service.pushSingleIssue({
+      filename: 'no-env-bug.md',
+      filepath,
+      content: fs.readFileSync(filepath, 'utf-8'),
+      type: 'bug',
+    });
+
+    assert.deepEqual(createdFields.labels, ['midas', 'MIDAS_Issues']);
+  });
+
+  test('a non-bug type never gets MIDAS_SC3 or MIDAS_Issues, even with Environment: Production', async () => {
+    const filepath = path.join(STORY_DIR, 'prod-story.md');
+    fs.writeFileSync(
+      filepath,
+      '---\nJIRA_ID: TBD\nStatus: Draft\nStory_Points: TBD\nTeam: TBD\nFix_Version: TBD\nEnvironment: Production\n---\n\n## New Story\n\nSome body text.\n'
+    );
+    let createdFields;
+    const { service } = makeService({
+      jiraRequest: async (method, urlPath, body) => {
+        if (method === 'POST' && urlPath === '/issue') {
+          createdFields = body.fields;
+          return { key: 'STORY-1' };
+        }
+        throw new Error(`unexpected call ${method} ${urlPath}`);
+      },
+    });
+
+    await service.pushSingleIssue({
+      filename: 'prod-story.md',
+      filepath,
+      content: fs.readFileSync(filepath, 'utf-8'),
+      type: 'story',
+    });
+
+    assert.deepEqual(createdFields.labels, ['midas']);
+  });
+});
+
 describe('pushSingleIssue — update path (existing JIRA_ID)', () => {
   let filepath;
 
