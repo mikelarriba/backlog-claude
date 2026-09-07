@@ -32,7 +32,7 @@
     "multer": "^2.2.0",
     "pdfkit": "^0.20.1",
     "pptxgenjs": "^4.0.1",
-    "swagger-ui-dist": "^5.32.14",
+    "swagger-ui-dist": "^5.32.15",
     "tsx": "^4.23.12",
     "zod": "^4.5.1"
   },
