@@ -824,16 +824,12 @@ document.addEventListener('click', (e) => {
       executeSplitIssue();
       break;
     // ── Documentation view ─────────────────────────────────────
-    case 'setDocMode': {
-      const fn = window['setDocMode'];
-      if (typeof fn === 'function') fn(btn.dataset.filterValue ?? '');
+    case 'setDocMode':
+      setDocMode(btn.dataset.filterValue ?? '');
       break;
-    }
-    case 'docSearch': {
-      const fn = window['docSearch'];
-      if (typeof fn === 'function') fn();
+    case 'docSearch':
+      docSearch();
       break;
-    }
     case 'docSetTypeFilter':
       docSetTypeFilter(btn.dataset.filterValue);
       break;
