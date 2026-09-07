@@ -15,7 +15,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import '../helpers/domGlobals.js';
 
-const { buildSuggestionRowHtml, buildEpicRowHtml, DOC_ACTIONS } =
+const { buildSuggestionRowHtml, buildEpicRowHtml, matchExecuteResults, DOC_ACTIONS } =
   await import('../../public/js/documentation.js');
 
 function makeSuggestion(overrides = {}) {
@@ -91,6 +91,50 @@ describe('buildSuggestionRowHtml()', () => {
       false
     );
     assert.match(html, /doc-diff-content"/);
+  });
+});
+
+// ── matchExecuteResults() (#615) ─────────────────────────────────────────────
+// Regression: `results` from POST /api/confluence/execute is index-aligned
+// with the request's suggestions array, so two selected suggestions sharing a
+// pageTitle must still each get their own correct result — a title-based
+// lookup would return the same (first) match for both.
+describe('matchExecuteResults()', () => {
+  test('matches results to selected indexes by position, not by pageTitle', () => {
+    const results = [
+      { pageTitle: 'Duplicate Page', action: 'Update', pageId: 'p1', success: true },
+      {
+        pageTitle: 'Duplicate Page',
+        action: 'Update',
+        pageId: 'p2',
+        success: false,
+        error: 'boom',
+      },
+    ];
+    const matched = matchExecuteResults([3, 5], results);
+    assert.deepEqual(matched, [
+      { index: 3, result: results[0] },
+      { index: 5, result: results[1] },
+    ]);
+    assert.equal(matched[0].result.success, true);
+    assert.equal(matched[1].result.success, false);
+    assert.equal(matched[1].result.error, 'boom');
+  });
+
+  test('preserves selectedIndexes order even when unique pageTitles are out of alphabetical order', () => {
+    const results = [
+      { pageTitle: 'Zebra', action: 'Create', pageId: null, success: true },
+      { pageTitle: 'Apple', action: 'Create', pageId: null, success: true },
+    ];
+    const matched = matchExecuteResults([0, 1], results);
+    assert.equal(matched[0].result.pageTitle, 'Zebra');
+    assert.equal(matched[1].result.pageTitle, 'Apple');
+  });
+
+  test('returns undefined result for a selected index with no corresponding result', () => {
+    const matched = matchExecuteResults([0, 1], [{ pageTitle: 'Only One', success: true }]);
+    assert.equal(matched[0].result.pageTitle, 'Only One');
+    assert.equal(matched[1].result, undefined);
   });
 });
 
