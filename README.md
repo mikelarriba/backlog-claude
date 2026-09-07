@@ -76,6 +76,53 @@ Health check: `GET /api/health` returns `{ status: "ok", uptime, docsDir, versio
 | `PORT`           | No         | HTTP port (default: `3000`)                                   |
 | `MOCK_CLAUDE`    | Tests only | Set to `1` to skip the Claude subprocess in integration tests |
 
+AI provider (at least one is needed for AI generation features — see [Ollama local LLM provider](#docker) config in `.env.example` for the no-cost local option):
+
+| Variable                   | Required            | Description                                                      |
+| :------------------------- | :------------------ | :--------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`        | For Claude features | API key used by the Claude CLI subprocess for generation/upgrade |
+| `OLLAMA_BASE_URL`          | No                  | Local Ollama endpoint (default: `http://localhost:11434`)        |
+| `CLAUDE_CONCURRENCY`       | No                  | Max parallel AI calls; extras are queued FIFO (default: `3`)     |
+| `CLAUDE_TIMEOUT_MS`        | No                  | Timeout for non-streaming Claude CLI calls (default: `180000`)   |
+| `CLAUDE_STREAM_TIMEOUT_MS` | No                  | Timeout for streaming Claude CLI calls (default: `300000`)       |
+
+Confluence (opt-in — endpoints return 503 and a startup warning is logged if unset):
+
+| Variable                | Required       | Description                                                 |
+| :---------------------- | :------------- | :---------------------------------------------------------- |
+| `CONFLUENCE_BASE_URL`   | For Confluence | e.g. `https://your-domain.atlassian.net`                    |
+| `CONFLUENCE_API_TOKEN`  | For Confluence | API token for the Confluence account                        |
+| `CONFLUENCE_EMAIL`      | For Confluence | Account email associated with the API token                 |
+| `CONFLUENCE_SPACE_KEY`  | For Confluence | Confluence space to read/write pages in                     |
+| `CONFLUENCE_TIMEOUT_MS` | No             | Request timeout for Confluence API calls (default: `30000`) |
+
+JIRA tuning (custom field IDs, sprint sync, performance, and resiliency):
+
+| Variable                         | Required        | Description                                                               |
+| :------------------------------- | :-------------- | :------------------------------------------------------------------------ |
+| `JIRA_FIELD_EPIC_NAME`           | No              | Custom field ID for Epic Name (instance-specific)                         |
+| `JIRA_FIELD_EPIC_LINK`           | No              | Custom field ID for Epic Link (instance-specific)                         |
+| `JIRA_FIELD_STORY_POINTS`        | No              | Custom field ID for Story Points (instance-specific)                      |
+| `JIRA_BOARD_ID`                  | For sprint sync | Board ID used to resolve sprints during push                              |
+| `JIRA_CONCURRENCY`               | No              | Max parallel JIRA requests during bulk operations (default: `5`)          |
+| `JIRA_TIMEOUT_MS`                | No              | Timeout for JIRA API calls (default: `30000`)                             |
+| `JIRA_CIRCUIT_FAILURE_THRESHOLD` | No              | Consecutive failures before the circuit breaker opens (default: `5`)      |
+| `JIRA_CIRCUIT_RESET_TIMEOUT_MS`  | No              | Delay before a half-open probe after the circuit opens (default: `30000`) |
+
+Rate limiting, logging, and misc:
+
+| Variable              | Required | Description                                                                           |
+| :-------------------- | :------- | :------------------------------------------------------------------------------------ |
+| `RATE_LIMIT_API`      | No       | Requests/min/IP for general API endpoints (default: `300`)                            |
+| `RATE_LIMIT_AI`       | No       | Requests/min/IP for AI generation endpoints (default: `20`)                           |
+| `RATE_LIMIT_JIRA`     | No       | Requests/min/IP for JIRA push endpoints (default: `60`)                               |
+| `LOG_LEVEL`           | No       | One of `debug`\|`info`\|`warn`\|`error` (default: `info`)                             |
+| `AUDIT_LOG_PATH`      | No       | Path to the append-only NDJSON audit log; `none` disables it (default: `./audit.log`) |
+| `INBOX_MAX_RETRIES`   | No       | Retry attempts before a failed inbox file moves to `inbox/errors/` (default: `3`)     |
+| `SSE_IDLE_TIMEOUT_MS` | No       | Idle timeout before a silent SSE client is evicted (default: `300000`)                |
+
+See `.env.example` for the full, authoritative list with inline documentation.
+
 ---
 
 ## Features
@@ -133,6 +180,30 @@ Health check: `GET /api/health` returns `{ status: "ok", uptime, docsDir, versio
 
 - **Bug reporter** — paste HTML or plain text; Claude translates it to a structured bug report
 - **Attachment upload** — attach screenshots / MSG files at creation time; uploaded to JIRA on push
+
+### Documentation panel (Confluence)
+
+- **Ask AI** — analyze a sprint or fix-version's closed JIRA epics/issues and propose Confluence page create/update suggestions, grounded against the space's existing page tree
+- **Review & execute** — select which proposed suggestions to apply; each is applied independently, so a failure on one page doesn't block the rest
+- **Undo** — reverts only the operations that actually succeeded in the last execute batch
+- **PDF export** — export the current suggestions report as a PDF
+- **Editable skill** — the documentation-guidance prompt is a customizable skill, same pattern as the other command templates
+- **Epic roll-up** — epic-mode analysis reasons over an epic's summary plus its closed children's summaries, not just the epic in isolation
+
+Requires the `CONFLUENCE_*` environment variables (see below); without them, Confluence endpoints return `503` and a startup warning is logged, but the rest of the app is unaffected.
+
+### Bugs Dashboard
+
+- **JIRA bug time-series** — chart of bug counts over time, fetched live from JIRA
+- **Production / Testing filter** — segment the dashboard by whether a bug was reported from Production or Testing
+- **AI analysis workspace** — ask Claude to analyze the current bug set and surface patterns; analyses are persisted and the latest one is reloaded on return
+- **Stats summary** — aggregate counts alongside the chart
+
+### AI Time Saved
+
+- **Log** — record AI-assisted actions and the estimated time saved per action
+- **Chart** — visualize accumulated time savings over time
+- **PDF / PPTX export** — export the time-savings report for sharing outside the app
 
 ### Inbox auto-processing
 
@@ -375,16 +446,46 @@ backlog-claude/
 
 ### JIRA
 
-| Method | Path                                         | Description                               |
-| :----- | :------------------------------------------- | :---------------------------------------- |
-| `POST` | `/api/jira/push/:type/:filename`             | Push local doc to JIRA (create or update) |
-| `POST` | `/api/jira/push-rank`                        | Reorder issue in JIRA backlog             |
-| `POST` | `/api/jira/pull`                             | Import a JIRA issue as a local `.md`      |
-| `POST` | `/api/jira/sync-status/:type/:filename`      | Pull JIRA status + SP into local file     |
-| `POST` | `/api/jira/update-from-jira/:type/:filename` | Full field sync from JIRA                 |
-| `GET`  | `/api/jira/search`                           | Keyword search in JIRA project            |
-| `GET`  | `/api/jira/versions`                         | Active fix-versions from JIRA             |
-| `GET`  | `/api/jira/children/:key`                    | Epic children from JIRA                   |
+| Method | Path                                         | Description                                                       |
+| :----- | :------------------------------------------- | :---------------------------------------------------------------- |
+| `POST` | `/api/jira/push/:type/:filename`             | Push local doc to JIRA (create or update)                         |
+| `POST` | `/api/jira/push-rank`                        | Reorder issue in JIRA backlog                                     |
+| `POST` | `/api/jira/pull`                             | Import a JIRA issue as a local `.md`                              |
+| `POST` | `/api/jira/sync-status/:type/:filename`      | Pull JIRA status + SP into local file                             |
+| `POST` | `/api/jira/update-from-jira/:type/:filename` | Full field sync from JIRA                                         |
+| `GET`  | `/api/jira/search`                           | Keyword search in JIRA project                                    |
+| `GET`  | `/api/jira/versions`                         | Active fix-versions from JIRA                                     |
+| `GET`  | `/api/jira/children/:key`                    | Epic children from JIRA                                           |
+| `GET`  | `/api/jira/closed-epics`                     | Epics containing issues closed within a sprint/fix-version window |
+
+### Confluence
+
+Requires `CONFLUENCE_*` environment variables; returns `503` if unset.
+
+| Method | Path                               | Description                                                   |
+| :----- | :--------------------------------- | :------------------------------------------------------------ |
+| `POST` | `/api/confluence/analyze`          | Propose page create/update suggestions from JIRA epics/issues |
+| `POST` | `/api/confluence/execute`          | Apply selected suggestions; partial success per suggestion    |
+| `POST` | `/api/confluence/undo/:snapshotId` | Revert the operations that succeeded in an execute batch      |
+| `POST` | `/api/confluence/export/pdf`       | Export the current suggestions report as a PDF                |
+| `GET`  | `/api/confluence/test`             | Verify Confluence credentials against the configured space    |
+
+### Bugs Dashboard
+
+| Method | Path                                  | Description                                 |
+| :----- | :------------------------------------ | :------------------------------------------ |
+| `GET`  | `/api/bugs/dashboard`                 | JIRA bug time-series/stats (SSE stream)     |
+| `POST` | `/api/bugs/dashboard/analyze`         | Run an AI analysis over the current bug set |
+| `GET`  | `/api/bugs/dashboard/analyses/latest` | Fetch the most recently saved AI analysis   |
+
+### AI Savings
+
+| Method | Path                          | Description                              |
+| :----- | :---------------------------- | :--------------------------------------- |
+| `GET`  | `/api/ai-savings`             | All logged time-savings entries + total  |
+| `POST` | `/api/ai-savings/log`         | Log an AI-assisted action and time saved |
+| `GET`  | `/api/ai-savings/export/pdf`  | Export the time-savings report as a PDF  |
+| `GET`  | `/api/ai-savings/export/pptx` | Export the time-savings report as a PPTX |
 
 ### Settings
 
