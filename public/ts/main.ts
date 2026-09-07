@@ -913,16 +913,12 @@ document.addEventListener('click', (e: MouseEvent) => {
       break;
 
     // ── Documentation view ─────────────────────────────────────
-    case 'setDocMode': {
-      const fn = (window as unknown as Record<string, unknown>)['setDocMode'];
-      if (typeof fn === 'function') (fn as (v: string) => void)(btn.dataset.filterValue ?? '');
+    case 'setDocMode':
+      setDocMode(btn.dataset.filterValue ?? '');
       break;
-    }
-    case 'docSearch': {
-      const fn = (window as unknown as Record<string, unknown>)['docSearch'];
-      if (typeof fn === 'function') (fn as () => void)();
+    case 'docSearch':
+      docSearch();
       break;
-    }
     case 'docSetTypeFilter':
       docSetTypeFilter(btn.dataset.filterValue as 'all' | 'epic' | 'story' | 'bug');
       break;
