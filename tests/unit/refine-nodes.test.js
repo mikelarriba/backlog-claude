@@ -18,7 +18,7 @@ mock.module('../../public/js/list.js', {
   namedExports: { loadDocs: async () => {}, contextSplitItem: () => {} },
 });
 
-const { buildParentLinkFields, buildFpEpicMenuItemsHtml } =
+const { buildParentLinkFields, buildFpEpicMenuItemsHtml, buildCellCreateFormHtml } =
   await import('../../public/js/refine-nodes.js');
 
 // ── buildParentLinkFields ─────────────────────────────────────────────────────
@@ -119,5 +119,39 @@ describe('buildFpEpicMenuItemsHtml()', () => {
     assert.match(html, /data-epic="&lt;e&gt;\.md"/);
     assert.match(html, /A &amp; B &lt;script&gt;/);
     assert.doesNotMatch(html, /<script>/);
+  });
+});
+
+// ── buildCellCreateFormHtml() (#460) ──────────────────────────────────────────
+describe('buildCellCreateFormHtml()', () => {
+  test('renders the type badge and title using the type label, not the raw type', () => {
+    const html = buildCellCreateFormHtml('story');
+    assert.match(html, /type-badge story">Story</);
+    assert.match(html, /rp-title">New Story/);
+  });
+
+  test('lowercases the type label in the textarea copy', () => {
+    const html = buildCellCreateFormHtml('spike');
+    assert.match(html, /Describe the spike…/);
+    assert.match(html, /What should this spike cover\?/);
+  });
+
+  test('falls back to the raw type when it has no TYPE_LABEL entry', () => {
+    const html = buildCellCreateFormHtml('unknown-type');
+    assert.match(html, /type-badge unknown-type">unknown-type</);
+    assert.match(html, /Describe the unknown-type…/);
+  });
+
+  test('the close button and cancel button both carry the closeRefinePanel data-action', () => {
+    const html = buildCellCreateFormHtml('bug');
+    const matches = html.match(/data-action="refineNodesClosePanel"/g) || [];
+    assert.equal(matches.length, 2);
+  });
+
+  test('includes the create-form controls: idea textarea, create button, and hidden stream area', () => {
+    const html = buildCellCreateFormHtml('bug');
+    assert.match(html, /id="rp-cell-idea"/);
+    assert.match(html, /id="rp-cell-create-btn"/);
+    assert.match(html, /id="rp-cell-stream" style="display:none"/);
   });
 });
