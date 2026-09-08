@@ -308,11 +308,19 @@ function _resetSyncProgressModal(): void {
 // ── Push to JIRA ──────────────────────────────────────────────
 const JIRA_CARET = ' <span class="toolbar-caret">▾</span>';
 
+// Pure: push-button label — "Push Stories" for a multi-story doc (a story
+// whose filename is the "-stories.md" combined-file form), otherwise the
+// generic "JIRA" label. Extracted from updateJiraPushBtn's DOM read/write
+// so the multi-story detection is unit-testable without a DOM (#460).
+export function computeJiraPushBtnLabel(docType: string | null, filename: string | null): string {
+  const isMultiStory = docType === 'story' && !!filename?.endsWith('-stories.md');
+  return (isMultiStory ? '↑ Push Stories' : '↑ JIRA') + JIRA_CARET;
+}
+
 export function updateJiraPushBtn(): void {
   const btn = document.getElementById('jira-push-btn') as HTMLButtonElement | null;
   if (!btn) return;
-  const isMultiStory = currentDocType === 'story' && currentFilename?.endsWith('-stories.md');
-  btn.innerHTML = (isMultiStory ? '↑ Push Stories' : '↑ JIRA') + JIRA_CARET;
+  btn.innerHTML = computeJiraPushBtnLabel(currentDocType, currentFilename);
   btn.disabled = false;
 }
 
