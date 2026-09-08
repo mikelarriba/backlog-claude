@@ -19,6 +19,7 @@ const {
   summarizePreviewCounts,
   buildSyncPreviewItemHtml,
   computeProgressPercent,
+  computeJiraPushBtnLabel,
   comparePushPreviewItems,
   summarizePushResults,
   collectPushedKeysByDocType,
@@ -192,6 +193,37 @@ describe('computeProgressPercent()', () => {
 
   test('current 0 of a positive total is 0%', () => {
     assert.equal(computeProgressPercent(0, 10), 0);
+  });
+});
+
+// ── computeJiraPushBtnLabel ───────────────────────────────────────────────────
+describe('computeJiraPushBtnLabel()', () => {
+  test('a "-stories.md" story doc gets the multi-story label', () => {
+    assert.equal(
+      computeJiraPushBtnLabel('story', 'epic-1-stories.md'),
+      '↑ Push Stories <span class="toolbar-caret">▾</span>'
+    );
+  });
+
+  test('a single-story doc (no "-stories.md" suffix) gets the generic label', () => {
+    assert.equal(
+      computeJiraPushBtnLabel('story', 'epic-1-story-2.md'),
+      '↑ JIRA <span class="toolbar-caret">▾</span>'
+    );
+  });
+
+  test('a non-story docType with a "-stories.md"-like filename still gets the generic label', () => {
+    assert.equal(
+      computeJiraPushBtnLabel('epic', 'epic-1-stories.md'),
+      '↑ JIRA <span class="toolbar-caret">▾</span>'
+    );
+  });
+
+  test('null docType/filename (nothing open) gets the generic label, not a crash', () => {
+    assert.equal(
+      computeJiraPushBtnLabel(null, null),
+      '↑ JIRA <span class="toolbar-caret">▾</span>'
+    );
   });
 });
 
