@@ -29,6 +29,16 @@ export const PICONFIG_ACTIONS = {
   syncFromJira: 'piconfigSyncFromJira',
   selectTab: 'piconfigSelectTab',
 };
+// Typed change-action name for the two PI-header version <select>s in
+// renderPiConfigTabs (issue #461 migration — see actions.ts's
+// registerChangeActions pattern). Replaces the
+// onchange="_updatePiFromConfig('currentPi'|'nextPi', this.value)" strings
+// previously built by hand; the section key ('currentPi'/'nextPi') moves
+// from an inline template literal to a data-section-key attribute the
+// handler reads off the element.
+export const PICONFIG_CHANGE_ACTIONS = {
+  updatePiVersion: 'piconfigUpdatePiVersion',
+};
 registerActions({
   [PICONFIG_ACTIONS.removeSprintRow]: (el) => {
     removeSprintRow(Number(el.dataset.index));
@@ -85,7 +95,7 @@ export function renderPiConfigTabs() {
   tabs.innerHTML = `
     <div class="pi-config-version-row">
       <label class="pi-config-version-label">Current PI</label>
-      <select class="pi-config-version-select" onchange="_updatePiFromConfig('currentPi', this.value)">
+      <select class="pi-config-version-select" data-change-action="${PICONFIG_CHANGE_ACTIONS.updatePiVersion}" data-section-key="currentPi">
         <option value="">— Select version —</option>
         ${versionOptions.replace(`value="${escHtml(currentSelected)}"`, `value="${escHtml(currentSelected)}" selected`)}
       </select>
@@ -95,7 +105,7 @@ export function renderPiConfigTabs() {
     </button>
     <div class="pi-config-version-row">
       <label class="pi-config-version-label">Next PI</label>
-      <select class="pi-config-version-select" onchange="_updatePiFromConfig('nextPi', this.value)">
+      <select class="pi-config-version-select" data-change-action="${PICONFIG_CHANGE_ACTIONS.updatePiVersion}" data-section-key="nextPi">
         <option value="">— Select version —</option>
         ${versionOptions.replace(`value="${escHtml(nextSelected)}"`, `value="${escHtml(nextSelected)}" selected`)}
       </select>
@@ -432,6 +442,9 @@ export async function saveSplitThreshold(value) {
 registerChangeActions({
   saveSplitThreshold: (el) => {
     void saveSplitThreshold(el.value);
+  },
+  [PICONFIG_CHANGE_ACTIONS.updatePiVersion]: (el) => {
+    void _updatePiFromConfig(el.dataset.sectionKey ?? '', el.value);
   },
 });
 // Get sprint names for a given PI version name

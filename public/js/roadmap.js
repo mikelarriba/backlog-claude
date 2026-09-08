@@ -12,7 +12,7 @@ import { renderRoadmapBoard } from './roadmap-render.js';
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { on, upsertDoc } from './store.js';
 import { resetRefineViewState } from './refine.js';
-import { registerActions, registerInputActions } from './actions.js';
+import { registerActions, registerChangeActions, registerInputActions } from './actions.js';
 // Typed data-action name for the dependency modal's per-item "remove"
 // button in renderDepLists (issue #461 migration — see actions.ts and
 // list-filters.ts's CTX_ACTIONS for the established pattern). Replaces the
@@ -39,6 +39,20 @@ registerActions({
 registerInputActions({
   filterRoadmapEpicsInput: (el) => {
     filterRoadmapEpics(el.value);
+  },
+});
+// Typed change-action name for the PI-filter checkboxes in
+// populateRoadmapPiFilter (issue #461 migration — see actions.ts's
+// registerChangeActions pattern). Replaces the
+// onchange="toggleRoadmapPi('${pi}', this.checked)" string previously built
+// by hand; the PI name moves from an inline template literal to a
+// data-pi-name attribute the handler reads off the element.
+export const ROADMAP_CHANGE_ACTIONS = {
+  toggleRoadmapPi: 'roadmapToggleRoadmapPi',
+};
+registerChangeActions({
+  [ROADMAP_CHANGE_ACTIONS.toggleRoadmapPi]: (el) => {
+    toggleRoadmapPi(el.dataset.piName ?? '', el.checked);
   },
 });
 // _roadmapVisiblePis is declared as a window global in state.js
@@ -104,7 +118,7 @@ function populateRoadmapPiFilter() {
   let html = '';
   for (const pi of pis) {
     const checked = _roadmapVisiblePis.has(pi) ? ' checked' : '';
-    html += `<label class="rm-pi-checkbox"><input type="checkbox"${checked} onchange="toggleRoadmapPi('${escHtml(pi)}', this.checked)"><span>${escHtml(pi)}</span></label>`;
+    html += `<label class="rm-pi-checkbox"><input type="checkbox"${checked} data-change-action="${ROADMAP_CHANGE_ACTIONS.toggleRoadmapPi}" data-pi-name="${escHtml(pi)}"><span>${escHtml(pi)}</span></label>`;
   }
   container.innerHTML = html;
 }

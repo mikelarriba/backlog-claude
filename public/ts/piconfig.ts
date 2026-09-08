@@ -32,6 +32,17 @@ export const PICONFIG_ACTIONS = {
   selectTab: 'piconfigSelectTab',
 } as const;
 
+// Typed change-action name for the two PI-header version <select>s in
+// renderPiConfigTabs (issue #461 migration — see actions.ts's
+// registerChangeActions pattern). Replaces the
+// onchange="_updatePiFromConfig('currentPi'|'nextPi', this.value)" strings
+// previously built by hand; the section key ('currentPi'/'nextPi') moves
+// from an inline template literal to a data-section-key attribute the
+// handler reads off the element.
+export const PICONFIG_CHANGE_ACTIONS = {
+  updatePiVersion: 'piconfigUpdatePiVersion',
+} as const;
+
 registerActions({
   [PICONFIG_ACTIONS.removeSprintRow]: (el) => {
     removeSprintRow(Number(el.dataset.index));
@@ -158,7 +169,7 @@ export function renderPiConfigTabs(): void {
   tabs.innerHTML = `
     <div class="pi-config-version-row">
       <label class="pi-config-version-label">Current PI</label>
-      <select class="pi-config-version-select" onchange="_updatePiFromConfig('currentPi', this.value)">
+      <select class="pi-config-version-select" data-change-action="${PICONFIG_CHANGE_ACTIONS.updatePiVersion}" data-section-key="currentPi">
         <option value="">— Select version —</option>
         ${versionOptions.replace(
           `value="${escHtml(currentSelected)}"`,
@@ -171,7 +182,7 @@ export function renderPiConfigTabs(): void {
     </button>
     <div class="pi-config-version-row">
       <label class="pi-config-version-label">Next PI</label>
-      <select class="pi-config-version-select" onchange="_updatePiFromConfig('nextPi', this.value)">
+      <select class="pi-config-version-select" data-change-action="${PICONFIG_CHANGE_ACTIONS.updatePiVersion}" data-section-key="nextPi">
         <option value="">— Select version —</option>
         ${versionOptions.replace(
           `value="${escHtml(nextSelected)}"`,
@@ -564,6 +575,9 @@ export async function saveSplitThreshold(value: string): Promise<void> {
 registerChangeActions({
   saveSplitThreshold: (el) => {
     void saveSplitThreshold((el as HTMLInputElement).value);
+  },
+  [PICONFIG_CHANGE_ACTIONS.updatePiVersion]: (el) => {
+    void _updatePiFromConfig(el.dataset.sectionKey ?? '', (el as HTMLSelectElement).value);
   },
 });
 
