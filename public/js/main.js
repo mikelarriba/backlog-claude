@@ -107,7 +107,6 @@ import {
   saveSprintConfig,
   loadAllSprintConfigs,
   renderPiConfigTabs,
-  _updatePiFromConfig,
 } from './piconfig.js';
 import {
   openDistributionModal,
@@ -118,7 +117,6 @@ import {
   openRoadmapView,
   closeRoadmapView,
   refreshRoadmapView,
-  toggleRoadmapPi,
   toggleRoadmapPanel,
   focusEpic,
   addDepLink,
@@ -983,9 +981,9 @@ document.addEventListener('change', (e) => {
 //     (removeSprintRow, confirmJiraSprintImport, skipJiraSprintImport,
 //     dismissJiraImportBanner, syncPiFromJira, selectPiConfigTab) are
 //     intentionally absent below — see PICONFIG_ACTIONS in piconfig.ts.
-//     _updatePiFromConfig stays on this bridge: it backs the two version
-//     `onchange="..."` selects, which the data-action click dispatcher
-//     doesn't cover.
+//     _updatePiFromConfig's two version `onchange="..."` selects moved off
+//     this bridge in a later pass — see the "Change-event registry"
+//     paragraph below.
 //   - The detail view's dependency chip "remove" button and its clickable
 //     label (detail-links.ts's renderDetailDeps), and its hierarchy panel's
 //     parent row, per-child expand/collapse header, and "Link existing"
@@ -1091,6 +1089,20 @@ document.addEventListener('change', (e) => {
 //     onchange="onBugFilesSelected(this.files)" string reaching the handler
 //     through this bridge (not the change switch, which never carried it),
 //     the same bridge-indirection pattern the two bullets above remove.
+//   - The PI sprint config's two PI-header version <select>s
+//     (piconfig.ts's renderPiConfigTabs). Its one handler
+//     (_updatePiFromConfig) is intentionally absent from this bridge — see
+//     PICONFIG_CHANGE_ACTIONS in piconfig.ts. This was another bare
+//     onchange="_updatePiFromConfig('currentPi'|'nextPi', this.value)"
+//     string reaching the handler through this bridge, the same
+//     bridge-indirection pattern the bullets above remove; the section key
+//     moves from an inline template literal to a data-section-key attribute.
+//   - The roadmap view's PI-filter checkboxes (roadmap.ts's
+//     populateRoadmapPiFilter). Its one handler (toggleRoadmapPi) is
+//     intentionally absent from this bridge — see ROADMAP_CHANGE_ACTIONS in
+//     roadmap.ts. Same bridge-indirection pattern as the bullet above; the
+//     PI name moves from an inline template literal to a data-pi-name
+//     attribute.
 // The `input` listener (defined just above the `change` one) has not been
 // touched by this spike and remains a plain switch — a future increment can
 // extend the same pattern to it once this one has proven out.
@@ -1190,8 +1202,8 @@ const _dynGlobals = {
   _moveCardsToEdge,
   _openCanvasSplit,
   _moveCardToEdge,
-  // roadmap.ts
-  toggleRoadmapPi,
+  // roadmap.ts — toggleRoadmapPi's onchange site moved off this bridge onto
+  // ROADMAP_CHANGE_ACTIONS (issue #461); see that module.
   // roadmap-render.ts — handleRoadmapCardClick/handleRoadmapEpicClick/
   // openDepModal moved off this bridge onto ROADMAP_RENDER_ACTIONS (issue
   // #461); see that module. openDepModal was in fact never on this bridge
@@ -1200,8 +1212,8 @@ const _dynGlobals = {
   // roadmap-jira-sync.ts — _sprintPushUpdateCount/_pullSprintUpdateCount/
   // pullSprintSelectAllItems's onchange sites moved off this bridge onto
   // ROADMAP_JIRA_SYNC_CHANGE_ACTIONS (issue #461); see that module.
-  // piconfig.ts
-  _updatePiFromConfig,
+  // piconfig.ts — _updatePiFromConfig's two onchange sites moved off this
+  // bridge onto PICONFIG_CHANGE_ACTIONS (issue #461); see that module.
   // jira-pull.ts — submitUpdateFromJiraKey's onclick moved to
   // JIRA_PULL_ACTIONS (issue #461) and its onkeydown moved to
   // registerKeydownActions in the same later pass, so it's gone from this
