@@ -67,6 +67,39 @@ function jsonRes(body, status = 200) {
   };
 }
 
+// #631: /analyze now fetches issue summary/description via batched JQL
+// (`key in (...)`) through jiraPagedRequest's `/search?jql=...`, not one
+// `/issue/{key}` GET per key. This mocks that search endpoint: `missing`
+// keys are simply omitted from the `issues` array (mirroring real JIRA,
+// which doesn't error on an unknown/inaccessible key in `key in (...)` —
+// it just leaves it out of the result set), and `onFetch` (optional) is
+// called with every key found in the JQL so tests can assert what was
+// requested without caring how many `/search` calls it took.
+function extractKeysFromJql(jql) {
+  const m = jql.match(/key in \(([^)]*)\)/);
+  if (!m) return [];
+  return m[1]
+    .split(',')
+    .map((s) => s.trim().replace(/^"|"$/g, '').replace(/\\"/g, '"'))
+    .filter(Boolean);
+}
+
+function mockJiraSearchFetch({ missing = [], fields, onFetch } = {}) {
+  const fieldsFor = fields || ((key) => ({ summary: `Summary for ${key}`, description: '' }));
+  return async (url, opts) => {
+    const urlStr = String(url);
+    if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
+    const match = urlStr.match(/\/search\?jql=([^&]+)/);
+    if (!match) return jsonRes({ issues: [], total: 0 });
+    const keys = extractKeysFromJql(decodeURIComponent(match[1]));
+    for (const key of keys) onFetch?.(key);
+    const issues = keys
+      .filter((key) => !missing.includes(key))
+      .map((key) => ({ key, fields: fieldsFor(key) }));
+    return jsonRes({ issues, total: issues.length });
+  };
+}
+
 let api, stop, baseUrl;
 const originalFetch = globalThis.fetch;
 
@@ -121,18 +154,32 @@ describe('POST /api/confluence/analyze — no JIRA token configured', () => {
   });
 });
 
-// ── Unreachable JIRA issue (JIRA fetch mocked to fail) ────────────────────────
-describe('POST /api/confluence/analyze — unreachable JIRA issue', () => {
+// ── Partially unreachable JIRA issues (#631: degrades gracefully) ────────────
+describe('POST /api/confluence/analyze — some JIRA issues unreachable', () => {
   before(() => {
     process.env.JIRA_API_TOKEN = 'fake-test-token';
-    mock.method(globalThis, 'fetch', async (url, opts) => {
-      const urlStr = String(url);
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      if (urlStr.includes('/issue/EAMDM-404')) {
-        return { ok: false, status: 404, text: async () => 'Issue Does Not Exist' };
-      }
-      return jsonRes({ fields: { summary: 'A reachable issue', description: 'Some description' } });
+    mock.method(globalThis, 'fetch', mockJiraSearchFetch({ missing: ['EAMDM-404'] }));
+  });
+
+  after(() => {
+    mock.restoreAll();
+    delete process.env.JIRA_API_TOKEN;
+  });
+
+  test('still returns 200 with a warning naming how many issues were skipped', async () => {
+    const { status, data } = await api('POST', '/api/confluence/analyze', {
+      jiraIds: ['EAMDM-1', 'EAMDM-404'],
     });
+    assert.equal(status, 200);
+    assert.deepEqual(data.warnings, { unreachableCount: 1, totalCount: 2 });
+  });
+});
+
+// ── All JIRA issues unreachable (nothing usable to analyze) ──────────────────
+describe('POST /api/confluence/analyze — no JIRA issues could be fetched', () => {
+  before(() => {
+    process.env.JIRA_API_TOKEN = 'fake-test-token';
+    mock.method(globalThis, 'fetch', mockJiraSearchFetch({ missing: ['EAMDM-1', 'EAMDM-404'] }));
   });
 
   after(() => {
@@ -147,8 +194,8 @@ describe('POST /api/confluence/analyze — unreachable JIRA issue', () => {
     assert.equal(status, 400);
     assert.equal(data.code, 'JIRA_ISSUE_UNREACHABLE');
     assert.ok(Array.isArray(data.details?.unreachable));
-    assert.equal(data.details.unreachable.length, 1);
-    assert.equal(data.details.unreachable[0].key, 'EAMDM-404');
+    assert.equal(data.details.unreachable.length, 2);
+    assert.deepEqual(data.details.unreachable.map((u) => u.key).sort(), ['EAMDM-1', 'EAMDM-404']);
   });
 });
 
@@ -165,16 +212,16 @@ describe('POST /api/confluence/analyze — happy path', () => {
         proposedContent: 'Document the new bulk-upload endpoint added in EAMDM-123.',
       },
     ]);
-    mock.method(globalThis, 'fetch', async (url, opts) => {
-      const urlStr = String(url);
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      return jsonRes({
-        fields: {
+    mock.method(
+      globalThis,
+      'fetch',
+      mockJiraSearchFetch({
+        fields: () => ({
           summary: 'Add bulk upload endpoint',
           description: 'h2. Summary\nAllow bulk upload of records via a new REST endpoint.',
-        },
-      });
-    });
+        }),
+      })
+    );
   });
 
   after(() => {
@@ -198,22 +245,19 @@ describe('POST /api/confluence/analyze — happy path', () => {
   });
 });
 
-// ── Parallel JIRA fetch (issue #454: analyze uses pMap, not a serial loop) ───
-describe('POST /api/confluence/analyze — multiple issues fetched in parallel', () => {
+// ── Batched JIRA fetch (#631: one JQL search per chunk, not one GET per key) ─
+describe('POST /api/confluence/analyze — multiple issues fetched in a batch', () => {
   let fetchedKeys;
 
   before(() => {
     process.env.JIRA_API_TOKEN = 'fake-test-token';
     mockClaudeResponse = '[]';
     fetchedKeys = [];
-    mock.method(globalThis, 'fetch', async (url, opts) => {
-      const urlStr = String(url);
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      const match = urlStr.match(/\/issue\/([^?]+)/);
-      const key = match ? decodeURIComponent(match[1]) : 'unknown';
-      fetchedKeys.push(key);
-      return jsonRes({ fields: { summary: `Summary for ${key}`, description: '' } });
-    });
+    mock.method(
+      globalThis,
+      'fetch',
+      mockJiraSearchFetch({ onFetch: (key) => fetchedKeys.push(key) })
+    );
   });
 
   after(() => {
@@ -239,14 +283,11 @@ describe('POST /api/confluence/analyze — epic mode (epics + closedChildKeys)',
     process.env.JIRA_API_TOKEN = 'fake-test-token';
     mockClaudeResponse = '[]';
     fetchedKeys = [];
-    mock.method(globalThis, 'fetch', async (url, opts) => {
-      const urlStr = String(url);
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      const match = urlStr.match(/\/issue\/([^?]+)/);
-      const key = match ? decodeURIComponent(match[1]) : 'unknown';
-      fetchedKeys.push(key);
-      return jsonRes({ fields: { summary: `Summary for ${key}`, description: '' } });
-    });
+    mock.method(
+      globalThis,
+      'fetch',
+      mockJiraSearchFetch({ onFetch: (key) => fetchedKeys.push(key) })
+    );
   });
 
   after(() => {
@@ -310,23 +351,15 @@ describe('POST /api/confluence/analyze — epic mode (epics + closedChildKeys)',
     assert.equal(data.suggestions[0].pageTitle, 'Auth Guide');
   });
 
-  test('an unreachable closed-child key is reported the same way an unreachable jiraId is', async () => {
+  test('an unreachable closed-child key is dropped from that epic group, not fatal to the whole request', async () => {
     mock.restoreAll();
-    mock.method(globalThis, 'fetch', async (url, opts) => {
-      const urlStr = String(url);
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      if (urlStr.includes('/issue/EAMDM-404')) {
-        return { ok: false, status: 404, text: async () => 'Issue Does Not Exist' };
-      }
-      return jsonRes({ fields: { summary: 'Reachable', description: '' } });
-    });
+    mock.method(globalThis, 'fetch', mockJiraSearchFetch({ missing: ['EAMDM-404'] }));
     const { status, data } = await api('POST', '/api/confluence/analyze', {
       jiraIds: ['EAMDM-5'],
       epics: [{ key: 'EAMDM-5', summary: 'Epic', closedChildKeys: ['EAMDM-404'] }],
     });
-    assert.equal(status, 400);
-    assert.equal(data.code, 'JIRA_ISSUE_UNREACHABLE');
-    assert.equal(data.details.unreachable[0].key, 'EAMDM-404');
+    assert.equal(status, 200);
+    assert.deepEqual(data.warnings, { unreachableCount: 1, totalCount: 2 });
   });
 });
 
@@ -336,11 +369,13 @@ describe('POST /api/confluence/analyze — documentation-guidance skill injectio
     process.env.JIRA_API_TOKEN = 'fake-test-token';
     mockClaudeResponse = '[]';
     lastPromptSentToClaude = null;
-    mock.method(globalThis, 'fetch', async (url, opts) => {
-      const urlStr = String(url);
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      return jsonRes({ fields: { summary: 'An issue', description: 'Some description' } });
-    });
+    mock.method(
+      globalThis,
+      'fetch',
+      mockJiraSearchFetch({
+        fields: () => ({ summary: 'An issue', description: 'Some description' }),
+      })
+    );
   });
 
   after(() => {
@@ -402,11 +437,11 @@ describe('POST /api/confluence/analyze — jiraIds-only requests still work exac
         proposedContent: 'New page from a flat jiraIds request.',
       },
     ]);
-    mock.method(globalThis, 'fetch', async (url, opts) => {
-      const urlStr = String(url);
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      return jsonRes({ fields: { summary: 'A search-mode issue', description: '' } });
-    });
+    mock.method(
+      globalThis,
+      'fetch',
+      mockJiraSearchFetch({ fields: () => ({ summary: 'A search-mode issue', description: '' }) })
+    );
   });
 
   after(() => {
@@ -430,11 +465,7 @@ describe('POST /api/confluence/analyze — AI returns unparseable content', () =
   before(() => {
     process.env.JIRA_API_TOKEN = 'fake-test-token';
     mockClaudeResponse = 'Sure! Here is my analysis: this is not JSON at all.';
-    mock.method(globalThis, 'fetch', async (url, opts) => {
-      const urlStr = String(url);
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      return jsonRes({ fields: { summary: 'Some issue', description: '' } });
-    });
+    mock.method(globalThis, 'fetch', mockJiraSearchFetch());
   });
 
   after(() => {
@@ -469,14 +500,14 @@ describe('POST /api/confluence/analyze — Confluence grounding (listPages)', ()
     delete process.env.CONFLUENCE_API_TOKEN;
     mockClaudeResponse = '[]';
     let confluenceCalled = false;
+    const searchFetch = mockJiraSearchFetch();
     mock.method(globalThis, 'fetch', async (url, opts) => {
       const urlStr = String(url);
       if (urlStr.includes('/wiki/')) {
         confluenceCalled = true;
         return jsonRes({ results: [] });
       }
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      return jsonRes({ fields: { summary: 'An issue', description: '' } });
+      return searchFetch(url, opts);
     });
 
     const { status, data } = await api('POST', '/api/confluence/analyze', {
@@ -507,6 +538,9 @@ describe('POST /api/confluence/analyze — Confluence grounding (listPages)', ()
       },
     ]);
     let capturedListPagesUrl = null;
+    const searchFetch = mockJiraSearchFetch({
+      fields: () => ({ summary: 'Add bulk upload', description: '' }),
+    });
     mock.method(globalThis, 'fetch', async (url, opts) => {
       const urlStr = String(url);
       if (urlStr.includes('/wiki/rest/api/content/search')) {
@@ -522,8 +556,7 @@ describe('POST /api/confluence/analyze — Confluence grounding (listPages)', ()
           ],
         });
       }
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      return jsonRes({ fields: { summary: 'Add bulk upload', description: '' } });
+      return searchFetch(url, opts);
     });
 
     const { status, data } = await api('POST', '/api/confluence/analyze', {
@@ -544,13 +577,13 @@ describe('POST /api/confluence/analyze — Confluence grounding (listPages)', ()
     process.env.CONFLUENCE_BASE_URL = 'https://example.atlassian.net';
     process.env.CONFLUENCE_API_TOKEN = 'fake-confluence-token';
     mockClaudeResponse = '[]';
+    const searchFetch = mockJiraSearchFetch();
     mock.method(globalThis, 'fetch', async (url, opts) => {
       const urlStr = String(url);
       if (urlStr.includes('/wiki/rest/api/content/search')) {
         return { ok: false, status: 500, text: async () => 'Internal Server Error' };
       }
-      if (!urlStr.includes('/rest/')) return originalFetch(url, opts);
-      return jsonRes({ fields: { summary: 'An issue', description: '' } });
+      return searchFetch(url, opts);
     });
 
     const { status, data } = await api('POST', '/api/confluence/analyze', {

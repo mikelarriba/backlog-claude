@@ -537,6 +537,15 @@ export async function askAI() {
     const data = await postJSON('/api/confluence/analyze', payload);
     _suggestions = data.suggestions || [];
     renderAnalysisResults();
+    // #631: a partial JIRA fetch no longer aborts the whole analysis — the
+    // suggestions above are grounded in whatever issues were fetched, and
+    // this just tells the user some were skipped rather than hiding it.
+    if (data.warnings) {
+      showJiraToast(
+        'warn',
+        `${data.warnings.unreachableCount} of ${data.warnings.totalCount} JIRA issue(s) could not be loaded and were skipped (rate limited or inaccessible).`
+      );
+    }
     void logAiSaving('doc_ai_run', 1);
   } catch (err) {
     _showResultsError(err);

@@ -112,11 +112,72 @@ function confluenceNotConfigured(): boolean {
   return !process.env.CONFLUENCE_BASE_URL || !process.env.CONFLUENCE_API_TOKEN;
 }
 
+// Batch size for the `key in (...)` JQL fetch below. 100 keys/query keeps the
+// encoded JQL well under JIRA's query-string limits while turning a run of
+// hundreds of issues into a handful of requests instead of one per issue.
+const ANALYZE_FETCH_CHUNK_SIZE = 100;
+
+function quoteJql(key: string): string {
+  return `"${key.replace(/"/g, '\\"')}"`;
+}
+
+// Fetches `summary,description` for a set of issue keys via batched JQL
+// (`key in (...)`) instead of one GET per key (#631) — the per-key approach
+// trips JIRA's rate limiter at realistic scale (hundreds of keys) and turns
+// any single throttled/inaccessible key into a request that has to be
+// retried on its own. A chunk that fails outright (rate limit, one bad key
+// aborting the whole JQL) is bisected and retried rather than given up on,
+// so a single bad key only costs that key — not the rest of the chunk — and
+// the common case (all keys valid) stays at ~1 request per 100 keys.
+async function fetchIssuesByKeys(
+  keys: string[],
+  jiraPagedRequest: ConfluenceRouteContext['jiraPagedRequest'],
+  issues: ConfluenceAnalysisIssue[],
+  unreachable: Array<{ key: string; error: string }>
+): Promise<void> {
+  if (keys.length === 0) return;
+
+  try {
+    const jql = `key in (${keys.map(quoteJql).join(',')})`;
+    const rawIssues = (await jiraPagedRequest(jql, 'summary,description', {
+      maxResults: keys.length,
+      maxTotal: keys.length,
+    })) as Array<{ key: string; fields?: { summary?: string; description?: string } }>;
+
+    const found = new Set<string>();
+    for (const issue of rawIssues) {
+      found.add(issue.key);
+      issues.push({
+        key: issue.key,
+        summary: String(issue.fields?.summary || ''),
+        description: jiraToMarkdown(issue.fields?.description || ''),
+      });
+    }
+    // Keys JIRA's search silently dropped (deleted, moved to an inaccessible
+    // project, etc. — JQL `key in (...)` doesn't error on these, it just
+    // omits them from the result set).
+    for (const key of keys) {
+      if (!found.has(key)) {
+        unreachable.push({ key, error: 'Not returned by JIRA search (invalid or inaccessible)' });
+      }
+    }
+  } catch (err) {
+    if (keys.length === 1) {
+      unreachable.push({ key: keys[0], error: parseApiError(err).message });
+      return;
+    }
+    const mid = Math.ceil(keys.length / 2);
+    await fetchIssuesByKeys(keys.slice(0, mid), jiraPagedRequest, issues, unreachable);
+    await fetchIssuesByKeys(keys.slice(mid), jiraPagedRequest, issues, unreachable);
+  }
+}
+
 export default function confluenceRoutes({
-  jiraRequest,
+  jiraPagedRequest,
   callClaude,
   loadCommand,
   logError,
+  logWarn,
   confluenceGetSpace,
   confluenceGetPageByTitle,
   confluenceListPages,
@@ -158,33 +219,35 @@ export default function confluenceRoutes({
         const issues: ConfluenceAnalysisIssue[] = [];
         const unreachable: Array<{ key: string; error: string }> = [];
 
+        const keyChunks: string[][] = [];
+        const allKeys = [...keysToFetch];
+        for (let i = 0; i < allKeys.length; i += ANALYZE_FETCH_CHUNK_SIZE) {
+          keyChunks.push(allKeys.slice(i, i + ANALYZE_FETCH_CHUNK_SIZE));
+        }
+
         await pMap(
-          [...keysToFetch],
-          async (key) => {
-            try {
-              const issue = (await jiraRequest(
-                'GET',
-                `/issue/${encodeURIComponent(key)}?fields=summary,description`
-              )) as { fields?: { summary?: string; description?: string } };
-              issues.push({
-                key,
-                summary: String(issue.fields?.summary || ''),
-                description: jiraToMarkdown(issue.fields?.description || ''),
-              });
-            } catch (err) {
-              const apiErr = parseApiError(err);
-              unreachable.push({ key, error: apiErr.message });
-            }
-          },
+          keyChunks,
+          (chunk) => fetchIssuesByKeys(chunk, jiraPagedRequest, issues, unreachable),
           { concurrency: config.JIRA_CONCURRENCY }
         );
 
         if (unreachable.length > 0) {
+          logWarn(
+            'POST /api/confluence/analyze',
+            `Could not fetch ${unreachable.length} of ${keysToFetch.size} JIRA issue(s)`,
+            { unreachable }
+          );
+        }
+
+        // Only hard-fail when nothing usable came back — a partial fetch
+        // still produces an analysis, with the gaps reported as a warning
+        // (see `warnings` below) rather than aborting the whole request.
+        if (issues.length === 0 && keysToFetch.size > 0) {
           return sendError(
             res,
             400,
             'JIRA_ISSUE_UNREACHABLE',
-            `Could not fetch ${unreachable.length} of ${keysToFetch.size} JIRA issue(s)`,
+            `Could not fetch any of the ${keysToFetch.size} requested JIRA issue(s)`,
             { unreachable }
           );
         }
@@ -249,7 +312,16 @@ export default function confluenceRoutes({
           );
         }
 
-        res.json({ suggestions });
+        res.json({
+          suggestions,
+          warnings:
+            unreachable.length > 0
+              ? {
+                  unreachableCount: unreachable.length,
+                  totalCount: keysToFetch.size,
+                }
+              : undefined,
+        });
       } catch (err) {
         const apiErr = parseApiError(err);
         logError(
