@@ -1145,12 +1145,18 @@ document.addEventListener('change', (e) => {
 //     if(event.key==='Escape'){cancelTitleEdit()}"`, now
 //     `data-keydown-action`). cancelTitleEdit is intentionally absent below —
 //     see the registerKeydownActions() call in detail.ts.
+//   - index.html's three Enter-to-submit search/import boxes (former
+//     `onkeydown="if (event.key === 'Enter') docSearch();"` /
+//     `searchJira();` / `pullByKey();`), now `data-keydown-action`.
+//     docSearch/searchJira/pullByKey are intentionally absent below — see
+//     DOC_KEYDOWN_ACTIONS in documentation.ts and
+//     JIRA_IMPORT_KEYDOWN_ACTIONS in jira-import.ts. Both were already
+//     directly imported/used elsewhere in this file (the click switch still
+//     calls them directly), so this was the last reason either needed to be
+//     reachable through this bridge.
 // The remaining `onkeydown="..."` sites — refine.ts's story-points input and
-// index.html's SP input (both branches of each just call `this.blur()`,
-// nothing to remove from this bridge), and index.html's docs/JIRA search
-// boxes (Enter-to-submit, calling docSearch/searchJira/pullByKey which stay
-// on this bridge as bare ambient globals regardless — see below) — are left
-// as plain inline attributes.
+// index.html's SP input — both branches of each just call `this.blur()`,
+// nothing to remove from this bridge — are left as plain inline attributes.
 const _dynGlobals = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1225,12 +1231,12 @@ const _dynGlobals = {
   // docSetFixVersionBulk/docToggleKey/toggleSuggestionCheck moved off it
   // too, onto the change-action registry (see the "Change-event registry"
   // section of actions.ts and the registerChangeActions() call in
-  // documentation.ts).
+  // documentation.ts). docSearch's onkeydown moved off this bridge too, onto
+  // DOC_KEYDOWN_ACTIONS (issue #461's keydown-registry).
   setDocMode,
-  docSearch,
-  // onkeydown handlers remaining in index.html inputs
-  searchJira,
-  pullByKey,
+  // jira-import.ts — searchJira/pullByKey's onkeydown sites moved off this
+  // bridge onto JIRA_IMPORT_KEYDOWN_ACTIONS (issue #461's keydown-registry);
+  // see that module.
   // Exposed for cross-module calls (also in FRONTEND_GLOBALS eslint list)
   focusEpic,
   updateSplitMode,
