@@ -1133,7 +1133,7 @@
                   class="doc-filter-text"
                   placeholder="Search JIRA issues…"
                   data-input-action="docFilterInputAction"
-                  onkeydown="if (event.key === 'Enter') docSearch();"
+                  data-keydown-action="docFilterKeydown"
                 />
                 <button class="btn-secondary doc-search-btn" data-action="docSearch">Search</button>
               </div>
@@ -1535,7 +1535,7 @@
                       id="jira-text"
                       type="text"
                       placeholder="Search text…"
-                      onkeydown="if (event.key === 'Enter') searchJira();"
+                      data-keydown-action="jiraImportSearchKeydown"
                     />
                   </div>
                 </div>
@@ -1558,7 +1558,7 @@
                       id="jira-key-input"
                       type="text"
                       placeholder="e.g. EAMDM-9969, EAMDM-1234"
-                      onkeydown="if (event.key === 'Enter') pullByKey();"
+                      data-keydown-action="jiraImportPullByKeyKeydown"
                     />
                     <button class="btn-jira-key" data-action="pullByKey">⬇ Import</button>
                   </div>

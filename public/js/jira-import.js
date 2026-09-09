@@ -3,7 +3,7 @@
 // import flow here and by conflict/children prompts) and the full
 // search → select → download import flow from the FAB's Import tab.
 import { fetchJSON, postJSON, escHtml, setJiraStatus, openModal, closeModal } from './state.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerKeydownActions } from './actions.js';
 // Typed data-action name for the Import tab's result-item toggle (issue #461
 // migration — see actions.ts and CTX_ACTIONS in list-filters.ts for the
 // established pattern). Replaces the onclick="toggleJiraItem(i)" string
@@ -16,6 +16,27 @@ export const JIRA_IMPORT_ACTIONS = {
 registerActions({
   [JIRA_IMPORT_ACTIONS.toggleItem]: (el) => {
     toggleJiraItem(Number(el.dataset.index));
+  },
+});
+// Typed data-keydown-action names for the Import tab's two Enter-to-submit
+// text inputs (issue #461's keydown-registry — see actions.ts's
+// "Keydown-event registry" section and JIRA_PULL_ACTIONS in jira-pull.ts for
+// the established pattern). Replaces the
+// onkeydown="if (event.key === 'Enter') searchJira();" /
+// "...pullByKey();" strings previously reached through main.ts's untyped
+// window bridge; both functions are already directly imported everywhere
+// else they're called, so this was the last reason either needed to be on
+// that bridge at all.
+export const JIRA_IMPORT_KEYDOWN_ACTIONS = {
+  searchKeydown: 'jiraImportSearchKeydown',
+  pullByKeyKeydown: 'jiraImportPullByKeyKeydown',
+};
+registerKeydownActions({
+  [JIRA_IMPORT_KEYDOWN_ACTIONS.searchKeydown]: (_el, e) => {
+    if (e.key === 'Enter') searchJira();
+  },
+  [JIRA_IMPORT_KEYDOWN_ACTIONS.pullByKeyKeydown]: (_el, e) => {
+    if (e.key === 'Enter') pullByKey();
   },
 });
 let _jiraSelectResolve = null;

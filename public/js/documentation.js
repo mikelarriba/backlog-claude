@@ -9,7 +9,12 @@
 import { fetchJSON, postJSON, showJiraToast, escHtml } from './state.js';
 import { logAiSaving } from './ai-savings.js';
 import { renderDiffHtml } from './lineDiff.js';
-import { registerActions, registerChangeActions, registerInputActions } from './actions.js';
+import {
+  registerActions,
+  registerChangeActions,
+  registerInputActions,
+  registerKeydownActions,
+} from './actions.js';
 // Typed data-action names for the issue-row click, pager buttons, and
 // suggestion-row expand/collapse toggle (issue #461 migration — see
 // actions.ts and CTX_ACTIONS in list-filters.ts for the established
@@ -82,6 +87,22 @@ registerChangeActions({
 registerInputActions({
   docFilterInputAction: (el) => {
     docFilterInput(el.value);
+  },
+});
+// Typed data-keydown-action name for the Search Issues filter box's
+// Enter-to-submit (issue #461's keydown-registry — see actions.ts's
+// "Keydown-event registry" section and JIRA_PULL_ACTIONS in jira-pull.ts for
+// the established pattern). Replaces the
+// onkeydown="if (event.key === 'Enter') docSearch();" string previously
+// reached through main.ts's untyped window bridge; docSearch is already
+// directly imported everywhere else it's called, so this was the last
+// reason it needed to be on that bridge at all.
+export const DOC_KEYDOWN_ACTIONS = {
+  filterKeydown: 'docFilterKeydown',
+};
+registerKeydownActions({
+  [DOC_KEYDOWN_ACTIONS.filterKeydown]: (_el, e) => {
+    if (e.key === 'Enter') docSearch();
   },
 });
 const PAGE_SIZE = 20;
