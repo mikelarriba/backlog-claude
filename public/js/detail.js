@@ -54,14 +54,25 @@ export function updateJiraStatus(jiraStatus) {
     el.classList.add('hidden');
   }
 }
+// Pure — derives the detail panel's fallback title from a doc's markdown
+// body once frontmatter and any trailing "## Comments" section are already
+// stripped: a "## <Type> Title" template heading's own content wins first
+// (the COVE-framework doc templates' convention), else the first plain "##
+// heading", else empty. Only consulted when the doc index has no `title` of
+// its own (see renderDocContent's caller below) — extracted so this regex
+// fallback chain is unit-testable without a DOM.
+export function extractFallbackDocTitle(strippedContent) {
+  const tplMatch = strippedContent.match(/^## \w[\w ]* Title\s*\n+(.+)/m);
+  if (tplMatch) return tplMatch[1].trim();
+  const h2Match = strippedContent.match(/^##\s+(.+)$/m);
+  return h2Match ? h2Match[1].trim() : '';
+}
 export function renderDocContent(doc, content) {
   document.getElementById('status-select').value = doc?.status || 'Draft';
   document.getElementById('detail-filename').textContent = doc?.filename || currentFilename;
   const titleInput = document.getElementById('detail-title-input');
   const stripped = stripFrontmatter(content).replace(/\n## Comments\b[\s\S]*$/, '');
-  const tplMatch = stripped.match(/^## \w[\w ]* Title\s*\n+(.+)/m);
-  const h2Match = stripped.match(/^##\s+(.+)$/m);
-  const docTitle = doc?.title || (tplMatch ? tplMatch[1].trim() : h2Match ? h2Match[1].trim() : '');
+  const docTitle = doc?.title || extractFallbackDocTitle(stripped);
   titleInput.value = docTitle;
   titleInput.dataset.original = docTitle;
   document.getElementById('detail-content').innerHTML = renderMarkdown(stripped);
