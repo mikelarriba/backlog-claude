@@ -147,25 +147,21 @@ registerKeydownActions({
   },
 });
 // ── Card search / filter ──────────────────────────────────────
+// Pure decision for a single canvas card: below the 3-char minimum, every
+// card is unfiltered ('none'); at/above it, a case-insensitive substring
+// match on the card's title is 'match', anything else is 'dimmed'.
+export function classifyCanvasSearchMatch(title, query) {
+  const q = (query || '').trim().toLowerCase();
+  if (q.length < 3) return 'none';
+  return (title || '').toLowerCase().includes(q) ? 'match' : 'dimmed';
+}
 export function onCanvasSearch(query) {
   const cards = document.querySelectorAll('#refine-canvas .canvas-card');
-  const q = (query || '').trim().toLowerCase();
-  if (q.length < 3) {
-    // Clear all filter classes
-    cards.forEach((c) => {
-      c.classList.remove('search-dimmed', 'search-match');
-    });
-    return;
-  }
   cards.forEach((card) => {
-    const title = (card.querySelector('.canvas-card-title')?.textContent || '').toLowerCase();
-    if (title.includes(q)) {
-      card.classList.add('search-match');
-      card.classList.remove('search-dimmed');
-    } else {
-      card.classList.add('search-dimmed');
-      card.classList.remove('search-match');
-    }
+    const title = card.querySelector('.canvas-card-title')?.textContent || '';
+    const result = classifyCanvasSearchMatch(title, query);
+    card.classList.toggle('search-match', result === 'match');
+    card.classList.toggle('search-dimmed', result === 'dimmed');
   });
 }
 // ── Entry / Exit ───────────────────────────────────────────────
