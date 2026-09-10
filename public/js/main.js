@@ -72,20 +72,6 @@ import {
 import { pullFromJira, checkAllJira } from './jira-pull.js';
 import { openBugForm, closeBugForm, submitBugReport } from './bugcreate.js';
 import { resetCanvasLayout } from './refine-canvas.js';
-import { _showEdgePopup, _deleteCanvasLink, _changeCanvasLinkType } from './refine-edges.js';
-import {
-  _showCardContextMenu,
-  _showFpCardContextMenu,
-  _fpMoveToEpic,
-  _showEpicContextMenu,
-  _showEmptyCellMenu,
-  _openCellCreateForm,
-  _executeEmptyCellCreate,
-  _showMultiCardContextMenu,
-  _moveCardsToEdge,
-  _openCanvasSplit,
-  _moveCardToEdge,
-} from './refine-nodes.js';
 import {
   openManualRefine,
   closeRefineView,
@@ -1191,23 +1177,21 @@ const _dynGlobals = {
   // so it's removed from this bridge rather than left pending.
   saveRpTitle,
   saveRpStoryPoints,
-  // refine-edges.ts
-  _showEdgePopup,
-  _deleteCanvasLink,
-  _changeCanvasLinkType,
   // refine-nodes.ts — closeRefinePanel/_executeCanvasSplit moved off this
-  // bridge onto REFINE_NODES_ACTIONS (issue #461); see that module.
-  _showCardContextMenu,
-  _showFpCardContextMenu,
-  _fpMoveToEpic,
-  _showEpicContextMenu,
-  _showEmptyCellMenu,
-  _openCellCreateForm,
-  _executeEmptyCellCreate,
-  _showMultiCardContextMenu,
-  _moveCardsToEdge,
-  _openCanvasSplit,
-  _moveCardToEdge,
+  // bridge onto REFINE_NODES_ACTIONS (issue #461); see that module. This
+  // pass also removed _showEdgePopup/_deleteCanvasLink/_changeCanvasLinkType
+  // (refine-edges.ts) and refine-nodes.ts's eleven context-menu/split-popup
+  // handlers (_showCardContextMenu, _showFpCardContextMenu, _fpMoveToEpic,
+  // _showEpicContextMenu, _showEmptyCellMenu, _openCellCreateForm,
+  // _executeEmptyCellCreate, _showMultiCardContextMenu, _moveCardsToEdge,
+  // _openCanvasSplit, _moveCardToEdge): unlike the onclick="..."-string sites
+  // this bridge exists to reach, these were never wired that way — every one
+  // is reached either via a direct import (refine-canvas.ts, refine.ts) or a
+  // same-module addEventListener callback (refine-nodes.ts, refine-edges.ts
+  // themselves), confirmed by a full-repo grep with no `window.<name>(...)`
+  // or bare-ambient-global caller anywhere. Same class of finding as
+  // openRefinePanel's removal above — these fourteen never needed this
+  // bridge at all.
   // roadmap.ts — toggleRoadmapPi's onchange site moved off this bridge onto
   // ROADMAP_CHANGE_ACTIONS (issue #461); see that module.
   // roadmap-render.ts — handleRoadmapCardClick/handleRoadmapEpicClick/
