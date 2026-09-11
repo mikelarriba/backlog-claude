@@ -24,6 +24,7 @@ const {
   JIRA_TYPE_TO_LOCAL,
   summarizeSprintPushResult,
   formatSprintPushConfirmLabel,
+  formatSprintPushPreviewBtnState,
   buildPullSprintResultItemHtml,
   summarizePullSprintResult,
   formatPullSprintConfirmLabel,
@@ -305,6 +306,30 @@ describe('formatSprintPushConfirmLabel()', () => {
 
   test('is enabled once at least one item is checked, even if not all', () => {
     assert.equal(formatSprintPushConfirmLabel(1, 1).disabled, false);
+  });
+});
+
+// ── formatSprintPushPreviewBtnState ───────────────────────────────────────────
+describe('formatSprintPushPreviewBtnState()', () => {
+  test('no sprints checked: disabled with a "Select sprints" prompt', () => {
+    assert.deepEqual(formatSprintPushPreviewBtnState(0), {
+      text: 'Select sprints',
+      disabled: true,
+    });
+  });
+
+  test('one sprint checked: enabled, singular "sprint"', () => {
+    assert.deepEqual(formatSprintPushPreviewBtnState(1), {
+      text: 'Preview Changes (1 sprint)',
+      disabled: false,
+    });
+  });
+
+  test('multiple sprints checked: enabled, plural "sprints"', () => {
+    assert.deepEqual(formatSprintPushPreviewBtnState(3), {
+      text: 'Preview Changes (3 sprints)',
+      disabled: false,
+    });
   });
 });
 
