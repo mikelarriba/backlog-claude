@@ -116,16 +116,27 @@ function _populateSprintSelector() {
     cb.addEventListener('change', _updatePreviewBtnState);
   });
 }
+// Pure: preview-button label + disabled state for the sprint-selector
+// checkbox count, extracted out of _updatePreviewBtnState below. Mirrors
+// formatSprintPushConfirmLabel above, but singular/plural "sprint(s)" is
+// baked into the label text instead of a "checked/total" count.
+export function formatSprintPushPreviewBtnState(checkedCount) {
+  return {
+    disabled: checkedCount === 0,
+    text: checkedCount
+      ? `Preview Changes (${checkedCount} sprint${checkedCount !== 1 ? 's' : ''})`
+      : 'Select sprints',
+  };
+}
 function _updatePreviewBtnState() {
   const checked = document.querySelectorAll(
     '#sprint-push-sprint-list input[type="checkbox"]:checked'
   );
   const btn = document.getElementById('sprint-push-preview-btn');
   if (btn) {
-    btn.disabled = checked.length === 0;
-    btn.textContent = checked.length
-      ? `Preview Changes (${checked.length} sprint${checked.length !== 1 ? 's' : ''})`
-      : 'Select sprints';
+    const { text, disabled } = formatSprintPushPreviewBtnState(checked.length);
+    btn.disabled = disabled;
+    btn.textContent = text;
   }
 }
 export function sprintPushToggleAllSprints(checked) {
