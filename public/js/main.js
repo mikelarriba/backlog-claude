@@ -153,7 +153,6 @@ import {
   deselectAllSuggestions,
   modifyDocumentation,
   undoChanges,
-  setDocMode,
   docSearch,
   exportDocumentationPdf,
 } from './documentation.js';
@@ -808,9 +807,6 @@ document.addEventListener('click', (e) => {
       executeSplitIssue();
       break;
     // ── Documentation view ─────────────────────────────────────
-    case 'setDocMode':
-      setDocMode(btn.dataset.filterValue ?? '');
-      break;
     case 'docSearch':
       docSearch();
       break;
@@ -1210,14 +1206,13 @@ const _dynGlobals = {
   // bridge entirely.
   // bugcreate.ts — onBugFilesSelected's onchange moved off this bridge onto
   // BUGCREATE_CHANGE_ACTIONS (issue #461); see that module.
-  // documentation.ts — docRowClick/docSetPage/toggleSuggestionRow moved off
-  // this bridge onto DOC_ACTIONS (issue #461); docSetSprint/
+  // documentation.ts — docRowClick/docSetPage/toggleSuggestionRow/setDocMode
+  // moved off this bridge onto DOC_ACTIONS (issue #461); docSetSprint/
   // docSetFixVersionBulk/docToggleKey/toggleSuggestionCheck moved off it
   // too, onto the change-action registry (see the "Change-event registry"
   // section of actions.ts and the registerChangeActions() call in
   // documentation.ts). docSearch's onkeydown moved off this bridge too, onto
   // DOC_KEYDOWN_ACTIONS (issue #461's keydown-registry).
-  setDocMode,
   // jira-import.ts — searchJira/pullByKey's onkeydown sites moved off this
   // bridge onto JIRA_IMPORT_KEYDOWN_ACTIONS (issue #461's keydown-registry);
   // see that module.

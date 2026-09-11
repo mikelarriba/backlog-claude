@@ -26,6 +26,7 @@ export const DOC_ACTIONS = {
   setPage: 'docSetPage',
   toggleSuggestion: 'toggleSuggestionRow',
   toggleEpic: 'docToggleEpicChildren',
+  setMode: 'setDocMode',
 };
 registerActions({
   [DOC_ACTIONS.rowClick]: (el, e) => {
@@ -39,6 +40,9 @@ registerActions({
   },
   [DOC_ACTIONS.toggleEpic]: (el) => {
     docToggleEpicChildren(el.dataset.key ?? '');
+  },
+  [DOC_ACTIONS.setMode]: (el) => {
+    setDocMode(el.dataset.filterValue ?? '');
   },
 });
 // Typed data-change-action names for the Sprint / Fix Version mode

@@ -27,6 +27,7 @@ export const DOC_ACTIONS = {
   setPage: 'docSetPage',
   toggleSuggestion: 'toggleSuggestionRow',
   toggleEpic: 'docToggleEpicChildren',
+  setMode: 'setDocMode',
 } as const;
 
 registerActions({
@@ -41,6 +42,9 @@ registerActions({
   },
   [DOC_ACTIONS.toggleEpic]: (el) => {
     docToggleEpicChildren(el.dataset.key ?? '');
+  },
+  [DOC_ACTIONS.setMode]: (el) => {
+    setDocMode(el.dataset.filterValue ?? '');
   },
 });
 
