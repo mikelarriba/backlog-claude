@@ -31,6 +31,7 @@ const {
   buildSwimlaneMoveAnnouncement,
   buildEdgeMoveAnnouncement,
   isCenterDropZone,
+  computeDropActionOptions,
 } = await import('../../public/js/dragdrop.js');
 
 function makeDoc(overrides = {}) {
@@ -547,5 +548,52 @@ describe('isCenterDropZone()', () => {
 
   test('a zero-height rect has no center zone', () => {
     assert.equal(isCenterDropZone(0, 0), false);
+  });
+});
+
+// ── computeDropActionOptions (#460: eligibility + title-truncation logic
+// extracted from showDropActionPopup()) ────────────────────────────────────
+describe('computeDropActionOptions()', () => {
+  test('a story dropped on an epic offers link-as-parent, not dependency', () => {
+    const result = computeDropActionOptions('story.md', 'story', 'epic.md', 'epic', 'An Epic');
+    assert.deepEqual(result, { canLink: true, canDep: false, displayTitle: 'An Epic' });
+  });
+
+  test('a story dropped on a feature (not a valid parent type) offers only dependency', () => {
+    const result = computeDropActionOptions('story.md', 'story', 'feat.md', 'feature', 'A Feature');
+    assert.deepEqual(result, { canLink: false, canDep: true, displayTitle: 'A Feature' });
+  });
+
+  test('dropping on itself offers neither action', () => {
+    const result = computeDropActionOptions('story.md', 'story', 'story.md', 'story', 'A Story');
+    assert.equal(result.canLink, false);
+    assert.equal(result.canDep, false);
+  });
+
+  test('a docType with no valid link targets only ever offers dependency', () => {
+    const result = computeDropActionOptions(
+      'doc1.md',
+      'documentation',
+      'doc2.md',
+      'story',
+      'A Story'
+    );
+    assert.equal(result.canLink, false);
+    assert.equal(result.canDep, true);
+  });
+
+  test('a title of 40 chars or fewer is shown unchanged', () => {
+    const title = 'x'.repeat(40);
+    assert.equal(
+      computeDropActionOptions('a.md', 'story', 'b.md', 'epic', title).displayTitle,
+      title
+    );
+  });
+
+  test('a title over 40 chars is truncated to 38 chars plus an ellipsis', () => {
+    const title = 'x'.repeat(41);
+    const { displayTitle } = computeDropActionOptions('a.md', 'story', 'b.md', 'epic', title);
+    assert.equal(displayTitle, 'x'.repeat(38) + '…');
+    assert.equal(displayTitle.length, 39);
   });
 });

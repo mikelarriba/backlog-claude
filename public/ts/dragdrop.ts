@@ -82,6 +82,23 @@ let _pendingDropSrc: DropRef | null = null;
 let _pendingDropTgt: DropRef | null = null;
 let _escListener: ((e: KeyboardEvent) => void) | null = null;
 
+// Pure: which drop actions (link-as-parent / add-dependency) are available
+// for a dragged item over a target, and the target title truncated to fit
+// the popup's subtitle. Returns canLink: false, canDep: false when neither
+// action applies (the popup should not be shown).
+export function computeDropActionOptions(
+  srcFilename: string,
+  srcDocType: string,
+  tgtFilename: string,
+  tgtDocType: string,
+  tgtTitle: string
+): { canLink: boolean; canDep: boolean; displayTitle: string } {
+  const canLink = (DRAG_TARGETS[srcDocType] || []).includes(tgtDocType);
+  const canDep = srcFilename !== tgtFilename && !canLink;
+  const displayTitle = tgtTitle.length > 40 ? tgtTitle.slice(0, 38) + '…' : tgtTitle;
+  return { canLink, canDep, displayTitle };
+}
+
 export function showDropActionPopup(
   srcFilename: string,
   srcDocType: string,
@@ -98,8 +115,13 @@ export function showDropActionPopup(
     targetEl.querySelector('.roadmap-card-title')?.textContent ||
     tgtFilename;
 
-  const canLink = (DRAG_TARGETS[srcDocType] || []).includes(tgtDocType);
-  const canDep = srcFilename !== tgtFilename && !canLink;
+  const { canLink, canDep, displayTitle } = computeDropActionOptions(
+    srcFilename,
+    srcDocType,
+    tgtFilename,
+    tgtDocType,
+    tgtTitle
+  );
 
   if (!canLink && !canDep) return; // nothing to offer
 
@@ -112,7 +134,7 @@ export function showDropActionPopup(
   // Subtitle — target item title
   const subtitle = document.createElement('div');
   subtitle.className = 'drop-action-popup-title';
-  subtitle.textContent = tgtTitle.length > 40 ? tgtTitle.slice(0, 38) + '…' : tgtTitle;
+  subtitle.textContent = displayTitle;
   popup.appendChild(subtitle);
 
   if (canLink) {
