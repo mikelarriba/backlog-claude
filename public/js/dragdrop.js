@@ -68,6 +68,22 @@ let _dropPopup = null;
 let _pendingDropSrc = null;
 let _pendingDropTgt = null;
 let _escListener = null;
+// Pure: which drop actions (link-as-parent / add-dependency) are available
+// for a dragged item over a target, and the target title truncated to fit
+// the popup's subtitle. Returns canLink: false, canDep: false when neither
+// action applies (the popup should not be shown).
+export function computeDropActionOptions(
+  srcFilename,
+  srcDocType,
+  tgtFilename,
+  tgtDocType,
+  tgtTitle
+) {
+  const canLink = (DRAG_TARGETS[srcDocType] || []).includes(tgtDocType);
+  const canDep = srcFilename !== tgtFilename && !canLink;
+  const displayTitle = tgtTitle.length > 40 ? tgtTitle.slice(0, 38) + '…' : tgtTitle;
+  return { canLink, canDep, displayTitle };
+}
 export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY) {
   hideDropActionPopup();
   const tgtFilename = targetEl.dataset.filename;
@@ -76,8 +92,13 @@ export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, 
     targetEl.querySelector('.epic-title-text')?.textContent ||
     targetEl.querySelector('.roadmap-card-title')?.textContent ||
     tgtFilename;
-  const canLink = (DRAG_TARGETS[srcDocType] || []).includes(tgtDocType);
-  const canDep = srcFilename !== tgtFilename && !canLink;
+  const { canLink, canDep, displayTitle } = computeDropActionOptions(
+    srcFilename,
+    srcDocType,
+    tgtFilename,
+    tgtDocType,
+    tgtTitle
+  );
   if (!canLink && !canDep) return; // nothing to offer
   _pendingDropSrc = { filename: srcFilename, docType: srcDocType };
   _pendingDropTgt = { filename: tgtFilename, docType: tgtDocType };
@@ -86,7 +107,7 @@ export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, 
   // Subtitle — target item title
   const subtitle = document.createElement('div');
   subtitle.className = 'drop-action-popup-title';
-  subtitle.textContent = tgtTitle.length > 40 ? tgtTitle.slice(0, 38) + '…' : tgtTitle;
+  subtitle.textContent = displayTitle;
   popup.appendChild(subtitle);
   if (canLink) {
     const btn = document.createElement('button');
