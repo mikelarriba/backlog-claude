@@ -27,8 +27,6 @@ import {
   applyFilters,
   patchSingleDoc,
   handleItemClick,
-  showContextMenu,
-  closeContextMenu,
   closeBulkAssignDialog,
 } from './list-filters.js';
 import { dismissWelcomeBanner } from './list-render.js';
@@ -44,7 +42,7 @@ import {
   openDoc,
 } from './detail.js';
 import { saveStoryPoints } from './detail-fields.js';
-import { toggleHierarchy, loadHierarchy } from './detail-links.js';
+import { toggleHierarchy } from './detail-links.js';
 import { toggleUpgradePanel, executeUpgrade } from './upgrade.js';
 import {
   saveDraft,
@@ -1144,9 +1142,15 @@ const _dynGlobals = {
   toggleItemCollapse,
   toggleSwimlane,
   handleItemClick,
-  showContextMenu,
-  closeContextMenu,
   openDistributionModal,
+  // showContextMenu/closeContextMenu moved off this bridge: the list
+  // multi-select context menu's oncontextmenu opener was already migrated
+  // onto LIST_ITEM_CTX_ACTIONS (see the narrative comment above this
+  // bridge), and both functions' remaining calls are same-module (within
+  // list-filters.ts) or a direct import (list.ts) — confirmed by a
+  // full-repo grep with no `window.<name>(...)` or bare-ambient-global
+  // caller anywhere. Same class of finding as the fourteen entries removed
+  // above.
   // detail.js — openDoc still used from list-filters.ts / roadmap-select.ts
   // as a bare ambient global (see the narrative comment above this bridge).
   // closeAllDropdowns moved off this bridge (issue #461's keydown-registry
@@ -1154,8 +1158,11 @@ const _dynGlobals = {
   // prompt onkeydown, now migrated to registerKeydownActions, and every
   // other call site already imports it directly.
   openDoc,
-  loadHierarchy,
-  // detail-links.ts
+  // detail-links.ts — loadHierarchy moved off this bridge: its "Link
+  // existing" button and hierarchy rows were already migrated onto
+  // DETAIL_LINKS_ACTIONS, and every remaining call site (detail.ts,
+  // dragdrop.ts, quickcreate.ts, stories.ts) imports it directly — same
+  // class of finding as showContextMenu/closeContextMenu above.
   saveTitle,
   // cancelTitleEdit moved off this bridge (issue #461's keydown-registry):
   // its only inline-attribute caller was the detail title input's onkeydown
