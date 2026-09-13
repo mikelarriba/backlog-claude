@@ -2,7 +2,7 @@
 // Populates the provider/model dropdowns in the Settings view and
 // persists the selection.
 import { fetchJSON, putJSON, toggleSection } from './state.js';
-import { registerChangeActions } from './actions.js';
+import { registerActions, registerChangeActions } from './actions.js';
 export function toggleModelSection() {
   toggleSection('model-section-body', 'model-chevron');
 }
@@ -129,6 +129,18 @@ registerChangeActions({
   },
   updateEffortSetting: (el) => {
     void updateEffortSetting(el.value);
+  },
+});
+// Typed click-action registration for the single existing
+// data-action="refreshProviders" button in index.html (issue #461
+// migration — was still routed through main.ts's central switch rather
+// than this module's own registry). Reuses the existing data-action string
+// value as the registered name rather than introducing a new constant,
+// since it's a single site with no other caller of that string — same
+// established shortcut as the registerChangeActions call above.
+registerActions({
+  refreshProviders: () => {
+    void refreshProviders();
   },
 });
 // Pure: the "Using <provider> [/ <model>] [(effort: <level>)]" status label

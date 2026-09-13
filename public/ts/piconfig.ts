@@ -64,6 +64,19 @@ registerActions({
   },
 });
 
+// Typed click-action registration for the single existing
+// data-action="togglePiConfigSection" collapsible header in index.html
+// (issue #461 migration — was still routed through main.ts's central switch
+// rather than this module's own registry). Reuses the existing data-action
+// string value as the registered name rather than introducing a new
+// constant, since it's a single site with no other caller of that string —
+// same established shortcut used by provider-settings.ts's onProviderChange.
+registerActions({
+  togglePiConfigSection: () => {
+    togglePiConfigSection();
+  },
+});
+
 // _piConfigActivePi is a store-backed global in state.js (referenced from HTML onclick)
 
 // ── Local types ──────────────────────────────────────────────
