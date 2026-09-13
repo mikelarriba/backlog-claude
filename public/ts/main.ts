@@ -88,7 +88,6 @@ import {
   rexpToggleAllTeams,
 } from './export.js';
 import {
-  togglePiConfigSection,
   addSprintRow,
   saveSprintConfig,
   loadAllSprintConfigs,
@@ -128,7 +127,7 @@ import {
 import { clearRoadmapSelection } from './roadmap-select.js';
 import { loadSkillsView, handleSkillSSE } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
-import { toggleModelSection, loadModelSetting, refreshProviders } from './provider-settings.js';
+import { toggleModelSection, loadModelSetting } from './provider-settings.js';
 import { _connectSSE } from './sse-client.js';
 import {
   toggleAiSavingsSection,
@@ -687,12 +686,9 @@ document.addEventListener('click', (e: MouseEvent) => {
     case 'toggleModelSection':
       toggleModelSection();
       break;
-    case 'refreshProviders':
-      refreshProviders();
-      break;
-    case 'togglePiConfigSection':
-      togglePiConfigSection();
-      break;
+    // refreshProviders (provider-settings.ts) and togglePiConfigSection
+    // (piconfig.ts) moved off this switch onto their own modules'
+    // registerActions calls (issue #461).
     case 'addSprintRow':
       addSprintRow();
       break;

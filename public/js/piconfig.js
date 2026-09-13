@@ -59,6 +59,18 @@ registerActions({
     void selectPiConfigTab(el.dataset.piName ?? '');
   },
 });
+// Typed click-action registration for the single existing
+// data-action="togglePiConfigSection" collapsible header in index.html
+// (issue #461 migration — was still routed through main.ts's central switch
+// rather than this module's own registry). Reuses the existing data-action
+// string value as the registered name rather than introducing a new
+// constant, since it's a single site with no other caller of that string —
+// same established shortcut used by provider-settings.ts's onProviderChange.
+registerActions({
+  togglePiConfigSection: () => {
+    togglePiConfigSection();
+  },
+});
 // Pure: given a PI name and the sprintConfig map, returns that PI's sprint
 // list (empty if not configured). Extracted from _sprintsFor, which read the
 // sprintConfig ambient global directly — same signature-change extraction as
