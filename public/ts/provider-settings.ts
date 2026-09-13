@@ -13,7 +13,7 @@ interface ProviderModel {
   name: string;
 }
 
-interface Provider {
+export interface Provider {
   id: string;
   name: string;
   models: ProviderModel[];
@@ -163,6 +163,25 @@ registerChangeActions({
   },
 });
 
+// Pure: the "Using <provider> [/ <model>] [(effort: <level>)]" status label
+// shown after saving the model/provider/effort setting, extracted out of
+// _saveModelSetting below (#460). Falls back to the raw provider id when it
+// isn't found in the loaded provider list, matching the original inline
+// `|| { name: provider }` fallback.
+export function formatModelStatusLabel(
+  providers: Provider[],
+  providerId: string,
+  model: string,
+  effort: string
+): string {
+  const pName = (providers.find((p) => p.id === providerId) || { name: providerId }).name;
+  const modelLabel = model ? `/ ${model}` : '';
+  const effortLabel = effort ? ` (effort: ${effort})` : '';
+  return model
+    ? `Using ${pName} ${modelLabel}${effortLabel}`
+    : `Using ${pName} default${effortLabel}`;
+}
+
 async function _saveModelSetting(provider: string, model: string, effort: string): Promise<void> {
   const statusEl = document.getElementById('model-status');
   try {
@@ -173,12 +192,7 @@ async function _saveModelSetting(provider: string, model: string, effort: string
     });
     if (statusEl) {
       statusEl.className = 'model-status show success';
-      const pName = (_availableProviders.find((p) => p.id === provider) || { name: provider }).name;
-      const modelLabel = model ? `/ ${model}` : '';
-      const effortLabel = effort ? ` (effort: ${effort})` : '';
-      statusEl.textContent = model
-        ? `Using ${pName} ${modelLabel}${effortLabel}`
-        : `Using ${pName} default${effortLabel}`;
+      statusEl.textContent = formatModelStatusLabel(_availableProviders, provider, model, effort);
       setTimeout(() => {
         statusEl.className = 'model-status';
       }, 3000);
