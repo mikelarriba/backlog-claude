@@ -176,6 +176,18 @@ registerActions({
   },
 });
 
+// Typed click-action registration for the single existing
+// data-action="toggleModelSection" header in index.html (issue #461
+// migration — was still routed through main.ts's central switch rather
+// than this module's own registry). Same established shortcut as
+// refreshProviders above: reuses the existing data-action string as the
+// registered name since it's a single site with no other caller.
+registerActions({
+  toggleModelSection: () => {
+    toggleModelSection();
+  },
+});
+
 // Pure: the "Using <provider> [/ <model>] [(effort: <level>)]" status label
 // shown after saving the model/provider/effort setting, extracted out of
 // _saveModelSetting below (#460). Falls back to the raw provider id when it
