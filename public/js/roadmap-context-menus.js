@@ -1,13 +1,13 @@
 // ── Roadmap: right-click context menus ──────────────────────────
 // Three builders sharing the same popup mechanics: the epic (top panel),
 // the story (bottom panel), and the "Add to Sprint" submenu used by both.
-import { escHtml, postJSON, showJiraToast, patchJSON, getErrorMessage } from './state.js';
+import { escHtml, showJiraToast, patchJSON, getErrorMessage } from './state.js';
 import {
   renderRoadmapBoard,
   updateEstPlacements,
   ROADMAP_RENDER_CTX_ACTIONS,
 } from './roadmap-render.js';
-import { _rankSortFn } from './list-render.js';
+import { moveRankByType } from './dragdrop.js';
 import { openDoc } from './detail.js';
 import { upsertDoc } from './store.js';
 import { refreshRoadmapView } from './roadmap.js';
@@ -129,64 +129,28 @@ export function rmCtxOpenEpic(filename, docType) {
   _closeRoadmapCtx();
   openDoc(filename, docType);
 }
-// Shared move core for both the epic (top panel) and story (bottom panel)
-// context menus, which were previously near-identical copies. `visibleOrder` is
-// the list of filenames in current on-screen order for the relevant scope
-// (visible epic cards, or the cards within one sprint column) — adjacency for
-// up/down/top/bottom is taken from that so the move respects the active search
-// filter, while the rerank itself is applied over the full per-type group.
-async function _rmMoveByVisibleOrder(filename, docType, direction, visibleOrder) {
-  const idx = visibleOrder.indexOf(filename);
-  if (idx < 0) return;
-  const group = allDocs.filter((d) => d.docType === docType);
-  const sorted = [...group].sort(_rankSortFn);
-  const srcIdx = sorted.findIndex((d) => d.filename === filename);
-  if (srcIdx < 0) return;
-  const [item] = sorted.splice(srcIdx, 1);
-  let targetIdx;
-  if (direction === 'up') {
-    // Move before the previous visible item in the full sorted list
-    const prevFn = visibleOrder[idx - 1];
-    if (!prevFn) return;
-    targetIdx = sorted.findIndex((d) => d.filename === prevFn);
-    if (targetIdx < 0) return;
-  } else if (direction === 'down') {
-    const nextFn = visibleOrder[idx + 1];
-    if (!nextFn) return;
-    targetIdx = sorted.findIndex((d) => d.filename === nextFn) + 1;
-    if (targetIdx <= 0) return;
-  } else if (direction === 'top') {
-    // Move to the top position — before the first visible item
-    const firstFn = visibleOrder[0];
-    targetIdx = firstFn ? sorted.findIndex((d) => d.filename === firstFn) : 0;
-    if (targetIdx < 0) targetIdx = 0;
-  } else {
-    // bottom — after the last visible item
-    const lastFn = visibleOrder[visibleOrder.length - 1];
-    targetIdx = lastFn ? sorted.findIndex((d) => d.filename === lastFn) + 1 : sorted.length;
-    if (targetIdx < 0) targetIdx = sorted.length;
-  }
-  sorted.splice(targetIdx, 0, item);
+// Shared roadmap move for both the epic (top panel) and story (bottom panel)
+// context menus. Routes through the same per-type `moveRankByType` the backlog
+// multi-select move uses (dragdrop.ts), then refreshes the board. This replaces
+// the previous visible-order logic, which derived adjacency from the on-screen
+// `.rm-epic-card` / `.roadmap-card` list — a list that mixes feature, epic and
+// the "__none__" bucket rows. When an edge/neighbour row was a different type,
+// its filename wasn't in the per-type rerank group, findIndex returned -1, and
+// "move to the bottom" collapsed to index 0 (i.e. jumped to the top) while
+// up/down silently did nothing. Operating on the full per-type group removes
+// that whole class of bug and keeps the roadmap and backlog behaviour identical.
+async function _rmMove(filename, docType, direction) {
   try {
-    await postJSON('/api/docs/rerank', {
-      type: docType,
-      orderedFilenames: sorted.map((d) => d.filename),
-    });
-    // The server assigns rank = index + 1 for every entry in orderedFilenames —
-    // apply that same deterministic update locally instead of refetching the
-    // full doc list.
-    sorted.forEach((d, i) => upsertDoc({ ...d, rank: i + 1 }));
-    refreshRoadmapView();
+    const moved = await moveRankByType(filename, docType, direction);
+    // No-op at an edge (already top/bottom) just leaves the board unchanged.
+    if (moved) refreshRoadmapView();
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
   }
 }
 export async function rmCtxMoveEpic(filename, docType, direction) {
   _closeRoadmapCtx();
-  // Get the visible epic cards in current order (respects search filter)
-  const cards = [...document.querySelectorAll('.rm-epic-card:not([style*="display: none"])')];
-  const filenames = cards.map((c) => c.dataset['filename']).filter(Boolean);
-  await _rmMoveByVisibleOrder(filename, docType, direction, filenames);
+  await _rmMove(filename, docType, direction);
 }
 // ── Sprint submenu builder ───────────────────────────────────
 // Pure string builder split out of the module-private wrapper below so it's
@@ -241,15 +205,7 @@ export function handleStoryContextMenu(e, filename, docType) {
 }
 export async function rmCtxMoveStory(filename, docType, direction) {
   _closeRoadmapCtx();
-  // Find the card and its sprint column
-  const card = document.querySelector(`.roadmap-card[data-filename="${CSS.escape(filename)}"]`);
-  if (!card) return;
-  const column = card.closest('.roadmap-card-list');
-  if (!column) return;
-  // Get the ordered filenames in this column (respects the story's sprint column)
-  const cards = [...column.querySelectorAll('.roadmap-card')];
-  const filenames = cards.map((c) => c.dataset['filename']).filter(Boolean);
-  await _rmMoveByVisibleOrder(filename, docType, direction, filenames);
+  await _rmMove(filename, docType, direction);
 }
 // ── Estimated-sprint placeholder card context menu ───────────
 // Phantom cards from an epic's "Estimated Sprint Size" aren't real docs, so

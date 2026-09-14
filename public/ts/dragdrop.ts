@@ -579,6 +579,29 @@ export async function moveSelectionRank(
   }
 }
 
+// Single-item, per-type reorder shared by the roadmap epic/story context
+// menus. Operates on the full `allDocs` group of the item's own docType — the
+// same proven ordering the backlog multi-select move uses — instead of the
+// on-screen card order. The roadmap previously derived adjacency from the
+// visible `.rm-epic-card` / `.roadmap-card` list, which mixed feature, epic and
+// the "__none__" bucket rows; when an edge/neighbour row was a different type
+// its filename wasn't in the per-type group, findIndex returned -1, and "move
+// to bottom" collapsed to index 0 (top) while up/down silently no-op'd. Going
+// through computeSelectionMove on the per-type group removes that whole class
+// of bug. Returns true when a move was persisted, false on a no-op edge.
+export async function moveRankByType(
+  filename: string,
+  docType: string,
+  action: 'up' | 'down' | 'top' | 'bottom'
+): Promise<boolean> {
+  const group = allDocs.filter((d) => d.docType === docType);
+  const orderedFilenames = computeSelectionMove(group, new Set([filename]), action);
+  if (!orderedFilenames) return false;
+  await postJSON('/api/docs/rerank', { type: docType, orderedFilenames });
+  computeRerankedDocs(group, orderedFilenames).forEach((d) => upsertDoc(d));
+  return true;
+}
+
 // Fixed left-to-right order the three swimlane sections are rendered in
 // (list-render.ts's renderSwimlaneSectionHtml calls), used by
 // computeAdjacentSwimlane below for the keyboard-operable alternative to the

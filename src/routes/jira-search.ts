@@ -610,6 +610,27 @@ export default function jiraSearchRoutes({
           content = setFrontmatterField(content, 'Sprint', 'TBD');
         }
 
+        // Rank: JIRA carries no Rank, so the fresh markdown has none. Overwriting
+        // an existing local doc must keep its current Rank (so a re-import doesn't
+        // move it); a brand-new import lands at the bottom of the backlog by taking
+        // max(Rank) + 1 across existing docs of the same type. Without this a new
+        // import is unranked and — since most peers are ranked — floats to an
+        // arbitrary spot rather than the bottom.
+        const existingRank =
+          existing && overwriteKeys.includes(key)
+            ? (docIndex.get(existing.filename)?.rank ?? null)
+            : null;
+        if (existing && overwriteKeys.includes(key)) {
+          if (existingRank != null)
+            content = setFrontmatterField(content, 'Rank', String(existingRank));
+        } else {
+          const maxRank = docIndex
+            .getAll()
+            .filter((d) => d.docType === docType && d.rank != null)
+            .reduce((max, d) => Math.max(max, d.rank as number), 0);
+          content = setFrontmatterField(content, 'Rank', String(maxRank + 1));
+        }
+
         const destDir = TYPE_CONFIG[docType].dir();
         ensureDir(destDir);
         await fs.promises.writeFile(path.join(destDir, filename), content);

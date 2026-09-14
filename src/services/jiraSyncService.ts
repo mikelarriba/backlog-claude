@@ -122,7 +122,20 @@ export function createJiraSyncService({
       await appendDescriptionHistory(path.join(INBOX_DIR, filename), existingBodyText, newBodyText);
     }
 
-    const LOCAL_FIELDS = ['Sprint', 'Squad', 'PI', 'Feature_ID', 'Epic_ID', 'Created', 'Team'];
+    // Rank is a local-only ordering field JIRA knows nothing about; without it
+    // here, pulling an update on an existing issue would drop its Rank and the
+    // doc would sink to the bottom of the backlog on every sync. Keep it so an
+    // updated issue stays exactly where the user placed it.
+    const LOCAL_FIELDS = [
+      'Sprint',
+      'Squad',
+      'PI',
+      'Feature_ID',
+      'Epic_ID',
+      'Created',
+      'Team',
+      'Rank',
+    ];
     let merged = freshContent;
     for (const field of LOCAL_FIELDS) {
       const localVal = extractFrontmatterField(existing, field);

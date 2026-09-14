@@ -34,6 +34,13 @@ mock.module('../../public/js/detail.js', {
 mock.module('../../public/js/roadmap.js', {
   namedExports: { refreshRoadmapView: () => {} },
 });
+// roadmap-context-menus.js now imports moveRankByType from dragdrop.js (the
+// unified per-type move core). dragdrop.js statically pulls in the heavy
+// list-filters → detail/list chain, so stub it here — the function under test
+// (buildSprintSubmenuHtml) never calls into it.
+mock.module('../../public/js/dragdrop.js', {
+  namedExports: { moveRankByType: async () => false },
+});
 
 const { buildSprintSubmenuHtml, RM_CTX_ACTIONS } =
   await import('../../public/js/roadmap-context-menus.js');
