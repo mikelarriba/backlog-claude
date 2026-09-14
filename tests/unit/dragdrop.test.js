@@ -32,6 +32,7 @@ const {
   buildEdgeMoveAnnouncement,
   isCenterDropZone,
   computeDropActionOptions,
+  computeDropPopupPosition,
 } = await import('../../public/js/dragdrop.js');
 
 function makeDoc(overrides = {}) {
@@ -595,5 +596,38 @@ describe('computeDropActionOptions()', () => {
     const { displayTitle } = computeDropActionOptions('a.md', 'story', 'b.md', 'epic', title);
     assert.equal(displayTitle, 'x'.repeat(38) + '…');
     assert.equal(displayTitle.length, 39);
+  });
+});
+
+// ── computeDropPopupPosition (#460) ────────────────────────────────────────
+describe('computeDropPopupPosition()', () => {
+  test('offsets the popup down-right of the cursor when there is room', () => {
+    const pos = computeDropPopupPosition(100, 100, 220, 90, 1000, 800);
+    assert.deepEqual(pos, { left: 112, top: 90 });
+  });
+
+  test('clamps left so the popup does not overflow the right edge', () => {
+    const pos = computeDropPopupPosition(950, 100, 220, 90, 1000, 800);
+    assert.equal(pos.left, 1000 - 220 - 12);
+  });
+
+  test('clamps top so the popup does not overflow the bottom edge', () => {
+    const pos = computeDropPopupPosition(100, 780, 220, 90, 1000, 800);
+    assert.equal(pos.top, 800 - 90 - 12);
+  });
+
+  test('clamps left to a minimum of 8px near the left edge', () => {
+    const pos = computeDropPopupPosition(-50, 100, 220, 90, 1000, 800);
+    assert.equal(pos.left, 8);
+  });
+
+  test('clamps top to a minimum of 8px near the top edge', () => {
+    const pos = computeDropPopupPosition(100, -50, 220, 90, 1000, 800);
+    assert.equal(pos.top, 8);
+  });
+
+  test('a popup taller/wider than the viewport still clamps to the 8px minimum, not a negative offset', () => {
+    const pos = computeDropPopupPosition(500, 400, 2000, 2000, 1000, 800);
+    assert.deepEqual(pos, { left: 8, top: 8 });
   });
 });

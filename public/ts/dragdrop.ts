@@ -99,6 +99,21 @@ export function computeDropActionOptions(
   return { canLink, canDep, displayTitle };
 }
 
+// Pure: clamps the drop-action popup's position to stay within the
+// viewport while staying offset from the cursor (#460).
+export function computeDropPopupPosition(
+  cursorX: number,
+  cursorY: number,
+  popupWidth: number,
+  popupHeight: number,
+  viewportWidth: number,
+  viewportHeight: number
+): { left: number; top: number } {
+  const left = Math.min(cursorX + 12, viewportWidth - popupWidth - 12);
+  const top = Math.min(cursorY - 10, viewportHeight - popupHeight - 12);
+  return { left: Math.max(8, left), top: Math.max(8, top) };
+}
+
 export function showDropActionPopup(
   srcFilename: string,
   srcDocType: string,
@@ -165,12 +180,16 @@ export function showDropActionPopup(
   // Position near cursor, clamped to viewport
   const pw = popup.offsetWidth || 220;
   const ph = popup.offsetHeight || 90;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const left = Math.min(cursorX + 12, vw - pw - 12);
-  const top = Math.min(cursorY - 10, vh - ph - 12);
-  popup.style.left = `${Math.max(8, left)}px`;
-  popup.style.top = `${Math.max(8, top)}px`;
+  const { left, top } = computeDropPopupPosition(
+    cursorX,
+    cursorY,
+    pw,
+    ph,
+    window.innerWidth,
+    window.innerHeight
+  );
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
 
   // Dismiss on outside click
   setTimeout(() => {
