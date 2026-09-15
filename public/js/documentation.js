@@ -27,6 +27,14 @@ export const DOC_ACTIONS = {
   toggleSuggestion: 'toggleSuggestionRow',
   toggleEpic: 'docToggleEpicChildren',
   setMode: 'setDocMode',
+  // search (issue #461 migration): the Search Issues tab's Search button.
+  // docSearch was already directly imported into main.ts and reached
+  // through data-action="docSearch" in index.html — the data-action string
+  // itself needed no change — but was still dispatched via main.ts's
+  // central switch rather than this module's own registry. Same "reuse the
+  // existing data-action string as the registered name" shortcut #646 used
+  // for toggleModelSection.
+  search: 'docSearch',
 };
 registerActions({
   [DOC_ACTIONS.rowClick]: (el, e) => {
@@ -43,6 +51,9 @@ registerActions({
   },
   [DOC_ACTIONS.setMode]: (el) => {
     setDocMode(el.dataset.filterValue ?? '');
+  },
+  [DOC_ACTIONS.search]: () => {
+    docSearch();
   },
 });
 // Typed data-change-action names for the Sprint / Fix Version mode

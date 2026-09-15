@@ -12,10 +12,25 @@ import { registerActions, registerKeydownActions } from './actions.js';
 // typed call.
 export const JIRA_IMPORT_ACTIONS = {
   toggleItem: 'jiraImportToggleItem',
+  // search/pullByKey (issue #461 migration): the Import tab's Search button
+  // and "Import" (by-key) button. Both were already directly imported into
+  // main.ts and reached through data-action="searchJira" / "pullByKey" in
+  // index.html — the data-action string itself needed no change — but were
+  // still dispatched via main.ts's central switch rather than this module's
+  // own registry. Same "reuse the existing data-action string as the
+  // registered name" shortcut #646 used for toggleModelSection.
+  search: 'searchJira',
+  pullByKey: 'pullByKey',
 };
 registerActions({
   [JIRA_IMPORT_ACTIONS.toggleItem]: (el) => {
     toggleJiraItem(Number(el.dataset.index));
+  },
+  [JIRA_IMPORT_ACTIONS.search]: () => {
+    searchJira();
+  },
+  [JIRA_IMPORT_ACTIONS.pullByKey]: () => {
+    pullByKey();
   },
 });
 // Typed data-keydown-action names for the Import tab's two Enter-to-submit
