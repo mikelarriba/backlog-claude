@@ -16,6 +16,8 @@ const {
   buildEstPlaceholders,
   buildEstPlaceholderCardHtml,
   updateEstPlacements,
+  buildEpicReorderHandleHtml,
+  buildEpicMoveAnnouncement,
   ROADMAP_RENDER_CTX_ACTIONS,
 } = await import('../../public/js/roadmap-render.js');
 
@@ -218,6 +220,81 @@ describe('buildRoadmapCardHtml', () => {
     assert.doesNotMatch(html, /<script>/);
     assert.match(html, /roadmap-card-title">&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;</);
     assert.match(html, /A &amp; B/);
+  });
+});
+
+// ── buildEpicReorderHandleHtml ───────────────────────────────────────────────
+// Keyboard-operable reorder handle for the epic panel (issue #486) — the
+// epic row has no drag of its own, so this handle is the only way to make
+// its reordering keyboard-accessible from within the roadmap view.
+describe('buildEpicReorderHandleHtml', () => {
+  test('returns a focusable, role=button handle for a real epic', () => {
+    const html = buildEpicReorderHandleHtml('epic.md', 'My Epic');
+    assert.match(html, /rm-epic-reorder-handle" role="button" tabindex="0"/);
+  });
+
+  test('names the epic and both key groups in the aria-label', () => {
+    const html = buildEpicReorderHandleHtml('epic.md', 'My Epic');
+    assert.match(html, /aria-label="Reorder My Epic\./);
+    assert.match(html, /Up or Down arrow keys/);
+    assert.match(html, /Home or End/);
+  });
+
+  test('escapes HTML-significant characters in the title', () => {
+    const html = buildEpicReorderHandleHtml('epic.md', '<b>x</b>');
+    assert.doesNotMatch(html, /<b>x<\/b>/);
+    assert.match(html, /&lt;b&gt;x&lt;\/b&gt;/);
+  });
+
+  test('returns an empty string for the unlinked "__none__" bucket row (no filename)', () => {
+    assert.equal(buildEpicReorderHandleHtml('', 'Unlinked Stories'), '');
+  });
+});
+
+// ── buildEpicMoveAnnouncement ─────────────────────────────────────────────────
+describe('buildEpicMoveAnnouncement', () => {
+  test('announces a successful single-step move by direction', () => {
+    assert.equal(
+      buildEpicMoveAnnouncement('My Epic', 'up', true),
+      'Moved My Epic up in the epic list.'
+    );
+    assert.equal(
+      buildEpicMoveAnnouncement('My Epic', 'down', true),
+      'Moved My Epic down in the epic list.'
+    );
+  });
+
+  test('announces a successful edge jump by naming the edge, not the raw action', () => {
+    assert.equal(
+      buildEpicMoveAnnouncement('My Epic', 'top', true),
+      'Moved My Epic to the top of the epic list.'
+    );
+    assert.equal(
+      buildEpicMoveAnnouncement('My Epic', 'bottom', true),
+      'Moved My Epic to the bottom of the epic list.'
+    );
+  });
+
+  test('announces a no-op at the top edge for both up and top', () => {
+    assert.equal(
+      buildEpicMoveAnnouncement('My Epic', 'up', false),
+      'My Epic is already at the top of the epic list.'
+    );
+    assert.equal(
+      buildEpicMoveAnnouncement('My Epic', 'top', false),
+      'My Epic is already at the top of the epic list.'
+    );
+  });
+
+  test('announces a no-op at the bottom edge for both down and bottom', () => {
+    assert.equal(
+      buildEpicMoveAnnouncement('My Epic', 'down', false),
+      'My Epic is already at the bottom of the epic list.'
+    );
+    assert.equal(
+      buildEpicMoveAnnouncement('My Epic', 'bottom', false),
+      'My Epic is already at the bottom of the epic list.'
+    );
   });
 });
 

@@ -385,6 +385,37 @@
   flex: 1;
 }
 
+/* Keyboard-operable reorder handle for the epic panel (issue #486) — same
+   dot-grid visual as .drag-handle (list.css) / .rm-reorder-handle below, but
+   laid out as a normal flex child of .rm-epic-name-col instead of absolutely
+   positioned, since the epic row has no free corner to overlay it on. */
+.rm-epic-reorder-handle {
+  display: grid;
+  grid-template-columns: repeat(2, 4px);
+  gap: 3px;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+}
+.rm-epic-reorder-handle span {
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.rm-epic-card:hover .rm-epic-reorder-handle,
+.rm-epic-reorder-handle:focus-visible {
+  opacity: 1;
+}
+.rm-epic-reorder-handle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-subtle);
+}
+
 .rm-epic-title {
   font-size: 0.75rem;
   font-weight: 600;
