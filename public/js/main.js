@@ -57,9 +57,7 @@ import {
   jiraSelectAll,
   jiraSelectCancel,
   jiraSelectConfirm,
-  searchJira,
   downloadSelected,
-  pullByKey,
 } from './jira-import.js';
 import {
   syncPreviewSelectAll,
@@ -150,7 +148,6 @@ import {
   deselectAllSuggestions,
   modifyDocumentation,
   undoChanges,
-  docSearch,
   exportDocumentationPdf,
 } from './documentation.js';
 if ('serviceWorker' in navigator) {
@@ -678,15 +675,11 @@ document.addEventListener('click', (e) => {
     case 'openBugForm':
       openBugForm();
       break;
-    case 'searchJira':
-      searchJira();
-      break;
     case 'downloadSelected':
       downloadSelected();
       break;
-    case 'pullByKey':
-      pullByKey();
-      break;
+    // searchJira/pullByKey (jira-import.ts) moved off this switch onto
+    // JIRA_IMPORT_ACTIONS (issue #461); see that module.
     // ── Bug form ─────────────────────────────────────────────
     case 'closeBugForm':
       closeBugForm();
@@ -798,9 +791,8 @@ document.addEventListener('click', (e) => {
       executeSplitIssue();
       break;
     // ── Documentation view ─────────────────────────────────────
-    case 'docSearch':
-      docSearch();
-      break;
+    // docSearch moved off this switch onto DOC_ACTIONS (issue #461); see
+    // documentation.ts.
     case 'docSetTypeFilter':
       docSetTypeFilter(btn.dataset.filterValue);
       break;
@@ -857,15 +849,12 @@ document.addEventListener('input', (e) => {
   dispatchInputAction(inputAction, target, e);
 });
 // ── Delegated contextmenu handler ───────────────────────────────
-// Only the one migrated site (list-render.ts's row) emits
-// `data-context-action` so far — see the "Context-menu-event registry"
-// section of actions.ts. The remaining three `oncontextmenu="fn(event,...)"`
-// sites (roadmap-render.ts's estimated-sprint placeholder card, epic row,
-// and story card) are plain inline attributes, not delegated through this
-// listener at all; `target.closest('[data-context-action]')` simply finds
-// nothing for them and this listener no-ops, so they keep working exactly
-// as before via main.ts's `_dynGlobals` bridge until a future increment
-// migrates them too.
+// All four `oncontextmenu="fn(event,...)"` sites this app ever had — the
+// list row (list-render.ts) and roadmap-render.ts's estimated-sprint
+// placeholder card, epic row, and story card — now emit `data-context-
+// action` and are reached through this listener; see the "Context-menu-
+// event registry" section of actions.ts, LIST_ITEM_CTX_ACTIONS in
+// list-filters.ts, and ROADMAP_RENDER_CTX_ACTIONS in roadmap-render.ts.
 document.addEventListener('contextmenu', (e) => {
   const target = e.target;
   const btn = target.closest('[data-context-action]');
@@ -1123,10 +1112,11 @@ document.addEventListener('change', (e) => {
 //     `searchJira();` / `pullByKey();`), now `data-keydown-action`.
 //     docSearch/searchJira/pullByKey are intentionally absent below — see
 //     DOC_KEYDOWN_ACTIONS in documentation.ts and
-//     JIRA_IMPORT_KEYDOWN_ACTIONS in jira-import.ts. Both were already
-//     directly imported/used elsewhere in this file (the click switch still
-//     calls them directly), so this was the last reason either needed to be
-//     reachable through this bridge.
+//     JIRA_IMPORT_KEYDOWN_ACTIONS in jira-import.ts. Their click sites (the
+//     Search/Import buttons) have since moved off this file's click switch
+//     too, onto DOC_ACTIONS / JIRA_IMPORT_ACTIONS (issue #461), so none of
+//     the three has any remaining reason to be reachable through this
+//     bridge.
 // The remaining `onkeydown="..."` sites — refine.ts's story-points input and
 // index.html's SP input — both branches of each just call `this.blur()`,
 // nothing to remove from this bridge — are left as plain inline attributes.
@@ -1212,10 +1202,14 @@ const _dynGlobals = {
   // too, onto the change-action registry (see the "Change-event registry"
   // section of actions.ts and the registerChangeActions() call in
   // documentation.ts). docSearch's onkeydown moved off this bridge too, onto
-  // DOC_KEYDOWN_ACTIONS (issue #461's keydown-registry).
+  // DOC_KEYDOWN_ACTIONS (issue #461's keydown-registry), and its click site
+  // (the Search button) has since moved off this file's click switch onto
+  // DOC_ACTIONS.search (issue #461).
   // jira-import.ts — searchJira/pullByKey's onkeydown sites moved off this
   // bridge onto JIRA_IMPORT_KEYDOWN_ACTIONS (issue #461's keydown-registry);
-  // see that module.
+  // see that module. Their click sites (Search/Import buttons) have since
+  // moved off this file's click switch onto JIRA_IMPORT_ACTIONS.search /
+  // .pullByKey (issue #461).
   // Exposed for cross-module calls (also in FRONTEND_GLOBALS eslint list)
   focusEpic,
   updateSplitMode,
