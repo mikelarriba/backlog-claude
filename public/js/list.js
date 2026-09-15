@@ -6,15 +6,27 @@ import { _rankSortFn } from './list-render.js';
 import { upsertDoc } from './store.js';
 // Note: piSettings, jiraVersions, _swimlanesCollapsed, _collapsedItems are
 // now declared as store-backed globals in state.js (moved from here).
-export async function moveDocRank(filename, docType, delta) {
-  const group = allDocs.filter((d) => d.docType === docType);
+// Pure reorder computation backing moveDocRank(): swaps `filename` with its
+// neighbor `delta` positions away within its docType's rank-sorted group.
+// Takes `docs` as an explicit parameter rather than reading the `allDocs`
+// global directly, same signature-change extraction pattern used for
+// computeChildPoints() (detail-fields.ts) and matchesListFilters()
+// (list-filters.ts). Returns null when there's no such doc, or delta would
+// move it out of bounds (both no-ops in the original inline code).
+export function computeRerankedOrder(docs, docType, filename, delta) {
+  const group = docs.filter((d) => d.docType === docType);
   const sorted = [...group].sort(_rankSortFn);
   const idx = sorted.findIndex((d) => d.filename === filename);
-  if (idx < 0) return;
+  if (idx < 0) return null;
   const newIdx = idx + delta;
-  if (newIdx < 0 || newIdx >= sorted.length) return;
+  if (newIdx < 0 || newIdx >= sorted.length) return null;
   // Swap the two items in the ordered list
   [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
+  return sorted;
+}
+export async function moveDocRank(filename, docType, delta) {
+  const sorted = computeRerankedOrder(allDocs, docType, filename, delta);
+  if (!sorted) return;
   try {
     await postJSON('/api/docs/rerank', {
       type: docType,
