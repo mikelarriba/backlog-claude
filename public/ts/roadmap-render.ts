@@ -2,13 +2,18 @@
 import { escHtml, TYPE_LABEL } from './state.js';
 import type { DocEntry, SprintConfig } from './state.js';
 import { applyEpicFocus, getAllSprints, openDepModal } from './roadmap.js';
-import { initRoadmapDragDrop, attachRoadmapDepHoverListeners } from './roadmap-drag.js';
+import {
+  initRoadmapDragDrop,
+  attachRoadmapDepHoverListeners,
+  _announceRoadmapDragStatus,
+} from './roadmap-drag.js';
 import {
   syncRoadmapSelectionUI,
   handleRoadmapEpicClick,
   handleRoadmapCardClick,
 } from './roadmap-select.js';
 import { registerActions } from './actions.js';
+import { moveRankByType } from './dragdrop.js';
 
 // Typed data-action names for the epic-row click, story-card click,
 // dependency-modal button, and cross-PI ghost card in this module's render
@@ -402,6 +407,7 @@ export function renderEpicPanel(sprints: RoadmapSprint[]): void {
            ${fn || isNone ? `data-action="${ROADMAP_RENDER_ACTIONS.epicClick}"` : ''}
            ${fn ? `data-context-action="${ROADMAP_RENDER_CTX_ACTIONS.epicContextMenu}"` : ''}>
         <div class="rm-epic-name-col">
+          ${buildEpicReorderHandleHtml(fn, title)}
           <div class="rm-epic-dot" style="background:${color}"></div>
           <div class="rm-epic-info">
             <div class="rm-epic-title">${escHtml(title)}</div>
@@ -427,6 +433,100 @@ export function renderEpicPanel(sprints: RoadmapSprint[]): void {
     card.addEventListener('mouseenter', showFeatureTooltip);
     card.addEventListener('mouseleave', hideFeatureTooltip);
   });
+
+  // Keyboard-operable alternative for reordering the epic panel (issue #486).
+  // Unlike every other view this issue covers, .rm-epic-card has no mouse
+  // drag of its own (it isn't draggable="true") — the only existing way to
+  // reorder it is the right-click "Move up/down/top/bottom" context menu,
+  // and that menu is unreachable by keyboard too, since the row itself has
+  // no focusable element at all (no tabindex, no role="button" anywhere).
+  // This handle gives keyboard/screen-reader users a first way to reorder
+  // epics without leaving the roadmap view, reusing moveRankByType — the
+  // same per-type rerank the context-menu Move actions already call.
+  body.querySelectorAll<HTMLElement>('.rm-epic-reorder-handle').forEach((handle) => {
+    const card = handle.closest<HTMLElement>('.rm-epic-card');
+    const filename = card?.dataset['filename'];
+    const docType = card?.dataset['doctype'];
+    if (!filename || !docType) return;
+    handle.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
+      e.preventDefault();
+      const action =
+        e.key === 'ArrowUp'
+          ? 'up'
+          : e.key === 'ArrowDown'
+            ? 'down'
+            : e.key === 'Home'
+              ? 'top'
+              : 'bottom';
+      void moveEpicRank(filename, docType, action);
+    });
+  });
+}
+
+// Focus is lost when renderEpicPanel rebuilds the panel's HTML from scratch,
+// since the old row/handle elements are discarded — restore it to the moved
+// epic's (re-rendered) handle so repeated key presses keep working without
+// re-tabbing, matching roadmap-drag.ts's refocusHandle for story cards.
+function refocusEpicHandle(filename: string): void {
+  setTimeout(() => {
+    document
+      .querySelector<HTMLElement>(
+        `.rm-epic-card[data-filename="${CSS.escape(filename)}"] .rm-epic-reorder-handle`
+      )
+      ?.focus();
+  }, 50);
+}
+
+// Keyboard-operable move for one epic-panel row, backing the handle wired up
+// in renderEpicPanel above (issue #486). Routes through the same
+// moveRankByType() the roadmap epic/story context-menu Move actions use
+// (dragdrop.ts) — the per-type rerank group, not the on-screen row order —
+// so a keyboard move and a context-menu move can't disagree about the
+// resulting order.
+async function moveEpicRank(
+  filename: string,
+  docType: string,
+  action: 'up' | 'down' | 'top' | 'bottom'
+): Promise<void> {
+  const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
+  const moved = await moveRankByType(filename, docType, action);
+  _announceRoadmapDragStatus(buildEpicMoveAnnouncement(title, action, moved));
+  if (!moved) return;
+  renderEpicPanel(getAllSprints());
+  refocusEpicHandle(filename);
+}
+
+// Pure: the keyboard-operable reorder handle for one epic-panel row (issue
+// #486) — the same small dot-grid handle other reorder paths in this app use
+// (e.g. buildRoadmapCardHtml's .rm-reorder-handle for story cards), extracted
+// on its own since the epic row itself isn't built by a pure function.
+// Returns '' for the unlinked "__none__" bucket row (empty filename), which
+// has no rank of its own to move.
+export function buildEpicReorderHandleHtml(filename: string, title: string): string {
+  if (!filename) return '';
+  return `<div class="rm-epic-reorder-handle" role="button" tabindex="0"
+       title="Use arrow keys to reorder"
+       aria-label="Reorder ${escHtml(title)}. Up or Down arrow keys move it within the epic list; Home or End move it to the top or bottom."
+       onclick="event.stopPropagation()"
+       ><span></span><span></span><span></span><span></span><span></span><span></span></div>`;
+}
+
+// Pure: builds the aria-live announcement for an epic-panel keyboard move,
+// reusing the "already at the edge" / "moved to the top/bottom" phrasing the
+// roadmap card move paths already announce (buildColumnEdgeMoveAnnouncement,
+// roadmap-drag.ts) so every keyboard-operable reorder path in this issue
+// reads the same way.
+export function buildEpicMoveAnnouncement(
+  title: string,
+  action: 'up' | 'down' | 'top' | 'bottom',
+  moved: boolean
+): string {
+  const edge = action === 'up' || action === 'top' ? 'top' : 'bottom';
+  if (!moved) return `${title} is already at the ${edge} of the epic list.`;
+  if (action === 'top' || action === 'bottom')
+    return `Moved ${title} to the ${edge} of the epic list.`;
+  return `Moved ${title} ${action} in the epic list.`;
 }
 
 // ── Story panel rendering ────────────────────────────────────

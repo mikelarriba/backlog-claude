@@ -35,7 +35,12 @@ function _roadmapDragStatusRegion(): HTMLElement {
   return el;
 }
 
-function _announceRoadmapDragStatus(message: string): void {
+// Exported so the epic-panel keyboard reorder handle in roadmap-render.ts
+// (issue #486) can announce through the same region instead of creating its
+// own — the epic panel has no drag-based move of its own to generalize an
+// announcement pattern from (unlike the story cards this module already
+// covers), so it reuses this one directly.
+export function _announceRoadmapDragStatus(message: string): void {
   _roadmapDragStatusRegion().textContent = message;
 }
 
