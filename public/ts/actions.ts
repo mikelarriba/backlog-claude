@@ -343,3 +343,70 @@ export function dispatchKeydownAction(name: string, el: HTMLElement, e: Keyboard
   handler(el, e);
   return true;
 }
+
+// ── Blur-event registry (extension, issue #461) ──────────────────────────────
+// click/change/input/contextmenu/keydown are now all self-registered (see
+// above). The one category flagged as explicitly "left as-is" by the keydown
+// spike's own migration (refine.ts's comment above `REFINE_ACTIONS`: "the
+// data-action dispatcher only covers the delegated 'click' listener in
+// main.ts, not 'blur'") is `onblur="fn(...)"` strings — the refine panel's
+// title and story-points inline-edit inputs (refine.ts's `openRefinePanel`
+// template), both still reached through main.ts's untyped `_dynGlobals`
+// window bridge because there has never been a delegated `blur` listener for
+// them to hook into. Same tradeoff noted for the five registries above: a
+// `data-blur-action` name is dispatched from a distinct listener for a
+// distinct DOM event, so it's allowed to collide with a click/change/input/
+// context/keydown action name without either throwing at load time or firing
+// the wrong handler — hence a sixth independent registry rather than reusing
+// one of the five above.
+//
+// Unlike the other five, `blur` does not bubble, so main.ts's delegated
+// listener for it must be attached with `useCapture: true` (the capture
+// phase does fire for every descendant, same net effect as the bubbling
+// listeners the other five registries rely on).
+//
+// This spikes the pattern on the two sites refine.ts's own comment named as
+// the reason `blur` wasn't covered yet — the same "1-2 sites, extend later"
+// precedent the change/contextmenu/keydown registries themselves used.
+
+export type BlurActionHandler = (el: HTMLElement, e: FocusEvent) => void;
+
+const blurRegistry = new Map<string, BlurActionHandler>();
+
+/**
+ * Registers one or more `{ actionName: handler }` pairs against the shared
+ * `blur`-event dispatch table. Call this once at module load time from the
+ * module that owns the action. Throws synchronously if a blur action name is
+ * already registered, so a duplicate/typo'd name fails loudly at import time
+ * instead of silently shadowing another module's handler. This is a separate
+ * registry from `registerActions` / `registerChangeActions` /
+ * `registerInputActions` / `registerContextActions` / `registerKeydownActions`
+ * above — a name registered here does not collide with the same name
+ * registered for `click`, `change`, `input`, `contextmenu`, or `keydown`.
+ */
+export function registerBlurActions(actions: Record<string, BlurActionHandler>): void {
+  for (const [name, handler] of Object.entries(actions)) {
+    if (blurRegistry.has(name)) {
+      throw new Error(
+        `registerBlurActions: blur action "${name}" is already registered — blur action names ` +
+          'must be unique across all modules. Check for a copy-pasted key or a duplicate ' +
+          'registerBlurActions() call.'
+      );
+    }
+    blurRegistry.set(name, handler);
+  }
+}
+
+/**
+ * Looks up `name` in the blur registry and invokes its handler with the
+ * triggering element and event. Returns `true` if a handler ran, `false` if
+ * nothing is registered under that name (the caller — main.ts's blur
+ * handler — no-ops in that case, since an unmigrated `onblur="..."` site is a
+ * plain inline attribute, not routed through this delegated listener at all).
+ */
+export function dispatchBlurAction(name: string, el: HTMLElement, e: FocusEvent): boolean {
+  const handler = blurRegistry.get(name);
+  if (!handler) return false;
+  handler(el, e);
+  return true;
+}
