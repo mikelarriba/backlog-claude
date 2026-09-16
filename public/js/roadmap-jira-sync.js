@@ -93,18 +93,38 @@ export function openSprintPushModal() {
   _populateSprintSelector();
   openModal('sprint-push-overlay');
 }
-function _populateSprintSelector() {
-  const container = document.getElementById('sprint-push-sprint-list');
-  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+// Pure: groups each PI's configured sprints for the sprint-push selector,
+// extracted out of _populateSprintSelector() below. A PI with no configured
+// sprints is omitted entirely; a sprint name already seen in an earlier PI
+// (e.g. the same sprint listed under both currentPi and nextPi) is dropped
+// from later groups so it isn't offered — and thus pushed — twice. Takes
+// `pis`/`config` as explicit parameters rather than reading the
+// piSettings/sprintConfig globals directly, same signature-change
+// extraction pattern used for computeSyncSelectionPlan() (jira-pull.ts).
+export function computeSprintSelectorGroups(pis, config) {
   const seen = new Set();
-  let html = '';
+  const groups = [];
   for (const pi of pis) {
-    const sprints = sprintConfig[pi] || [];
+    const sprints = config[pi] || [];
     if (!sprints.length) continue;
-    html += `<div class="sprint-push-pi-group"><span class="sprint-push-pi-label">${escHtml(pi)}</span>`;
+    const deduped = [];
     for (const s of sprints) {
       if (seen.has(s.name)) continue;
       seen.add(s.name);
+      deduped.push(s);
+    }
+    groups.push({ pi, sprints: deduped });
+  }
+  return groups;
+}
+function _populateSprintSelector() {
+  const container = document.getElementById('sprint-push-sprint-list');
+  const pis = [piSettings.currentPi, piSettings.nextPi].filter(Boolean);
+  const groups = computeSprintSelectorGroups(pis, sprintConfig);
+  let html = '';
+  for (const { pi, sprints } of groups) {
+    html += `<div class="sprint-push-pi-group"><span class="sprint-push-pi-label">${escHtml(pi)}</span>`;
+    for (const s of sprints) {
       html += `<label class="sprint-push-sprint-cb"><input type="checkbox" checked value="${escHtml(s.name)}"><span>${escHtml(s.name)}</span></label>`;
     }
     html += '</div>';

@@ -25,6 +25,7 @@ const {
   summarizeSprintPushResult,
   formatSprintPushConfirmLabel,
   formatSprintPushPreviewBtnState,
+  computeSprintSelectorGroups,
   buildPullSprintResultItemHtml,
   summarizePullSprintResult,
   formatPullSprintConfirmLabel,
@@ -330,6 +331,75 @@ describe('formatSprintPushPreviewBtnState()', () => {
       text: 'Preview Changes (3 sprints)',
       disabled: false,
     });
+  });
+});
+
+// ── computeSprintSelectorGroups ────────────────────────────────────────────────
+describe('computeSprintSelectorGroups()', () => {
+  test('no PIs: no groups', () => {
+    assert.deepEqual(computeSprintSelectorGroups([], {}), []);
+  });
+
+  test('a PI missing from the config is skipped entirely', () => {
+    assert.deepEqual(computeSprintSelectorGroups(['PI-1'], {}), []);
+  });
+
+  test('a PI configured with an empty sprint list is skipped entirely', () => {
+    assert.deepEqual(computeSprintSelectorGroups(['PI-1'], { 'PI-1': [] }), []);
+  });
+
+  test('one PI with sprints: a single group carrying them unchanged', () => {
+    const sprints = [
+      { name: 'Sprint 1', capacity: 10 },
+      { name: 'Sprint 2', capacity: 8 },
+    ];
+    assert.deepEqual(computeSprintSelectorGroups(['PI-1'], { 'PI-1': sprints }), [
+      { pi: 'PI-1', sprints },
+    ]);
+  });
+
+  test('two PIs with disjoint sprint names: both groups kept in full', () => {
+    const config = {
+      'PI-1': [{ name: 'Sprint 1', capacity: 10 }],
+      'PI-2': [{ name: 'Sprint 2', capacity: 8 }],
+    };
+    assert.deepEqual(computeSprintSelectorGroups(['PI-1', 'PI-2'], config), [
+      { pi: 'PI-1', sprints: config['PI-1'] },
+      { pi: 'PI-2', sprints: config['PI-2'] },
+    ]);
+  });
+
+  test('a sprint name repeated in a later PI is dropped from that later group only', () => {
+    const shared = { name: 'Sprint 1', capacity: 10 };
+    const config = {
+      'PI-1': [shared],
+      'PI-2': [shared, { name: 'Sprint 2', capacity: 8 }],
+    };
+    assert.deepEqual(computeSprintSelectorGroups(['PI-1', 'PI-2'], config), [
+      { pi: 'PI-1', sprints: [shared] },
+      { pi: 'PI-2', sprints: [{ name: 'Sprint 2', capacity: 8 }] },
+    ]);
+  });
+
+  test('a PI is still included when every one of its sprints was already seen', () => {
+    const shared = { name: 'Sprint 1', capacity: 10 };
+    const config = { 'PI-1': [shared], 'PI-2': [shared] };
+    assert.deepEqual(computeSprintSelectorGroups(['PI-1', 'PI-2'], config), [
+      { pi: 'PI-1', sprints: [shared] },
+      { pi: 'PI-2', sprints: [] },
+    ]);
+  });
+
+  test('duplicate sprint names within the same PI are deduped too', () => {
+    const config = {
+      'PI-1': [
+        { name: 'Sprint 1', capacity: 10 },
+        { name: 'Sprint 1', capacity: 10 },
+      ],
+    };
+    assert.deepEqual(computeSprintSelectorGroups(['PI-1'], config), [
+      { pi: 'PI-1', sprints: [{ name: 'Sprint 1', capacity: 10 }] },
+    ]);
   });
 });
 
