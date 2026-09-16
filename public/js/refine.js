@@ -32,7 +32,12 @@ import {
 } from './refine-canvas.js';
 import { toggleManageLinks } from './refine-edges.js';
 import { _fpCreateChild, _showEpicContextMenu } from './refine-nodes.js';
-import { registerActions, registerInputActions, registerKeydownActions } from './actions.js';
+import {
+  registerActions,
+  registerInputActions,
+  registerKeydownActions,
+  registerBlurActions,
+} from './actions.js';
 // Typed data-action names for the refine panel's (epic/story/spike/bug
 // create & edit forms) buttons (issue #461 migration — see actions.ts and
 // CTX_ACTIONS in list-filters.ts / EDGE_ACTIONS in refine-edges.ts for the
@@ -43,12 +48,13 @@ import { registerActions, registerInputActions, registerKeydownActions } from '.
 // typed call.
 //
 // The refine panel's title/SP inline-edit inputs' onblur (`saveRpTitle()` /
-// `saveRpStoryPoints(...)`) is left as-is — the data-action dispatcher only
-// covers the delegated 'click' listener in main.ts, not 'blur'. The title
-// input's onkeydown is migrated below onto the registerKeydownActions
-// registry (issue #461's keydown spike — see actions.ts); the SP input's
-// onkeydown stays inline since both its branches just call `this.blur()`
-// with no bridge function to remove.
+// `saveRpStoryPoints(...)`) is migrated below onto the registerBlurActions
+// registry (issue #461's blur-registry spike — see actions.ts), the same
+// gap that registry's own module comment named as the reason for its
+// existence. The title input's onkeydown is migrated below onto the
+// registerKeydownActions registry (issue #461's keydown spike — see
+// actions.ts); the SP input's onkeydown stays inline since both its
+// branches just call `this.blur()` with no bridge function to remove.
 // The priority <select>'s onchange is migrated below via a direct
 // addEventListener attached right after render (matching the existing
 // convention for 'change' listeners elsewhere, e.g. jira-push.ts /
@@ -144,6 +150,26 @@ registerKeydownActions({
     } else if (e.key === 'Escape') {
       cancelRpTitleEdit();
     }
+  },
+});
+// Typed data-blur-action names for the refine panel's title/SP inline-edit
+// inputs (issue #461's blur-registry spike — see actions.ts's "Blur-event
+// registry" section, which names these two exact sites as its motivation).
+// Replaces the onblur="saveRpTitle()" / onblur="saveRpStoryPoints('${ef}',
+// '${et}')" strings previously built by hand. saveRpStoryPoints's filename/
+// docType args move from the inline template literal to
+// data-filename/data-doctype attributes on the SP input (mirroring the title
+// input, which already carried them for its keydown/blur handlers), read off
+// the element the same way every other migrated handler in this file reads
+// its data-* args.
+const RP_TITLE_BLUR_ACTION = 'refineRpTitleBlur';
+const RP_SP_BLUR_ACTION = 'refineRpSpBlur';
+registerBlurActions({
+  [RP_TITLE_BLUR_ACTION]: () => {
+    void saveRpTitle();
+  },
+  [RP_SP_BLUR_ACTION]: (el) => {
+    void saveRpStoryPoints(el.dataset.filename ?? '', el.dataset.doctype ?? '');
   },
 });
 // ── Card search / filter ──────────────────────────────────────
@@ -396,7 +422,7 @@ export async function openRefinePanel(filename, docType) {
         <input class="rp-title-input" id="rp-title-input" type="text"
           value="${escHtml(title)}" data-original="${escHtml(title)}"
           data-filename="${ef}" data-doctype="${et}"
-          onblur="saveRpTitle()" data-keydown-action="${RP_TITLE_KEYDOWN_ACTION}" />
+          data-blur-action="${RP_TITLE_BLUR_ACTION}" data-keydown-action="${RP_TITLE_KEYDOWN_ACTION}" />
         <div class="rp-edit-row">
           ${
             isLeaf
@@ -404,8 +430,9 @@ export async function openRefinePanel(filename, docType) {
             <label class="rp-edit-label">SP</label>
             <input class="rp-sp-input" id="rp-sp-input" type="number" min="0" max="999"
               value="${sp}" data-original="${sp}"
+              data-filename="${ef}" data-doctype="${et}"
               placeholder="—"
-              onblur="saveRpStoryPoints('${ef}','${et}')"
+              data-blur-action="${RP_SP_BLUR_ACTION}"
               onkeydown="if(event.key==='Enter'){this.blur()} if(event.key==='Escape'){this.blur()}" />
           </div>`
               : ''

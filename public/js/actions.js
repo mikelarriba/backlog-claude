@@ -216,4 +216,41 @@ export function dispatchKeydownAction(name, el, e) {
   handler(el, e);
   return true;
 }
+const blurRegistry = new Map();
+/**
+ * Registers one or more `{ actionName: handler }` pairs against the shared
+ * `blur`-event dispatch table. Call this once at module load time from the
+ * module that owns the action. Throws synchronously if a blur action name is
+ * already registered, so a duplicate/typo'd name fails loudly at import time
+ * instead of silently shadowing another module's handler. This is a separate
+ * registry from `registerActions` / `registerChangeActions` /
+ * `registerInputActions` / `registerContextActions` / `registerKeydownActions`
+ * above — a name registered here does not collide with the same name
+ * registered for `click`, `change`, `input`, `contextmenu`, or `keydown`.
+ */
+export function registerBlurActions(actions) {
+  for (const [name, handler] of Object.entries(actions)) {
+    if (blurRegistry.has(name)) {
+      throw new Error(
+        `registerBlurActions: blur action "${name}" is already registered — blur action names ` +
+          'must be unique across all modules. Check for a copy-pasted key or a duplicate ' +
+          'registerBlurActions() call.'
+      );
+    }
+    blurRegistry.set(name, handler);
+  }
+}
+/**
+ * Looks up `name` in the blur registry and invokes its handler with the
+ * triggering element and event. Returns `true` if a handler ran, `false` if
+ * nothing is registered under that name (the caller — main.ts's blur
+ * handler — no-ops in that case, since an unmigrated `onblur="..."` site is a
+ * plain inline attribute, not routed through this delegated listener at all).
+ */
+export function dispatchBlurAction(name, el, e) {
+  const handler = blurRegistry.get(name);
+  if (!handler) return false;
+  handler(el, e);
+  return true;
+}
 //# sourceMappingURL=actions.js.map

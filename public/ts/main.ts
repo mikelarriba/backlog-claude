@@ -15,6 +15,7 @@ import {
   dispatchInputAction,
   dispatchContextAction,
   dispatchKeydownAction,
+  dispatchBlurAction,
 } from './actions.js';
 import {
   toggleItemCollapse,
@@ -74,8 +75,6 @@ import {
   closeRefineView,
   resetRefineViewState,
   renderFeatureMultiPanel,
-  saveRpTitle,
-  saveRpStoryPoints,
 } from './refine.js';
 import {
   exportEpicToPdf,
@@ -979,6 +978,24 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
   dispatchKeydownAction(keydownAction, target, e);
 });
 
+// ── Delegated blur handler ───────────────────────────────────────
+// One migrated site so far — refine.ts's title and story-points inline-edit
+// inputs — see the "Blur-event registry" section of actions.ts. Unlike the
+// click/change/input/contextmenu/keydown listeners above, `blur` does not
+// bubble, so this listener must be attached with `useCapture: true` to see
+// it fire for descendants at all.
+document.addEventListener(
+  'blur',
+  (e: FocusEvent) => {
+    const target = e.target as HTMLElement;
+    const blurAction = target.dataset.blurAction;
+    if (!blurAction) return;
+
+    dispatchBlurAction(blurAction, target, e);
+  },
+  true
+);
+
 // ── Delegated change handler ──────────────────────────────────
 document.addEventListener('change', (e: Event) => {
   const target = e.target as HTMLElement;
@@ -1070,12 +1087,12 @@ document.addEventListener('change', (e: Event) => {
 //     refineClosePanel, refineToggleUpgrade, refineOpenDocAndClose,
 //     refineConfirmDelete, refineExecuteUpgrade, refineRemoveDep,
 //     refineExecuteCreate) are intentionally absent below — see
-//     REFINE_ACTIONS in refine.ts. (saveRpTitle and saveRpStoryPoints stay
-//     on this bridge: the inline-edit inputs' onblur attributes are out of
-//     scope for the data-action click dispatcher. cancelRpTitleEdit moved
-//     off this bridge in a later pass — see the "Keydown-event registry"
-//     paragraph below. The priority <select>'s onchange now calls
-//     saveRpPriority directly via addEventListener instead of the bridge.)
+//     REFINE_ACTIONS in refine.ts. (cancelRpTitleEdit moved off this bridge
+//     in a later pass — see the "Keydown-event registry" paragraph below.
+//     saveRpTitle/saveRpStoryPoints moved off this bridge too, in a later
+//     pass still — see the "Blur-event registry" paragraph below. The
+//     priority <select>'s onchange now calls saveRpPriority directly via
+//     addEventListener instead of the bridge.)
 //   - The empty-cell-create and split popups' close/confirm buttons
 //     (refine-nodes.ts's _openCellCreateForm/_openCanvasSplit templates —
 //     the last two sites that were still reached via
@@ -1220,6 +1237,20 @@ document.addEventListener('change', (e: Event) => {
 // The remaining `onkeydown="..."` sites — refine.ts's story-points input and
 // index.html's SP input — both branches of each just call `this.blur()`,
 // nothing to remove from this bridge — are left as plain inline attributes.
+//
+// A sixth, independent registry now covers `blur` too (see the "Blur-event
+// registry" section of actions.ts) — a proof-of-concept spike on the two
+// sites the keydown paragraph above (and this bridge's own comment, until
+// this pass) named as the reason `blur` wasn't covered yet:
+//   - refine.ts's title-edit input (former `onblur="saveRpTitle()"`, now
+//     `data-blur-action`).
+//   - refine.ts's story-points input (former
+//     `onblur="saveRpStoryPoints('${ef}','${et}')"`, now `data-blur-action`,
+//     with its filename/docType args moved to data-filename/data-doctype
+//     attributes — the same onclick-string-to-data-attribute move every
+//     other migration on this bridge has made).
+// saveRpTitle and saveRpStoryPoints are intentionally absent below — see the
+// registerBlurActions() call in refine.ts.
 const _dynGlobals: Record<string, unknown> = {
   // list-render.ts / list-filters.ts
   toggleItemCollapse,
@@ -1252,17 +1283,17 @@ const _dynGlobals: Record<string, unknown> = {
   // in index.html, now migrated to registerKeydownActions — see
   // DETAIL_TITLE_KEYDOWN_ACTION in detail.ts.
   saveStoryPoints,
-  // refine.js — saveRpTitle/saveRpStoryPoints back the refine panel's
-  // inline-edit inputs' onblur attributes (out of scope for the data-action
-  // click dispatcher — see REFINE_ACTIONS in refine.ts). cancelRpTitleEdit
-  // moved off this bridge (issue #461's keydown-registry spike): its only
-  // caller was the title input's onkeydown Escape branch, now migrated to
-  // registerKeydownActions. openRefinePanel was audited and confirmed to
-  // have no remaining onclick="..." caller anywhere — every call site is a
-  // direct function import (refine-canvas.ts, refine-nodes.ts, refine.ts) —
-  // so it's removed from this bridge rather than left pending.
-  saveRpTitle,
-  saveRpStoryPoints,
+  // refine.js — cancelRpTitleEdit moved off this bridge (issue #461's
+  // keydown-registry spike): its only caller was the title input's onkeydown
+  // Escape branch, now migrated to registerKeydownActions. saveRpTitle/
+  // saveRpStoryPoints moved off this bridge too (issue #461's blur-registry
+  // spike): their only inline-attribute callers were the title/SP inputs'
+  // onblur attributes, now migrated to registerBlurActions — see
+  // RP_TITLE_BLUR_ACTION/RP_SP_BLUR_ACTION in refine.ts. openRefinePanel was
+  // audited and confirmed to have no remaining onclick="..." caller
+  // anywhere — every call site is a direct function import
+  // (refine-canvas.ts, refine-nodes.ts, refine.ts) — so it's removed from
+  // this bridge rather than left pending.
   // refine-nodes.ts — closeRefinePanel/_executeCanvasSplit moved off this
   // bridge onto REFINE_NODES_ACTIONS (issue #461); see that module. This
   // pass also removed _showEdgePopup/_deleteCanvasLink/_changeCanvasLinkType
