@@ -1,5 +1,25 @@
 // ── Upgrade panel ─────────────────────────────────────────────
 import { streamSSE, stripFrontmatter, TYPE_LABEL, renderMarkdown } from './state.js';
+import { registerActions } from './actions.js';
+// Typed data-action registry migration (issue #461) — see SKILL_ACTIONS in
+// skills.ts / DOC_ACTIONS in documentation.ts for the established pattern.
+// Both actions were already directly imported into main.ts and reached
+// through data-action="toggleUpgradePanel" / data-action="executeUpgrade" in
+// index.html — the data-action strings themselves are unchanged, this only
+// moves *where* dispatch happens, off main.ts's central switch and onto
+// this module's own registration.
+export const UPGRADE_ACTIONS = {
+  toggle: 'toggleUpgradePanel',
+  execute: 'executeUpgrade',
+};
+registerActions({
+  [UPGRADE_ACTIONS.toggle]: () => {
+    toggleUpgradePanel();
+  },
+  [UPGRADE_ACTIONS.execute]: () => {
+    executeUpgrade();
+  },
+});
 export function toggleUpgradePanel() {
   const panel = document.getElementById('upgrade-panel');
   const isOpen = panel.classList.toggle('open');

@@ -44,7 +44,6 @@ import {
 } from './detail.js';
 import { saveStoryPoints } from './detail-fields.js';
 import { toggleHierarchy } from './detail-links.js';
-import { toggleUpgradePanel, executeUpgrade } from './upgrade.js';
 import {
   saveDraft,
   generateDoc,
@@ -527,12 +526,6 @@ document.addEventListener('click', (e) => {
     // ── Detail view ─────────────────────────────────────────
     case 'showList':
       showList();
-      break;
-    case 'toggleUpgradePanel':
-      toggleUpgradePanel();
-      break;
-    case 'executeUpgrade':
-      executeUpgrade();
       break;
     case 'toggleDropdown':
       toggleDropdown(btn.dataset.dropdownId ?? '');
