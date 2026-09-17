@@ -3,6 +3,24 @@
 // The user then uses Cmd+P / Ctrl+P → "Save as PDF" in the browser.
 import { showJiraToast, escHtml, openModal, closeModal } from './state.js';
 import { getAllSprints } from './roadmap.js';
+// Pure: builds the `/api/export/roadmap` query string from the export dialog's
+// selections, or null when nothing was selected to export (the caller shows
+// the "select at least one section" error in that case).
+export function buildRoadmapExportQuery(sel) {
+  const includes = [
+    sel.includeRoadmap && 'roadmap',
+    sel.includeTitles && 'titles',
+    sel.includeDescs && 'descriptions',
+    sel.includeCharts && 'charts',
+  ].filter(Boolean);
+  if (!includes.length) return null;
+  const params = new URLSearchParams({ includes: includes.join(',') });
+  if (sel.visiblePis.length) params.set('pi', sel.visiblePis.join(','));
+  if (sel.hideEmptyEpics) params.set('hideEmpty', '1');
+  if (sel.sprints.length) params.set('sprints', sel.sprints.join(','));
+  if (sel.teams.length) params.set('teams', sel.teams.join(','));
+  return params.toString();
+}
 export async function exportEpicToPdf(filename, docType) {
   docType = docType || 'epic';
   const url = `/api/export/doc/${docType}/${encodeURIComponent(filename)}`;
@@ -62,16 +80,6 @@ export async function executeRoadmapExport() {
   const includeDescs = document.getElementById('rexp-issue-descriptions')?.checked;
   const includeCharts = document.getElementById('rexp-distribution-charts')?.checked;
   const hideEmptyEpics = document.getElementById('rexp-hide-empty-epics')?.checked;
-  const includes = [
-    includeRoadmap && 'roadmap',
-    includeTitles && 'titles',
-    includeDescs && 'descriptions',
-    includeCharts && 'charts',
-  ].filter(Boolean);
-  if (!includes.length) {
-    showJiraToast('error', 'Select at least one section to export');
-    return;
-  }
   // Read selected sprints from filter checkboxes
   const selectedSprintCbs = document.querySelectorAll(
     '#rexp-sprint-list input[type="checkbox"]:checked'
@@ -82,15 +90,22 @@ export async function executeRoadmapExport() {
     '#rexp-team-list input[type="checkbox"]:checked'
   );
   const selectedTeams = [...selectedTeamCbs].map((cb) => cb.value);
+  const query = buildRoadmapExportQuery({
+    includeRoadmap: !!includeRoadmap,
+    includeTitles: !!includeTitles,
+    includeDescs: !!includeDescs,
+    includeCharts: !!includeCharts,
+    hideEmptyEpics: !!hideEmptyEpics,
+    visiblePis: _roadmapVisiblePis ? [..._roadmapVisiblePis] : [],
+    sprints: selectedSprints,
+    teams: selectedTeams,
+  });
+  if (query === null) {
+    showJiraToast('error', 'Select at least one section to export');
+    return;
+  }
   closeRoadmapExportDialog();
-  // Pass currently visible PIs as comma-separated query param
-  const visiblePis = _roadmapVisiblePis ? [..._roadmapVisiblePis].join(',') : '';
-  const params = new URLSearchParams({ includes: includes.join(',') });
-  if (visiblePis) params.set('pi', visiblePis);
-  if (hideEmptyEpics) params.set('hideEmpty', '1');
-  if (selectedSprints.length) params.set('sprints', selectedSprints.join(','));
-  if (selectedTeams.length) params.set('teams', selectedTeams.join(','));
-  const url = `/api/export/roadmap?${params.toString()}`;
+  const url = `/api/export/roadmap?${query}`;
   const win = window.open(url, '_blank');
   if (!win) {
     showJiraToast('error', 'Pop-up blocked — please allow pop-ups for this site');
