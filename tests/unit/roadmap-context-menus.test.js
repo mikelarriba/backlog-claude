@@ -41,8 +41,17 @@ mock.module('../../public/js/roadmap.js', {
 mock.module('../../public/js/dragdrop.js', {
   namedExports: { moveRankByType: async () => false },
 });
+// #486: roadmap-context-menus.js now also imports _announceRoadmapDragStatus
+// from roadmap-drag.js (so its shared _rmMove can announce context-menu
+// Move results through the same aria-live region the keyboard reorder paths
+// use). roadmap-drag.js statically pulls in the same heavy chain as
+// dragdrop.js above, so stub it here too — buildRoadmapCtxMoveAnnouncement
+// (the pure builder under test) never calls into it.
+mock.module('../../public/js/roadmap-drag.js', {
+  namedExports: { _announceRoadmapDragStatus: () => {} },
+});
 
-const { buildSprintSubmenuHtml, RM_CTX_ACTIONS } =
+const { buildSprintSubmenuHtml, buildRoadmapCtxMoveAnnouncement, RM_CTX_ACTIONS } =
   await import('../../public/js/roadmap-context-menus.js');
 
 function sprint(name, overrides = {}) {
@@ -151,5 +160,61 @@ describe('buildSprintSubmenuHtml()', () => {
     assert.match(html, /data-filename="&lt;a&gt;\.md"/);
     assert.match(html, /data-doc-type="&quot;story&quot;"/);
     assert.match(html, /&lt;b&gt;Sprint&lt;\/b&gt; &amp; &quot;Co&quot;/);
+  });
+});
+
+// ── buildRoadmapCtxMoveAnnouncement() (#486) ─────────────────────────────────
+// aria-live announcement for the epic/story context-menu Move up/down/top/
+// bottom actions, shared by _rmMove — same phrasing roadmap-render.ts's
+// buildEpicMoveAnnouncement uses for the epic panel's keyboard reorder
+// handle, parameterized by listLabel so one builder covers both panels.
+describe('buildRoadmapCtxMoveAnnouncement()', () => {
+  test('announces a successful single-step move by direction', () => {
+    assert.equal(
+      buildRoadmapCtxMoveAnnouncement('My Story', 'up', true, 'story list'),
+      'Moved My Story up in the story list.'
+    );
+    assert.equal(
+      buildRoadmapCtxMoveAnnouncement('My Story', 'down', true, 'story list'),
+      'Moved My Story down in the story list.'
+    );
+  });
+
+  test('announces a successful edge jump by naming the edge, not the raw action', () => {
+    assert.equal(
+      buildRoadmapCtxMoveAnnouncement('My Epic', 'top', true, 'epic list'),
+      'Moved My Epic to the top of the epic list.'
+    );
+    assert.equal(
+      buildRoadmapCtxMoveAnnouncement('My Epic', 'bottom', true, 'epic list'),
+      'Moved My Epic to the bottom of the epic list.'
+    );
+  });
+
+  test('announces a no-op at the top edge for both up and top', () => {
+    assert.equal(
+      buildRoadmapCtxMoveAnnouncement('My Epic', 'up', false, 'epic list'),
+      'My Epic is already at the top of the epic list.'
+    );
+    assert.equal(
+      buildRoadmapCtxMoveAnnouncement('My Epic', 'top', false, 'epic list'),
+      'My Epic is already at the top of the epic list.'
+    );
+  });
+
+  test('announces a no-op at the bottom edge for both down and bottom', () => {
+    assert.equal(
+      buildRoadmapCtxMoveAnnouncement('My Story', 'down', false, 'story list'),
+      'My Story is already at the bottom of the story list.'
+    );
+    assert.equal(
+      buildRoadmapCtxMoveAnnouncement('My Story', 'bottom', false, 'story list'),
+      'My Story is already at the bottom of the story list.'
+    );
+  });
+
+  test('the listLabel parameter distinguishes the epic panel from the story panel', () => {
+    assert.match(buildRoadmapCtxMoveAnnouncement('X', 'up', true, 'epic list'), /epic list/);
+    assert.match(buildRoadmapCtxMoveAnnouncement('X', 'up', true, 'story list'), /story list/);
   });
 });

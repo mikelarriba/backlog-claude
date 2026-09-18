@@ -9,6 +9,7 @@ import {
   ROADMAP_RENDER_CTX_ACTIONS,
 } from './roadmap-render.js';
 import { moveRankByType } from './dragdrop.js';
+import { _announceRoadmapDragStatus } from './roadmap-drag.js';
 import { openDoc } from './detail.js';
 import { upsertDoc } from './store.js';
 import { refreshRoadmapView } from './roadmap.js';
@@ -144,6 +145,42 @@ export function rmCtxOpenEpic(filename: string, docType: string): void {
   openDoc(filename, docType);
 }
 
+// Pure: builds the aria-live announcement for a roadmap epic/story
+// context-menu Move action (#486) — same up/down/top/bottom phrasing
+// roadmap-render.ts's buildEpicMoveAnnouncement uses for the epic panel's
+// keyboard reorder handle, parameterized by `listLabel` so this one builder
+// covers both the epic and story context menus that share _rmMove below.
+export function buildRoadmapCtxMoveAnnouncement(
+  title: string,
+  direction: 'up' | 'down' | 'top' | 'bottom',
+  moved: boolean,
+  listLabel: string
+): string {
+  const edge = direction === 'up' || direction === 'top' ? 'top' : 'bottom';
+  if (!moved) return `${title} is already at the ${edge} of the ${listLabel}.`;
+  if (direction === 'top' || direction === 'bottom')
+    return `Moved ${title} to the ${edge} of the ${listLabel}.`;
+  return `Moved ${title} ${direction} in the ${listLabel}.`;
+}
+
+// Focus is lost when refreshRoadmapView() rebuilds the whole board after a
+// move, since the old row/handle elements are discarded — restore it to the
+// moved row's (re-rendered) reorder handle, matching roadmap-drag.ts's
+// refocusHandle / roadmap-render.ts's refocusEpicHandle. One selector
+// covering both handle classes since _rmMove is shared by the epic and
+// story context menus and doesn't otherwise know which panel it moved in.
+function _refocusRoadmapRow(filename: string): void {
+  setTimeout(() => {
+    const escaped = CSS.escape(filename);
+    document
+      .querySelector<HTMLElement>(
+        `.rm-epic-card[data-filename="${escaped}"] .rm-epic-reorder-handle,` +
+          `.roadmap-card[data-filename="${escaped}"] .rm-reorder-handle`
+      )
+      ?.focus();
+  }, 50);
+}
+
 // Shared roadmap move for both the epic (top panel) and story (bottom panel)
 // context menus. Routes through the same per-type `moveRankByType` the backlog
 // multi-select move uses (dragdrop.ts), then refreshes the board. This replaces
@@ -154,15 +191,36 @@ export function rmCtxOpenEpic(filename: string, docType: string): void {
 // "move to the bottom" collapsed to index 0 (i.e. jumped to the top) while
 // up/down silently did nothing. Operating on the full per-type group removes
 // that whole class of bug and keeps the roadmap and backlog behaviour identical.
-async function _rmMove(filename: string, docType: string, direction: string): Promise<void> {
+// Announces the result and restores focus to the moved row's handle (#486) —
+// left open by #655, which added the epic panel's own keyboard reorder handle
+// but noted this context-menu path (the epic *and* story panels' shared Move
+// up/down/top/bottom entries) still had neither.
+async function _rmMove(
+  filename: string,
+  docType: string,
+  direction: string,
+  listLabel: string
+): Promise<void> {
+  const title = allDocs.find((d) => d.filename === filename)?.title ?? 'Item';
   try {
     const moved = await moveRankByType(
       filename,
       docType,
       direction as 'up' | 'down' | 'top' | 'bottom'
     );
+    _announceRoadmapDragStatus(
+      buildRoadmapCtxMoveAnnouncement(
+        title,
+        direction as 'up' | 'down' | 'top' | 'bottom',
+        moved,
+        listLabel
+      )
+    );
     // No-op at an edge (already top/bottom) just leaves the board unchanged.
-    if (moved) refreshRoadmapView();
+    if (moved) {
+      refreshRoadmapView();
+      _refocusRoadmapRow(filename);
+    }
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
   }
@@ -174,7 +232,7 @@ export async function rmCtxMoveEpic(
   direction: string
 ): Promise<void> {
   _closeRoadmapCtx();
-  await _rmMove(filename, docType, direction);
+  await _rmMove(filename, docType, direction, 'epic list');
 }
 
 // ── Sprint submenu builder ───────────────────────────────────
@@ -248,7 +306,7 @@ export async function rmCtxMoveStory(
   direction: string
 ): Promise<void> {
   _closeRoadmapCtx();
-  await _rmMove(filename, docType, direction);
+  await _rmMove(filename, docType, direction, 'story list');
 }
 
 // ── Estimated-sprint placeholder card context menu ───────────
