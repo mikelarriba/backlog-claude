@@ -139,7 +139,14 @@ export default function jiraSearchRoutes({
     if (!process.env.JIRA_API_TOKEN)
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     try {
-      type JiraVersion = { id: string; name: string; released?: boolean; archived?: boolean };
+      type JiraVersion = {
+        id: string;
+        name: string;
+        released?: boolean;
+        archived?: boolean;
+        startDate?: string;
+        releaseDate?: string;
+      };
       const data = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) ||
         []) as JiraVersion[];
       const versions = data.map((v) => ({
@@ -147,6 +154,8 @@ export default function jiraSearchRoutes({
         name: v.name,
         released: !!v.released,
         archived: !!v.archived,
+        startDate: v.startDate || null,
+        releaseDate: v.releaseDate || null,
       }));
       versions.sort((a, b) => {
         if (a.released !== b.released) return a.released ? 1 : -1;
@@ -267,7 +276,11 @@ export default function jiraSearchRoutes({
         if (!JIRA_BOARD_ID) {
           return sendError(res, 400, 'BOARD_NOT_CONFIGURED', 'JIRA_BOARD_ID not configured');
         }
-        const sprints = await fetchBoardSprints(jiraAgileRequest, JIRA_BOARD_ID);
+        const sprints = await fetchBoardSprints(
+          jiraAgileRequest,
+          JIRA_BOARD_ID,
+          'active,future,closed'
+        );
         const match = sprints.find((s) => s.name === scopeValue);
         if (!match) {
           return sendError(res, 404, 'SPRINT_NOT_FOUND', `Sprint "${scopeValue}" not found`);
@@ -444,7 +457,15 @@ export default function jiraSearchRoutes({
     }
 
     try {
-      const rawSprints = await fetchBoardSprints(jiraAgileRequest, JIRA_BOARD_ID);
+      // Include closed sprints too (#): the Documentation "By Sprint" tab
+      // documents what shipped, so a PO needs to pick already-completed
+      // sprints, not just active/future ones. ensureSprintCache still uses the
+      // active,future default for its push-time name→id lookup.
+      const rawSprints = await fetchBoardSprints(
+        jiraAgileRequest,
+        JIRA_BOARD_ID,
+        'active,future,closed'
+      );
       const sprints = rawSprints.map((s) => ({
         id: s.id,
         name: s.name,
