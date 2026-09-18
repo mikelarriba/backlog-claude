@@ -36,6 +36,18 @@ export const DOC_ACTIONS = {
   // existing data-action string as the registered name" shortcut #646 used
   // for toggleModelSection.
   search: 'docSearch',
+  // The rest of the Documentation view's click switch cases (issue #461
+  // migration, same shortcut as search above — each data-action string in
+  // index.html is unchanged, only the dispatch moves off main.ts's central
+  // switch onto this module's own registry).
+  setTypeFilter: 'docSetTypeFilter',
+  askAI: 'askAI',
+  selectAllSuggestions: 'selectAllSuggestions',
+  deselectAllSuggestions: 'deselectAllSuggestions',
+  modify: 'modifyDocumentation',
+  exportPdf: 'exportDocumentationPdf',
+  undo: 'undoChanges',
+  searchIssues: 'searchDocumentationIssues',
 } as const;
 
 registerActions({
@@ -56,6 +68,30 @@ registerActions({
   },
   [DOC_ACTIONS.search]: () => {
     docSearch();
+  },
+  [DOC_ACTIONS.setTypeFilter]: (el) => {
+    docSetTypeFilter(el.dataset.filterValue as DocTypeFilter);
+  },
+  [DOC_ACTIONS.askAI]: () => {
+    void askAI();
+  },
+  [DOC_ACTIONS.selectAllSuggestions]: () => {
+    selectAllSuggestions();
+  },
+  [DOC_ACTIONS.deselectAllSuggestions]: () => {
+    deselectAllSuggestions();
+  },
+  [DOC_ACTIONS.modify]: () => {
+    modifyDocumentation();
+  },
+  [DOC_ACTIONS.exportPdf]: () => {
+    void exportDocumentationPdf();
+  },
+  [DOC_ACTIONS.undo]: () => {
+    void undoChanges();
+  },
+  [DOC_ACTIONS.searchIssues]: () => {
+    void searchDocumentationIssues();
   },
 });
 

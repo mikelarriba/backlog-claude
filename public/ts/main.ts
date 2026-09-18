@@ -140,18 +140,7 @@ import {
   analyzeBugs,
   toggleBugsAnalysis,
 } from './bugs-dashboard.js';
-import {
-  loadDocumentationView,
-  docSetTypeFilter,
-  docSetFixVersion,
-  searchDocumentationIssues,
-  askAI,
-  selectAllSuggestions,
-  deselectAllSuggestions,
-  modifyDocumentation,
-  undoChanges,
-  exportDocumentationPdf,
-} from './documentation.js';
+import { loadDocumentationView, docSetFixVersion } from './documentation.js';
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -872,32 +861,11 @@ document.addEventListener('click', (e: MouseEvent) => {
       break;
 
     // ── Documentation view ─────────────────────────────────────
-    // docSearch moved off this switch onto DOC_ACTIONS (issue #461); see
-    // documentation.ts.
-    case 'docSetTypeFilter':
-      docSetTypeFilter(btn.dataset.filterValue as 'all' | 'epic' | 'story' | 'bug');
-      break;
-    case 'askAI':
-      void askAI();
-      break;
-    case 'selectAllSuggestions':
-      selectAllSuggestions();
-      break;
-    case 'deselectAllSuggestions':
-      deselectAllSuggestions();
-      break;
-    case 'modifyDocumentation':
-      modifyDocumentation();
-      break;
-    case 'exportDocumentationPdf':
-      void exportDocumentationPdf();
-      break;
-    case 'undoChanges':
-      void undoChanges();
-      break;
-    case 'searchDocumentationIssues':
-      void searchDocumentationIssues();
-      break;
+    // Every Documentation-view click case (docSearch, docSetTypeFilter,
+    // askAI, selectAllSuggestions, deselectAllSuggestions,
+    // modifyDocumentation, exportDocumentationPdf, undoChanges,
+    // searchDocumentationIssues) has moved off this switch onto DOC_ACTIONS
+    // (issue #461); see documentation.ts.
 
     // ── Bugs view ─────────────────────────────────────────────
     case 'refreshBugsDashboard':
@@ -1326,9 +1294,12 @@ const _dynGlobals: Record<string, unknown> = {
   // too, onto the change-action registry (see the "Change-event registry"
   // section of actions.ts and the registerChangeActions() call in
   // documentation.ts). docSearch's onkeydown moved off this bridge too, onto
-  // DOC_KEYDOWN_ACTIONS (issue #461's keydown-registry), and its click site
-  // (the Search button) has since moved off this file's click switch onto
-  // DOC_ACTIONS.search (issue #461).
+  // DOC_KEYDOWN_ACTIONS (issue #461's keydown-registry). Every Documentation
+  // view click case — docSearch plus docSetTypeFilter/askAI/
+  // selectAllSuggestions/deselectAllSuggestions/modifyDocumentation/
+  // exportDocumentationPdf/undoChanges/searchDocumentationIssues — has since
+  // moved off this file's click switch onto DOC_ACTIONS (issue #461); the
+  // whole Documentation view is now off this bridge and that switch.
   // jira-import.ts — searchJira/pullByKey's onkeydown sites moved off this
   // bridge onto JIRA_IMPORT_KEYDOWN_ACTIONS (issue #461's keydown-registry);
   // see that module. Their click sites (Search/Import buttons) have since
