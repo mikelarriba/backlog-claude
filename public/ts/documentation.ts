@@ -729,6 +729,10 @@ export interface ConfluenceSuggestion {
   action: 'Create' | 'Update' | 'Delete';
   currentContent: string;
   proposedContent: string;
+  // #662: deep link to the target page (Update/Delete) or proposed parent
+  // page (Create), resolved server-side in /analyze; null/absent when
+  // Confluence isn't configured or the page couldn't be resolved.
+  pageUrl?: string | null;
 }
 
 let _suggestions: ConfluenceSuggestion[] = [];
@@ -998,6 +1002,7 @@ export function buildSuggestionRowHtml(
           <span class="doc-suggestion-status" data-index="${index}"></span>
         </div>
         <div class="doc-suggestion-path">${escHtml(s.hierarchyPath)}</div>
+        ${_buildSuggestionLinkHtml(s)}
         <div class="doc-suggestion-error-text" data-index="${index}"></div>
       </div>
       <span class="doc-suggestion-chevron">\u25be</span>
@@ -1008,6 +1013,33 @@ export function buildSuggestionRowHtml(
       </div>
     </div>
   </div>`;
+}
+
+// Pure: the last segment of a " > "-joined hierarchy path is the immediate
+// parent (see mapPageSummary in confluenceService.ts, which the analysis
+// prompt's existing-page listing — and so a Create suggestion's proposed
+// hierarchyPath — mirrors). Falls back to the raw path when it has no " > "
+// separator (e.g. a single-level parent).
+function _parentTitleFromHierarchyPath(hierarchyPath: string): string {
+  const segments = (hierarchyPath || '')
+    .split('>')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return segments.length ? segments[segments.length - 1] : hierarchyPath || '';
+}
+
+// Pure: renders the suggestion's Confluence deep link, if one was resolved
+// (#662). Update/Delete link to the existing target page; Create links to
+// the proposed parent instead, since the new page doesn't exist yet.
+// Renders nothing when pageUrl is null/absent (Confluence unconfigured or
+// the page couldn't be resolved) so the UI degrades gracefully.
+function _buildSuggestionLinkHtml(s: ConfluenceSuggestion): string {
+  if (!s.pageUrl) return '';
+  const label =
+    s.action === 'Create'
+      ? `New page under: ${escHtml(_parentTitleFromHierarchyPath(s.hierarchyPath))}`
+      : 'View page in Confluence';
+  return `<a class="doc-suggestion-link" href="${escHtml(s.pageUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${label} ↗</a>`;
 }
 
 function _renderSuggestionRow(s: ConfluenceSuggestion, index: number): string {

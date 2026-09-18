@@ -41,6 +41,10 @@ const ConfluenceSuggestionSchema = z
     action: z.enum(['Create', 'Update', 'Delete']).openapi({ description: 'Action to apply' }),
     currentContent: z.string().optional().openapi({ description: 'Current page content' }),
     proposedContent: z.string().optional().openapi({ description: 'Proposed page content' }),
+    pageUrl: z.string().nullable().optional().openapi({
+      description:
+        'Deep link to the target Confluence page (Update/Delete) or proposed parent page (Create); null when not resolvable',
+    }),
   })
   .openapi('ConfluenceSuggestion');
 

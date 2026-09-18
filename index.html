@@ -1206,6 +1206,10 @@
 
             <!-- AI Analysis Results (#372) -->
             <div class="doc-results-panel" id="doc-results-panel" style="display: none">
+              <!-- #662: visual break from the Epics/issues list above — only
+                   ever visible while the panel itself is (display:none until
+                   analysis runs), so no extra show/hide wiring is needed. -->
+              <div class="doc-results-divider" aria-hidden="true"></div>
               <div class="doc-results-header">AI Suggestions</div>
 
               <!-- Loading (reuses the JIRA-search loading styles) -->
