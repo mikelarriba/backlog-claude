@@ -39,6 +39,16 @@ export interface ConfluenceSuggestion {
   action: 'Create' | 'Update' | 'Delete';
   currentContent: string;
   proposedContent: string;
+  // #662: deep-link to the real Confluence page this suggestion targets —
+  // the existing page being Updated/Deleted, or the proposed *parent* page
+  // for a Create (the new page doesn't exist yet). Populated by /analyze
+  // (see resolveSuggestionLink below) from the same page tree used to
+  // ground the AI analysis (#557); absent/null whenever Confluence isn't
+  // configured or the page can't be resolved, so callers must treat it as
+  // best-effort. Not set by parseConfluenceSuggestions itself (the AI never
+  // produces this field) and ignored by /execute and /export, which only
+  // read the fields they already used.
+  pageUrl?: string | null;
 }
 
 const VALID_ACTIONS = new Set(['Create', 'Update', 'Delete']);
@@ -121,6 +131,45 @@ function quoteJql(key: string): string {
   return `"${key.replace(/"/g, '\\"')}"`;
 }
 
+// ── Suggestion → Confluence page link resolution (#662) ─────────────────────
+// Builds the classic Confluence permalink (`pageId`-keyed, so it works
+// regardless of space key or title encoding) for a page already known from
+// the page-tree listing used to ground the analysis. Kept a plain string
+// build (no extra API call) since the id is already in hand. Exported for
+// unit testing, same rationale as parseConfluenceSuggestions above.
+export function buildConfluencePageUrl(base: string, pageId: string): string {
+  return `${base}/wiki/pages/viewpage.action?pageId=${encodeURIComponent(pageId)}`;
+}
+
+// For Update/Delete, the suggestion's own pageTitle must exactly match an
+// existing page (enforced by the analysis prompt, see aiPromptBuilder.ts).
+// For Create, there is no existing page to link to yet, so this links to
+// the proposed *parent* instead — the last segment of the suggestion's
+// hierarchyPath, which mirrors the " > "-joined ancestor path the existing
+// page tree is listed with (see mapPageSummary in confluenceService.ts).
+// Best-effort throughout: returns null (never throws) whenever the base
+// isn't configured or the page/parent can't be found by exact title.
+export function resolveSuggestionLink(
+  suggestion: Pick<ConfluenceSuggestion, 'action' | 'pageTitle' | 'hierarchyPath'>,
+  pagesByTitle: Map<string, { id: string }>,
+  base: string
+): string | null {
+  if (!base) return null;
+
+  const targetTitle =
+    suggestion.action === 'Create'
+      ? (suggestion.hierarchyPath || '')
+          .split('>')
+          .map((segment) => segment.trim())
+          .filter(Boolean)
+          .pop()
+      : suggestion.pageTitle;
+  if (!targetTitle) return null;
+
+  const page = pagesByTitle.get(targetTitle);
+  return page ? buildConfluencePageUrl(base, page.id) : null;
+}
+
 // Fetches `summary,description` for a set of issue keys via batched JQL
 // (`key in (...)`) instead of one GET per key (#631) — the per-key approach
 // trips JIRA's rate limiter at realistic scale (hundreds of keys) and turns
@@ -178,6 +227,7 @@ export default function confluenceRoutes({
   loadCommand,
   logError,
   logWarn,
+  CONFLUENCE_BASE,
   confluenceGetSpace,
   confluenceGetPageByTitle,
   confluenceListPages,
@@ -269,13 +319,10 @@ export default function confluenceRoutes({
         // configured, and best-effort (a listing failure is logged and
         // swallowed rather than failing the whole analysis) since this is
         // grounding context, not a hard requirement of the endpoint.
-        let existingPages: Array<{ title: string; hierarchyPath: string }> = [];
+        let existingPages: Array<{ id: string; title: string; hierarchyPath: string }> = [];
         if (!confluenceNotConfigured()) {
           try {
-            existingPages = (await confluenceListPages()).map((p) => ({
-              title: p.title,
-              hierarchyPath: p.hierarchyPath,
-            }));
+            existingPages = await confluenceListPages();
           } catch (err) {
             const apiErr = parseApiError(err);
             logError('POST /api/confluence/analyze', 'Failed to list Confluence pages', {
@@ -312,8 +359,17 @@ export default function confluenceRoutes({
           );
         }
 
+        // #662: attach each suggestion's deep link (existing page for
+        // Update/Delete, proposed parent for Create) from the same page
+        // tree just listed above — best-effort, never blocks the response.
+        const pagesByTitle = new Map(existingPages.map((p) => [p.title, { id: p.id }]));
+        const suggestionsWithLinks: ConfluenceSuggestion[] = suggestions.map((s) => ({
+          ...s,
+          pageUrl: resolveSuggestionLink(s, pagesByTitle, CONFLUENCE_BASE),
+        }));
+
         res.json({
-          suggestions,
+          suggestions: suggestionsWithLinks,
           warnings:
             unreachable.length > 0
               ? {

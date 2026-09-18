@@ -4,7 +4,11 @@
 // covered by tests/integration/confluence.test.js.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConfluenceSuggestions } from '../../src/routes/confluence.ts';
+import {
+  parseConfluenceSuggestions,
+  resolveSuggestionLink,
+  buildConfluencePageUrl,
+} from '../../src/routes/confluence.ts';
 
 describe('parseConfluenceSuggestions', () => {
   test('parses a well-formed JSON array', () => {
@@ -67,5 +71,91 @@ describe('parseConfluenceSuggestions', () => {
   test('throws when a suggestion has an invalid action', () => {
     const raw = JSON.stringify([{ pageTitle: 'Page A', action: 'Archive' }]);
     assert.throws(() => parseConfluenceSuggestions(raw), /missing required fields|invalid action/);
+  });
+});
+
+// ── Unit tests: resolveSuggestionLink / buildConfluencePageUrl (#662) ─────────
+describe('buildConfluencePageUrl', () => {
+  test('builds a pageId-keyed viewpage.action permalink', () => {
+    assert.equal(
+      buildConfluencePageUrl('https://example.atlassian.net', '12345'),
+      'https://example.atlassian.net/wiki/pages/viewpage.action?pageId=12345'
+    );
+  });
+});
+
+describe('resolveSuggestionLink', () => {
+  const pagesByTitle = new Map([
+    ['MIDAS Upload API', { id: '111' }],
+    ['API Reference', { id: '222' }],
+  ]);
+  const base = 'https://example.atlassian.net';
+
+  test('Update: links to the existing page matching pageTitle', () => {
+    const url = resolveSuggestionLink(
+      { action: 'Update', pageTitle: 'MIDAS Upload API', hierarchyPath: '' },
+      pagesByTitle,
+      base
+    );
+    assert.equal(url, 'https://example.atlassian.net/wiki/pages/viewpage.action?pageId=111');
+  });
+
+  test('Delete: links to the existing page matching pageTitle', () => {
+    const url = resolveSuggestionLink(
+      { action: 'Delete', pageTitle: 'MIDAS Upload API', hierarchyPath: '' },
+      pagesByTitle,
+      base
+    );
+    assert.equal(url, 'https://example.atlassian.net/wiki/pages/viewpage.action?pageId=111');
+  });
+
+  test('Create: links to the parent page (last segment of hierarchyPath)', () => {
+    const url = resolveSuggestionLink(
+      { action: 'Create', pageTitle: 'New Page', hierarchyPath: 'MIDAS > API Reference' },
+      pagesByTitle,
+      base
+    );
+    assert.equal(url, 'https://example.atlassian.net/wiki/pages/viewpage.action?pageId=222');
+  });
+
+  test('returns null when the target/parent page cannot be found', () => {
+    assert.equal(
+      resolveSuggestionLink(
+        { action: 'Update', pageTitle: 'Unknown Page', hierarchyPath: '' },
+        pagesByTitle,
+        base
+      ),
+      null
+    );
+    assert.equal(
+      resolveSuggestionLink(
+        { action: 'Create', pageTitle: 'New Page', hierarchyPath: 'Nonexistent Parent' },
+        pagesByTitle,
+        base
+      ),
+      null
+    );
+  });
+
+  test('returns null when base is empty (Confluence not configured)', () => {
+    assert.equal(
+      resolveSuggestionLink(
+        { action: 'Update', pageTitle: 'MIDAS Upload API', hierarchyPath: '' },
+        pagesByTitle,
+        ''
+      ),
+      null
+    );
+  });
+
+  test('returns null for Create when hierarchyPath is empty', () => {
+    assert.equal(
+      resolveSuggestionLink(
+        { action: 'Create', pageTitle: 'New Page', hierarchyPath: '' },
+        pagesByTitle,
+        base
+      ),
+      null
+    );
   });
 });

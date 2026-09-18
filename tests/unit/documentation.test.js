@@ -92,6 +92,45 @@ describe('buildSuggestionRowHtml()', () => {
     );
     assert.match(html, /doc-diff-content"/);
   });
+
+  // ── Confluence page link (#662) ─────────────────────────────────────────
+  test('Update/Delete with a pageUrl: renders a "View page in Confluence" link', () => {
+    const html = buildSuggestionRowHtml(
+      makeSuggestion({
+        action: 'Update',
+        pageUrl: 'https://example.atlassian.net/wiki/pages/viewpage.action?pageId=1',
+      }),
+      0,
+      false,
+      false
+    );
+    assert.match(html, /class="doc-suggestion-link"/);
+    assert.match(
+      html,
+      /href="https:\/\/example\.atlassian\.net\/wiki\/pages\/viewpage\.action\?pageId=1"/
+    );
+    assert.match(html, /target="_blank"/);
+    assert.match(html, /View page in Confluence/);
+  });
+
+  test('Create with a pageUrl: renders a "New page under: <parent>" link using the last hierarchyPath segment', () => {
+    const html = buildSuggestionRowHtml(
+      makeSuggestion({
+        action: 'Create',
+        hierarchyPath: 'MIDAS > API Reference',
+        pageUrl: 'https://example.atlassian.net/wiki/pages/viewpage.action?pageId=2',
+      }),
+      0,
+      false,
+      false
+    );
+    assert.match(html, /New page under: API Reference/);
+  });
+
+  test('no pageUrl: renders no link (degrades gracefully)', () => {
+    const html = buildSuggestionRowHtml(makeSuggestion({ pageUrl: null }), 0, false, false);
+    assert.doesNotMatch(html, /doc-suggestion-link/);
+  });
 });
 
 // ── matchExecuteResults() (#615) ─────────────────────────────────────────────

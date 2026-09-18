@@ -531,6 +531,16 @@
   border-top: 1px solid var(--border);
 }
 
+/* #662: extra visual break above the header, on top of .doc-results-panel's
+   own border-top — the panel sits directly next to the Epics list (in
+   either DOM order) and is only ever visible while the panel itself is, so
+   this needs no separate show/hide wiring. */
+.doc-results-divider {
+  height: 1px;
+  margin-bottom: 4px;
+  background: var(--border);
+}
+
 .doc-results-header {
   font-size: 0.9rem;
   font-weight: 600;
@@ -597,6 +607,19 @@
 .doc-suggestion-path {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+/* #662: deep link to the suggestion's target (Update/Delete) or proposed
+   parent (Create) Confluence page. */
+.doc-suggestion-link {
+  font-size: 0.75rem;
+  color: var(--accent);
+  text-decoration: none;
+  width: fit-content;
+}
+
+.doc-suggestion-link:hover {
+  text-decoration: underline;
 }
 
 .doc-suggestion-chevron {
