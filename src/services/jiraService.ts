@@ -43,6 +43,8 @@ export interface JiraServiceInstance {
   ) => Promise<unknown[]>;
   jiraAgileRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
+  getMyself: () => Promise<{ name: string; displayName: string }>;
+  addComment: (issueKey: string, body: string) => Promise<unknown>;
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
   jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };
   extractJiraSummary: (content: string) => string;
@@ -359,6 +361,23 @@ ${description || '_No description in JIRA._'}
     return 'Untitled';
   }
 
+  // Cached for the process lifetime — the PAT identity never changes at runtime,
+  // and this is only used to detect [~username] mentions in comments.
+  let _myself: { name: string; displayName: string } | null = null;
+  async function getMyself(): Promise<{ name: string; displayName: string }> {
+    if (_myself) return _myself;
+    const data = (await jiraRequest('GET', '/myself')) as {
+      name?: string;
+      displayName?: string;
+    };
+    _myself = { name: data.name || '', displayName: data.displayName || data.name || '' };
+    return _myself;
+  }
+
+  async function addComment(issueKey: string, body: string): Promise<unknown> {
+    return jiraRequest('POST', `/issue/${issueKey}/comment`, { body });
+  }
+
   async function jiraUploadAttachment(
     issueKey: string,
     filename: string,
@@ -391,6 +410,8 @@ ${description || '_No description in JIRA._'}
     jiraAgileRequest,
     jiraPagedRequest,
     jiraUploadAttachment,
+    getMyself,
+    addComment,
     findLocalFileByJiraId,
     jiraIssueToMarkdown,
     extractJiraSummary,

@@ -40,6 +40,7 @@
     <link rel="stylesheet" href="/public/css/sidebar.css" />
     <link rel="stylesheet" href="/public/css/documentation.css" />
     <link rel="stylesheet" href="/public/css/ai-savings.css" />
+    <link rel="stylesheet" href="/public/css/comments.css" />
   </head>
   <body>
     <div class="app" id="app-root">
@@ -173,6 +174,29 @@
               <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
             </svg>
             <span class="sidebar-label">Bugs</span>
+          </button>
+          <button
+            class="sidebar-item"
+            data-view="comments"
+            data-action="navigateTo"
+            data-view-name="comments"
+            title="Comments"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
+              />
+            </svg>
+            <span class="sidebar-label">Comments</span>
           </button>
         </div>
         <!-- Compact, non-interactive AI Time Saved summary (last 4 weeks) -->
@@ -1417,6 +1441,45 @@
             </button>
           </div>
         </div>
+        <div id="comments-view" class="view-panel">
+          <div class="doc-header">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <button class="btn-ghost" data-action="navigateTo" data-view-name="backlog">
+                ← Back
+              </button>
+              <span class="doc-title">💬 JIRA Comments</span>
+            </div>
+          </div>
+          <div class="comments-body">
+            <div class="comments-filter-bar">
+              <div class="comments-filter-group" role="group" aria-label="Date range">
+                <button
+                  class="comments-filter-btn"
+                  data-action="commentsToggleRange"
+                  data-value="today"
+                >
+                  Today
+                </button>
+                <button
+                  class="comments-filter-btn"
+                  data-action="commentsToggleRange"
+                  data-value="week"
+                >
+                  Last week
+                </button>
+              </div>
+              <div class="comments-filter-group" role="group" aria-label="Author filters">
+                <button class="comments-filter-btn" data-action="commentsToggleNotReplied">
+                  Not replied by me
+                </button>
+                <button class="comments-filter-btn" data-action="commentsToggleMention">
+                  Mentions me
+                </button>
+              </div>
+            </div>
+            <div id="comments-list" class="comments-list"></div>
+          </div>
+        </div>
         <div id="suggestions-view" class="placeholder-view">
           <div class="icon">💬</div>
           <h2>Suggestions</h2>
@@ -2159,6 +2222,40 @@
           <button class="btn-secondary" data-action="closeIssueSplitModal">Cancel</button>
           <button class="btn-primary" id="issue-split-generate-btn" data-action="executeSplitIssue">
             Generate
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reply to JIRA comment modal -->
+    <div class="dialog-overlay" id="comment-reply-modal">
+      <div class="dialog" style="max-width: 560px">
+        <div class="split-dialog-header">
+          <h3>💬 Reply on <span id="comment-reply-key"></span></h3>
+          <button class="btn-ghost btn-xs" data-action="closeCommentReply">&times;</button>
+        </div>
+        <div class="comment-reply-context" id="comment-reply-context"></div>
+        <div class="split-dialog-body">
+          <label class="rp-label" style="margin-bottom: 6px; display: block">Your reply</label>
+          <textarea
+            class="rp-textarea"
+            id="comment-reply-text"
+            rows="5"
+            placeholder="Write your reply…"
+            style="width: 100%; box-sizing: border-box"
+          ></textarea>
+        </div>
+        <div
+          style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; min-height: 20px"
+          id="comment-reply-status"
+        ></div>
+        <div class="dialog-actions" style="margin-top: 12px">
+          <button class="btn-secondary" data-action="closeCommentReply">Cancel</button>
+          <button class="btn-secondary" id="comment-improve-btn" data-action="improveCommentReply">
+            ✨ Improve
+          </button>
+          <button class="btn-primary" id="comment-post-btn" data-action="postCommentReply">
+            Post to JIRA
           </button>
         </div>
       </div>

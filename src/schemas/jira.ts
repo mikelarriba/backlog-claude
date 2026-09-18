@@ -124,6 +124,44 @@ export const JiraSyncPullPreviewSchema = z
 
 export const JiraCheckAllSchema = z.object({}).strict().optional().openapi('JiraCheckAll');
 
+// ── jira-comments.ts ────────────────────────────────────────────────────────────
+
+const IsoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+  .openapi({ description: 'Date in YYYY-MM-DD format' });
+
+export const JiraCommentsQuerySchema = z
+  .object({
+    from: IsoDateSchema.optional().openapi({
+      description: 'Start date (inclusive); clamped server-side to at most 2 months ago',
+    }),
+    to: IsoDateSchema.optional().openapi({ description: 'End date (inclusive)' }),
+    mentionedOnly: z
+      .enum(['true', 'false'])
+      .optional()
+      .openapi({ description: 'Only comments that @-mention the current user' }),
+    notRepliedByMe: z
+      .enum(['true', 'false'])
+      .optional()
+      .openapi({ description: 'Exclude comments authored by the current user' }),
+  })
+  .openapi('JiraCommentsQuery');
+
+export const JiraPostCommentSchema = z
+  .object({
+    text: z.string().min(1).openapi({ description: 'Comment body to post to the JIRA issue' }),
+  })
+  .strict()
+  .openapi('JiraPostComment');
+
+export const JiraImproveCommentSchema = z
+  .object({
+    text: z.string().min(1).openapi({ description: 'Draft comment text to improve' }),
+  })
+  .strict()
+  .openapi('JiraImproveComment');
+
 // ── jira-push-sprints.ts (pull side) ────────────────────────────────────────────
 
 export const JiraPullSprintPreviewSchema = z

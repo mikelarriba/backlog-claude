@@ -104,6 +104,10 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
     jiraCircuit.execute(() => rawJira.jiraPagedRequest(jql, fields, opts));
   const jiraUploadAttachment: JiraServiceInstance['jiraUploadAttachment'] = (key, name, buf) =>
     jiraCircuit.execute(() => rawJira.jiraUploadAttachment(key, name, buf));
+  const getMyself: JiraServiceInstance['getMyself'] = () =>
+    jiraCircuit.execute(() => rawJira.getMyself());
+  const addComment: JiraServiceInstance['addComment'] = (key, body) =>
+    jiraCircuit.execute(() => rawJira.addComment(key, body));
   const { findLocalFileByJiraId, jiraIssueToMarkdown, extractJiraSummary } = rawJira;
 
   const { handleEvents, broadcast } = createEventService();
@@ -171,6 +175,8 @@ export async function buildContext(rootDir: string): Promise<AppContext> {
     jiraAgileRequest,
     jiraPagedRequest,
     jiraUploadAttachment,
+    getMyself,
+    addComment,
     findLocalFileByJiraId,
     jiraIssueToMarkdown,
     extractJiraSummary,

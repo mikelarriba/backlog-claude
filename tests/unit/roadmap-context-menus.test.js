@@ -42,7 +42,7 @@ mock.module('../../public/js/dragdrop.js', {
   namedExports: { moveRankByType: async () => false },
 });
 
-const { buildSprintSubmenuHtml, RM_CTX_ACTIONS } =
+const { buildSprintSubmenuHtml, buildCategorySubmenuHtml, RM_CTX_ACTIONS } =
   await import('../../public/js/roadmap-context-menus.js');
 
 function sprint(name, overrides = {}) {
@@ -151,5 +151,53 @@ describe('buildSprintSubmenuHtml()', () => {
     assert.match(html, /data-filename="&lt;a&gt;\.md"/);
     assert.match(html, /data-doc-type="&quot;story&quot;"/);
     assert.match(html, /&lt;b&gt;Sprint&lt;\/b&gt; &amp; &quot;Co&quot;/);
+  });
+});
+
+describe('buildCategorySubmenuHtml()', () => {
+  const CATS = ['Platform Features', 'Testing Features', 'Technical Debt'];
+
+  test('returns an empty string when there are no categories', () => {
+    assert.equal(buildCategorySubmenuHtml('a.md', 'epic', [], null), '');
+  });
+
+  test('renders one button per category, plus the submenu wrapper', () => {
+    const html = buildCategorySubmenuHtml('a.md', 'epic', CATS, null);
+    assert.match(html, /ctx-submenu-wrap/);
+    assert.match(html, /Set Category ▸/);
+    assert.match(
+      html,
+      new RegExp(
+        `data-action="${RM_CTX_ACTIONS.setCategory}" data-filename="a\\.md" data-doc-type="epic" data-category="Platform Features"`
+      )
+    );
+    assert.match(html, /data-category="Testing Features"/);
+    assert.match(html, /data-category="Technical Debt"/);
+  });
+
+  test('marks the current category with a ✓ and leaves the others unmarked', () => {
+    const html = buildCategorySubmenuHtml('a.md', 'epic', CATS, 'Testing Features');
+    assert.match(html, /✓ Testing Features/);
+    assert.doesNotMatch(html, /✓ Platform Features/);
+  });
+
+  test('appends a separator and a "Clear category" danger button with an empty value', () => {
+    const html = buildCategorySubmenuHtml('a.md', 'epic', CATS, null);
+    assert.match(html, /ctx-separator/);
+    assert.match(
+      html,
+      new RegExp(
+        `ctx-item ctx-danger" data-action="${RM_CTX_ACTIONS.setCategory}" data-filename="a\\.md" data-doc-type="epic" data-category=""`
+      )
+    );
+    assert.match(html, /Clear category/);
+  });
+
+  test('escapes HTML-significant characters in the filename, docType, and category', () => {
+    const html = buildCategorySubmenuHtml('<a>.md', '"epic"', ['<b>Cat</b> & "Co"'], null);
+    assert.doesNotMatch(html, /<a>|<b>/);
+    assert.match(html, /data-filename="&lt;a&gt;\.md"/);
+    assert.match(html, /data-doc-type="&quot;epic&quot;"/);
+    assert.match(html, /data-category="&lt;b&gt;Cat&lt;\/b&gt; &amp; &quot;Co&quot;"/);
   });
 });

@@ -114,6 +114,13 @@ import {
   startPullSprintPreview,
   confirmPullSprint,
 } from './roadmap-jira-sync.js';
+// Side-effect import: roadmap-context-menus.ts registers the roadmap epic/story
+// context-menu openers and action handlers at module load via
+// registerContextActions()/registerActions(). Nothing consumes its exports, so
+// without this import the module never loads and right-clicking a roadmap epic
+// falls through to the browser's native menu (the #461 contextmenu-registry
+// migration removed the old oncontextmenu bridge but left the module orphaned).
+import './roadmap-context-menus.js';
 import { loadSkillsView } from './skills.js';
 import { initDragDrop } from './dragdrop.js';
 import { loadModelSetting } from './provider-settings.js';
@@ -144,6 +151,7 @@ import {
   undoChanges,
   exportDocumentationPdf,
 } from './documentation.js';
+import { loadCommentsView } from './comments.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
@@ -222,6 +230,7 @@ function navigateTo(viewName) {
   document.getElementById('skills-view')?.classList.remove('show');
   document.getElementById('documentation-view')?.classList.remove('show');
   document.getElementById('bugs-view')?.classList.remove('show');
+  document.getElementById('comments-view')?.classList.remove('show');
   document.getElementById('suggestions-view')?.classList.remove('show');
   // Hide FAB when not in backlog
   const fabContainer = document.getElementById('fab-container');
@@ -257,6 +266,10 @@ function navigateTo(viewName) {
     case 'bugs':
       document.getElementById('bugs-view')?.classList.add('show');
       loadBugsDashboard();
+      break;
+    case 'comments':
+      document.getElementById('comments-view')?.classList.add('show');
+      void loadCommentsView();
       break;
     case 'suggestions':
       document.getElementById('suggestions-view')?.classList.add('show');
