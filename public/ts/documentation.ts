@@ -152,6 +152,8 @@ interface JiraVersion {
   name: string;
   released: boolean;
   archived: boolean;
+  startDate?: string | null;
+  releaseDate?: string | null;
 }
 
 interface JiraSprint {
@@ -214,11 +216,37 @@ async function _loadDocSprints(): Promise<void> {
     _sprints = [];
   }
   if (select) {
+    // Order active \u2192 future \u2192 closed so the currently-relevant sprints sit at
+    // the top, and label each option with its state so a PO can tell open from
+    // closed sprints at a glance (the "By Sprint" tab now lists closed sprints
+    // too, since it documents what already shipped).
+    const rank: Record<string, number> = { active: 0, future: 1, closed: 2 };
+    const ordered = [..._sprints].sort(
+      (a, b) => (rank[a.state ?? ''] ?? 3) - (rank[b.state ?? ''] ?? 3)
+    );
     select.innerHTML =
       '<option value="">Select a sprint\u2026</option>' +
-      _sprints
-        .map((s) => `<option value="${escHtml(s.name)}">${escHtml(s.name)}</option>`)
+      ordered
+        .map(
+          (s) =>
+            `<option value="${escHtml(s.name)}">${escHtml(s.name)}${_sprintStateLabel(s.state)}</option>`
+        )
         .join('');
+  }
+}
+
+// Human-readable suffix for a sprint's JIRA state, shown in the By Sprint
+// dropdown so open vs. closed sprints are distinguishable.
+function _sprintStateLabel(state?: string): string {
+  switch (state) {
+    case 'active':
+      return ' \u2014 Active';
+    case 'future':
+      return ' \u2014 Future';
+    case 'closed':
+      return ' \u2014 Closed';
+    default:
+      return '';
   }
 }
 
@@ -232,9 +260,22 @@ async function _loadDocVersions(): Promise<void> {
     _versions = [];
   }
   if (select) {
+    // Only show unreleased versions here \u2014 the "By Fix Version" tab is for
+    // documenting upcoming/in-flight releases, not shipped ones. Order by
+    // release date (soonest first); versions without a date sort last.
+    const unreleased = _versions
+      .filter((v) => !v.released)
+      .sort((a, b) => {
+        const da = a.releaseDate || '';
+        const db = b.releaseDate || '';
+        if (!da && !db) return a.name.localeCompare(b.name);
+        if (!da) return 1;
+        if (!db) return -1;
+        return da.localeCompare(db);
+      });
     select.innerHTML =
       '<option value="">Select a fix version\u2026</option>' +
-      _versions
+      unreleased
         .map((v) => `<option value="${escHtml(v.name)}">${escHtml(v.name)}</option>`)
         .join('');
   }
