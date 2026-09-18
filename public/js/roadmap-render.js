@@ -252,9 +252,17 @@ export function renderEpicPanel(sprints) {
     entry.totalSP += Number(leaf.storyPoints) || 0;
     if (leaf.sprint) entry.sprints.add(leaf.sprint);
   }
-  // Also add epics/features with no children yet
+  // Also add epics/features with no children yet — but only when their own PI
+  // is visible, so deselecting a PI hides its childless epics too (a childless
+  // epic must not leak past the PI filter the way a story-bearing one can't).
+  // Mirrors the top-level visibility guard at line ~251: no fix version (TBD)
+  // stays visible, an assigned-but-deselected PI is filtered out.
   for (const d of allDocs) {
-    if (epicTypes.has(d.docType) && !epicMap.has(d.filename)) {
+    if (
+      epicTypes.has(d.docType) &&
+      (!d.fixVersion || _roadmapVisiblePis.has(d.fixVersion)) &&
+      !epicMap.has(d.filename)
+    ) {
       epicMap.set(d.filename, { epicDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
     }
   }

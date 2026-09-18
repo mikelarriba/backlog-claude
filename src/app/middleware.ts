@@ -45,6 +45,7 @@ export function applyMiddleware(app: Express, rootDir: string): void {
   app.use('/api/bugs/create', aiLimiter);
   app.use('/api/epic/:filename/stories', aiLimiter);
   app.use('/api/skills/:name/improve', aiLimiter);
+  app.use('/api/jira/comments/improve', aiLimiter);
   app.use('/api/jira', jiraLimiter);
 
   app.use(

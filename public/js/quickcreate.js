@@ -204,6 +204,10 @@ export async function executeQuickCreate() {
     // Inherit parent link and PI from the open doc
     if (type === 'epic' && currentDocType === 'feature' && currentFilename) {
       body.parentFeature = currentFilename;
+      const parentDoc = allDocs.find(
+        (d) => d.filename === currentFilename && d.docType === 'feature'
+      );
+      if (parentDoc?.fixVersion) body.fixVersion = parentDoc.fixVersion;
     }
     if (['story', 'spike', 'bug'].includes(type) && currentDocType === 'epic' && currentFilename) {
       body.parentEpic = currentFilename;

@@ -30,6 +30,7 @@ export const RM_CTX_ACTIONS = {
   moveEpic: 'rmCtxMoveEpicAction',
   moveStory: 'rmCtxMoveStoryAction',
   setSprint: 'rmCtxSetSprintAction',
+  setCategory: 'rmCtxSetCategoryAction',
   setEstSprint: 'rmCtxSetEstSprintAction',
 } as const;
 
@@ -56,6 +57,13 @@ registerActions({
       el.dataset.filename ?? '',
       el.dataset.docType ?? '',
       el.dataset.sprint ?? ''
+    );
+  },
+  [RM_CTX_ACTIONS.setCategory]: (el) => {
+    void rmCtxSetCategory(
+      el.dataset.filename ?? '',
+      el.dataset.docType ?? '',
+      el.dataset.category ?? ''
     );
   },
   [RM_CTX_ACTIONS.setEstSprint]: (el) => {
@@ -130,6 +138,7 @@ export function handleEpicContextMenu(e: MouseEvent, filename: string, docType: 
     <div class="ctx-separator"></div>
     <button class="ctx-item" data-action="${RM_CTX_ACTIONS.openEpic}" ${fnAttr}>Open Epic</button>
     ${_buildSprintSubmenu(filename, docType)}
+    ${_buildCategorySubmenu(filename, docType)}
     <div class="ctx-separator"></div>
     <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveEpic}" ${fnAttr} data-direction="up">Move up</button>
     <button class="ctx-item" data-action="${RM_CTX_ACTIONS.moveEpic}" ${fnAttr} data-direction="down">Move down</button>
@@ -217,6 +226,47 @@ export function buildSprintSubmenuHtml(
 
 function _buildSprintSubmenu(filename: string, docType: string): string {
   return buildSprintSubmenuHtml(filename, docType, piSettings, sprintConfig as SprintConfig);
+}
+
+// ── Category submenu builder ─────────────────────────────────
+// Same pure-builder / ambient-global-wrapper split as the sprint submenu above:
+// the list of work categories is passed in explicitly so this is testable
+// without the `_metaWorkCategories` global (loaded from /api/config/metadata).
+// `current` renders a ✓ next to the epic's active category. Writes go through
+// the same PATCH /api/doc endpoint detail-fields.ts's updateDocWorkCategory uses.
+export function buildCategorySubmenuHtml(
+  filename: string,
+  docType: string,
+  categories: string[],
+  current: string | null
+): string {
+  if (!categories.length) return '';
+
+  const fnAttr = `data-filename="${escHtml(filename)}" data-doc-type="${escHtml(docType)}"`;
+  let items = '';
+  for (const c of categories) {
+    const mark = c === current ? '✓ ' : '';
+    items += `<button class="ctx-item" data-action="${RM_CTX_ACTIONS.setCategory}" ${fnAttr} data-category="${escHtml(c)}">${mark}${escHtml(c)}</button>`;
+  }
+
+  items += `<div class="ctx-separator"></div>`;
+  items += `<button class="ctx-item ctx-danger" data-action="${RM_CTX_ACTIONS.setCategory}" ${fnAttr} data-category="">Clear category</button>`;
+
+  return `
+    <div class="ctx-submenu-wrap">
+      <button class="ctx-item ctx-has-sub">Set Category ▸</button>
+      <div class="ctx-submenu">${items}</div>
+    </div>`;
+}
+
+function _buildCategorySubmenu(filename: string, docType: string): string {
+  const current = allDocs.find((d) => d.filename === filename && d.docType === docType);
+  return buildCategorySubmenuHtml(
+    filename,
+    docType,
+    _metaWorkCategories,
+    current?.workCategory ?? null
+  );
 }
 
 // ── Story context menu (bottom panel) ────────────────────────
@@ -354,6 +404,30 @@ export async function rmCtxSetSprint(
     if (doc) upsertDoc({ ...doc, sprint: sprintName || null });
     renderRoadmapBoard();
     showJiraToast('success', sprintName ? `Moved to ${sprintName}` : 'Removed from sprint');
+  } catch (e) {
+    showJiraToast('error', getErrorMessage(e));
+  }
+}
+
+// Assign (or clear) the epic's work category. Mirrors rmCtxSetSprint: PATCH the
+// doc, apply the change locally, then re-render so the epic bar re-colours
+// (renderEpicPanel derives its colour from workCategory). An empty category
+// clears it back to TBD, same semantics as detail-fields.ts's category editor.
+export async function rmCtxSetCategory(
+  filename: string,
+  docType: string,
+  category: string
+): Promise<void> {
+  _closeRoadmapCtx();
+
+  try {
+    await patchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`, {
+      workCategory: category || null,
+    });
+    const doc = allDocs.find((d) => d.filename === filename && d.docType === docType);
+    if (doc) upsertDoc({ ...doc, workCategory: category || null });
+    renderRoadmapBoard();
+    showJiraToast('success', category ? `Category set to ${category}` : 'Category cleared');
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
   }
