@@ -126,13 +126,7 @@ import {
   exportAiSavingsPdf,
   exportAiSavingsPptx,
 } from './ai-savings.js';
-import {
-  loadBugsDashboard,
-  refreshBugsDashboard,
-  setBugsEnvFilter,
-  analyzeBugs,
-  toggleBugsAnalysis,
-} from './bugs-dashboard.js';
+import { loadBugsDashboard } from './bugs-dashboard.js';
 import { loadDocumentationView } from './documentation.js';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -775,18 +769,9 @@ document.addEventListener('click', (e) => {
     // searchDocumentationIssues) has moved off this switch onto DOC_ACTIONS
     // (issue #461); see documentation.ts.
     // ── Bugs view ─────────────────────────────────────────────
-    case 'refreshBugsDashboard':
-      refreshBugsDashboard();
-      break;
-    case 'analyzeBugs':
-      analyzeBugs();
-      break;
-    case 'filterBugsEnv':
-      setBugsEnvFilter(btn.dataset.env ?? 'all');
-      break;
-    case 'toggleBugsAnalysis':
-      toggleBugsAnalysis();
-      break;
+    // Every Bugs-view click case (refreshBugsDashboard, analyzeBugs,
+    // filterBugsEnv, toggleBugsAnalysis) has moved off this switch onto
+    // BUGS_DASHBOARD_ACTIONS (issue #461); see bugs-dashboard.ts.
     default:
       break;
   }
