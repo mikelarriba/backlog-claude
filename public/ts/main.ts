@@ -133,13 +133,7 @@ import {
   exportAiSavingsPdf,
   exportAiSavingsPptx,
 } from './ai-savings.js';
-import {
-  loadBugsDashboard,
-  refreshBugsDashboard,
-  setBugsEnvFilter,
-  analyzeBugs,
-  toggleBugsAnalysis,
-} from './bugs-dashboard.js';
+import { loadBugsDashboard } from './bugs-dashboard.js';
 import { loadDocumentationView, docSetFixVersion } from './documentation.js';
 
 if ('serviceWorker' in navigator) {
@@ -868,18 +862,9 @@ document.addEventListener('click', (e: MouseEvent) => {
     // (issue #461); see documentation.ts.
 
     // ── Bugs view ─────────────────────────────────────────────
-    case 'refreshBugsDashboard':
-      refreshBugsDashboard();
-      break;
-    case 'analyzeBugs':
-      analyzeBugs();
-      break;
-    case 'filterBugsEnv':
-      setBugsEnvFilter((btn.dataset.env as 'all' | 'production' | 'testing') ?? 'all');
-      break;
-    case 'toggleBugsAnalysis':
-      toggleBugsAnalysis();
-      break;
+    // Every Bugs-view click case (refreshBugsDashboard, analyzeBugs,
+    // filterBugsEnv, toggleBugsAnalysis) has moved off this switch onto
+    // BUGS_DASHBOARD_ACTIONS (issue #461); see bugs-dashboard.ts.
 
     default:
       break;

@@ -1,7 +1,7 @@
 // ── Bug Dashboard ────────────────────────────────────────────────────────────
 import { streamSSE, renderMarkdown, escHtml, readSSELines } from './state.js';
 import { updateChart, type ChartInstance } from './chart-helpers.js';
-import { registerChangeActions } from './actions.js';
+import { registerActions, registerChangeActions } from './actions.js';
 
 interface BugEntry {
   key: string;
@@ -543,6 +543,34 @@ export function toggleClosedBugs(checked: boolean): void {
   _includeClosed = checked;
   loadBugsDashboard(true);
 }
+
+// Typed click-action registration (issue #461 migration — see UPGRADE_ACTIONS
+// in upgrade.ts for the established registerActions pattern). All four
+// data-action strings are unchanged in index.html; this only moves *where*
+// dispatch happens, off main.ts's central switch and onto this module's own
+// registration. filterBugsEnv keeps reading data-env from the clicked
+// element, same as main.ts's switch case did.
+export const BUGS_DASHBOARD_ACTIONS = {
+  refresh: 'refreshBugsDashboard',
+  analyze: 'analyzeBugs',
+  filterEnv: 'filterBugsEnv',
+  toggleAnalysis: 'toggleBugsAnalysis',
+};
+
+registerActions({
+  [BUGS_DASHBOARD_ACTIONS.refresh]: () => {
+    refreshBugsDashboard();
+  },
+  [BUGS_DASHBOARD_ACTIONS.analyze]: () => {
+    analyzeBugs();
+  },
+  [BUGS_DASHBOARD_ACTIONS.filterEnv]: (el) => {
+    setBugsEnvFilter((el.dataset.env as 'all' | 'production' | 'testing') ?? 'all');
+  },
+  [BUGS_DASHBOARD_ACTIONS.toggleAnalysis]: () => {
+    toggleBugsAnalysis();
+  },
+});
 
 // Typed change-action registration (issue #461 migration — see actions.ts
 // and onProviderChange/updateModelSetting/updateEffortSetting in
