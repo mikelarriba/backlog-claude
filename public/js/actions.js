@@ -15,24 +15,25 @@
 //      TS-checked property instead of a duplicated magic string (a rename
 //      of the constant's key is a compile error at every use; a typo'd
 //      *string value* is still only caught at registration/dispatch time,
-//      same as the existing `data-action` switch in main.ts).
+//      same as the original `data-action` switch in main.ts used to be).
 //   2. Calls `registerActions({ ... })` once, at module load time (a
 //      top-level call, so it runs as soon as the module is imported —
 //      which main.ts already does for every view module it wires up).
 //
 // main.ts's delegated click handler calls `dispatchAction(action, el, e)`
-// before falling into its (still-present, only-growing-for-unmigrated-views)
-// switch. Registering the same action name twice throws immediately, at
-// module-load time — a copy-pasted or colliding action name is caught the
-// moment the app boots, not silently overwritten and not deferred until
-// someone clicks the button.
+// for every click action. Registering the same action name twice throws
+// immediately, at module-load time — a copy-pasted or colliding action name
+// is caught the moment the app boots, not silently overwritten and not
+// deferred until someone clicks the button.
 //
-// This is a proof-of-concept covering ONE view so far: the list
-// multi-select context menu in list-filters.ts (see `CTX_ACTIONS` there for
-// a concrete example of the two steps above). Future views should follow
-// the same pattern rather than adding cases to main.ts's switch or entries
-// to its `_dynGlobals` bridge — see the design note above `_dynGlobals` in
-// main.ts for the incremental migration plan.
+// Every view has migrated onto this registry (issue #461) — list-filters.ts's
+// multi-select context menu was the original proof-of-concept (see
+// `CTX_ACTIONS` there for a concrete example of the two steps above), and the
+// final increment moved main.ts's own core app-shell actions (navigation,
+// theme, FAB, and the app's various modals — see `MAIN_ACTIONS` in main.ts)
+// off its once-~320-line switch onto this same pattern, so the switch itself
+// is gone: `dispatchAction` is now the only click-dispatch path. See the
+// design note above `_dynGlobals` in main.ts for the full migration history.
 //
 // Everything above this point is `click` only. See "Change-event registry"
 // further down for the analogous (but separate) registry for `change`.
@@ -59,9 +60,10 @@ export function registerActions(actions) {
 /**
  * Looks up `name` in the registry and invokes its handler with the
  * triggering element and event. Returns `true` if a handler ran, `false`
- * if nothing is registered under that name (the caller — main.ts's click
- * handler — falls back to its legacy switch in that case, so this stays
- * safe to call for actions not yet migrated to this pattern).
+ * if nothing is registered under that name (every click action is
+ * registered as of issue #461's final increment, so a `false` return now
+ * indicates a `data-action` value with no matching `registerActions()` call
+ * — a bug, not an expected unmigrated case).
  */
 export function dispatchAction(name, el, e) {
   const handler = registry.get(name);

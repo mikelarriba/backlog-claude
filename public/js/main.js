@@ -9,6 +9,7 @@ import {
   executeSplitIssue,
 } from './list.js';
 import {
+  registerActions,
   dispatchAction,
   dispatchChangeAction,
   dispatchInputAction,
@@ -455,6 +456,386 @@ _connectSSE();
 // Backdrop-click-to-close for all `.dialog-overlay` modals is wired
 // automatically by openModal() in state.ts the first time each is opened —
 // no per-modal listener needed here.
+// ── Core app-shell click actions ───────────────────────────────
+// Navigation, theme, list toolbar, filter pills, the detail/refine/
+// settings/roadmap views' own chrome, the FAB, and the app's various
+// modals — the last actions still reached through main.ts's own switch
+// (every view-owned action had already migrated to its own module's
+// registerActions() call). These belong to main.ts itself rather than to
+// any single view module, so they self-register here instead (issue
+// #461's final increment) following the same two-step pattern as every
+// other migrated module: a `const` object of action names, then one
+// registerActions() call.
+export const MAIN_ACTIONS = {
+  navigateTo: 'navigateTo',
+  setTheme: 'setTheme',
+  collapseAll: 'collapseAll',
+  expandAll: 'expandAll',
+  checkAllJira: 'checkAllJira',
+  setTypeFilter: 'setTypeFilter',
+  setStatusFilter: 'setStatusFilter',
+  setTeamFilter: 'setTeamFilter',
+  setWorkCatFilter: 'setWorkCatFilter',
+  showList: 'showList',
+  toggleDropdown: 'toggleDropdown',
+  toggleQuickCreateAndClose: 'toggleQuickCreateAndClose',
+  generateStoriesAndClose: 'generateStoriesAndClose',
+  openManualRefineAndClose: 'openManualRefineAndClose',
+  pushToJiraAndClose: 'pushToJiraAndClose',
+  pullFromJira: 'pullFromJira',
+  exportEpicToPdfCurrent: 'exportEpicToPdfCurrent',
+  confirmDelete: 'confirmDelete',
+  closeDeleteDialog: 'closeDeleteDialog',
+  executeDelete: 'executeDelete',
+  executeQuickCreate: 'executeQuickCreate',
+  closeQuickCreate: 'closeQuickCreate',
+  toggleOriginal: 'toggleOriginal',
+  toggleHierarchy: 'toggleHierarchy',
+  closeRefineView: 'closeRefineView',
+  resetCanvasLayoutCanvas: 'resetCanvasLayoutCanvas',
+  exportEpicToPdfCanvas: 'exportEpicToPdfCanvas',
+  closeSettingsView: 'closeSettingsView',
+  addSprintRow: 'addSprintRow',
+  saveSprintConfig: 'saveSprintConfig',
+  openDistributionModalPiConfig: 'openDistributionModalPiConfig',
+  toggleAiSavingsSection: 'toggleAiSavingsSection',
+  filterAiSavings: 'filterAiSavings',
+  exportAiSavingsPdf: 'exportAiSavingsPdf',
+  exportAiSavingsPptx: 'exportAiSavingsPptx',
+  closeRoadmapView: 'closeRoadmapView',
+  openDistributionModalRoadmap: 'openDistributionModalRoadmap',
+  pushSprintsToJira: 'pushSprintsToJira',
+  pullFromJiraSprints: 'pullFromJiraSprints',
+  openRoadmapExportDialog: 'openRoadmapExportDialog',
+  toggleRoadmapPanel: 'toggleRoadmapPanel',
+  dismissWelcomeBanner: 'dismissWelcomeBanner',
+  toggleFab: 'toggleFab',
+  closeFab: 'closeFab',
+  switchFabTab: 'switchFabTab',
+  clearForm: 'clearForm',
+  saveDraft: 'saveDraft',
+  generateDoc: 'generateDoc',
+  openBugForm: 'openBugForm',
+  downloadSelected: 'downloadSelected',
+  closeBugForm: 'closeBugForm',
+  submitBugReport: 'submitBugReport',
+  triggerBugFileInput: 'triggerBugFileInput',
+  closeBulkAssignDialog: 'closeBulkAssignDialog',
+  syncPreviewSelectAll: 'syncPreviewSelectAll',
+  syncPreviewCancel: 'syncPreviewCancel',
+  syncPreviewConfirm: 'syncPreviewConfirm',
+  jiraSelectAll: 'jiraSelectAll',
+  jiraSelectCancel: 'jiraSelectCancel',
+  jiraSelectConfirm: 'jiraSelectConfirm',
+  closeSplitModal: 'closeSplitModal',
+  executeSplit: 'executeSplit',
+  closeDistributionModal: 'closeDistributionModal',
+  applyDistribution: 'applyDistribution',
+  closeSprintPushModal: 'closeSprintPushModal',
+  sprintPushToggleAllSprints: 'sprintPushToggleAllSprints',
+  startSprintPushPreview: 'startSprintPushPreview',
+  confirmSprintPush: 'confirmSprintPush',
+  toggleSprintPushFilter: 'toggleSprintPushFilter',
+  sprintPushSelectAll: 'sprintPushSelectAll',
+  closePullSprintModal: 'closePullSprintModal',
+  pullSprintToggleAll: 'pullSprintToggleAll',
+  startPullSprintPreview: 'startPullSprintPreview',
+  confirmPullSprint: 'confirmPullSprint',
+  closeRoadmapExportDialog: 'closeRoadmapExportDialog',
+  rexpToggleAllSprints: 'rexpToggleAllSprints',
+  rexpToggleAllTeams: 'rexpToggleAllTeams',
+  executeRoadmapExport: 'executeRoadmapExport',
+  closeDepModal: 'closeDepModal',
+  addDepLink: 'addDepLink',
+  addParallelLink: 'addParallelLink',
+  closeIssueSplitModal: 'closeIssueSplitModal',
+  executeSplitIssue: 'executeSplitIssue',
+};
+registerActions({
+  // ── Sidebar navigation ──────────────────────────────────
+  [MAIN_ACTIONS.navigateTo]: (el) => {
+    navigateTo(el.dataset.viewName);
+  },
+  // ── Theme ───────────────────────────────────────────────
+  [MAIN_ACTIONS.setTheme]: (el) => {
+    if (typeof window.setTheme === 'function') window.setTheme(el.dataset.themeName ?? '');
+  },
+  // ── List toolbar ────────────────────────────────────────
+  [MAIN_ACTIONS.collapseAll]: () => {
+    collapseAll();
+  },
+  [MAIN_ACTIONS.expandAll]: () => {
+    expandAll();
+  },
+  [MAIN_ACTIONS.checkAllJira]: () => {
+    checkAllJira();
+  },
+  // ── Type / Status / Team / WorkCat filter pills ─────────
+  [MAIN_ACTIONS.setTypeFilter]: (el) => {
+    setTypeFilter(el.dataset.filterValue ?? '');
+  },
+  [MAIN_ACTIONS.setStatusFilter]: (el) => {
+    setStatusFilter(el.dataset.filterValue ?? '');
+  },
+  [MAIN_ACTIONS.setTeamFilter]: (el) => {
+    setTeamFilter(el.dataset.filterValue ?? '');
+  },
+  [MAIN_ACTIONS.setWorkCatFilter]: (el) => {
+    setWorkCatFilter(el.dataset.filterValue ?? '');
+  },
+  // ── Detail view ─────────────────────────────────────────
+  [MAIN_ACTIONS.showList]: () => {
+    showList();
+  },
+  [MAIN_ACTIONS.toggleDropdown]: (el) => {
+    toggleDropdown(el.dataset.dropdownId ?? '');
+  },
+  [MAIN_ACTIONS.toggleQuickCreateAndClose]: (el) => {
+    toggleQuickCreate(el.dataset.doctype ?? '');
+    closeDropdown(el.dataset.closeDropdown ?? '');
+  },
+  [MAIN_ACTIONS.generateStoriesAndClose]: (el) => {
+    generateStories();
+    closeDropdown(el.dataset.closeDropdown ?? '');
+  },
+  [MAIN_ACTIONS.openManualRefineAndClose]: (el) => {
+    const cf = currentFilename;
+    const cdt = currentDocType;
+    openManualRefine(cf ?? '', cdt ?? '');
+    closeDropdown(el.dataset.closeDropdown ?? '');
+  },
+  [MAIN_ACTIONS.pushToJiraAndClose]: (el) => {
+    pushToJira();
+    closeDropdown(el.dataset.closeDropdown ?? '');
+  },
+  [MAIN_ACTIONS.pullFromJira]: () => {
+    pullFromJira();
+  },
+  [MAIN_ACTIONS.exportEpicToPdfCurrent]: () => {
+    const cf = currentFilename;
+    const cdt = currentDocType;
+    exportEpicToPdf(cf ?? '', cdt ?? '');
+  },
+  [MAIN_ACTIONS.confirmDelete]: () => {
+    confirmDelete();
+  },
+  [MAIN_ACTIONS.closeDeleteDialog]: () => {
+    closeDeleteDialog();
+  },
+  [MAIN_ACTIONS.executeDelete]: () => {
+    executeDelete();
+  },
+  [MAIN_ACTIONS.executeQuickCreate]: () => {
+    executeQuickCreate();
+  },
+  [MAIN_ACTIONS.closeQuickCreate]: () => {
+    closeQuickCreate();
+  },
+  [MAIN_ACTIONS.toggleOriginal]: () => {
+    toggleOriginal();
+  },
+  [MAIN_ACTIONS.toggleHierarchy]: () => {
+    toggleHierarchy();
+  },
+  // ── Refine view ─────────────────────────────────────────
+  [MAIN_ACTIONS.closeRefineView]: () => {
+    closeRefineView();
+  },
+  [MAIN_ACTIONS.resetCanvasLayoutCanvas]: () => {
+    resetCanvasLayout(_canvasEpicFilename ?? '');
+  },
+  [MAIN_ACTIONS.exportEpicToPdfCanvas]: () => {
+    exportEpicToPdf(_canvasEpicFilename ?? '', _canvasDocType ?? '');
+  },
+  // ── Settings view ────────────────────────────────────────
+  [MAIN_ACTIONS.closeSettingsView]: () => {
+    closeSettingsView();
+  },
+  // refreshProviders, toggleModelSection (provider-settings.ts) and
+  // togglePiConfigSection (piconfig.ts) moved off this switch onto their
+  // own modules' registerActions calls (issue #461).
+  [MAIN_ACTIONS.addSprintRow]: () => {
+    addSprintRow();
+  },
+  [MAIN_ACTIONS.saveSprintConfig]: () => {
+    saveSprintConfig();
+  },
+  [MAIN_ACTIONS.openDistributionModalPiConfig]: () => {
+    openDistributionModal(_piConfigActivePi ?? '');
+  },
+  [MAIN_ACTIONS.toggleAiSavingsSection]: () => {
+    toggleAiSavingsSection();
+  },
+  [MAIN_ACTIONS.filterAiSavings]: (el) => {
+    filterAiSavings(el.dataset.filterValue ?? 'all');
+  },
+  [MAIN_ACTIONS.exportAiSavingsPdf]: () => {
+    exportAiSavingsPdf();
+  },
+  [MAIN_ACTIONS.exportAiSavingsPptx]: () => {
+    exportAiSavingsPptx();
+  },
+  // ── Roadmap view ─────────────────────────────────────────
+  [MAIN_ACTIONS.closeRoadmapView]: () => {
+    closeRoadmapView();
+  },
+  [MAIN_ACTIONS.openDistributionModalRoadmap]: () => {
+    openDistributionModal([..._roadmapVisiblePis][0] ?? '');
+  },
+  [MAIN_ACTIONS.pushSprintsToJira]: () => {
+    pushSprintsToJira();
+  },
+  [MAIN_ACTIONS.pullFromJiraSprints]: () => {
+    pullFromJiraSprints();
+  },
+  [MAIN_ACTIONS.openRoadmapExportDialog]: () => {
+    openRoadmapExportDialog();
+  },
+  [MAIN_ACTIONS.toggleRoadmapPanel]: (el) => {
+    toggleRoadmapPanel(el.dataset.panel ?? '');
+  },
+  // ── Welcome banner ───────────────────────────────────────
+  [MAIN_ACTIONS.dismissWelcomeBanner]: () => {
+    dismissWelcomeBanner();
+  },
+  // ── FAB ──────────────────────────────────────────────────
+  [MAIN_ACTIONS.toggleFab]: () => {
+    toggleFab();
+  },
+  [MAIN_ACTIONS.closeFab]: () => {
+    closeFab();
+  },
+  [MAIN_ACTIONS.switchFabTab]: (el) => {
+    switchFabTab(el.dataset.tabName ?? '');
+  },
+  [MAIN_ACTIONS.clearForm]: () => {
+    clearForm();
+  },
+  [MAIN_ACTIONS.saveDraft]: () => {
+    saveDraft();
+  },
+  [MAIN_ACTIONS.generateDoc]: () => {
+    generateDoc();
+  },
+  [MAIN_ACTIONS.openBugForm]: () => {
+    openBugForm();
+  },
+  [MAIN_ACTIONS.downloadSelected]: () => {
+    downloadSelected();
+  },
+  // searchJira/pullByKey (jira-import.ts) moved off this switch onto
+  // JIRA_IMPORT_ACTIONS (issue #461); see that module.
+  // ── Bug form ─────────────────────────────────────────────
+  [MAIN_ACTIONS.closeBugForm]: () => {
+    closeBugForm();
+  },
+  [MAIN_ACTIONS.submitBugReport]: () => {
+    submitBugReport();
+  },
+  [MAIN_ACTIONS.triggerBugFileInput]: () => {
+    document.getElementById('bug-files')?.click();
+  },
+  // ── Delete / Bulk assign dialog ──────────────────────────
+  [MAIN_ACTIONS.closeBulkAssignDialog]: () => {
+    closeBulkAssignDialog();
+  },
+  // ── Sync preview modal ───────────────────────────────────
+  [MAIN_ACTIONS.syncPreviewSelectAll]: (el) => {
+    syncPreviewSelectAll(el.dataset.selectAll === 'true');
+  },
+  [MAIN_ACTIONS.syncPreviewCancel]: () => {
+    syncPreviewCancel();
+  },
+  [MAIN_ACTIONS.syncPreviewConfirm]: () => {
+    syncPreviewConfirm();
+  },
+  // ── JIRA select modal ─────────────────────────────────────
+  [MAIN_ACTIONS.jiraSelectAll]: (el) => {
+    jiraSelectAll(el.dataset.selectAll === 'true');
+  },
+  [MAIN_ACTIONS.jiraSelectCancel]: () => {
+    jiraSelectCancel();
+  },
+  [MAIN_ACTIONS.jiraSelectConfirm]: () => {
+    jiraSelectConfirm();
+  },
+  // ── Split modal ───────────────────────────────────────────
+  [MAIN_ACTIONS.closeSplitModal]: () => {
+    closeSplitModal();
+  },
+  [MAIN_ACTIONS.executeSplit]: () => {
+    executeSplit();
+  },
+  // ── Distribution modal ────────────────────────────────────
+  [MAIN_ACTIONS.closeDistributionModal]: () => {
+    closeDistributionModal();
+  },
+  [MAIN_ACTIONS.applyDistribution]: () => {
+    applyDistribution();
+  },
+  // ── Sprint push modal ─────────────────────────────────────
+  [MAIN_ACTIONS.closeSprintPushModal]: () => {
+    closeSprintPushModal();
+  },
+  [MAIN_ACTIONS.sprintPushToggleAllSprints]: (el) => {
+    sprintPushToggleAllSprints(el.dataset.selectAll === 'true');
+  },
+  [MAIN_ACTIONS.startSprintPushPreview]: () => {
+    startSprintPushPreview();
+  },
+  [MAIN_ACTIONS.confirmSprintPush]: () => {
+    confirmSprintPush();
+  },
+  [MAIN_ACTIONS.toggleSprintPushFilter]: (el) => {
+    toggleSprintPushFilter(el.dataset.filterValue ?? '');
+  },
+  [MAIN_ACTIONS.sprintPushSelectAll]: (el) => {
+    sprintPushSelectAll(el.dataset.selectAll === 'true');
+  },
+  // ── Pull sprint modal ─────────────────────────────────────
+  [MAIN_ACTIONS.closePullSprintModal]: () => {
+    closePullSprintModal();
+  },
+  [MAIN_ACTIONS.pullSprintToggleAll]: (el) => {
+    pullSprintToggleAll(el.dataset.selectAll === 'true');
+  },
+  [MAIN_ACTIONS.startPullSprintPreview]: () => {
+    startPullSprintPreview();
+  },
+  [MAIN_ACTIONS.confirmPullSprint]: () => {
+    confirmPullSprint();
+  },
+  // ── Roadmap export dialog ─────────────────────────────────
+  [MAIN_ACTIONS.closeRoadmapExportDialog]: () => {
+    closeRoadmapExportDialog();
+  },
+  [MAIN_ACTIONS.rexpToggleAllSprints]: (el) => {
+    rexpToggleAllSprints(el.dataset.selectAll === 'true');
+  },
+  [MAIN_ACTIONS.rexpToggleAllTeams]: (el) => {
+    rexpToggleAllTeams(el.dataset.selectAll === 'true');
+  },
+  [MAIN_ACTIONS.executeRoadmapExport]: () => {
+    executeRoadmapExport();
+  },
+  // ── Dependency modal ──────────────────────────────────────
+  [MAIN_ACTIONS.closeDepModal]: () => {
+    closeDepModal();
+  },
+  [MAIN_ACTIONS.addDepLink]: () => {
+    addDepLink();
+  },
+  [MAIN_ACTIONS.addParallelLink]: () => {
+    addParallelLink();
+  },
+  // ── Issue split modal (list view) ─────────────────────────
+  [MAIN_ACTIONS.closeIssueSplitModal]: () => {
+    closeIssueSplitModal();
+  },
+  [MAIN_ACTIONS.executeSplitIssue]: () => {
+    executeSplitIssue();
+  },
+});
 // ── Delegated click handler ───────────────────────────────────
 // Replaces the ~150 inline onclick attributes that previously called
 // into the _globals bridge. Each element now carries data-action="fn"
@@ -470,311 +851,12 @@ document.addEventListener('click', (e) => {
   const btn = target.closest('[data-action]');
   if (!btn) return;
   const action = btn.dataset.action ?? '';
-  // Typed self-registered actions (see actions.ts) take priority over the
-  // legacy switch below — this is how a migrated view (currently: the list
-  // multi-select context menu in list-filters.ts) reaches its handlers
-  // without a case here. Falls through to the switch for everything else.
-  if (dispatchAction(action, btn, e)) return;
-  switch (action) {
-    // ── Sidebar navigation ──────────────────────────────────
-    case 'navigateTo':
-      navigateTo(btn.dataset.viewName);
-      break;
-    // ── Theme ───────────────────────────────────────────────
-    case 'setTheme':
-      if (typeof window.setTheme === 'function') window.setTheme(btn.dataset.themeName ?? '');
-      break;
-    // ── List toolbar ────────────────────────────────────────
-    case 'collapseAll':
-      collapseAll();
-      break;
-    case 'expandAll':
-      expandAll();
-      break;
-    case 'checkAllJira':
-      checkAllJira();
-      break;
-    // ── Type / Status / Team / WorkCat filter pills ─────────
-    case 'setTypeFilter':
-      setTypeFilter(btn.dataset.filterValue ?? '');
-      break;
-    case 'setStatusFilter':
-      setStatusFilter(btn.dataset.filterValue ?? '');
-      break;
-    case 'setTeamFilter':
-      setTeamFilter(btn.dataset.filterValue ?? '');
-      break;
-    case 'setWorkCatFilter':
-      setWorkCatFilter(btn.dataset.filterValue ?? '');
-      break;
-    // ── Detail view ─────────────────────────────────────────
-    case 'showList':
-      showList();
-      break;
-    case 'toggleDropdown':
-      toggleDropdown(btn.dataset.dropdownId ?? '');
-      break;
-    case 'toggleQuickCreateAndClose': {
-      toggleQuickCreate(btn.dataset.doctype ?? '');
-      closeDropdown(btn.dataset.closeDropdown ?? '');
-      break;
-    }
-    case 'generateStoriesAndClose':
-      generateStories();
-      closeDropdown(btn.dataset.closeDropdown ?? '');
-      break;
-    case 'openManualRefineAndClose': {
-      const cf = currentFilename;
-      const cdt = currentDocType;
-      openManualRefine(cf ?? '', cdt ?? '');
-      closeDropdown(btn.dataset.closeDropdown ?? '');
-      break;
-    }
-    case 'pushToJiraAndClose':
-      pushToJira();
-      closeDropdown(btn.dataset.closeDropdown ?? '');
-      break;
-    case 'pullFromJira':
-      pullFromJira();
-      break;
-    case 'exportEpicToPdfCurrent': {
-      const cf = currentFilename;
-      const cdt = currentDocType;
-      exportEpicToPdf(cf ?? '', cdt ?? '');
-      break;
-    }
-    case 'confirmDelete':
-      confirmDelete();
-      break;
-    case 'closeDeleteDialog':
-      closeDeleteDialog();
-      break;
-    case 'executeDelete':
-      executeDelete();
-      break;
-    case 'executeQuickCreate':
-      executeQuickCreate();
-      break;
-    case 'closeQuickCreate':
-      closeQuickCreate();
-      break;
-    case 'toggleOriginal':
-      toggleOriginal();
-      break;
-    case 'toggleHierarchy':
-      toggleHierarchy();
-      break;
-    // ── Refine view ─────────────────────────────────────────
-    case 'closeRefineView':
-      closeRefineView();
-      break;
-    case 'resetCanvasLayoutCanvas':
-      resetCanvasLayout(_canvasEpicFilename ?? '');
-      break;
-    case 'exportEpicToPdfCanvas':
-      exportEpicToPdf(_canvasEpicFilename ?? '', _canvasDocType ?? '');
-      break;
-    // ── Settings view ────────────────────────────────────────
-    case 'closeSettingsView':
-      closeSettingsView();
-      break;
-    // refreshProviders, toggleModelSection (provider-settings.ts) and
-    // togglePiConfigSection (piconfig.ts) moved off this switch onto their
-    // own modules' registerActions calls (issue #461).
-    case 'addSprintRow':
-      addSprintRow();
-      break;
-    case 'saveSprintConfig':
-      saveSprintConfig();
-      break;
-    case 'openDistributionModalPiConfig':
-      openDistributionModal(_piConfigActivePi ?? '');
-      break;
-    case 'toggleAiSavingsSection':
-      toggleAiSavingsSection();
-      break;
-    case 'filterAiSavings':
-      filterAiSavings(btn.dataset.filterValue ?? 'all');
-      break;
-    case 'exportAiSavingsPdf':
-      exportAiSavingsPdf();
-      break;
-    case 'exportAiSavingsPptx':
-      exportAiSavingsPptx();
-      break;
-    // ── Roadmap view ─────────────────────────────────────────
-    case 'closeRoadmapView':
-      closeRoadmapView();
-      break;
-    case 'openDistributionModalRoadmap':
-      openDistributionModal([..._roadmapVisiblePis][0] ?? '');
-      break;
-    case 'pushSprintsToJira':
-      pushSprintsToJira();
-      break;
-    case 'pullFromJiraSprints':
-      pullFromJiraSprints();
-      break;
-    case 'openRoadmapExportDialog':
-      openRoadmapExportDialog();
-      break;
-    case 'toggleRoadmapPanel':
-      toggleRoadmapPanel(btn.dataset.panel ?? '');
-      break;
-    // ── Welcome banner ───────────────────────────────────────
-    case 'dismissWelcomeBanner':
-      dismissWelcomeBanner();
-      break;
-    // ── FAB ──────────────────────────────────────────────────
-    case 'toggleFab':
-      toggleFab();
-      break;
-    case 'closeFab':
-      closeFab();
-      break;
-    case 'switchFabTab':
-      switchFabTab(btn.dataset.tabName ?? '');
-      break;
-    case 'clearForm':
-      clearForm();
-      break;
-    case 'saveDraft':
-      saveDraft();
-      break;
-    case 'generateDoc':
-      generateDoc();
-      break;
-    case 'openBugForm':
-      openBugForm();
-      break;
-    case 'downloadSelected':
-      downloadSelected();
-      break;
-    // searchJira/pullByKey (jira-import.ts) moved off this switch onto
-    // JIRA_IMPORT_ACTIONS (issue #461); see that module.
-    // ── Bug form ─────────────────────────────────────────────
-    case 'closeBugForm':
-      closeBugForm();
-      break;
-    case 'submitBugReport':
-      submitBugReport();
-      break;
-    case 'triggerBugFileInput':
-      document.getElementById('bug-files')?.click();
-      break;
-    // ── Delete / Bulk assign dialog ──────────────────────────
-    case 'closeBulkAssignDialog':
-      closeBulkAssignDialog();
-      break;
-    // ── Sync preview modal ───────────────────────────────────
-    case 'syncPreviewSelectAll':
-      syncPreviewSelectAll(btn.dataset.selectAll === 'true');
-      break;
-    case 'syncPreviewCancel':
-      syncPreviewCancel();
-      break;
-    case 'syncPreviewConfirm':
-      syncPreviewConfirm();
-      break;
-    // ── JIRA select modal ─────────────────────────────────────
-    case 'jiraSelectAll':
-      jiraSelectAll(btn.dataset.selectAll === 'true');
-      break;
-    case 'jiraSelectCancel':
-      jiraSelectCancel();
-      break;
-    case 'jiraSelectConfirm':
-      jiraSelectConfirm();
-      break;
-    // ── Split modal ───────────────────────────────────────────
-    case 'closeSplitModal':
-      closeSplitModal();
-      break;
-    case 'executeSplit':
-      executeSplit();
-      break;
-    // ── Distribution modal ────────────────────────────────────
-    case 'closeDistributionModal':
-      closeDistributionModal();
-      break;
-    case 'applyDistribution':
-      applyDistribution();
-      break;
-    // ── Sprint push modal ─────────────────────────────────────
-    case 'closeSprintPushModal':
-      closeSprintPushModal();
-      break;
-    case 'sprintPushToggleAllSprints':
-      sprintPushToggleAllSprints(btn.dataset.selectAll === 'true');
-      break;
-    case 'startSprintPushPreview':
-      startSprintPushPreview();
-      break;
-    case 'confirmSprintPush':
-      confirmSprintPush();
-      break;
-    case 'toggleSprintPushFilter':
-      toggleSprintPushFilter(btn.dataset.filterValue ?? '');
-      break;
-    case 'sprintPushSelectAll':
-      sprintPushSelectAll(btn.dataset.selectAll === 'true');
-      break;
-    // ── Pull sprint modal ─────────────────────────────────────
-    case 'closePullSprintModal':
-      closePullSprintModal();
-      break;
-    case 'pullSprintToggleAll':
-      pullSprintToggleAll(btn.dataset.selectAll === 'true');
-      break;
-    case 'startPullSprintPreview':
-      startPullSprintPreview();
-      break;
-    case 'confirmPullSprint':
-      confirmPullSprint();
-      break;
-    // ── Roadmap export dialog ─────────────────────────────────
-    case 'closeRoadmapExportDialog':
-      closeRoadmapExportDialog();
-      break;
-    case 'rexpToggleAllSprints':
-      rexpToggleAllSprints(btn.dataset.selectAll === 'true');
-      break;
-    case 'rexpToggleAllTeams':
-      rexpToggleAllTeams(btn.dataset.selectAll === 'true');
-      break;
-    case 'executeRoadmapExport':
-      executeRoadmapExport();
-      break;
-    // ── Dependency modal ──────────────────────────────────────
-    case 'closeDepModal':
-      closeDepModal();
-      break;
-    case 'addDepLink':
-      addDepLink();
-      break;
-    case 'addParallelLink':
-      addParallelLink();
-      break;
-    // ── Issue split modal (list view) ─────────────────────────
-    case 'closeIssueSplitModal':
-      closeIssueSplitModal();
-      break;
-    case 'executeSplitIssue':
-      executeSplitIssue();
-      break;
-    // ── Documentation view ─────────────────────────────────────
-    // Every Documentation-view click case (docSearch, docSetTypeFilter,
-    // askAI, selectAllSuggestions, deselectAllSuggestions,
-    // modifyDocumentation, exportDocumentationPdf, undoChanges,
-    // searchDocumentationIssues) has moved off this switch onto DOC_ACTIONS
-    // (issue #461); see documentation.ts.
-    // ── Bugs view ─────────────────────────────────────────────
-    // Every Bugs-view click case (refreshBugsDashboard, analyzeBugs,
-    // filterBugsEnv, toggleBugsAnalysis) has moved off this switch onto
-    // BUGS_DASHBOARD_ACTIONS (issue #461); see bugs-dashboard.ts.
-    default:
-      break;
-  }
+  // Every click action is a typed, self-registered handler (see actions.ts)
+  // as of issue #461's final increment, which moved main.ts's own core
+  // app-shell actions (see MAIN_ACTIONS below) off this file's ~320-line
+  // switch onto the same registry every other view already used. The switch
+  // itself is gone — dispatchAction is now the sole dispatch path.
+  dispatchAction(action, btn, e);
 });
 // ── Delegated input handler ───────────────────────────────────
 document.addEventListener('input', (e) => {
