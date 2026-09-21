@@ -33,7 +33,6 @@ import {
 } from './list-filters.js';
 import { dismissWelcomeBanner } from './list-render.js';
 import {
-  saveTitle,
   showList,
   confirmDelete,
   closeDeleteDialog,
@@ -43,7 +42,6 @@ import {
   toggleOriginal,
   openDoc,
 } from './detail.js';
-import { saveStoryPoints } from './detail-fields.js';
 import { toggleHierarchy } from './detail-links.js';
 import {
   saveDraft,
@@ -1200,12 +1198,16 @@ const _dynGlobals = {
   // DETAIL_LINKS_ACTIONS, and every remaining call site (detail.ts,
   // dragdrop.ts, quickcreate.ts, stories.ts) imports it directly — same
   // class of finding as showContextMenu/closeContextMenu above.
-  saveTitle,
   // cancelTitleEdit moved off this bridge (issue #461's keydown-registry):
   // its only inline-attribute caller was the detail title input's onkeydown
   // in index.html, now migrated to registerKeydownActions — see
-  // DETAIL_TITLE_KEYDOWN_ACTION in detail.ts.
-  saveStoryPoints,
+  // DETAIL_TITLE_KEYDOWN_ACTION in detail.ts. saveTitle/saveStoryPoints moved
+  // off this bridge too (same pass, blur-registry): their only
+  // inline-attribute callers were the title/SP inputs' onblur attributes in
+  // index.html, now migrated to registerBlurActions — see
+  // DETAIL_TITLE_BLUR_ACTION in detail.ts and DETAIL_SP_BLUR_ACTION in
+  // detail-fields.ts. A fresh grep for `saveTitle(` / `saveStoryPoints(`
+  // across public/ts/ and index.html confirms no other caller remains.
   // refine.js — cancelRpTitleEdit moved off this bridge (issue #461's
   // keydown-registry spike): its only caller was the title input's onkeydown
   // Escape branch, now migrated to registerKeydownActions. saveRpTitle/
