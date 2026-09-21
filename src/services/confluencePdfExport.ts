@@ -6,7 +6,7 @@
 // modeled directly on buildSavingsPdf() in aiSavingsService.ts (same
 // PDFDocument({margin:50,size:'A4'}) + chunk-collection pattern).
 import PDFDocument from 'pdfkit';
-import type { ConfluenceSuggestion } from '../routes/confluence.js';
+import type { ConfluenceSuggestion } from './confluenceAnalysisService.js';
 
 export interface ConfluenceSuggestionsPdfMeta {
   scope?: string;

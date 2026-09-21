@@ -1,4 +1,4 @@
-// ── Unit tests: parseConfluenceSuggestions (src/routes/confluence.ts) ─────────
+// ── Unit tests: parseConfluenceSuggestions (src/services/confluenceAnalysisService.ts) ─
 // Covers the JSON-from-AI parsing/validation helper in isolation — no server,
 // no JIRA, no Claude. Full request/response behavior (400/503/500/200) is
 // covered by tests/integration/confluence.test.js.
@@ -8,7 +8,7 @@ import {
   parseConfluenceSuggestions,
   resolveSuggestionLink,
   buildConfluencePageUrl,
-} from '../../src/routes/confluence.ts';
+} from '../../src/services/confluenceAnalysisService.ts';
 
 describe('parseConfluenceSuggestions', () => {
   test('parses a well-formed JSON array', () => {
