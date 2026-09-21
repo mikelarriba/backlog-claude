@@ -21,7 +21,7 @@ import { closeQuickCreate } from './quickcreate.js';
 import { resetUpgradePanel } from './upgrade.js';
 import { isSplitMode, highlightSelectedItem } from './main.js';
 import { isRoadmapOpen } from './roadmap.js';
-import { registerChangeActions, registerKeydownActions } from './actions.js';
+import { registerBlurActions, registerChangeActions, registerKeydownActions } from './actions.js';
 import {
   updateStoryPointsUI,
   updateSprintSelect,
@@ -196,6 +196,19 @@ export function cancelTitleEdit() {
   input.value = input.dataset.original || '';
   input.blur();
 }
+// Typed data-blur-action registration for the detail title input (issue
+// #461's blur-registry — see actions.ts's "Blur-event registry" section and
+// RP_TITLE_BLUR_ACTION in refine.ts for the established pattern). Replaces
+// the onblur="saveTitle()" string previously hand-written in index.html —
+// the last remaining onblur="..." site anywhere outside refine.ts, and the
+// last reason saveTitle needed to be reachable through main.ts's untyped
+// `_dynGlobals` window bridge.
+export const DETAIL_TITLE_BLUR_ACTION = 'detailTitleBlur';
+registerBlurActions({
+  [DETAIL_TITLE_BLUR_ACTION]: () => {
+    void saveTitle();
+  },
+});
 // Typed data-keydown-action registration for the detail title input (issue
 // #461's keydown-registry — see actions.ts and RP_TITLE_KEYDOWN_ACTION in
 // refine.ts / JIRA_PULL_ACTIONS.updateKeyPromptKeydown in jira-pull.ts for

@@ -4,7 +4,7 @@
 import { fetchJSON, patchJSON, escHtml, showJiraToast } from './state.js';
 import { upsertDoc } from './store.js';
 import { getSprintsForPi } from './piconfig.js';
-import { registerActions, registerChangeActions } from './actions.js';
+import { registerActions, registerBlurActions, registerChangeActions } from './actions.js';
 // Typed data-action names for the comment CRUD buttons in _renderComments
 // (issue #461 migration — see actions.ts and CTX_ACTIONS in list-filters.ts
 // for the established pattern). Replaces the onclick="addDocComment(...)" /
@@ -223,6 +223,20 @@ export async function saveStoryPoints() {
     input.value = orig;
   }
 }
+// Typed data-blur-action registration for the detail story-points input
+// (issue #461's blur-registry — see actions.ts's "Blur-event registry"
+// section and RP_SP_BLUR_ACTION in refine.ts for the established pattern).
+// Replaces the onblur="saveStoryPoints()" string previously hand-written in
+// index.html — the last reason saveStoryPoints needed to be reachable
+// through main.ts's untyped `_dynGlobals` window bridge. The input's
+// onkeydown (Enter/Escape both just call this.blur()) is left as a plain
+// inline attribute, same precedent as refine.ts's analogous SP field.
+export const DETAIL_SP_BLUR_ACTION = 'detailSpBlur';
+registerBlurActions({
+  [DETAIL_SP_BLUR_ACTION]: () => {
+    void saveStoryPoints();
+  },
+});
 // ── Sprint select helpers ─────────────────────────────────────
 export function updateSprintSelect(docType, fixVersion, currentSprint) {
   const sel = document.getElementById('sprint-select');
