@@ -36,6 +36,9 @@
     "tsx": "^4.23.12",
     "zod": "^4.5.1"
   },
+  "overrides": {
+    "image-size": "^2.0.3"
+  },
   "lint-staged": {
     "*.{ts,js}": "eslint",
     "*.{ts,js,json,md,css,html,yml,yaml}": "prettier --check"
