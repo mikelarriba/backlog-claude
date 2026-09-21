@@ -1,0 +1,572 @@
+// ── Confluence analysis/execute/undo business logic ───────────────────────────
+// Extracted from routes/confluence.ts (#670) so the route file is limited to
+// request parsing + response shaping, mirroring the jira-sync.ts/#456 split
+// (see jiraSyncService.ts). confluenceService.ts stays focused on the
+// Confluence REST CRUD wrappers; everything here is orchestration/business
+// logic that sits on top of it — JIRA-key union fetching, AI-suggestion
+// parsing/validation, page-link resolution, and the /execute + /undo
+// Create/Update/Delete branching.
+import { normalizeOutput } from './claudeService.js';
+import {
+  buildConfluenceAnalysisPrompt,
+  type ConfluenceAnalysisIssue,
+  type ConfluenceAnalysisEpicGroup,
+} from './aiPromptBuilder.js';
+import { jiraToMarkdown } from '../utils/transforms.js';
+import { pMap } from '../utils/pMap.js';
+import { config } from '../config/env.js';
+import { parseApiError } from '../utils/routeHelpers.js';
+import { createSnapshot, type SnapshotOperation } from './confluenceSnapshotStore.js';
+import type { ConfluenceRouteContext } from '../types.js';
+
+export interface ConfluenceSuggestion {
+  pageTitle: string;
+  hierarchyPath: string;
+  action: 'Create' | 'Update' | 'Delete';
+  currentContent: string;
+  proposedContent: string;
+  // #662: deep-link to the real Confluence page this suggestion targets —
+  // the existing page being Updated/Deleted, or the proposed *parent* page
+  // for a Create (the new page doesn't exist yet). Populated by analyzeConfluence
+  // (see resolveSuggestionLink below) from the same page tree used to
+  // ground the AI analysis (#557); absent/null whenever Confluence isn't
+  // configured or the page can't be resolved, so callers must treat it as
+  // best-effort. Not set by parseConfluenceSuggestions itself (the AI never
+  // produces this field) and ignored by /execute and /export, which only
+  // read the fields they already used.
+  pageUrl?: string | null;
+}
+
+const VALID_ACTIONS = new Set(['Create', 'Update', 'Delete']);
+
+// Exported for unit testing. There's no precedent elsewhere in this codebase
+// for parsing structured JSON out of an AI response (the rest of the app has
+// Claude emit markdown with literal separators like ===SPLIT===), so this
+// establishes the pattern: strip any markdown code fence via the existing
+// normalizeOutput() helper, JSON.parse, then shape-validate. Any failure
+// throws a plain Error, which the route's catch block turns into a 500 via
+// parseApiError/sendError — giving a descriptive error per the issue's
+// acceptance criteria without needing a bespoke error type.
+export function parseConfluenceSuggestions(raw: string): ConfluenceSuggestion[] {
+  const cleaned = normalizeOutput(raw);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error('AI returned a response that was not valid JSON');
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error('AI response was not a JSON array of suggestions');
+  }
+
+  return parsed.map((item, idx) => {
+    const s = item as Record<string, unknown> | null;
+    if (
+      !s ||
+      typeof s !== 'object' ||
+      typeof s.pageTitle !== 'string' ||
+      typeof s.action !== 'string' ||
+      !VALID_ACTIONS.has(s.action)
+    ) {
+      throw new Error(
+        `AI response suggestion at index ${idx} is missing required fields (pageTitle, action) or has an invalid action`
+      );
+    }
+    return {
+      pageTitle: s.pageTitle,
+      hierarchyPath: typeof s.hierarchyPath === 'string' ? s.hierarchyPath : '',
+      action: s.action as ConfluenceSuggestion['action'],
+      currentContent: typeof s.currentContent === 'string' ? s.currentContent : '',
+      proposedContent: typeof s.proposedContent === 'string' ? s.proposedContent : '',
+    };
+  });
+}
+
+export interface ConfluenceExecuteResult {
+  pageTitle: string;
+  action: ConfluenceSuggestion['action'];
+  pageId: string | null;
+  success: boolean;
+  error?: string;
+}
+
+export interface ConfluenceUndoResult {
+  pageTitle: string;
+  action: ConfluenceSuggestion['action'];
+  success: boolean;
+  error?: string;
+}
+
+// Batch size for the `key in (...)` JQL fetch below. 100 keys/query keeps the
+// encoded JQL well under JIRA's query-string limits while turning a run of
+// hundreds of issues into a handful of requests instead of one per issue.
+const ANALYZE_FETCH_CHUNK_SIZE = 100;
+
+function quoteJql(key: string): string {
+  return `"${key.replace(/"/g, '\\"')}"`;
+}
+
+// ── Suggestion → Confluence page link resolution (#662) ─────────────────────
+// Builds the classic Confluence permalink (`pageId`-keyed, so it works
+// regardless of space key or title encoding) for a page already known from
+// the page-tree listing used to ground the analysis. Kept a plain string
+// build (no extra API call) since the id is already in hand. Exported for
+// unit testing, same rationale as parseConfluenceSuggestions above.
+export function buildConfluencePageUrl(base: string, pageId: string): string {
+  return `${base}/wiki/pages/viewpage.action?pageId=${encodeURIComponent(pageId)}`;
+}
+
+// For Update/Delete, the suggestion's own pageTitle must exactly match an
+// existing page (enforced by the analysis prompt, see aiPromptBuilder.ts).
+// For Create, there is no existing page to link to yet, so this links to
+// the proposed *parent* instead — the last segment of the suggestion's
+// hierarchyPath, which mirrors the " > "-joined ancestor path the existing
+// page tree is listed with (see mapPageSummary in confluenceService.ts).
+// Best-effort throughout: returns null (never throws) whenever the base
+// isn't configured or the page/parent can't be found by exact title.
+export function resolveSuggestionLink(
+  suggestion: Pick<ConfluenceSuggestion, 'action' | 'pageTitle' | 'hierarchyPath'>,
+  pagesByTitle: Map<string, { id: string }>,
+  base: string
+): string | null {
+  if (!base) return null;
+
+  const targetTitle =
+    suggestion.action === 'Create'
+      ? (suggestion.hierarchyPath || '')
+          .split('>')
+          .map((segment) => segment.trim())
+          .filter(Boolean)
+          .pop()
+      : suggestion.pageTitle;
+  if (!targetTitle) return null;
+
+  const page = pagesByTitle.get(targetTitle);
+  return page ? buildConfluencePageUrl(base, page.id) : null;
+}
+
+// Fetches `summary,description` for a set of issue keys via batched JQL
+// (`key in (...)`) instead of one GET per key (#631) — the per-key approach
+// trips JIRA's rate limiter at realistic scale (hundreds of keys) and turns
+// any single throttled/inaccessible key into a request that has to be
+// retried on its own. A chunk that fails outright (rate limit, one bad key
+// aborting the whole JQL) is bisected and retried rather than given up on,
+// so a single bad key only costs that key — not the rest of the chunk — and
+// the common case (all keys valid) stays at ~1 request per 100 keys.
+async function fetchIssuesByKeys(
+  keys: string[],
+  jiraPagedRequest: ConfluenceRouteContext['jiraPagedRequest'],
+  issues: ConfluenceAnalysisIssue[],
+  unreachable: Array<{ key: string; error: string }>
+): Promise<void> {
+  if (keys.length === 0) return;
+
+  try {
+    const jql = `key in (${keys.map(quoteJql).join(',')})`;
+    const rawIssues = (await jiraPagedRequest(jql, 'summary,description', {
+      maxResults: keys.length,
+      maxTotal: keys.length,
+    })) as Array<{ key: string; fields?: { summary?: string; description?: string } }>;
+
+    const found = new Set<string>();
+    for (const issue of rawIssues) {
+      found.add(issue.key);
+      issues.push({
+        key: issue.key,
+        summary: String(issue.fields?.summary || ''),
+        description: jiraToMarkdown(issue.fields?.description || ''),
+      });
+    }
+    // Keys JIRA's search silently dropped (deleted, moved to an inaccessible
+    // project, etc. — JQL `key in (...)` doesn't error on these, it just
+    // omits them from the result set).
+    for (const key of keys) {
+      if (!found.has(key)) {
+        unreachable.push({ key, error: 'Not returned by JIRA search (invalid or inaccessible)' });
+      }
+    }
+  } catch (err) {
+    if (keys.length === 1) {
+      unreachable.push({ key: keys[0], error: parseApiError(err).message });
+      return;
+    }
+    const mid = Math.ceil(keys.length / 2);
+    await fetchIssuesByKeys(keys.slice(0, mid), jiraPagedRequest, issues, unreachable);
+    await fetchIssuesByKeys(keys.slice(mid), jiraPagedRequest, issues, unreachable);
+  }
+}
+
+export interface AnalyzeConfluenceArgs {
+  jiraIds: string[];
+  epics: Array<{ key: string; summary?: string; closedChildKeys?: string[] }>;
+  jiraPagedRequest: ConfluenceRouteContext['jiraPagedRequest'];
+  callClaude: ConfluenceRouteContext['callClaude'];
+  loadCommand: ConfluenceRouteContext['loadCommand'];
+  logError: ConfluenceRouteContext['logError'];
+  logWarn: ConfluenceRouteContext['logWarn'];
+  confluenceListPages: ConfluenceRouteContext['confluenceListPages'];
+  confluenceConfigured: boolean;
+  CONFLUENCE_BASE: string;
+}
+
+export type AnalyzeConfluenceResult =
+  | {
+      ok: true;
+      suggestions: ConfluenceSuggestion[];
+      warnings?: { unreachableCount: number; totalCount: number };
+    }
+  | {
+      ok: false;
+      code: 'JIRA_ISSUE_UNREACHABLE';
+      message: string;
+      unreachable: Array<{ key: string; error: string }>;
+    };
+
+// Orchestrates POST /api/confluence/analyze end-to-end: fetches the union of
+// requested/epic-child JIRA keys, grounds the prompt in the space's existing
+// page tree (best-effort), asks Claude, parses/validates its response, and
+// attaches each suggestion's deep link. Assumes the caller has already
+// guarded on JIRA_API_TOKEN being configured (that's an HTTP-level 503, not
+// a business-logic outcome) — everything else, including the "nothing came
+// back from JIRA" case, is expressed in the returned discriminated result so
+// the route can shape the right response without needing its own logic.
+export async function analyzeConfluence({
+  jiraIds,
+  epics,
+  jiraPagedRequest,
+  callClaude,
+  loadCommand,
+  logError,
+  logWarn,
+  confluenceListPages,
+  confluenceConfigured,
+  CONFLUENCE_BASE,
+}: AnalyzeConfluenceArgs): Promise<AnalyzeConfluenceResult> {
+  // Epic mode (#556): fetch summary+description for the *union* of the
+  // requested jiraIds (in epic mode these are the selected epic keys) and
+  // every epic's closed child keys, so the prompt can reason over what
+  // actually shipped, not just each epic's own summary. In search mode (no
+  // `epics`), this union is exactly `jiraIds` — the fetch loop below behaves
+  // identically to before #556.
+  const keysToFetch = new Set<string>(jiraIds);
+  for (const e of epics) {
+    keysToFetch.add(e.key);
+    for (const childKey of e.closedChildKeys ?? []) keysToFetch.add(childKey);
+  }
+
+  const issues: ConfluenceAnalysisIssue[] = [];
+  const unreachable: Array<{ key: string; error: string }> = [];
+
+  const keyChunks: string[][] = [];
+  const allKeys = [...keysToFetch];
+  for (let i = 0; i < allKeys.length; i += ANALYZE_FETCH_CHUNK_SIZE) {
+    keyChunks.push(allKeys.slice(i, i + ANALYZE_FETCH_CHUNK_SIZE));
+  }
+
+  await pMap(
+    keyChunks,
+    (chunk) => fetchIssuesByKeys(chunk, jiraPagedRequest, issues, unreachable),
+    { concurrency: config.JIRA_CONCURRENCY }
+  );
+
+  if (unreachable.length > 0) {
+    logWarn(
+      'POST /api/confluence/analyze',
+      `Could not fetch ${unreachable.length} of ${keysToFetch.size} JIRA issue(s)`,
+      { unreachable }
+    );
+  }
+
+  // Only hard-fail when nothing usable came back — a partial fetch still
+  // produces an analysis, with the gaps reported as a warning (see
+  // `warnings` below) rather than aborting the whole request.
+  if (issues.length === 0 && keysToFetch.size > 0) {
+    return {
+      ok: false,
+      code: 'JIRA_ISSUE_UNREACHABLE',
+      message: `Could not fetch any of the ${keysToFetch.size} requested JIRA issue(s)`,
+      unreachable,
+    };
+  }
+
+  const issuesByKey = new Map(issues.map((i) => [i.key, i]));
+  const epicGroups: ConfluenceAnalysisEpicGroup[] = epics.map((e) => ({
+    epic: issuesByKey.get(e.key) ?? {
+      key: e.key,
+      summary: e.summary || '',
+      description: '',
+    },
+    children: (e.closedChildKeys ?? [])
+      .map((childKey) => issuesByKey.get(childKey))
+      .filter((i): i is ConfluenceAnalysisIssue => i !== undefined),
+  }));
+
+  // #557: ground the analysis in the space's real page tree — guarded so
+  // analysis still runs JIRA-only, unchanged, when Confluence isn't
+  // configured, and best-effort (a listing failure is logged and swallowed
+  // rather than failing the whole analysis) since this is grounding context,
+  // not a hard requirement of the endpoint.
+  let existingPages: Array<{ id: string; title: string; hierarchyPath: string }> = [];
+  if (confluenceConfigured) {
+    try {
+      existingPages = await confluenceListPages();
+    } catch (err) {
+      const apiErr = parseApiError(err);
+      logError('POST /api/confluence/analyze', 'Failed to list Confluence pages', {
+        error: apiErr.message,
+      });
+    }
+  }
+
+  // #558: an editable "documentation-guidance" skill controls how deep or
+  // shallow the proposed doc updates go (e.g. "skip purely internal work",
+  // "prefer updating an existing page"). loadCommand (not loadCommandRaw)
+  // strips the frontmatter and substitutes {{PRODUCT_CONTEXT}} before we hand
+  // it to the prompt builder. Undefined/empty is handled by
+  // buildConfluenceAnalysisPrompt itself (renders no guidance section), so no
+  // repo file is required.
+  const documentationGuidance = loadCommand('documentation-guidance') ?? undefined;
+
+  const prompt =
+    epicGroups.length > 0
+      ? buildConfluenceAnalysisPrompt({ epics: epicGroups, existingPages, documentationGuidance })
+      : buildConfluenceAnalysisPrompt({ issues, existingPages, documentationGuidance });
+  const rawResponse = await callClaude(prompt);
+
+  let suggestions: ConfluenceSuggestion[];
+  try {
+    suggestions = parseConfluenceSuggestions(rawResponse);
+  } catch (err) {
+    throw new Error(
+      `AI analysis returned an unparseable response: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  // #662: attach each suggestion's deep link (existing page for
+  // Update/Delete, proposed parent for Create) from the same page tree just
+  // listed above — best-effort, never blocks the response.
+  const pagesByTitle = new Map(existingPages.map((p) => [p.title, { id: p.id }]));
+  const suggestionsWithLinks: ConfluenceSuggestion[] = suggestions.map((s) => ({
+    ...s,
+    pageUrl: resolveSuggestionLink(s, pagesByTitle, CONFLUENCE_BASE),
+  }));
+
+  return {
+    ok: true,
+    suggestions: suggestionsWithLinks,
+    warnings:
+      unreachable.length > 0
+        ? { unreachableCount: unreachable.length, totalCount: keysToFetch.size }
+        : undefined,
+  };
+}
+
+export interface ExecuteConfluenceSuggestionsArgs {
+  suggestions: ConfluenceSuggestion[];
+  confluenceGetPageByTitle: ConfluenceRouteContext['confluenceGetPageByTitle'];
+  confluenceCreatePage: ConfluenceRouteContext['confluenceCreatePage'];
+  confluenceUpdatePage: ConfluenceRouteContext['confluenceUpdatePage'];
+  confluenceDeletePage: ConfluenceRouteContext['confluenceDeletePage'];
+}
+
+export interface ExecuteConfluenceSuggestionsResult {
+  snapshotId: string;
+  results: ConfluenceExecuteResult[];
+}
+
+// Applies the user's selected suggestions (from analyzeConfluence) against
+// Confluence. Each suggestion is applied independently — a failure on one
+// (e.g. its target page can't be found) is recorded as `success:false` and
+// does NOT abort the rest of the batch (acceptance criteria: partial
+// success). Only successfully-applied operations are recorded in the undo
+// snapshot; a failed/skipped suggestion never happened, so there's nothing
+// to reverse.
+export async function executeConfluenceSuggestions({
+  suggestions,
+  confluenceGetPageByTitle,
+  confluenceCreatePage,
+  confluenceUpdatePage,
+  confluenceDeletePage,
+}: ExecuteConfluenceSuggestionsArgs): Promise<ExecuteConfluenceSuggestionsResult> {
+  // Applied with bounded concurrency (capped at JIRA_CONCURRENCY, shared with
+  // the JIRA push/pull routes' identical pattern) instead of one sequential
+  // Confluence round-trip per suggestion; pMap preserves each suggestion's
+  // original index so `results`/`operations` below stay in source order
+  // regardless of completion order.
+  const perSuggestion = await pMap(
+    suggestions,
+    async (
+      suggestion
+    ): Promise<{
+      result: ConfluenceExecuteResult;
+      operation: SnapshotOperation | null;
+    }> => {
+      const { pageTitle, action, proposedContent } = suggestion;
+      try {
+        if (action === 'Create') {
+          const page = await confluenceCreatePage(pageTitle, proposedContent);
+          return {
+            result: { pageTitle, action, pageId: page.id, success: true },
+            operation: {
+              action: 'Create',
+              pageTitle,
+              pageId: page.id,
+              previousContent: null,
+              previousVersion: null,
+            },
+          };
+        } else if (action === 'Update') {
+          const page = await confluenceGetPageByTitle(pageTitle);
+          if (!page) {
+            return {
+              result: {
+                pageTitle,
+                action,
+                pageId: null,
+                success: false,
+                error: `Page not found: ${pageTitle}`,
+              },
+              operation: null,
+            };
+          }
+          const updated = await confluenceUpdatePage(
+            page.id,
+            page.version,
+            pageTitle,
+            proposedContent
+          );
+          return {
+            result: { pageTitle, action, pageId: updated.id, success: true },
+            operation: {
+              action: 'Update',
+              pageTitle,
+              pageId: page.id,
+              previousContent: page.body,
+              previousVersion: page.version,
+            },
+          };
+        } else {
+          // action === 'Delete'
+          const page = await confluenceGetPageByTitle(pageTitle);
+          if (!page) {
+            return {
+              result: {
+                pageTitle,
+                action,
+                pageId: null,
+                success: false,
+                error: `Page not found: ${pageTitle}`,
+              },
+              operation: null,
+            };
+          }
+          await confluenceDeletePage(page.id);
+          return {
+            result: { pageTitle, action, pageId: page.id, success: true },
+            operation: {
+              action: 'Delete',
+              pageTitle,
+              pageId: page.id,
+              previousContent: page.body,
+              previousVersion: page.version,
+            },
+          };
+        }
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        return {
+          result: { pageTitle, action, pageId: null, success: false, error: apiErr.message },
+          operation: null,
+        };
+      }
+    },
+    { concurrency: config.JIRA_CONCURRENCY }
+  );
+
+  const results: ConfluenceExecuteResult[] = perSuggestion.map((p) => p.result);
+  const operations: SnapshotOperation[] = perSuggestion
+    .map((p) => p.operation)
+    .filter((op): op is SnapshotOperation => op !== null);
+
+  const snapshotId = createSnapshot(operations);
+  return { snapshotId, results };
+}
+
+export interface UndoConfluenceSnapshotArgs {
+  operations: SnapshotOperation[];
+  confluenceGetPageByTitle: ConfluenceRouteContext['confluenceGetPageByTitle'];
+  confluenceCreatePage: ConfluenceRouteContext['confluenceCreatePage'];
+  confluenceUpdatePage: ConfluenceRouteContext['confluenceUpdatePage'];
+  confluenceDeletePage: ConfluenceRouteContext['confluenceDeletePage'];
+}
+
+// Reverses a prior executeConfluenceSuggestions() call's snapshot, applying
+// the inverse of each operation in *reverse* order. Like execute, each
+// reversal is applied independently (partial success) — one failure doesn't
+// stop the rest.
+export async function undoConfluenceSnapshot({
+  operations,
+  confluenceGetPageByTitle,
+  confluenceCreatePage,
+  confluenceUpdatePage,
+  confluenceDeletePage,
+}: UndoConfluenceSnapshotArgs): Promise<ConfluenceUndoResult[]> {
+  const reversed = [...operations].reverse();
+
+  // Applied with bounded concurrency (same JIRA_CONCURRENCY-capped pMap
+  // pattern as execute above) instead of one sequential Confluence
+  // round-trip per reversal; pMap preserves each operation's index in
+  // `reversed` so the result stays in reverse-of-execute order regardless of
+  // completion order.
+  return pMap(
+    reversed,
+    async (op): Promise<ConfluenceUndoResult> => {
+      try {
+        if (op.action === 'Create') {
+          if (!op.pageId) throw new Error('Snapshot is missing the created page id');
+          await confluenceDeletePage(op.pageId);
+        } else if (op.action === 'Update') {
+          if (!op.pageId || op.previousContent === null || op.previousVersion === null) {
+            throw new Error('Snapshot is missing data needed to undo this update');
+          }
+          // The context only exposes getPageByTitle (no get-by-id), and the
+          // title is stable across the original update, so re-fetch by title
+          // to get the page's *actual current* version rather than trusting
+          // op.previousVersion + 2 (original version, +1 for execute's
+          // update, +1 again for this undo) — anything could have changed
+          // the page's version between execute and undo (e.g. a manual
+          // edit), so re-reading it right before the call is safer than
+          // assuming no drift.
+          const current = await confluenceGetPageByTitle(op.pageTitle);
+          const currentVersion = current ? current.version : op.previousVersion + 1;
+          await confluenceUpdatePage(
+            op.pageId,
+            currentVersion + 1,
+            op.pageTitle,
+            op.previousContent
+          );
+        } else {
+          // Undo Delete → re-create the page. Best-effort: this creates the
+          // page at the space root — the original hierarchy/parent-page
+          // placement is not restored (same caveat as the issue spec).
+          if (op.previousContent === null) {
+            throw new Error('Snapshot is missing data needed to undo this delete');
+          }
+          await confluenceCreatePage(op.pageTitle, op.previousContent);
+        }
+        return { pageTitle: op.pageTitle, action: op.action, success: true };
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        return {
+          pageTitle: op.pageTitle,
+          action: op.action,
+          success: false,
+          error: apiErr.message,
+        };
+      }
+    },
+    { concurrency: config.JIRA_CONCURRENCY }
+  );
+}
