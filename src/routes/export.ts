@@ -300,7 +300,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
 
       let sections = '';
       if (includeRoadmap) sections += renderRoadmapTimeline(sprints, epicEntries, hideEmptyEpics);
-      if (includeCharts) sections += renderRoadmapCharts(visibleLeafs);
+      if (includeCharts) sections += renderRoadmapCharts(visibleLeafs, allDocs);
       if (includeTitles) sections += renderRoadmapIssueTitles(sprints, visibleLeafs, allDocs);
       if (includeDescs) sections += renderRoadmapIssueDescs(sprints, visibleLeafs, contentMap);
 

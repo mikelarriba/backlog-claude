@@ -1,0 +1,198 @@
+/* ── JIRA Comments view ─────────────────────────────────────────── */
+/* Uses design tokens from base.css; reuses .doc-header / .doc-title from
+   documentation.css for the header. */
+#comments-view {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+}
+#comments-view.show {
+  display: flex;
+  width: 100%;
+}
+
+.comments-body {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ── Filter bar ─────────────────────────────────────────────────── */
+.comments-filter-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+/* Toggle-button filter groups (pill style; active = accent fill) */
+.comments-filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.comments-filter-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-body);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+.comments-filter-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.comments-filter-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.comments-filter-btn.active:hover {
+  background: var(--accent-hover);
+  color: #fff;
+}
+
+/* ── Comment list & cards ───────────────────────────────────────── */
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.comment-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: var(--space-3) var(--space-4);
+}
+.comment-card.mentions-me {
+  border-left: 3px solid var(--accent);
+}
+
+.comment-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.comment-issue-key {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+.comment-issue-key:hover {
+  text-decoration: underline;
+}
+
+.comment-issue-summary {
+  font-size: 0.82rem;
+  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-mention-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+}
+
+.comment-meta {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: var(--space-2);
+}
+.comment-author {
+  font-weight: 600;
+  color: var(--text-body);
+}
+
+/* Collapsed: single-line preview with ellipsis; expanded: full markdown body */
+.comment-preview {
+  font-size: 0.88rem;
+  color: var(--text-body);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.comment-card:not(.collapsed) .comment-preview {
+  display: none;
+}
+.comment-card.collapsed .comment-body {
+  display: none;
+}
+
+.comment-body {
+  font-size: 0.88rem;
+  color: var(--text-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.comment-body p {
+  margin: 0 0 var(--space-2);
+}
+.comment-body p:last-child {
+  margin-bottom: 0;
+}
+
+.comment-card-actions {
+  margin-top: var(--space-3);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.comments-empty,
+.comments-loading {
+  text-align: center;
+  color: var(--muted);
+  padding: var(--space-8) var(--space-4);
+  font-size: 0.9rem;
+}
+
+/* ── Reply modal context block ──────────────────────────────────── */
+.comment-reply-context {
+  border-left: 3px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-2) 0 var(--space-3);
+  font-size: 0.82rem;
+  color: var(--muted);
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  max-height: 140px;
+  overflow-y: auto;
+}

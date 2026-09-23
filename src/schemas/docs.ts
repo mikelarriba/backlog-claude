@@ -10,6 +10,25 @@ const PriorityEnum = z.enum(['Critical', 'High', 'Medium', 'Low']).openapi({
   description: 'Priority level',
 });
 
+// Maps JIRA priority values (which flow in from synced docs) onto the internal
+// PriorityEnum. Used where a doc's stored priority is forwarded as a generation
+// hint — anything unrecognized falls back to Medium so it can never 400.
+const JIRA_PRIORITY_MAP: Record<string, z.infer<typeof PriorityEnum>> = {
+  blocker: 'Critical',
+  critical: 'Critical',
+  major: 'High',
+  high: 'High',
+  medium: 'Medium',
+  minor: 'Low',
+  trivial: 'Low',
+  low: 'Low',
+};
+const CoercedPriority = z
+  .string()
+  .transform((val) => JIRA_PRIORITY_MAP[val.toLowerCase()] ?? 'Medium')
+  .pipe(PriorityEnum)
+  .openapi({ description: 'Priority level (JIRA values are coerced to the enum)' });
+
 const DocItemSchema = z
   .object({
     type: z.string().min(1).openapi({ description: 'Document type' }),
@@ -33,10 +52,10 @@ export const DraftDocSchema = z
 
 export const GenerateDocSchema = z
   .object({
-    idea: z.string().min(1).max(5000).openapi({ description: 'Idea to generate doc from' }),
+    idea: z.string().min(1).max(20000).openapi({ description: 'Idea to generate doc from' }),
     title: z.string().max(200).optional().openapi({ description: 'Optional title' }),
     type: z.string().optional().openapi({ description: 'Document type' }),
-    priority: PriorityEnum.optional(),
+    priority: CoercedPriority.optional(),
     parentFeature: z.string().optional().openapi({ description: 'Parent feature filename' }),
     parentEpic: z.string().optional().openapi({ description: 'Parent epic filename' }),
     fixVersion: z.string().optional().openapi({ description: 'Fix version' }),

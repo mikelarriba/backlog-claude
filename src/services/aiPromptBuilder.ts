@@ -55,6 +55,23 @@ Command template to improve:
 ${content}`;
 }
 
+export function buildImproveCommentPrompt(text: string): string {
+  return `You are polishing a JIRA comment before it is posted as a reply. Improve only the grammar, spelling, punctuation, and clarity of the text below, and keep it concise.
+
+Stay strictly faithful to the author's intent:
+- Do NOT add facts, opinions, commitments, or details the author did not write
+- Do NOT change the meaning, tone, or level of certainty
+- Do NOT answer questions or expand on the content — only polish what is there
+- Preserve any JIRA mention syntax (e.g. [~username]) and issue keys exactly as written
+- Keep the author's original language
+
+Return ONLY the improved comment text — no commentary, no preamble, no quotes, no code fences.
+
+Comment to improve:
+
+${text}`;
+}
+
 export interface ConfluenceAnalysisIssue {
   key: string;
   summary: string;

@@ -32,6 +32,8 @@ The input may contain a YAML-like metadata block (from JIRA or other sources) wi
 
 Output ONLY the markdown content — do not write any files, do not ask for permissions.
 
+Do NOT add any conversational preamble, intro, or closing remark. Do not say things like "Here is the Spike, ready to drop into the backlog:". The very first character of your output must be the opening `---` of the YAML frontmatter. Nothing before it.
+
 Start with YAML frontmatter:
 
 ```yaml
@@ -53,7 +55,10 @@ Then include these sections:
 ```markdown
 ## Spike Title
 
-A question-based title (e.g. "Can we replace the current message broker with a more scalable alternative?")
+A short, question-based title — keep it under ~10 words. Capture the single core unknown; push the details, sub-questions, and qualifiers into the Objective section rather than the title.
+
+Good: "Can MIDAS safely support user impersonation via request-header override?"
+Too long: "Can MIDAS safely support user impersonation by overriding the request-header identity, and how should users grant impersonation rights to technical users in the UI?"
 
 ## Context
 

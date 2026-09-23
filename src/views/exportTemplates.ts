@@ -402,8 +402,22 @@ export function renderRoadmapIssueDescs(
   return `<div class="sec-title">Issue Descriptions</div>${html}`;
 }
 
-export function renderRoadmapCharts(visibleLeafs: DocEntry[]): string {
+export function renderRoadmapCharts(visibleLeafs: DocEntry[], allDocs: DocEntry[] = []): string {
   if (!visibleLeafs.length) return '';
+
+  // Story Points by Category groups on the *epic's* category: leaf issues
+  // (stories/spikes/bugs) rarely carry their own workCategory, so charting on
+  // the leaf field alone left the whole chart as "Uncategorized". A leaf's own
+  // category still wins when explicitly set; otherwise it inherits its parent
+  // epic's (resolved via parentFilename, the epic's filename).
+  const epicCatByFilename = new Map<string, string | null>();
+  for (const d of allDocs) {
+    if (d.docType === 'epic') epicCatByFilename.set(d.filename, d.workCategory);
+  }
+  const categoryOf = (d: DocEntry): string =>
+    d.workCategory ||
+    (d.parentFilename ? epicCatByFilename.get(d.parentFilename) : null) ||
+    'Uncategorized';
 
   const COLORS = [
     '#3B82F6',
@@ -426,7 +440,7 @@ export function renderRoadmapCharts(visibleLeafs: DocEntry[]): string {
   const catDist: Record<string, number> = {};
   for (const d of visibleLeafs) {
     const team = d.team || 'Unassigned';
-    const cat = d.workCategory || 'Uncategorized';
+    const cat = categoryOf(d);
     teamDist[team] = (teamDist[team] || 0) + (Number(d.storyPoints) || 0);
     catDist[cat] = (catDist[cat] || 0) + (Number(d.storyPoints) || 0);
   }

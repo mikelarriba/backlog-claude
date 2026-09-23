@@ -183,6 +183,8 @@ export interface JiraRouteContext extends RouteContext {
     opts?: { maxResults?: number; maxTotal?: number; expand?: string }
   ) => Promise<unknown[]>;
   jiraUploadAttachment: (issueKey: string, filename: string, buffer: Buffer) => Promise<unknown>;
+  getMyself: () => Promise<{ name: string; displayName: string }>;
+  addComment: (issueKey: string, body: string) => Promise<unknown>;
   findLocalFileByJiraId: (jiraId: string) => Promise<{ docType: string; filename: string } | null>;
   jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };
   extractJiraSummary: (content: string) => string;
