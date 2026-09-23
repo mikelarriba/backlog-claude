@@ -71,7 +71,8 @@ export interface JiraBoardSprint {
 // high-frequency caller.
 export async function fetchBoardSprints(
   jiraAgileRequest: (method: string, urlPath: string, body?: unknown) => Promise<unknown>,
-  boardId: string
+  boardId: string,
+  states = 'active,future'
 ): Promise<JiraBoardSprint[]> {
   const sprints: JiraBoardSprint[] = [];
   let startAt = 0;
@@ -79,7 +80,7 @@ export async function fetchBoardSprints(
   while (true) {
     const data = (await jiraAgileRequest(
       'GET',
-      `/board/${boardId}/sprint?state=active,future&maxResults=${maxResults}&startAt=${startAt}`
+      `/board/${boardId}/sprint?state=${states}&maxResults=${maxResults}&startAt=${startAt}`
     )) as Record<string, unknown>;
     const page = (data.values as JiraBoardSprint[]) || [];
     sprints.push(...page);

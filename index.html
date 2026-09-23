@@ -1197,14 +1197,10 @@
               <button class="btn-secondary" data-action="searchDocumentationIssues">Retry</button>
             </div>
 
-            <!-- Results list -->
-            <div id="doc-issues-list"></div>
-            <div class="doc-placeholder" id="doc-placeholder">
-              Select a sprint, fix version, or search to load issues.
-            </div>
-            <div class="doc-pagination" id="doc-pagination"></div>
-
-            <!-- AI Analysis Results (#372) -->
+            <!-- AI Analysis Results (#372) — rendered above the issues list so
+                 the "AI Suggestions" panel sits at the top once "Ask AI" is
+                 used; it stays display:none until then, so the issues list is
+                 the only content beforehand. -->
             <div class="doc-results-panel" id="doc-results-panel" style="display: none">
               <!-- #662: visual break from the Epics/issues list above — only
                    ever visible while the panel itself is (display:none until
@@ -1268,6 +1264,15 @@
                 ↩ Undo all changes
               </button>
             </div>
+
+            <!-- Results list (Epics/issues loaded) — sits below the AI
+                 Suggestions panel so suggestions stay at the top after "Ask
+                 AI". -->
+            <div id="doc-issues-list"></div>
+            <div class="doc-placeholder" id="doc-placeholder">
+              Select a sprint, fix version, or search to load issues.
+            </div>
+            <div class="doc-pagination" id="doc-pagination"></div>
           </div>
         </div>
         <div id="bugs-view" class="view-panel">
