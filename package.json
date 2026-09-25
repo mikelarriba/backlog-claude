@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.62",
+    "@playwright/test": "^1.63",
     "@types/express": "^5.0.6",
     "@types/js-yaml": "^4.0.9",
     "@types/multer": "^2.2.0",
