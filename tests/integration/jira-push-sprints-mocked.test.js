@@ -481,6 +481,13 @@ Test.
       const content = fs.readFileSync(filepath, 'utf-8');
       assert.match(content, /^JIRA_ID: EAMDM-9$/m);
       assert.match(content, /^Sprint: Sprint 100$/m);
+
+      // The pulled doc must be visible through the in-memory index, not just on disk.
+      const list = await api('GET', '/api/docs');
+      assert.ok(
+        list.data.some((d) => d.filename === data.results[0].filename),
+        'pulled doc should appear in GET /api/docs'
+      );
     });
 
     test('reports a per-issue error without failing the whole batch when the JIRA fetch fails', async () => {
