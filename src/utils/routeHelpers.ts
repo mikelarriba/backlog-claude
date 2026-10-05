@@ -21,6 +21,37 @@ export function sendError(
   return res.status(status).json(body);
 }
 
+/** Async replacement for `fs.existsSync` — never blocks the event loop. */
+export async function fileExists(filepath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(filepath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Read a document or send the standard 404. Returns the content, or `null`
+ * when the response has already been sent. ENOENT is caught from the read
+ * itself (no existsSync pre-check → no TOCTOU race).
+ */
+export async function readDocOr404(
+  res: Response,
+  filepath: string,
+  label = 'Document'
+): Promise<string | null> {
+  try {
+    return await fs.promises.readFile(filepath, 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      sendError(res, 404, 'NOT_FOUND', `${label} not found`);
+      return null;
+    }
+    throw err;
+  }
+}
+
 export function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }

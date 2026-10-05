@@ -9,6 +9,7 @@ import {
   handleRouteError,
   assertFilename,
   setupSSE,
+  fileExists,
 } from '../utils/routeHelpers.js';
 import { extractFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
 import {
@@ -41,7 +42,7 @@ export default function storiesRoutes({
     try {
       const filename = assertFilename(req.params.filename);
       const filepath = path.join(STORIES_DIR, filename);
-      if (!fs.existsSync(filepath))
+      if (!(await fileExists(filepath)))
         return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
       const content = await fs.promises.readFile(filepath, 'utf-8');
       const { sections } = parseStorySections(content);
@@ -74,7 +75,7 @@ export default function storiesRoutes({
         const apiErr = parseApiError(err);
         return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
       }
-      if (!fs.existsSync(filepath))
+      if (!(await fileExists(filepath)))
         return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
 
       setupSSE(res);
@@ -92,7 +93,7 @@ export default function storiesRoutes({
 
         const epicFilename = filename.replace('-stories.md', '.md');
         const inboxPath = path.join(INBOX_DIR, epicFilename);
-        const inboxHistory = fs.existsSync(inboxPath)
+        const inboxHistory = (await fileExists(inboxPath))
           ? `\n\nOriginal epic idea and upgrade history:\n---\n${await fs.promises.readFile(inboxPath, 'utf-8')}\n---`
           : '';
 
@@ -119,7 +120,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
         await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
         await docIndex.invalidate('story', filename);
 
-        if (fs.existsSync(inboxPath)) {
+        if (await fileExists(inboxPath)) {
           const note = `\n\n---\n\n## Story Upgrade Note — ${new Date().toISOString().slice(0, 16).replace('T', ' ')} (Story ${storyIndex + 1})\n\n${feedback.trim()}\n`;
           await fs.promises.appendFile(inboxPath, note);
         }
@@ -153,7 +154,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
       try {
         const filename = assertFilename(req.params.filename);
         const filepath = path.join(STORIES_DIR, filename);
-        if (!fs.existsSync(filepath))
+        if (!(await fileExists(filepath)))
           return sendError(res, 404, 'NOT_FOUND', 'Stories file not found');
 
         const { storyIndex } = req.body;
@@ -190,7 +191,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
       const apiErr = parseApiError(err);
       return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
     }
-    if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
+    if (!(await fileExists(filepath))) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
 
     setupSSE(res);
     const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -288,7 +289,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
     try {
       const filename = assertFilename(req.params.filename);
       const filepath = path.join(EPICS_DIR, filename);
-      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
+      if (!(await fileExists(filepath))) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
       res.json({
         filename,
         docType: 'epic',

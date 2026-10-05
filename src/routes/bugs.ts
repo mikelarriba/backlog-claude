@@ -9,6 +9,7 @@ import {
   parseApiError,
   assertSlug,
   assertAttachmentFilename,
+  fileExists,
 } from '../utils/routeHelpers.js';
 import { isoDate, slugify } from '../utils/transforms.js';
 import { translateToEnglish, processAttachment } from '../services/bugService.js';
@@ -147,7 +148,7 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
   });
 
   // ── GET /api/bugs/attachments/:slug/:file ─────────────────────────────────
-  router.get('/api/bugs/attachments/:slug/:file', (req, res) => {
+  router.get('/api/bugs/attachments/:slug/:file', async (req, res) => {
     let slug, file;
     try {
       slug = assertSlug(req.params.slug);
@@ -160,7 +161,8 @@ ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
       return sendError(res, 400, 'INVALID_FILENAME', 'Invalid attachment path');
     }
     const filePath = path.join(BUGS_DIR, 'attachments', slug, file);
-    if (!fs.existsSync(filePath)) return sendError(res, 404, 'NOT_FOUND', 'Attachment not found');
+    if (!(await fileExists(filePath)))
+      return sendError(res, 404, 'NOT_FOUND', 'Attachment not found');
     res.sendFile(filePath);
   });
 

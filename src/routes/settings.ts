@@ -12,7 +12,7 @@ import {
   getAvailableProviders,
 } from '../services/claudeService.js';
 import { validateBody } from '../utils/validateMiddleware.js';
-import { sendError } from '../utils/routeHelpers.js';
+import { sendError, fileExists } from '../utils/routeHelpers.js';
 import {
   PiSettingsSchema,
   SplitThresholdSchema,
@@ -39,7 +39,7 @@ export default function settingsRoutes({
 
   async function loadPiSettings() {
     try {
-      if (fs.existsSync(PI_SETTINGS_PATH))
+      if (await fileExists(PI_SETTINGS_PATH))
         return JSON.parse(await fs.promises.readFile(PI_SETTINGS_PATH, 'utf-8'));
     } catch {
       /* no-op */
@@ -54,7 +54,7 @@ export default function settingsRoutes({
   // Apply saved model, provider, and effort on startup (async read, fires before first request)
   void (async () => {
     try {
-      if (fs.existsSync(MODEL_SETTINGS_PATH)) {
+      if (await fileExists(MODEL_SETTINGS_PATH)) {
         const saved = JSON.parse(await fs.promises.readFile(MODEL_SETTINGS_PATH, 'utf-8'));
         if (saved.model) setModelOverride(saved.model);
         if (saved.provider) setProviderOverride(saved.provider);
