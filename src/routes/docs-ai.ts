@@ -1,6 +1,5 @@
 // ── Document AI generation routes ─────────────────────────────────────────────
 import { Router } from 'express';
-import fs from 'fs';
 import path from 'path';
 import {
   sendError,
@@ -9,6 +8,7 @@ import {
   assertFilename,
   setupSSE,
   resolveDocPath,
+  fileExists,
 } from '../utils/routeHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import {
@@ -107,7 +107,8 @@ export default function docsAiRoutes(ctx: RouteContext) {
         const apiErr = parseApiError(err);
         return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
       }
-      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+      if (!(await fileExists(filepath)))
+        return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
       setupSSE(res);
       const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -163,7 +164,8 @@ export default function docsAiRoutes(ctx: RouteContext) {
       const apiErr = parseApiError(err);
       return sendError(res, 400, apiErr.code, apiErr.message, apiErr.details);
     }
-    if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+    if (!(await fileExists(filepath)))
+      return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
     setupSSE(res);
     const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -204,7 +206,7 @@ export default function docsAiRoutes(ctx: RouteContext) {
 
       const epicFilename = assertFilename(rawFilename);
       const epicPath = path.join(TYPE_CONFIG.epic.dir(), epicFilename);
-      if (!fs.existsSync(epicPath)) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
+      if (!(await fileExists(epicPath))) return sendError(res, 404, 'NOT_FOUND', 'Epic not found');
 
       const result = await splitEpic({ epicFilename, description }, ctx);
 

@@ -1,6 +1,7 @@
 // ── Canvas layout persistence routes ─────────────────────────────────────────
 import { Router } from 'express';
 import fs from 'fs';
+import { fileExists } from '../utils/routeHelpers.js';
 import path from 'path';
 import type { CanvasRouteContext } from '../types.js';
 import { validateBody } from '../utils/validateMiddleware.js';
@@ -15,7 +16,7 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
   // own property instead of reassigning this object's prototype chain.
   async function loadLayout(): Promise<Record<string, unknown>> {
     try {
-      if (fs.existsSync(CANVAS_LAYOUT_PATH)) {
+      if (await fileExists(CANVAS_LAYOUT_PATH)) {
         const parsed = JSON.parse(await fs.promises.readFile(CANVAS_LAYOUT_PATH, 'utf-8'));
         return Object.assign(Object.create(null), parsed);
       }

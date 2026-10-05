@@ -2,7 +2,13 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { assertDocType, assertFilename, sendError, parseApiError } from '../utils/routeHelpers.js';
+import {
+  assertDocType,
+  assertFilename,
+  sendError,
+  parseApiError,
+  fileExists,
+} from '../utils/routeHelpers.js';
 import {
   computeAutoLayout,
   type ChildData,
@@ -37,7 +43,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
     Record<string, Record<string, { col: number; row: number }>>
   > {
     try {
-      if (fs.existsSync(CANVAS_LAYOUT_PATH))
+      if (await fileExists(CANVAS_LAYOUT_PATH))
         return JSON.parse(await fs.promises.readFile(CANVAS_LAYOUT_PATH, 'utf-8'));
     } catch {
       // Optional file — best-effort read; fall back to auto-layout if missing/corrupt.
@@ -47,7 +53,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
 
   async function loadPiSettings(): Promise<Record<string, unknown>> {
     try {
-      if (fs.existsSync(PI_SETTINGS_PATH))
+      if (await fileExists(PI_SETTINGS_PATH))
         return JSON.parse(await fs.promises.readFile(PI_SETTINGS_PATH, 'utf-8'));
     } catch {
       // Optional file — best-effort read; fall back to defaults if missing/corrupt.
@@ -63,7 +69,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
       const cfg = TYPE_CONFIG[docType];
       const filepath = path.join(cfg.dir(), filename);
 
-      if (!fs.existsSync(filepath)) {
+      if (!(await fileExists(filepath))) {
         res.status(404).send('Document not found');
         return;
       }
@@ -91,7 +97,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
             const childCfg = TYPE_CONFIG[c.docType];
             if (childCfg) {
               const childPath = path.join(childCfg.dir(), c.filename);
-              if (fs.existsSync(childPath))
+              if (await fileExists(childPath))
                 content = await fs.promises.readFile(childPath, 'utf-8');
             }
           } catch {
@@ -274,7 +280,7 @@ export default function exportRoutes({ rootDir, TYPE_CONFIG, docIndex }: ExportR
               const cfg = TYPE_CONFIG[d.docType];
               if (!cfg) return;
               const fp = path.join(cfg.dir(), d.filename);
-              if (fs.existsSync(fp))
+              if (await fileExists(fp))
                 contentMap[d.filename] = await fs.promises.readFile(fp, 'utf-8');
             } catch {
               // Best-effort read of an issue's description; entry renders as "No description" if unreadable.

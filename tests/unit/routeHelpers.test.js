@@ -1,7 +1,12 @@
 // ── Unit tests: src/utils/routeHelpers.js ─────────────────────────────────────
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
+  fileExists,
+  readDocOr404,
   assertFilename,
   assertSlug,
   assertAttachmentFilename,
@@ -110,5 +115,44 @@ describe('assertAttachmentFilename', () => {
 
   test('rejects empty string', () => {
     assert.throws(() => assertAttachmentFilename(''), { code: 'INVALID_FILENAME' });
+  });
+});
+
+// ── fileExists / readDocOr404 ─────────────────────────────────────────────────
+describe('fileExists / readDocOr404', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rh-'));
+  const file = path.join(dir, 'a.md');
+  fs.writeFileSync(file, 'hello');
+  const fakeRes = () => {
+    const r = { statusCode: 200, body: null };
+    r.status = (c) => ((r.statusCode = c), r);
+    r.json = (b) => ((r.body = b), r);
+    return r;
+  };
+
+  test('fileExists is true for an existing file', async () => {
+    assert.equal(await fileExists(file), true);
+  });
+
+  test('fileExists is false for a missing file', async () => {
+    assert.equal(await fileExists(path.join(dir, 'nope.md')), false);
+  });
+
+  test('readDocOr404 returns content when present', async () => {
+    const res = fakeRes();
+    assert.equal(await readDocOr404(res, file), 'hello');
+    assert.equal(res.body, null);
+  });
+
+  test('readDocOr404 sends the standard 404 when missing', async () => {
+    const res = fakeRes();
+    assert.equal(await readDocOr404(res, path.join(dir, 'nope.md'), 'Epic'), null);
+    assert.equal(res.statusCode, 404);
+    assert.equal(res.body.code, 'NOT_FOUND');
+    assert.equal(res.body.error, 'Epic not found');
+  });
+
+  test('readDocOr404 rethrows non-ENOENT errors (e.g. EISDIR)', async () => {
+    await assert.rejects(() => readDocOr404(fakeRes(), dir));
   });
 });

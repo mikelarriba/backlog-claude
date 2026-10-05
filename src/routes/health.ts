@@ -1,11 +1,11 @@
 // ── Enhanced health check route ──────────────────────────────────────────────
-import fs from 'fs';
 import type { RequestHandler } from 'express';
+import { fileExists } from '../utils/routeHelpers.js';
 import type { AppContext } from '../app/context.js';
 
 export function healthHandler(ctx: AppContext): RequestHandler {
-  return (_req, res) => {
-    const docsExists = fs.existsSync(ctx.DOCS_ROOT);
+  return async (_req, res) => {
+    const docsExists = await fileExists(ctx.DOCS_ROOT);
     const jiraCircuitState = ctx.jiraCircuit.getState();
     const docIndexReady = ctx.shared.docIndex.isReady();
 
