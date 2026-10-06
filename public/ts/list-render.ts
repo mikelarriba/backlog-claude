@@ -1,20 +1,12 @@
 // ── List rendering: rank helpers, swimlane rendering, readiness, dep connectors ─
 import { escHtml, buildChildrenMap, TYPE_LABEL, STATUS_LABEL } from './state.js';
 import type { DocEntry } from './state.js';
-import { registerActions } from './actions.js';
 
 // Typed data-action names for this module's onclick sites (issue #461
 // migration — see actions.ts and list-filters.ts's CTX_ACTIONS for the
-// established pattern). toggleSwimlane/toggleItemCollapse/handleItemClick
-// (list-filters.ts) and openDistributionModal (distribution.ts) are called
-// as ambient globals here rather than imported directly: list-filters.ts
-// already imports render helpers *from* this module, so a value import the
-// other way would close a two-file cycle and pull list.ts/detail.ts's much
-// heavier dependency graph into this module's otherwise DOM-inert unit
-// test — the same tradeoff detail-links.ts documents for its own ambient
-// use of `openDoc`. All four are still attached to `window` by main.ts's
-// `_dynGlobals` bridge, which is what makes the ambient reference resolve
-// at runtime (see global.d.ts).
+// established pattern). Registered from list-filters.ts, where the handlers
+// live, not here — same const-in-render-module / register-in-handler-module
+// split the context/change action names below use.
 export const LIST_ITEM_ACTIONS = {
   toggleSwimlane: 'listToggleSwimlane',
   toggleItemCollapse: 'listToggleItemCollapse',
@@ -38,21 +30,6 @@ export const LIST_ITEM_CTX_ACTIONS = {
 export const LIST_ITEM_CHANGE_ACTIONS = {
   updatePiVersion: 'listUpdatePiVersion',
 } as const;
-
-registerActions({
-  [LIST_ITEM_ACTIONS.toggleSwimlane]: (el) => {
-    toggleSwimlane(el.dataset.section as 'currentPi' | 'nextPi' | 'backlog');
-  },
-  [LIST_ITEM_ACTIONS.toggleItemCollapse]: (el, e) => {
-    toggleItemCollapse(el.dataset.filename ?? '', e);
-  },
-  [LIST_ITEM_ACTIONS.itemClick]: (el, e) => {
-    handleItemClick(e, el.dataset.filename ?? '', el.dataset.doctype ?? '');
-  },
-  [LIST_ITEM_ACTIONS.openDistributionModal]: (el) => {
-    void openDistributionModal(el.dataset.versionName ?? '');
-  },
-});
 
 // ── Local types ──────────────────────────────────────────────
 // jiraVersions is declared as `string[]` in global.d.ts (legacy ambient typing),

@@ -12,6 +12,8 @@ import {
   closeModal,
 } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
+import { openDoc } from './nav-hooks.js';
+import { openDistributionModal } from './distribution.js';
 import { loadDocs, contextSplitItem } from './list.js';
 import {
   registerActions,
@@ -24,6 +26,7 @@ import {
   renderDocItem,
   attachDepHoverListenerFor,
   _invalidateDepElCache,
+  LIST_ITEM_ACTIONS,
   LIST_ITEM_CTX_ACTIONS,
   LIST_ITEM_CHANGE_ACTIONS,
 } from './list-render.js';
@@ -338,6 +341,18 @@ export const CTX_ACTIONS = {
   moveRank: 'ctxMoveRank',
 };
 registerActions({
+  [LIST_ITEM_ACTIONS.toggleSwimlane]: (el) => {
+    toggleSwimlane(el.dataset.section);
+  },
+  [LIST_ITEM_ACTIONS.toggleItemCollapse]: (el, e) => {
+    toggleItemCollapse(el.dataset.filename ?? '', e);
+  },
+  [LIST_ITEM_ACTIONS.itemClick]: (el, e) => {
+    handleItemClick(e, el.dataset.filename ?? '', el.dataset.doctype ?? '');
+  },
+  [LIST_ITEM_ACTIONS.openDistributionModal]: (el) => {
+    void openDistributionModal(el.dataset.versionName ?? '');
+  },
   [CTX_ACTIONS.moveRank]: (el) => {
     void contextMoveRank(el.dataset.direction ?? '');
   },

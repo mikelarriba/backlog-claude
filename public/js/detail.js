@@ -1,4 +1,5 @@
 // ── Detail view ────────────────────────────────────────────────
+import { registerOpenDoc } from './nav-hooks.js';
 import {
   fetchJSON,
   patchJSON,
@@ -142,6 +143,7 @@ export async function openDoc(filename, docType) {
     console.error(e);
   }
 }
+registerOpenDoc(openDoc);
 export async function loadOriginal(filename) {
   const section = document.getElementById('original-section');
   const container = document.getElementById('original-content');

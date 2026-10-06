@@ -14,6 +14,7 @@ import {
 } from './state.js';
 import { upsertDoc } from './store.js';
 import { showJiraSelectModal } from './jira-import.js';
+import { openDoc } from './nav-hooks.js';
 import { registerActions } from './actions.js';
 // Typed data-action names for the dependency chip's "remove" button and its
 // clickable label in renderDetailDeps, and the hierarchy panel's parent row,

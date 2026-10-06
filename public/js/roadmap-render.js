@@ -11,6 +11,7 @@ import {
   handleRoadmapEpicClick,
   handleRoadmapCardClick,
 } from './roadmap-select.js';
+import { openDoc } from './nav-hooks.js';
 import { registerActions } from './actions.js';
 import { moveRankByType } from './dragdrop.js';
 // Typed data-action names for the epic-row click, story-card click,
