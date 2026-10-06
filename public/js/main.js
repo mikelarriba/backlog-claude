@@ -1,6 +1,7 @@
 // ── ES Module entry point ────────────────────────────────────────
 import { fetchJSON, debounce } from './state.js';
 import { on } from './store.js';
+import { isSplitMode, highlightSelectedItem, updateSplitMode } from './split-mode.js';
 import {
   loadDocs,
   loadPiSettings,
@@ -18,17 +19,14 @@ import {
   dispatchBlurAction,
 } from './actions.js';
 import {
-  toggleItemCollapse,
   collapseAll,
   expandAll,
-  toggleSwimlane,
   setTypeFilter,
   setStatusFilter,
   setTeamFilter,
   setWorkCatFilter,
   applyFilters,
   patchSingleDoc,
-  handleItemClick,
   closeBulkAssignDialog,
 } from './list-filters.js';
 import { dismissWelcomeBanner } from './list-render.js';
@@ -40,7 +38,6 @@ import {
   toggleDropdown,
   closeDropdown,
   toggleOriginal,
-  openDoc,
 } from './detail.js';
 import { toggleHierarchy } from './detail-links.js';
 import {
@@ -92,7 +89,6 @@ import {
   closeRoadmapView,
   refreshRoadmapView,
   toggleRoadmapPanel,
-  focusEpic,
   addDepLink,
   addParallelLink,
   closeDepModal,
@@ -131,45 +127,8 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 // ── Split-panel mode ───────────────────────────────────────────
-const SPLIT_MIN_WIDTH = 1280;
-export function isSplitMode() {
-  return document.querySelector('.right')?.classList.contains('split-mode') ?? false;
-}
-function updateSplitMode() {
-  const wide = window.innerWidth >= SPLIT_MIN_WIDTH;
-  const right = document.querySelector('.right');
-  if (!right) return;
-  const wasOn = right.classList.contains('split-mode');
-  if (wide === wasOn) return;
-  right.classList.toggle('split-mode', wide);
-  const _cf = currentFilename;
-  const _cdt = currentDocType;
-  if (!wide && _cf) {
-    const listView = document.getElementById('list-view');
-    if (listView) listView.style.display = 'none';
-  } else if (wide && _cf) {
-    const listView = document.getElementById('list-view');
-    if (listView) listView.style.display = '';
-    highlightSelectedItem(_cf, _cdt ?? '');
-  }
-}
-export function highlightSelectedItem(filename, docType) {
-  document
-    .querySelectorAll('.epic-item, .roadmap-card')
-    .forEach((el) => el.classList.remove('selected'));
-  if (filename) {
-    document
-      .querySelector(
-        `.epic-item[data-filename="${CSS.escape(filename)}"][data-doctype="${docType}"]`
-      )
-      ?.classList.add('selected');
-    document
-      .querySelector(
-        `.roadmap-card[data-filename="${CSS.escape(filename)}"][data-doctype="${docType}"]`
-      )
-      ?.classList.add('selected');
-  }
-}
+// Lives in split-mode.ts; re-exported here for existing importers.
+export { isSplitMode, highlightSelectedItem, updateSplitMode };
 let _lastInnerWidth = window.innerWidth;
 window.addEventListener(
   'resize',
@@ -895,8 +854,7 @@ document.addEventListener('contextmenu', (e) => {
 // `onkeydown="if(event.key===...){...}"` sites are plain inline attributes,
 // not delegated through this listener at all; `target.dataset.keydownAction`
 // simply comes back undefined for them and this listener no-ops, so they
-// keep working exactly as before via main.ts's `_dynGlobals` bridge until a
-// future increment migrates them too.
+// keep working exactly as before until a future increment migrates them too.
 document.addEventListener('keydown', (e) => {
   const target = e.target;
   const keydownAction = target.dataset.keydownAction;
@@ -938,340 +896,4 @@ document.addEventListener('change', (e) => {
   // click registry already accepts.
   dispatchChangeAction(changeAction, target, e);
 });
-// ── Window globals for dynamically-generated HTML ─────────────
-// These functions are injected into inline event strings by TypeScript
-// template literals in list-render.ts, roadmap-render.ts, refine.ts,
-// detail-fields.ts, etc. They cannot yet be migrated to delegated
-// listeners without refactoring each template — that is out of scope
-// for this issue.
-//
-// Fifteen views have been migrated off this bridge so far (issue #461) —
-// see actions.ts for the pattern:
-//   - The list multi-select context menu (list-filters.ts's showContextMenu).
-//     Its four handlers (contextMoveToPI, contextDeleteSelected,
-//     contextAssignField, contextSplitItem) are intentionally absent below.
-//   - The canvas edge "add link" popup (refine-edges.ts's _showLinkPopup).
-//     Its two handlers (_createCanvasLink, _closeLinkPopup) are intentionally
-//     absent below — see EDGE_ACTIONS in refine-edges.ts.
-//   - The skills view's card buttons (skills.ts's renderSkillCard /
-//     renderProductContext). Its six handlers (toggleSkillCard, saveSkill,
-//     resetSkill, improveSkill, saveProductContext, resetProductContext) are
-//     intentionally absent below — see SKILL_ACTIONS in skills.ts.
-//   - The roadmap epic/story context menus' action buttons
-//     (roadmap-context-menus.ts's handleEpicContextMenu / handleStoryContextMenu
-//     submenus). Its four handlers (rmCtxOpenEpic, rmCtxMoveEpic, rmCtxMoveStory,
-//     rmCtxSetSprint) are intentionally absent below — see RM_CTX_ACTIONS in
-//     roadmap-context-menus.ts. The three menu *openers* themselves
-//     (handleEstCardContextMenu/handleEpicContextMenu/handleStoryContextMenu)
-//     are also absent below now — see the registerContextActions() call in
-//     roadmap-context-menus.ts and ROADMAP_RENDER_CTX_ACTIONS in
-//     roadmap-render.ts, the contextmenu-event registry migration that
-//     replaced their `oncontextmenu="..."` strings.
-//   - The Import tab's result-list toggle (jira-import.ts's renderJiraResults).
-//     Its one handler (toggleJiraItem) is intentionally absent below — see
-//     JIRA_IMPORT_ACTIONS in jira-import.ts.
-//   - The bug-report file list's remove button (bugcreate.ts's
-//     renderBugFileList). Its one handler (removeBugFile) is intentionally
-//     absent below — see BUGCREATE_ACTIONS in bugcreate.ts.
-//   - The PI sprint config's per-row remove button (piconfig.ts's
-//     renderSprintRows), its JIRA sprint-import banner's three buttons
-//     (renderJiraImportOffer's Import/Skip, renderJiraImportConfirmation's
-//     dismiss ×), and its two PI-header "Sync from JIRA" buttons plus the PI
-//     tab bar (renderPiConfigTabs / _renderPiTabButtons). Its six handlers
-//     (removeSprintRow, confirmJiraSprintImport, skipJiraSprintImport,
-//     dismissJiraImportBanner, syncPiFromJira, selectPiConfigTab) are
-//     intentionally absent below — see PICONFIG_ACTIONS in piconfig.ts.
-//     _updatePiFromConfig's two version `onchange="..."` selects moved off
-//     this bridge in a later pass — see the "Change-event registry"
-//     paragraph below.
-//   - The detail view's dependency chip "remove" button and its clickable
-//     label (detail-links.ts's renderDetailDeps), and its hierarchy panel's
-//     parent row, per-child expand/collapse header, and "Link existing"
-//     button (detail-links.ts's loadHierarchy). Its four handlers
-//     (deleteDepFromDetail, toggleHierarchyChild, linkExistingChildren, and —
-//     added in a later pass — the dep chip label's and parent row's
-//     onclick="openDoc(...)") are intentionally absent below — see
-//     DETAIL_LINKS_ACTIONS in detail-links.ts. (deleteDepFromDetail was
-//     previously unreachable at runtime: it was never added to this bridge,
-//     so the button silently threw on click — that migration fixed it as a
-//     side effect.)
-//   - The detail view's comment CRUD buttons (detail-fields.ts's
-//     _renderComments). Its five handlers (addDocComment, startCommentEdit,
-//     cancelCommentEdit, saveCommentEdit, deleteDocComment) are intentionally
-//     absent below — see DETAIL_COMMENT_ACTIONS in detail-fields.ts.
-//   - The refine panel's epic/story/spike/bug create & edit forms
-//     (refine.ts's openManualRefine/_renderEpicPanel/openRefinePanel/
-//     openCreatePanel templates). Its twelve handlers (refineOpenCreatePanel,
-//     refineToggleManageLinks [wraps refine-edges.ts's toggleManageLinks],
-//     refineToggleEpicPanel [wraps _toggleEpicPanel], refineFpCreateChild
-//     [wraps refine-nodes.ts's _fpCreateChild], refineOpenEpicPanel,
-//     refineClosePanel, refineToggleUpgrade, refineOpenDocAndClose,
-//     refineConfirmDelete, refineExecuteUpgrade, refineRemoveDep,
-//     refineExecuteCreate) are intentionally absent below — see
-//     REFINE_ACTIONS in refine.ts. (cancelRpTitleEdit moved off this bridge
-//     in a later pass — see the "Keydown-event registry" paragraph below.
-//     saveRpTitle/saveRpStoryPoints moved off this bridge too, in a later
-//     pass still — see the "Blur-event registry" paragraph below. The
-//     priority <select>'s onchange now calls saveRpPriority directly via
-//     addEventListener instead of the bridge.)
-//   - The empty-cell-create and split popups' close/confirm buttons
-//     (refine-nodes.ts's _openCellCreateForm/_openCanvasSplit templates —
-//     the last two sites that were still reached via
-//     onclick="closeRefinePanel()" / onclick="_executeCanvasSplit(...)"
-//     strings). Their handlers are intentionally absent below — see
-//     REFINE_NODES_ACTIONS in refine-nodes.ts.
-//   - The dependency modal's per-item "remove" button (roadmap.ts's
-//     renderDepLists). Its one handler (removeDepLink) is intentionally
-//     absent below — see ROADMAP_DEP_ACTIONS in roadmap.ts. This pass also
-//     removed openRefinePanel from this bridge: an audit found no remaining
-//     onclick="..." caller anywhere — every call site is a direct function
-//     import — so it no longer needs to be here at all.
-//   - The documentation panel's issue-row click, pager buttons, and
-//     suggestion-row expand/collapse toggle (documentation.ts's
-//     renderDocIssueRow / pager / suggestion templates). Its three handlers
-//     (docRowClick, docSetPage, toggleSuggestionRow) are intentionally
-//     absent below — see DOC_ACTIONS in documentation.ts. (This bullet was
-//     missing from an earlier pass despite the migration having landed —
-//     added here for an accurate count.)
-//   - The roadmap board's epic-row click, story-card click, dependency-manage
-//     button, and cross-PI "ghost card" (roadmap-render.ts's
-//     renderRoadmapBoard / buildRoadmapCardHtml / injectGhostCards
-//     templates). Its four handlers (handleRoadmapEpicClick,
-//     handleRoadmapCardClick, openDepModal, and — added in a later pass —
-//     the ghost card's onclick="openDoc(...)") are intentionally absent
-//     below — see ROADMAP_RENDER_ACTIONS in roadmap-render.ts.
-//     (openDepModal was previously unreachable at runtime: it was never
-//     added to this bridge, so the dependency-manage button [⛓] silently
-//     threw on click — this migration fixed it as a side effect, the same
-//     class of latent bug the detail-links.ts and roadmap.ts passes above
-//     each fixed in turn.) The ghost card's onclick="openDoc(...)" was the
-//     last remaining onclick="openDoc(...)" site anywhere in public/ts/, so
-//     openDoc itself still stays on this bridge below — not because of any
-//     remaining onclick="..." string (there are none left), but because
-//     list-filters.ts's handleItemClick and roadmap-select.ts's
-//     handleRoadmapCardClick/handleRoadmapEpicClick call the bare
-//     `openDoc(...)` global directly (as a plain function call, not an
-//     onclick attribute) rather than importing it from detail.ts, the same
-//     avoid-a-heavier-dependency-graph reasoning detail-links.ts and this
-//     module document for their own ambient-global use of it. A first pass
-//     at this migration removed openDoc from the bridge on the (incorrect)
-//     assumption that "last onclick=openDoc(...) site gone" meant "no more
-//     consumers" — CI's e2e suite caught the resulting regression (list/
-//     roadmap item clicks silently failing to open the detail view) before
-//     merge, so it's restored here.
-//   - The inline "update from JIRA key" prompt's submit button
-//     (jira-pull.ts's showUpdateFromJiraKeyPrompt). Its one handler
-//     (submitUpdateFromJiraKey) is intentionally absent from the delegated
-//     switch above — see JIRA_PULL_ACTIONS in jira-pull.ts. It no longer
-//     appears below on this bridge at all: the same input's onkeydown
-//     (Enter/Escape) moved off the bridge in a later pass too — see the
-//     "Keydown-event registry" paragraph below.
-// All fifteen views now self-register via registerActions() instead.
-//
-// The registry above is `click`-only; the delegated `change` handler defined
-// earlier still has its own hand-written switch, same shape as this bridge
-// used to have. As a proof-of-concept spike, one pair of sites has been
-// migrated off it onto a new, separately-namespaced change-action registry
-// (see the "Change-event registry" section of actions.ts):
-//   - The documentation panel's Sprint and Fix Version mode <select>s
-//     (index.html's #doc-sprint-select / #doc-filter-version, both already
-//     emitting data-change-action). Their two handlers (docSetSprint,
-//     docSetFixVersionBulk) are intentionally absent from both this bridge
-//     and the change switch below — see the registerChangeActions() call in
-//     documentation.ts. This migration also fixed an anti-pattern: the
-//     change switch previously reached these two handlers via an untyped
-//     `window` lookup even though main.ts already had them as direct
-//     imports — the exact class of bridge indirection issue #461 exists to
-//     remove.
-//   - The bug-report file input (index.html's #bug-files). Its handler
-//     (onBugFilesSelected) is intentionally absent from this bridge — see
-//     BUGCREATE_CHANGE_ACTIONS in bugcreate.ts. This was a bare
-//     onchange="onBugFilesSelected(this.files)" string reaching the handler
-//     through this bridge (not the change switch, which never carried it),
-//     the same bridge-indirection pattern the two bullets above remove.
-//   - The PI sprint config's two PI-header version <select>s
-//     (piconfig.ts's renderPiConfigTabs). Its one handler
-//     (_updatePiFromConfig) is intentionally absent from this bridge — see
-//     PICONFIG_CHANGE_ACTIONS in piconfig.ts. This was another bare
-//     onchange="_updatePiFromConfig('currentPi'|'nextPi', this.value)"
-//     string reaching the handler through this bridge, the same
-//     bridge-indirection pattern the bullets above remove; the section key
-//     moves from an inline template literal to a data-section-key attribute.
-//   - The roadmap view's PI-filter checkboxes (roadmap.ts's
-//     populateRoadmapPiFilter). Its one handler (toggleRoadmapPi) is
-//     intentionally absent from this bridge — see ROADMAP_CHANGE_ACTIONS in
-//     roadmap.ts. Same bridge-indirection pattern as the bullet above; the
-//     PI name moves from an inline template literal to a data-pi-name
-//     attribute.
-// The `input` listener (defined just above the `change` one) has not been
-// touched by this spike and remains a plain switch — a future increment can
-// extend the same pattern to it once this one has proven out.
-//
-// A fourth, independent registry now covers `contextmenu` too (see the
-// "Context-menu-event registry" section of actions.ts). What started as a
-// one-site spike now covers all four `oncontextmenu="..."` sites that ever
-// existed in public/ts/:
-//   - The backlog list row's context-menu opener (list-render.ts's former
-//     `oncontextmenu="handleItemContextMenu(...)"`, now
-//     `data-context-action`). Its handler (handleItemContextMenu) is
-//     intentionally absent below — see the registerContextActions() call in
-//     list-filters.ts, where the handler is already defined.
-//   - roadmap-render.ts's estimated-sprint placeholder card, epic row, and
-//     story card (former `oncontextmenu="handleEstCardContextMenu(...)"` /
-//     `handleEpicContextMenu(...)"` / `handleStoryContextMenu(...)"`, now
-//     `data-context-action`). Their three handlers are intentionally absent
-//     below — see the registerContextActions() call in
-//     roadmap-context-menus.ts and ROADMAP_RENDER_CTX_ACTIONS in
-//     roadmap-render.ts.
-// A fresh `grep -rn 'oncontextmenu=' public/ts/` now returns nothing.
-//
-// A fifth, independent registry now covers `keydown` too (see the
-// "Keydown-event registry" section of actions.ts) — a proof-of-concept spike
-// on the two sites named most often in prior status comments as the leading
-// candidates:
-//   - refine.ts's title-edit input (former
-//     `onkeydown="if(event.key==='Enter'){this.blur()}
-//     if(event.key==='Escape'){cancelRpTitleEdit()}"`, now
-//     `data-keydown-action`). cancelRpTitleEdit is intentionally absent
-//     below — see the registerKeydownActions() call in refine.ts.
-//   - jira-pull.ts's inline "update from JIRA key" prompt input (former
-//     `onkeydown="if(event.key==='Enter'){...submitUpdateFromJiraKey()}
-//     if(event.key==='Escape'){closeAllDropdowns()}"`, now
-//     `data-keydown-action`). closeAllDropdowns and submitUpdateFromJiraKey
-//     are intentionally absent below — see the registerKeydownActions() call
-//     in jira-pull.ts.
-//   - index.html's detail title input (former
-//     `onkeydown="if(event.key==='Enter'){this.blur()}
-//     if(event.key==='Escape'){cancelTitleEdit()}"`, now
-//     `data-keydown-action`). cancelTitleEdit is intentionally absent below —
-//     see the registerKeydownActions() call in detail.ts.
-//   - index.html's three Enter-to-submit search/import boxes (former
-//     `onkeydown="if (event.key === 'Enter') docSearch();"` /
-//     `searchJira();` / `pullByKey();`), now `data-keydown-action`.
-//     docSearch/searchJira/pullByKey are intentionally absent below — see
-//     DOC_KEYDOWN_ACTIONS in documentation.ts and
-//     JIRA_IMPORT_KEYDOWN_ACTIONS in jira-import.ts. Their click sites (the
-//     Search/Import buttons) have since moved off this file's click switch
-//     too, onto DOC_ACTIONS / JIRA_IMPORT_ACTIONS (issue #461), so none of
-//     the three has any remaining reason to be reachable through this
-//     bridge.
-// The remaining `onkeydown="..."` sites — refine.ts's story-points input and
-// index.html's SP input — both branches of each just call `this.blur()`,
-// nothing to remove from this bridge — are left as plain inline attributes.
-//
-// A sixth, independent registry now covers `blur` too (see the "Blur-event
-// registry" section of actions.ts) — a proof-of-concept spike on the two
-// sites the keydown paragraph above (and this bridge's own comment, until
-// this pass) named as the reason `blur` wasn't covered yet:
-//   - refine.ts's title-edit input (former `onblur="saveRpTitle()"`, now
-//     `data-blur-action`).
-//   - refine.ts's story-points input (former
-//     `onblur="saveRpStoryPoints('${ef}','${et}')"`, now `data-blur-action`,
-//     with its filename/docType args moved to data-filename/data-doctype
-//     attributes — the same onclick-string-to-data-attribute move every
-//     other migration on this bridge has made).
-// saveRpTitle and saveRpStoryPoints are intentionally absent below — see the
-// registerBlurActions() call in refine.ts.
-const _dynGlobals = {
-  // list-render.ts / list-filters.ts
-  toggleItemCollapse,
-  toggleSwimlane,
-  handleItemClick,
-  openDistributionModal,
-  // showContextMenu/closeContextMenu moved off this bridge: the list
-  // multi-select context menu's oncontextmenu opener was already migrated
-  // onto LIST_ITEM_CTX_ACTIONS (see the narrative comment above this
-  // bridge), and both functions' remaining calls are same-module (within
-  // list-filters.ts) or a direct import (list.ts) — confirmed by a
-  // full-repo grep with no `window.<name>(...)` or bare-ambient-global
-  // caller anywhere. Same class of finding as the fourteen entries removed
-  // above.
-  // detail.js — openDoc still used from list-filters.ts / roadmap-select.ts
-  // as a bare ambient global (see the narrative comment above this bridge).
-  // closeAllDropdowns moved off this bridge (issue #461's keydown-registry
-  // spike): its only inline-attribute caller was jira-pull.ts's JIRA-key
-  // prompt onkeydown, now migrated to registerKeydownActions, and every
-  // other call site already imports it directly.
-  openDoc,
-  // detail-links.ts — loadHierarchy moved off this bridge: its "Link
-  // existing" button and hierarchy rows were already migrated onto
-  // DETAIL_LINKS_ACTIONS, and every remaining call site (detail.ts,
-  // dragdrop.ts, quickcreate.ts, stories.ts) imports it directly — same
-  // class of finding as showContextMenu/closeContextMenu above.
-  // cancelTitleEdit moved off this bridge (issue #461's keydown-registry):
-  // its only inline-attribute caller was the detail title input's onkeydown
-  // in index.html, now migrated to registerKeydownActions — see
-  // DETAIL_TITLE_KEYDOWN_ACTION in detail.ts. saveTitle/saveStoryPoints moved
-  // off this bridge too (same pass, blur-registry): their only
-  // inline-attribute callers were the title/SP inputs' onblur attributes in
-  // index.html, now migrated to registerBlurActions — see
-  // DETAIL_TITLE_BLUR_ACTION in detail.ts and DETAIL_SP_BLUR_ACTION in
-  // detail-fields.ts. A fresh grep for `saveTitle(` / `saveStoryPoints(`
-  // across public/ts/ and index.html confirms no other caller remains.
-  // refine.js — cancelRpTitleEdit moved off this bridge (issue #461's
-  // keydown-registry spike): its only caller was the title input's onkeydown
-  // Escape branch, now migrated to registerKeydownActions. saveRpTitle/
-  // saveRpStoryPoints moved off this bridge too (issue #461's blur-registry
-  // spike): their only inline-attribute callers were the title/SP inputs'
-  // onblur attributes, now migrated to registerBlurActions — see
-  // RP_TITLE_BLUR_ACTION/RP_SP_BLUR_ACTION in refine.ts. openRefinePanel was
-  // audited and confirmed to have no remaining onclick="..." caller
-  // anywhere — every call site is a direct function import
-  // (refine-canvas.ts, refine-nodes.ts, refine.ts) — so it's removed from
-  // this bridge rather than left pending.
-  // refine-nodes.ts — closeRefinePanel/_executeCanvasSplit moved off this
-  // bridge onto REFINE_NODES_ACTIONS (issue #461); see that module. This
-  // pass also removed _showEdgePopup/_deleteCanvasLink/_changeCanvasLinkType
-  // (refine-edges.ts) and refine-nodes.ts's eleven context-menu/split-popup
-  // handlers (_showCardContextMenu, _showFpCardContextMenu, _fpMoveToEpic,
-  // _showEpicContextMenu, _showEmptyCellMenu, _openCellCreateForm,
-  // _executeEmptyCellCreate, _showMultiCardContextMenu, _moveCardsToEdge,
-  // _openCanvasSplit, _moveCardToEdge): unlike the onclick="..."-string sites
-  // this bridge exists to reach, these were never wired that way — every one
-  // is reached either via a direct import (refine-canvas.ts, refine.ts) or a
-  // same-module addEventListener callback (refine-nodes.ts, refine-edges.ts
-  // themselves), confirmed by a full-repo grep with no `window.<name>(...)`
-  // or bare-ambient-global caller anywhere. Same class of finding as
-  // openRefinePanel's removal above — these fourteen never needed this
-  // bridge at all.
-  // roadmap.ts — toggleRoadmapPi's onchange site moved off this bridge onto
-  // ROADMAP_CHANGE_ACTIONS (issue #461); see that module.
-  // roadmap-render.ts — handleRoadmapCardClick/handleRoadmapEpicClick/
-  // openDepModal moved off this bridge onto ROADMAP_RENDER_ACTIONS (issue
-  // #461); see that module. openDepModal was in fact never on this bridge
-  // in the first place — the dep-manage button's onclick was unreachable
-  // at runtime before this migration.
-  // roadmap-jira-sync.ts — _sprintPushUpdateCount/_pullSprintUpdateCount/
-  // pullSprintSelectAllItems's onchange sites moved off this bridge onto
-  // ROADMAP_JIRA_SYNC_CHANGE_ACTIONS (issue #461); see that module.
-  // piconfig.ts — _updatePiFromConfig's two onchange sites moved off this
-  // bridge onto PICONFIG_CHANGE_ACTIONS (issue #461); see that module.
-  // jira-pull.ts — submitUpdateFromJiraKey's onclick moved to
-  // JIRA_PULL_ACTIONS (issue #461) and its onkeydown moved to
-  // registerKeydownActions in the same later pass, so it's gone from this
-  // bridge entirely.
-  // bugcreate.ts — onBugFilesSelected's onchange moved off this bridge onto
-  // BUGCREATE_CHANGE_ACTIONS (issue #461); see that module.
-  // documentation.ts — docRowClick/docSetPage/toggleSuggestionRow/setDocMode
-  // moved off this bridge onto DOC_ACTIONS (issue #461); docSetSprint/
-  // docSetFixVersionBulk/docToggleKey/toggleSuggestionCheck moved off it
-  // too, onto the change-action registry (see the "Change-event registry"
-  // section of actions.ts and the registerChangeActions() call in
-  // documentation.ts). docSearch's onkeydown moved off this bridge too, onto
-  // DOC_KEYDOWN_ACTIONS (issue #461's keydown-registry). Every Documentation
-  // view click case — docSearch plus docSetTypeFilter/askAI/
-  // selectAllSuggestions/deselectAllSuggestions/modifyDocumentation/
-  // exportDocumentationPdf/undoChanges/searchDocumentationIssues — has since
-  // moved off this file's click switch onto DOC_ACTIONS (issue #461); the
-  // whole Documentation view is now off this bridge and that switch.
-  // jira-import.ts — searchJira/pullByKey's onkeydown sites moved off this
-  // bridge onto JIRA_IMPORT_KEYDOWN_ACTIONS (issue #461's keydown-registry);
-  // see that module. Their click sites (Search/Import buttons) have since
-  // moved off this file's click switch onto JIRA_IMPORT_ACTIONS.search /
-  // .pullByKey (issue #461).
-  // Exposed for cross-module calls (also in FRONTEND_GLOBALS eslint list)
-  focusEpic,
-  updateSplitMode,
-};
-Object.assign(window, _dynGlobals);
 //# sourceMappingURL=main.js.map

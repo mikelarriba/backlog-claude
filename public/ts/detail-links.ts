@@ -15,6 +15,7 @@ import {
 import type { DocEntry } from './state.js';
 import { upsertDoc } from './store.js';
 import { showJiraSelectModal } from './jira-import.js';
+import { openDoc } from './nav-hooks.js';
 import type { SelectModalItem, ChildLink, LinksResponse } from './detail.js';
 import { registerActions } from './actions.js';
 

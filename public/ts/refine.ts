@@ -23,6 +23,7 @@ import {
 import type { DocEntry, PanelState } from './state.js';
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
+import { updateSplitMode } from './split-mode.js';
 import { _parseComments, _renderComments } from './detail-fields.js';
 import {
   buildCanvasGraph,
