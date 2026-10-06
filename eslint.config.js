@@ -93,6 +93,22 @@ export default [
     },
   },
 
+  // Request-path code must not block the event loop: use the async helpers in
+  // src/utils/routeHelpers.ts (fileExists / readDocOr404) instead of *Sync fs calls.
+  {
+    files: ['src/routes/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.property.name=/^(exists|readFile|writeFile|readdir|mkdir|stat|unlink|rename|appendFile|copyFile|rm)Sync$/]',
+          message: 'Use async fs.promises / fileExists() in request handlers (no sync fs).',
+        },
+      ],
+    },
+  },
+
   // Frontend JavaScript files
   {
     files: ['public/js/**/*.js'],

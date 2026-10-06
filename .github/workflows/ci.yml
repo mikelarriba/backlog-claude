@@ -49,9 +49,10 @@ jobs:
           MOCK_CLAUDE: '1'
           LOG_LEVEL: 'error'
       - run: npm run build:frontend
-      - name: Coverage summary (report-only, no threshold enforced yet)
-        run: npm run test:coverage
-        continue-on-error: true
+      - name: Coverage (backend src/** gated; public/ts report-only)
+        run: |
+          npm run test:coverage 2>&1 | tee coverage-report.txt
+          node scripts/check-coverage.mjs coverage-report.txt
         env:
           MOCK_CLAUDE: '1'
           LOG_LEVEL: 'error'

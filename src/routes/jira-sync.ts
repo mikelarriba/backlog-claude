@@ -8,6 +8,7 @@ import {
   handleRouteError,
   assertDocType,
   assertFilename,
+  fileExists,
 } from '../utils/routeHelpers.js';
 import { pMap } from '../utils/pMap.js';
 import { extractFrontmatterField, jiraToMarkdown } from '../utils/transforms.js';
@@ -80,7 +81,8 @@ export default function jiraSyncRoutes({
         const cfg = TYPE_CONFIG[docType];
         const filename = assertFilename(req.params.filename);
         const filepath = path.join(cfg.dir(), filename);
-        if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+        if (!(await fileExists(filepath)))
+          return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
         const content = await fs.promises.readFile(filepath, 'utf-8');
         const jiraId = extractFrontmatterField(content, 'JIRA_ID');
@@ -133,7 +135,8 @@ export default function jiraSyncRoutes({
         const cfg = TYPE_CONFIG[docType];
         const filepath = path.join(cfg.dir(), filename);
 
-        if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+        if (!(await fileExists(filepath)))
+          return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
         const existing = await fs.promises.readFile(filepath, 'utf-8');
 

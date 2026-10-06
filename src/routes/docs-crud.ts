@@ -9,6 +9,7 @@ import {
   assertDocType,
   assertStatus,
   resolveDocPath,
+  fileExists,
 } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { logAudit } from '../utils/auditLog.js';
@@ -41,7 +42,8 @@ export default function docsCrudRoutes({
   router.get('/api/doc/:type/:filename', async (req, res) => {
     try {
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
-      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+      if (!(await fileExists(filepath)))
+        return sendError(res, 404, 'NOT_FOUND', 'Document not found');
       const content = await fs.promises.readFile(filepath, 'utf-8');
       res.json({ filename, docType, content });
     } catch (err) {
@@ -53,7 +55,8 @@ export default function docsCrudRoutes({
   router.patch('/api/doc/:type/:filename', validateBody(PatchDocSchema), async (req, res) => {
     try {
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
-      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+      if (!(await fileExists(filepath)))
+        return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
       const {
         status,
@@ -246,7 +249,8 @@ export default function docsCrudRoutes({
   router.delete('/api/doc/:type/:filename', async (req, res) => {
     try {
       const { docType, filename, filepath } = resolveDocPath(req, TYPE_CONFIG);
-      if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+      if (!(await fileExists(filepath)))
+        return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
       await fs.promises.unlink(filepath);
       await docIndex.invalidate(docType, filename);

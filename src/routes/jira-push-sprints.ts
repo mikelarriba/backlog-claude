@@ -422,9 +422,10 @@ export default function jiraPushSprintsRoutes({
             const filename = `${isoDate()}-${slug}.md`;
             const filePath = path.join(dir, filename);
             await fs.promises.writeFile(filePath, finalContent);
+            await docIndex.invalidate(docType, filename);
 
             logInfo('jira/pull-sprint', `Pulled ${key} → ${filename}`);
-            broadcast({ type: 'doc-change', docType, filename });
+            broadcast({ type: `${docType}_created`, filename, docType });
             return { key, status: 'ok', filename };
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

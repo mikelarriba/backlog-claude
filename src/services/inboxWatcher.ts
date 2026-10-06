@@ -117,6 +117,8 @@ export function watchInbox({
           path.join(errorsDir, `${filename}.error.json`),
           JSON.stringify(errorMeta, null, 2)
         );
+        // NOTE: 'inbox-error' has no frontend handler in sse-client.ts by design — failures
+        // are surfaced via server logs and the inbox/errors/ folder only.
         broadcast({ type: 'inbox-error', filename, error: lastError });
         logError(
           'watchInbox',

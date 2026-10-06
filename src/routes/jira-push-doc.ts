@@ -9,6 +9,7 @@ import {
   handleRouteError,
   assertDocType,
   assertFilename,
+  fileExists,
 } from '../utils/routeHelpers.js';
 import { extractFrontmatterField } from '../utils/transforms.js';
 import { parseStorySections } from '../services/storyService.js';
@@ -69,7 +70,7 @@ export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
           const cfg = TYPE_CONFIG[docType];
           if (!cfg) return null;
           const filepath = path.join(cfg.dir(), filename);
-          if (!fs.existsSync(filepath)) return null;
+          if (!(await fileExists(filepath))) return null;
           const content = await fs.promises.readFile(filepath, 'utf-8');
           const jiraId = extractFrontmatterField(content, 'JIRA_ID') || 'TBD';
           const localTitle = extractJiraSummary(content);
@@ -91,7 +92,7 @@ export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
               } else {
                 // Epic exists locally but not yet in JIRA — capture its title for preview
                 const epicPath = path.join(EPICS_DIR, epicFilename);
-                if (fs.existsSync(epicPath)) {
+                if (await fileExists(epicPath)) {
                   pendingEpicTitle = extractJiraSummary(
                     await fs.promises.readFile(epicPath, 'utf-8')
                   );
@@ -107,7 +108,7 @@ export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
               const fid = await resolveParentJiraId(FEATURES_DIR, featureFilename);
               if (!fid) {
                 const featurePath = path.join(FEATURES_DIR, featureFilename);
-                if (fs.existsSync(featurePath)) {
+                if (await fileExists(featurePath)) {
                   pendingFeatureTitle = extractJiraSummary(
                     await fs.promises.readFile(featurePath, 'utf-8')
                   );
@@ -144,7 +145,7 @@ export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
           !includedFilenames.has(item.epicFilenameRef)
         ) {
           const epicPath = path.join(EPICS_DIR, item.epicFilenameRef);
-          if (fs.existsSync(epicPath)) {
+          if (await fileExists(epicPath)) {
             const epicContent = await fs.promises.readFile(epicPath, 'utf-8');
             const epicTitle = extractJiraSummary(epicContent);
             const epicSP = extractFrontmatterField(epicContent, 'Story_Points');
@@ -307,7 +308,8 @@ export default function jiraPushDocRoutes(ctx: JiraRouteContext) {
     const type = docType;
     const filename = assertFilename(req.params.filename);
     const filepath = path.join(cfg.dir(), filename);
-    if (!fs.existsSync(filepath)) return sendError(res, 404, 'NOT_FOUND', 'Document not found');
+    if (!(await fileExists(filepath)))
+      return sendError(res, 404, 'NOT_FOUND', 'Document not found');
 
     try {
       const t = Date.now();
