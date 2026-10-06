@@ -8,47 +8,38 @@
 // via POST /api/confluence/execute (#374) with a 60-second undo window.
 import { fetchJSON, postJSON, showJiraToast, escHtml } from './state.js';
 import { logAiSaving } from './ai-savings.js';
-import { renderDiffHtml } from './lineDiff.js';
+import {
+  DOC_ACTIONS,
+  DOC_CHANGE_ACTIONS,
+  DOC_KEYDOWN_ACTIONS,
+  matchExecuteResults,
+  paginate,
+} from './documentation-state.js';
+import type {
+  DocIssue,
+  DocEpic,
+  ConfluenceSuggestion,
+  ConfluenceExecuteResult,
+  ConfluenceUndoResult,
+  SuggestionStatus,
+} from './documentation-state.js';
+import {
+  buildIssueRowHtml,
+  buildPagerHtml,
+  buildEpicRowHtml,
+  buildSuggestionRowHtml,
+} from './documentation-render.js';
+
+// Re-exported so existing importers (and tests) of documentation.js keep working.
+export { DOC_ACTIONS, DOC_CHANGE_ACTIONS, DOC_KEYDOWN_ACTIONS, matchExecuteResults };
+export type { DocIssue, DocEpic, ConfluenceSuggestion };
+export { buildEpicRowHtml, buildSuggestionRowHtml };
 import {
   registerActions,
   registerChangeActions,
   registerInputActions,
   registerKeydownActions,
 } from './actions.js';
-
-// Typed data-action names for the issue-row click, pager buttons, and
-// suggestion-row expand/collapse toggle (issue #461 migration — see
-// actions.ts and CTX_ACTIONS in list-filters.ts for the established
-// pattern). Replaces onclick="docRowClick(event,'...')" /
-// onclick="docSetPage(...)" / onclick="toggleSuggestionRow(...)" strings
-// previously reached through main.ts's untyped window bridge.
-export const DOC_ACTIONS = {
-  rowClick: 'docRowClick',
-  setPage: 'docSetPage',
-  toggleSuggestion: 'toggleSuggestionRow',
-  toggleEpic: 'docToggleEpicChildren',
-  setMode: 'setDocMode',
-  // search (issue #461 migration): the Search Issues tab's Search button.
-  // docSearch was already directly imported into main.ts and reached
-  // through data-action="docSearch" in index.html — the data-action string
-  // itself needed no change — but was still dispatched via main.ts's
-  // central switch rather than this module's own registry. Same "reuse the
-  // existing data-action string as the registered name" shortcut #646 used
-  // for toggleModelSection.
-  search: 'docSearch',
-  // The rest of the Documentation view's click switch cases (issue #461
-  // migration, same shortcut as search above — each data-action string in
-  // index.html is unchanged, only the dispatch moves off main.ts's central
-  // switch onto this module's own registry).
-  setTypeFilter: 'docSetTypeFilter',
-  askAI: 'askAI',
-  selectAllSuggestions: 'selectAllSuggestions',
-  deselectAllSuggestions: 'deselectAllSuggestions',
-  modify: 'modifyDocumentation',
-  exportPdf: 'exportDocumentationPdf',
-  undo: 'undoChanges',
-  searchIssues: 'searchDocumentationIssues',
-} as const;
 
 registerActions({
   [DOC_ACTIONS.rowClick]: (el, e) => {
@@ -95,28 +86,6 @@ registerActions({
   },
 });
 
-// Typed data-change-action names for the Sprint / Fix Version mode
-// <select>s (index.html's #doc-sprint-select / #doc-filter-version) — the
-// proof-of-concept pair for the new change-action registry (issue #461, see
-// the "Change-event registry" section of actions.ts). Both elements already
-// emit data-change-action="docSetSprint" / "docSetFixVersionBulk" in
-// index.html; previously main.ts's change switch reached these two
-// functions via an untyped `window` lookup even though it already had them
-// as direct imports — this registration replaces that lookup with a real,
-// typed call.
-// toggleKey/toggleSuggestionCheck (added later) follow the same pattern for
-// the issue-row and closed-epic-row checkboxes' onchange (docToggleKey) and
-// the suggestion-row checkbox's onchange (toggleSuggestionCheck) — both
-// previously reached through main.ts's untyped window bridge. toggleKey is
-// shared by two markup sites (the JIRA-search issue list and the closed-
-// epic-children list), same as DOC_ACTIONS.rowClick already is.
-export const DOC_CHANGE_ACTIONS = {
-  setSprint: 'docSetSprint',
-  setFixVersionBulk: 'docSetFixVersionBulk',
-  toggleKey: 'docToggleKeyChange',
-  toggleSuggestionCheck: 'toggleSuggestionCheckChange',
-} as const;
-
 registerChangeActions({
   [DOC_CHANGE_ACTIONS.setSprint]: (el) => {
     docSetSprint((el as HTMLSelectElement).value);
@@ -146,53 +115,11 @@ registerInputActions({
   },
 });
 
-// Typed data-keydown-action name for the Search Issues filter box's
-// Enter-to-submit (issue #461's keydown-registry — see actions.ts's
-// "Keydown-event registry" section and JIRA_PULL_ACTIONS in jira-pull.ts for
-// the established pattern). Replaces the
-// onkeydown="if (event.key === 'Enter') docSearch();" string previously
-// reached through main.ts's untyped window bridge; docSearch is already
-// directly imported everywhere else it's called, so this was the last
-// reason it needed to be on that bridge at all.
-export const DOC_KEYDOWN_ACTIONS = {
-  filterKeydown: 'docFilterKeydown',
-} as const;
-
 registerKeydownActions({
   [DOC_KEYDOWN_ACTIONS.filterKeydown]: (_el, e) => {
     if (e.key === 'Enter') docSearch();
   },
 });
-
-export interface DocIssue {
-  key: string;
-  summary: string;
-  epicName?: string;
-  issuetype: string;
-  status: string;
-  priority?: string;
-  fixVersions?: string[];
-  localExists?: boolean;
-  localFilename?: string | null;
-  localDocType?: string | null;
-}
-
-// Epic roll-up row for Sprint/Fix Version modes (#554/#555): one entry per
-// epic that had issues closed in the resolved sprint/version window, with
-// its closed children already attached — the GET /api/jira/closed-epics
-// response shape (src/routes/jira-search.ts) needs no follow-up fetch to
-// expand a row. Children reuse DocIssue's shape (key/summary/issuetype/
-// status/localExists/localFilename/localDocType).
-export interface DocEpic {
-  key: string;
-  summary: string;
-  epicName?: string;
-  status: string;
-  epicClosedInScope: boolean;
-  localExists?: boolean;
-  localFilename?: string | null;
-  closedChildren: DocIssue[];
-}
 
 interface JiraVersion {
   id: string;
@@ -451,40 +378,14 @@ export function renderIssuesList(issues: DocIssue[]): void {
     return;
   }
 
-  const totalPages = Math.max(1, Math.ceil(issues.length / PAGE_SIZE));
-  _currentPage = Math.min(Math.max(1, _currentPage), totalPages);
-  const start = (_currentPage - 1) * PAGE_SIZE;
-  const pageItems = issues.slice(start, start + PAGE_SIZE);
+  const { pageItems, page, totalPages } = paginate(issues, _currentPage, PAGE_SIZE);
+  _currentPage = page;
 
   listEl.innerHTML = pageItems
-    .map((issue) => {
-      const checked = _selectedKeys.has(issue.key) ? 'checked' : '';
-      const selected = _selectedKeys.has(issue.key) ? 'selected' : '';
-      const typeClass = `doc-type-${(issue.issuetype || '').toLowerCase().replace(/\s+/g, '-')}`;
-      const statusClass = `doc-status-${(issue.status || '').toLowerCase().replace(/\s+/g, '-')}`;
-      return `<div class="doc-issue-row ${selected}" data-key="${escHtml(issue.key)}" data-action="${DOC_ACTIONS.rowClick}">
-        <input type="checkbox" ${checked} data-key="${escHtml(issue.key)}" data-change-action="${DOC_CHANGE_ACTIONS.toggleKey}" onclick="event.stopPropagation()" />
-        <div class="doc-issue-body">
-          <div class="doc-issue-top">
-            <span class="doc-issue-key">${escHtml(issue.key)}</span>
-            <span class="doc-type-badge ${typeClass}">${escHtml(issue.issuetype)}</span>
-            <span class="doc-status-badge ${statusClass}">${escHtml(issue.status)}</span>
-            ${issue.localExists ? '<span class="doc-local-badge" title="Already imported locally">✓ Local</span>' : ''}
-          </div>
-          <div class="doc-issue-title" title="${escHtml(issue.summary)}">${escHtml(issue.summary)}</div>
-        </div>
-      </div>`;
-    })
+    .map((issue) => buildIssueRowHtml(issue, _selectedKeys.has(issue.key)))
     .join('');
 
-  if (pagerEl) {
-    pagerEl.innerHTML =
-      totalPages > 1
-        ? `<button class="btn-ghost btn-xs" ${_currentPage <= 1 ? 'disabled' : ''} data-action="${DOC_ACTIONS.setPage}" data-page="${_currentPage - 1}">‹ Prev</button>
-           <span class="doc-page-info">Page ${_currentPage} of ${totalPages} (${issues.length} issues)</span>
-           <button class="btn-ghost btn-xs" ${_currentPage >= totalPages ? 'disabled' : ''} data-action="${DOC_ACTIONS.setPage}" data-page="${_currentPage + 1}">Next ›</button>`
-        : `<span class="doc-page-info">${issues.length} issue${issues.length === 1 ? '' : 's'}</span>`;
-  }
+  if (pagerEl) pagerEl.innerHTML = buildPagerHtml(page, totalPages, issues.length, 'issue');
 
   _updateSelectionCount();
 }
@@ -514,10 +415,8 @@ export function renderEpicsList(epics: DocEpic[]): void {
     return;
   }
 
-  const totalPages = Math.max(1, Math.ceil(epics.length / PAGE_SIZE));
-  _currentPage = Math.min(Math.max(1, _currentPage), totalPages);
-  const start = (_currentPage - 1) * PAGE_SIZE;
-  const pageItems = epics.slice(start, start + PAGE_SIZE);
+  const { pageItems, page, totalPages } = paginate(epics, _currentPage, PAGE_SIZE);
+  _currentPage = page;
 
   listEl.innerHTML = pageItems
     .map((epic) =>
@@ -525,81 +424,9 @@ export function renderEpicsList(epics: DocEpic[]): void {
     )
     .join('');
 
-  if (pagerEl) {
-    pagerEl.innerHTML =
-      totalPages > 1
-        ? `<button class="btn-ghost btn-xs" ${_currentPage <= 1 ? 'disabled' : ''} data-action="${DOC_ACTIONS.setPage}" data-page="${_currentPage - 1}">‹ Prev</button>
-           <span class="doc-page-info">Page ${_currentPage} of ${totalPages} (${epics.length} epics)</span>
-           <button class="btn-ghost btn-xs" ${_currentPage >= totalPages ? 'disabled' : ''} data-action="${DOC_ACTIONS.setPage}" data-page="${_currentPage + 1}">Next ›</button>`
-        : `<span class="doc-page-info">${epics.length} epic${epics.length === 1 ? '' : 's'}</span>`;
-  }
+  if (pagerEl) pagerEl.innerHTML = buildPagerHtml(page, totalPages, epics.length, 'epic');
 
   _updateSelectionCount();
-}
-
-// Pure: builds one epic row's HTML (including its read-only, always-in-DOM
-// closed-children list, collapsed/expanded via CSS) from the epic and its
-// selected/expanded flags — no DOM/module-state reads, so it's directly
-// unit-testable (same signature-change extraction as buildSuggestionRowHtml
-// above). The epic row itself reuses the existing .doc-issue-row
-// class/structure/selection wiring (docRowClick / docToggleKey) unchanged;
-// the expand toggle is a separate data-action so a click on it doesn't also
-// toggle selection (main.ts's delegated handler resolves to the *nearest*
-// [data-action] ancestor-or-self of the click target).
-export function buildEpicRowHtml(epic: DocEpic, selected: boolean, expanded: boolean): string {
-  const checked = selected ? 'checked' : '';
-  const selectedClass = selected ? 'selected' : '';
-  const statusClass = `doc-status-${(epic.status || '').toLowerCase().replace(/\s+/g, '-')}`;
-  const childCount = epic.closedChildren.length;
-  const itemClasses = ['doc-epic-item', expanded ? 'expanded' : ''].filter(Boolean).join(' ');
-  const title = epic.epicName || epic.summary;
-
-  const childrenHtml = childCount
-    ? epic.closedChildren.map((c) => _buildEpicChildRowHtml(c)).join('')
-    : '<p class="doc-empty doc-epic-children-empty">No closed issues.</p>';
-
-  return `<div class="${itemClasses}" data-key="${escHtml(epic.key)}">
-    <div class="doc-issue-row ${selectedClass}" data-key="${escHtml(epic.key)}" data-action="${DOC_ACTIONS.rowClick}">
-      <input type="checkbox" ${checked} data-key="${escHtml(epic.key)}" data-change-action="${DOC_CHANGE_ACTIONS.toggleKey}" onclick="event.stopPropagation()" />
-      <div class="doc-issue-body">
-        <div class="doc-issue-top">
-          <span class="doc-issue-key">${escHtml(epic.key)}</span>
-          <span class="doc-type-badge doc-type-epic">Epic</span>
-          <span class="doc-status-badge ${statusClass}">${escHtml(epic.status)}</span>
-          <span class="doc-epic-closed-badge">${childCount} closed</span>
-          ${epic.localExists ? '<span class="doc-local-badge" title="Already imported locally">✓ Local</span>' : ''}
-        </div>
-        <div class="doc-issue-title" title="${escHtml(title)}">${escHtml(title)}</div>
-      </div>
-      <button
-        type="button"
-        class="doc-epic-expand-btn"
-        data-action="${DOC_ACTIONS.toggleEpic}"
-        data-key="${escHtml(epic.key)}"
-        aria-expanded="${expanded ? 'true' : 'false'}"
-        aria-label="${expanded ? 'Collapse' : 'Expand'} closed issues for ${escHtml(epic.key)}"
-      >
-        <span class="doc-epic-expand-chevron">▾</span>
-      </button>
-    </div>
-    <div class="doc-epic-children-body">
-      <div class="doc-epic-children-inner">${childrenHtml}</div>
-    </div>
-  </div>`;
-}
-
-// Pure: one read-only closed-child row inside an expanded epic. No checkbox
-// / selection — children ride along with their parent epic's selection.
-function _buildEpicChildRowHtml(child: DocIssue): string {
-  const typeClass = `doc-type-${(child.issuetype || '').toLowerCase().replace(/\s+/g, '-')}`;
-  const statusClass = `doc-status-${(child.status || '').toLowerCase().replace(/\s+/g, '-')}`;
-  return `<div class="doc-epic-child-row" data-key="${escHtml(child.key)}">
-    <span class="doc-issue-key">${escHtml(child.key)}</span>
-    <span class="doc-type-badge ${typeClass}">${escHtml(child.issuetype)}</span>
-    <span class="doc-status-badge ${statusClass}">${escHtml(child.status)}</span>
-    ${child.localExists ? '<span class="doc-local-badge" title="Already imported locally">✓ Local</span>' : ''}
-    <span class="doc-epic-child-title" title="${escHtml(child.summary)}">${escHtml(child.summary)}</span>
-  </div>`;
 }
 
 // Toggles one epic row's expanded state in place (no full re-render — the
@@ -759,18 +586,6 @@ export async function askAI(): Promise<void> {
 }
 
 // ── AI Analysis Results ──────────────────────────────────────────────────────
-export interface ConfluenceSuggestion {
-  pageTitle: string;
-  hierarchyPath: string;
-  action: 'Create' | 'Update' | 'Delete';
-  currentContent: string;
-  proposedContent: string;
-  // #662: deep link to the target page (Update/Delete) or proposed parent
-  // page (Create), resolved server-side in /analyze; null/absent when
-  // Confluence isn't configured or the page couldn't be resolved.
-  pageUrl?: string | null;
-}
-
 let _suggestions: ConfluenceSuggestion[] = [];
 const _selectedSuggestionIndexes = new Set<number>();
 const _expandedSuggestionIndexes = new Set<number>();
@@ -822,36 +637,6 @@ export function deselectAllSuggestions(): void {
 }
 
 // ── Modify Documentation / Execute + Undo (#374 backend, #375 wiring) ────────
-interface ConfluenceExecuteResult {
-  pageTitle: string;
-  action: 'Create' | 'Update' | 'Delete';
-  pageId: string | null;
-  success: boolean;
-  error?: string;
-}
-
-interface ConfluenceUndoResult {
-  pageTitle: string;
-  action: 'Create' | 'Update' | 'Delete';
-  success: boolean;
-  error?: string;
-}
-
-type SuggestionStatus = 'pending' | 'spinner' | 'success' | 'error';
-
-// `POST /api/confluence/execute`'s `results` array is index-aligned with the
-// request's `suggestions` array (built via pMap, which preserves original
-// position — see confluence.ts), so results must be matched back to their
-// suggestion row by position within this execute batch, not by `pageTitle`:
-// two suggestions can share a pageTitle (e.g. duplicate AI output), in which
-// case a title-based lookup would incorrectly return the same result for both.
-export function matchExecuteResults(
-  selectedIndexes: number[],
-  results: ConfluenceExecuteResult[]
-): Array<{ index: number; result: ConfluenceExecuteResult | undefined }> {
-  return selectedIndexes.map((index, pos) => ({ index, result: results[pos] }));
-}
-
 const UNDO_WINDOW_SECONDS = 60;
 
 let _undoSnapshotId: string | null = null;
@@ -1010,73 +795,6 @@ function _setSuggestionStatus(index: number, status: SuggestionStatus, message?:
 // ── Diff rendering ───────────────────────────────────────────────────────────
 // The actual diff algorithm + HTML rendering live in lineDiff.ts, a pure,
 // DOM-free module imported as renderDiffHtml() above (#458).
-
-// Pure: builds one suggestion row's HTML from the suggestion, its index, and
-// its selected/expanded flags (passed explicitly instead of read from the
-// module-private _selectedSuggestionIndexes/_expandedSuggestionIndexes Sets)
-// so it's testable without DOM/module state \u2014 same signature-change extraction
-// roadmap-render.ts's buildRoadmapCardHtml(doc, parent) used (#460/#508).
-export function buildSuggestionRowHtml(
-  s: ConfluenceSuggestion,
-  index: number,
-  selected: boolean,
-  expanded: boolean
-): string {
-  const checked = selected ? 'checked' : '';
-  const rowClasses = ['doc-suggestion-row', selected ? 'selected' : '', expanded ? 'expanded' : '']
-    .filter(Boolean)
-    .join(' ');
-  const actionClass = `doc-action-${s.action.toLowerCase()}`;
-
-  return `<div class="${rowClasses}" data-index="${index}">
-    <div class="doc-suggestion-header" data-action="${DOC_ACTIONS.toggleSuggestion}" data-index="${index}">
-      <input type="checkbox" ${checked} data-index="${index}" data-change-action="${DOC_CHANGE_ACTIONS.toggleSuggestionCheck}" onclick="event.stopPropagation()" />
-      <div class="doc-suggestion-body">
-        <div class="doc-suggestion-top">
-          <span class="doc-suggestion-title">${escHtml(s.pageTitle)}</span>
-          <span class="doc-action-badge ${actionClass}">${escHtml(s.action)}</span>
-          <span class="doc-suggestion-status" data-index="${index}"></span>
-        </div>
-        <div class="doc-suggestion-path">${escHtml(s.hierarchyPath)}</div>
-        ${_buildSuggestionLinkHtml(s)}
-        <div class="doc-suggestion-error-text" data-index="${index}"></div>
-      </div>
-      <span class="doc-suggestion-chevron">\u25be</span>
-    </div>
-    <div class="doc-diff-body">
-      <div class="doc-diff-inner">
-        <div class="doc-diff-content">${renderDiffHtml(s)}</div>
-      </div>
-    </div>
-  </div>`;
-}
-
-// Pure: the last segment of a " > "-joined hierarchy path is the immediate
-// parent (see mapPageSummary in confluenceService.ts, which the analysis
-// prompt's existing-page listing — and so a Create suggestion's proposed
-// hierarchyPath — mirrors). Falls back to the raw path when it has no " > "
-// separator (e.g. a single-level parent).
-function _parentTitleFromHierarchyPath(hierarchyPath: string): string {
-  const segments = (hierarchyPath || '')
-    .split('>')
-    .map((p) => p.trim())
-    .filter(Boolean);
-  return segments.length ? segments[segments.length - 1] : hierarchyPath || '';
-}
-
-// Pure: renders the suggestion's Confluence deep link, if one was resolved
-// (#662). Update/Delete link to the existing target page; Create links to
-// the proposed parent instead, since the new page doesn't exist yet.
-// Renders nothing when pageUrl is null/absent (Confluence unconfigured or
-// the page couldn't be resolved) so the UI degrades gracefully.
-function _buildSuggestionLinkHtml(s: ConfluenceSuggestion): string {
-  if (!s.pageUrl) return '';
-  const label =
-    s.action === 'Create'
-      ? `New page under: ${escHtml(_parentTitleFromHierarchyPath(s.hierarchyPath))}`
-      : 'View page in Confluence';
-  return `<a class="doc-suggestion-link" href="${escHtml(s.pageUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${label} ↗</a>`;
-}
 
 function _renderSuggestionRow(s: ConfluenceSuggestion, index: number): string {
   return buildSuggestionRowHtml(
