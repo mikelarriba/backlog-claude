@@ -1,4 +1,5 @@
 // ── Roadmap View coordinator (Two-Panel: Epics + Stories) ──────
+import { registerFocusEpic } from './nav-hooks.js';
 import {
   escHtml,
   postJSON,
@@ -189,6 +190,8 @@ export function focusEpic(filename: string): void {
   }
   applyEpicFocus();
 }
+
+registerFocusEpic(focusEpic);
 
 export function applyEpicFocus(): void {
   // Epic panel: highlight focused epic

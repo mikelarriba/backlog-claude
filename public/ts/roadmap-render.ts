@@ -12,6 +12,7 @@ import {
   handleRoadmapEpicClick,
   handleRoadmapCardClick,
 } from './roadmap-select.js';
+import { openDoc } from './nav-hooks.js';
 import { registerActions } from './actions.js';
 import { moveRankByType } from './dragdrop.js';
 

@@ -27,6 +27,12 @@ mock.module('../../public/js/list-render.js', {
     renderDocItem: () => '',
     attachDepHoverListenerFor: () => {},
     _invalidateDepElCache: () => {},
+    LIST_ITEM_ACTIONS: {
+      toggleSwimlane: 'listToggleSwimlane',
+      toggleItemCollapse: 'listToggleItemCollapse',
+      itemClick: 'listItemClick',
+      openDistributionModal: 'listOpenDistributionModal',
+    },
     LIST_ITEM_CTX_ACTIONS: { itemContextMenu: 'listItemContextMenu' },
     LIST_ITEM_CHANGE_ACTIONS: { updatePiVersion: 'listUpdatePiVersion' },
   },

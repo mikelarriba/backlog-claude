@@ -43,15 +43,6 @@ const FRONTEND_GLOBALS = {
   _showFpCardContextMenu: 'writable',
   _swimlanesCollapsed: 'writable',
   _toastTimer: 'writable',
-  // Cross-module functions (still set on window via _dynGlobals in main.ts)
-  openDoc: 'readonly',
-  closeAllDropdowns: 'readonly',
-  focusEpic: 'readonly',
-  updateSplitMode: 'readonly',
-  toggleSwimlane: 'readonly',
-  toggleItemCollapse: 'readonly',
-  handleItemClick: 'readonly',
-  openDistributionModal: 'readonly',
   // Third-party libraries loaded via <script> tags
   marked: 'readonly',
   DOMPurify: 'readonly',

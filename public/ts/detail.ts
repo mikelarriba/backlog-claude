@@ -1,4 +1,5 @@
 // ── Detail view ────────────────────────────────────────────────
+import { registerOpenDoc } from './nav-hooks.js';
 import {
   fetchJSON,
   patchJSON,
@@ -180,6 +181,8 @@ export async function openDoc(filename: string, docType: string): Promise<void> 
     console.error(e);
   }
 }
+
+registerOpenDoc(openDoc);
 
 export async function loadOriginal(filename: string): Promise<void> {
   const section = document.getElementById('original-section') as HTMLElement;

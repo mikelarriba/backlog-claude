@@ -8,6 +8,7 @@
 // within the flat DOM order across all sprint columns; epic cards
 // range within the visible epic list). Cmd+Click can freely mix
 // items from both panels into the same selection set.
+import { openDoc, focusEpic } from './nav-hooks.js';
 let _rmSelectedItems = new Set(); // "docType:filename" keys
 let _rmLastClicked = null;
 function _rmKey(filename, docType) {

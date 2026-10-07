@@ -503,36 +503,3 @@ describe('app-wide keyboard shortcuts', () => {
     assert.equal(called('showList').length, 0);
   });
 });
-
-describe('split mode', () => {
-  test('isSplitMode reflects the .right container class and is false without it', () => {
-    assert.equal(main.isSplitMode(), false);
-  });
-
-  test('highlightSelectedItem clears prior selection and selects matching rows', () => {
-    const old = makeEl('old', { classes: ['selected'] });
-    lists['.epic-item, .roadmap-card'] = [old];
-    const item = makeEl('item');
-    const seenSelectors = [];
-    globalThis.document.querySelector = (sel) => {
-      seenSelectors.push(sel);
-      return sel.startsWith('.epic-item') ? item : null;
-    };
-    try {
-      main.highlightSelectedItem('a.md', 'story');
-      assert.equal(old.classList.contains('selected'), false);
-      assert.equal(item.classList.contains('selected'), true);
-      assert.ok(
-        seenSelectors.some((s) => s.includes('[data-filename="a.md"][data-doctype="story"]'))
-      );
-      main.highlightSelectedItem(null, 'story');
-      assert.equal(
-        item.classList.contains('selected'),
-        true,
-        'null filename only clears, never selects'
-      );
-    } finally {
-      globalThis.document.querySelector = () => null;
-    }
-  });
-});

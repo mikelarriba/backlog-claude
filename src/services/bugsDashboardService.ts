@@ -1,0 +1,439 @@
+// ── Bugs dashboard service — JIRA data pipeline, stats and analysis reports ──
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+
+export interface WeekPoint {
+  week: string;
+  Open: number;
+  'In Progress': number;
+  Resolved: number;
+  Closed: number;
+  projected: boolean;
+}
+
+export interface BugStats {
+  total: number;
+  open: number;
+  resolved30d: number;
+  avgResolutionDays: number | null;
+}
+
+export interface BugItem {
+  key: string;
+  summary: string;
+  status: string;
+  priority: string;
+  assignee: string | null;
+  created: string;
+  resolutionDate: string | null;
+  isProduction: boolean;
+}
+
+export interface DashboardData {
+  timeSeries: WeekPoint[];
+  bugs: BugItem[];
+  stats: BugStats;
+  cachedAt: string;
+}
+
+export const CACHE_TTL_MS = 10 * 60 * 1000;
+
+/** Small TTL cache holding one value; injectable/resettable so tests need no module state. */
+export class TtlCache<T> {
+  private entry: { data: T; fetchedAt: number } | null = null;
+  constructor(private readonly ttlMs: number = CACHE_TTL_MS) {}
+
+  get(now: number = Date.now()): T | null {
+    return this.entry && now - this.entry.fetchedAt < this.ttlMs ? this.entry.data : null;
+  }
+
+  set(data: T, now: number = Date.now()): void {
+    this.entry = { data, fetchedAt: now };
+  }
+
+  clear(): void {
+    this.entry = null;
+  }
+}
+
+/** Separate caches for open-only vs all bugs. */
+export interface DashboardCaches {
+  open: TtlCache<DashboardData>;
+  all: TtlCache<DashboardData>;
+}
+
+export function createDashboardCaches(): DashboardCaches {
+  return { open: new TtlCache<DashboardData>(), all: new TtlCache<DashboardData>() };
+}
+
+function weekLabel(date: Date): string {
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const weekNum = Math.ceil(date.getDate() / 7);
+  return `W${weekNum} ${month}`;
+}
+
+function statusCatToLabel(cat: string, resolutionDate: string | null, refDate?: Date): string {
+  if (cat === 'new') return 'Open';
+  if (cat === 'indeterminate') return 'In Progress';
+  if (cat === 'done') {
+    if (resolutionDate) {
+      const resolved = new Date(resolutionDate);
+      const cutoff = new Date((refDate ?? new Date()).getTime() - 30 * 24 * 60 * 60 * 1000);
+      return resolved >= cutoff ? 'Resolved' : 'Closed';
+    }
+    return 'Closed';
+  }
+  return 'Open';
+}
+
+function catFromStatusName(name: string): string {
+  const n = (name ?? '').toLowerCase();
+  if (n === 'done' || n === 'closed' || n === 'resolved' || n === 'complete' || n === 'completed')
+    return 'done';
+  if (n === 'in progress' || n === 'in review' || n === 'testing' || n === 'in development')
+    return 'indeterminate';
+  return 'new';
+}
+
+export function statusAtDate(issue: Record<string, unknown>, targetDate: Date): string {
+  const fields = issue.fields as Record<string, unknown>;
+  const created = new Date(fields.created as string);
+  if (targetDate < created) return '__not_yet__';
+
+  const resolutionDate = fields.resolutiondate as string | null;
+  const currentStatusObj = fields.status as Record<string, unknown>;
+  const currentCat =
+    ((currentStatusObj?.statusCategory as Record<string, unknown>)?.key as string) ?? 'new';
+
+  const changelog = issue.changelog as { histories?: Array<Record<string, unknown>> } | undefined;
+  if (!changelog?.histories?.length) {
+    return statusCatToLabel(currentCat, resolutionDate, targetDate);
+  }
+
+  const sorted = [...changelog.histories].sort(
+    (a, b) => new Date(a.created as string).getTime() - new Date(b.created as string).getTime()
+  );
+
+  let curCat = 'new';
+  let curResDate: string | null = null;
+
+  for (const h of sorted) {
+    if (new Date(h.created as string) > targetDate) break;
+    const items = h.items as Array<Record<string, unknown>>;
+    const sc = items.find((i) => i.field === 'status');
+    if (sc) {
+      curCat = catFromStatusName(sc['toString'] as string);
+      if (curCat === 'done') curResDate = (h.created as string).slice(0, 10);
+      else curResDate = null;
+    }
+  }
+
+  return statusCatToLabel(curCat, curResDate, targetDate);
+}
+
+export function buildTimeSeries(bugs: unknown[]): WeekPoint[] {
+  const now = new Date();
+  const points: WeekPoint[] = [];
+
+  for (let i = 12; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7);
+    d.setHours(23, 59, 59, 999);
+
+    const pt: WeekPoint = {
+      week: weekLabel(d),
+      Open: 0,
+      'In Progress': 0,
+      Resolved: 0,
+      Closed: 0,
+      projected: false,
+    };
+    for (const bug of bugs) {
+      const s = statusAtDate(bug as Record<string, unknown>, d);
+      if (s === '__not_yet__') continue;
+      if (s in pt) (pt[s as keyof WeekPoint] as number)++;
+    }
+    points.push(pt);
+  }
+
+  const currentOpen = points[12]?.Open ?? 0;
+  const currentInProgress = points[12]?.['In Progress'] ?? 0;
+
+  for (let i = 1; i <= 52; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + i * 7);
+    points.push({
+      week: weekLabel(d),
+      Open: currentOpen,
+      'In Progress': currentInProgress,
+      Resolved: 0,
+      Closed: 0,
+      projected: true,
+    });
+  }
+
+  return points;
+}
+
+export function buildStats(bugs: unknown[]): BugStats {
+  let open = 0;
+  let resolved30d = 0;
+  const resolutionDaysList: number[] = [];
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  for (const bug of bugs) {
+    const fields = (bug as Record<string, unknown>).fields as Record<string, unknown>;
+    const statusObj = fields.status as Record<string, unknown>;
+    const cat = ((statusObj?.statusCategory as Record<string, unknown>)?.key as string) ?? 'new';
+    const resolutionDate = fields.resolutiondate as string | null;
+    const label = statusCatToLabel(cat, resolutionDate);
+
+    if (label === 'Open' || label === 'In Progress') open++;
+    if (resolutionDate && new Date(resolutionDate) >= thirtyDaysAgo) resolved30d++;
+    if (resolutionDate && fields.created) {
+      const days =
+        (new Date(resolutionDate).getTime() - new Date(fields.created as string).getTime()) /
+        (1000 * 60 * 60 * 24);
+      resolutionDaysList.push(days);
+    }
+  }
+
+  const avgResolutionDays =
+    resolutionDaysList.length > 0
+      ? Math.round(resolutionDaysList.reduce((a, b) => a + b, 0) / resolutionDaysList.length)
+      : null;
+
+  return { total: bugs.length, open, resolved30d, avgResolutionDays };
+}
+
+export function buildBugItems(bugs: unknown[]): BugItem[] {
+  return bugs.map((bug) => {
+    const b = bug as Record<string, unknown>;
+    const fields = b.fields as Record<string, unknown>;
+    const statusObj = fields.status as Record<string, unknown>;
+    const cat = ((statusObj?.statusCategory as Record<string, unknown>)?.key as string) ?? 'new';
+    const resolutionDate = fields.resolutiondate as string | null;
+    const assigneeObj = fields.assignee as Record<string, unknown> | null;
+    return {
+      key: b.key as string,
+      summary: (fields.summary as string) ?? '',
+      status: statusCatToLabel(cat, resolutionDate),
+      priority: ((fields.priority as Record<string, unknown>)?.name as string) ?? 'Medium',
+      assignee: (assigneeObj?.displayName as string) ?? null,
+      created: (fields.created as string) ?? '',
+      resolutionDate,
+      isProduction:
+        Array.isArray(fields.labels) && (fields.labels as string[]).includes('MIDAS_SC3'),
+    };
+  });
+}
+
+export type BugProgress = {
+  stage: 'connecting' | 'fetching' | 'processing';
+  message: string;
+  fetched?: number;
+  total?: number | null;
+};
+
+export interface FetchBugsDeps {
+  project: string;
+  label: string;
+  jiraRequest: (method: string, url: string) => Promise<unknown>;
+  logInfo: (scope: string, message: string) => void;
+}
+
+const BUG_FIELDS = 'summary,status,priority,created,resolutiondate,fixVersions,labels,assignee';
+const PAGE_SIZE = 100;
+const MAX_TOTAL = 1000;
+
+/** Paginated JIRA fetch of the label's bugs, with changelog, reporting progress as it goes. */
+export async function fetchBugs(
+  includeClosed: boolean,
+  deps: FetchBugsDeps,
+  onProgress: (p: BugProgress) => void
+): Promise<unknown[]> {
+  const { project, label, jiraRequest, logInfo } = deps;
+  onProgress({ stage: 'connecting', message: 'Connecting to JIRA…' });
+
+  const closedFilter = includeClosed ? '' : ' AND statusCategory != Done';
+  const jql = `project = ${project} AND labels = ${label} AND issuetype = "Bug"${closedFilter} ORDER BY created ASC`;
+  const allBugs: unknown[] = [];
+  let startAt = 0;
+  let jiraTotal: number | null = null;
+  let pageNum = 0;
+
+  logInfo('bugs-dashboard', 'Fetching bugs from JIRA…');
+
+  while (true) {
+    pageNum++;
+    onProgress({
+      stage: 'fetching',
+      message: jiraTotal
+        ? `Fetching bugs from JIRA… ${allBugs.length}/${jiraTotal} (page ${pageNum})`
+        : `Fetching bugs from JIRA… (page ${pageNum})`,
+      fetched: allBugs.length,
+      total: jiraTotal,
+    });
+
+    const url = `/search?jql=${encodeURIComponent(jql)}&maxResults=${PAGE_SIZE}&startAt=${startAt}&fields=${encodeURIComponent(BUG_FIELDS)}&expand=changelog`;
+    const page = (await jiraRequest('GET', url)) as Record<string, unknown>;
+    const issues = (page.issues as unknown[] | undefined) || [];
+    allBugs.push(...issues);
+
+    if (jiraTotal === null) jiraTotal = (page.total as number) || 0;
+
+    if (
+      allBugs.length >= MAX_TOTAL ||
+      allBugs.length >= (jiraTotal || 0) ||
+      issues.length < PAGE_SIZE
+    )
+      break;
+    startAt += issues.length;
+  }
+
+  const fetched = allBugs.slice(0, MAX_TOTAL);
+  logInfo('bugs-dashboard', `Fetched ${fetched.length} bugs from JIRA`);
+  return fetched;
+}
+
+/** Build the full dashboard payload from raw JIRA issues. */
+export function buildDashboardData(bugs: unknown[]): DashboardData {
+  return {
+    timeSeries: buildTimeSeries(bugs),
+    bugs: buildBugItems(bugs),
+    stats: buildStats(bugs),
+    cachedAt: new Date().toISOString(),
+  };
+}
+
+// ── AI analysis report persistence ──────────────────────────────────────────
+// Each analysis run is written to its own timestamped markdown file under
+// docs/bug-analysis/ so the history is preserved on disk and the UI can reopen
+// the most recent report at any time (even after a reload). docs/ is gitignored
+// runtime data, so these reports never reach the remote.
+export interface SavedReport {
+  filename: string;
+  savedAt: string;
+  bugKeys: string[];
+  bugCount: number;
+  markdown: string;
+}
+
+function reportTimestamp(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+// Pipes and newlines would break a one-row-per-bug markdown table cell.
+function cell(v: string): string {
+  return (v || '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+}
+
+// Wrap bare bug keys in the AI-written analysis with links to JIRA. The AI
+// refers to bugs by key as plain text (e.g. "MIDAS-123"); this turns each
+// mention into `[MIDAS-123](…/browse/MIDAS-123)`. Segments already inside a
+// markdown link (the Analyzed Bugs table) are left untouched so keys are never
+// double-wrapped.
+function linkifyBugKeys(text: string, keys: string[], jiraBase: string): string {
+  const unique = [...new Set(keys)].filter(Boolean);
+  if (!jiraBase || unique.length === 0) return text;
+  // Longest-first so overlapping prefixes (MIDAS-1 vs MIDAS-12) match greedily.
+  const alternation = unique
+    .sort((a, b) => b.length - a.length)
+    .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const keyRe = new RegExp(`(?<![\\w/-])(${alternation})(?![\\w-])`, 'g');
+  const wrap = (segment: string): string =>
+    segment.replace(keyRe, (k) => `[${k}](${jiraBase}/browse/${k})`);
+
+  const linkRe = /\[[^\]]*\]\([^)]*\)/g;
+  let out = '';
+  let last = 0;
+  for (const m of text.matchAll(linkRe)) {
+    out += wrap(text.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  return out + wrap(text.slice(last));
+}
+
+function buildReportMarkdown(
+  bugs: BugItem[],
+  analysis: string,
+  jiraBase: string,
+  generatedAt: Date
+): string {
+  const keys = bugs.map((b) => b.key);
+  const human = generatedAt.toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  const rows = bugs
+    .map((b) => {
+      const link = `[${b.key}](${jiraBase}/browse/${b.key})`;
+      return `| ${link} | ${cell(b.summary)} | ${cell(b.status)} | ${cell(b.priority)} | ${cell(b.assignee || '—')} |`;
+    })
+    .join('\n');
+
+  return (
+    `---\n` +
+    `Generated: ${generatedAt.toISOString()}\n` +
+    `Bug_Count: ${bugs.length}\n` +
+    `Bug_Keys: ${keys.join(', ')}\n` +
+    `---\n\n` +
+    `# 🐛 AI Bug Analysis — ${human}\n\n` +
+    `Analyzed **${bugs.length}** bug${bugs.length === 1 ? '' : 's'}.\n\n` +
+    `## Analyzed Bugs\n\n` +
+    `| Key | Summary | Status | Priority | Assignee |\n` +
+    `| --- | --- | --- | --- | --- |\n` +
+    `${rows}\n\n` +
+    `---\n\n` +
+    `${linkifyBugKeys(analysis.trim(), keys, jiraBase)}\n`
+  );
+}
+
+export async function saveReport(
+  dir: string,
+  bugs: BugItem[],
+  analysis: string,
+  jiraBase: string
+): Promise<{ filename: string; savedAt: string }> {
+  await fs.mkdir(dir, { recursive: true });
+  const now = new Date();
+  const filename = `${reportTimestamp(now)}-analysis.md`;
+  const markdown = buildReportMarkdown(bugs, analysis, jiraBase, now);
+  await fs.writeFile(path.join(dir, filename), markdown, 'utf8');
+  return { filename, savedAt: now.toISOString() };
+}
+
+// Newest report on disk. Filenames are timestamped so a descending sort of the
+// *-analysis.md files yields the most recent without stat-ing every file.
+export async function loadLatestReport(dir: string): Promise<SavedReport | null> {
+  let names: string[];
+  try {
+    names = await fs.readdir(dir);
+  } catch {
+    return null;
+  }
+  const reports = names.filter((n) => n.endsWith('-analysis.md')).sort();
+  const filename = reports[reports.length - 1];
+  if (!filename) return null;
+
+  const raw = await fs.readFile(path.join(dir, filename), 'utf8');
+  const fm = raw.match(/^---\n([\s\S]*?)\n---\n/);
+  const front = fm ? fm[1] : '';
+  const get = (k: string): string =>
+    front.match(new RegExp(`^${k}:\\s*(.*)$`, 'm'))?.[1]?.trim() ?? '';
+  const bugKeysRaw = get('Bug_Keys');
+  return {
+    filename,
+    savedAt: get('Generated'),
+    bugKeys: bugKeysRaw
+      ? bugKeysRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [],
+    bugCount: Number(get('Bug_Count')) || 0,
+    markdown: raw,
+  };
+}
