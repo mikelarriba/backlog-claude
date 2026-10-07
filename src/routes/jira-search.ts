@@ -11,6 +11,7 @@ import {
 } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { LOCAL_TO_JIRA_TYPE, fetchBoardSprints } from '../services/jiraService.js';
+import { closedEpicsForScope } from '../services/jiraSearchService.js';
 import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 import { findExistingByJiraId } from '../utils/docHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
@@ -260,166 +261,19 @@ export default function jiraSearchRoutes({
     }
 
     try {
-      // ── 1. Resolve the date window ────────────────────────────────────────
-      let start: string | null = null;
-      let end: string | null = null;
-      let windowResolved = true;
-
-      if (scopeType === 'sprint') {
-        if (!JIRA_BOARD_ID) {
-          return sendError(res, 400, 'BOARD_NOT_CONFIGURED', 'JIRA_BOARD_ID not configured');
-        }
-        const sprints = await fetchBoardSprints(jiraAgileRequest, JIRA_BOARD_ID);
-        const match = sprints.find((s) => s.name === scopeValue);
-        if (!match) {
-          return sendError(res, 404, 'SPRINT_NOT_FOUND', `Sprint "${scopeValue}" not found`);
-        }
-        start = match.startDate || null;
-        end = match.endDate || null;
-      } else {
-        type JiraVersion = { name: string; startDate?: string; releaseDate?: string };
-        const versions = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) ||
-          []) as JiraVersion[];
-        const match = versions.find((v) => v.name === scopeValue);
-        if (!match) {
-          return sendError(res, 404, 'VERSION_NOT_FOUND', `Fix version "${scopeValue}" not found`);
-        }
-        start = match.startDate || null;
-        end = match.releaseDate || null;
-      }
-
-      if (!start || !end) windowResolved = false;
-
-      // ── 2. Query closed issues in window ──────────────────────────────────
-      const resolvedClause = windowResolved
-        ? ` AND resolved >= "${String(start).slice(0, 10)}" AND resolved <= "${String(end).slice(0, 10)}"`
-        : '';
-      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory = Done${resolvedClause} ORDER BY updated DESC`;
-      const fields = `summary,issuetype,status,${FIELD_EPIC_LINK},${FIELD_EPIC_NAME},resolutiondate`;
-      type JiraClosedIssue = {
-        key: string;
-        fields: Record<string, unknown> & {
-          summary?: string;
-          issuetype?: { name?: string };
-          status?: { name?: string };
-        };
-      };
-      const rawIssues = (await jiraPagedRequest(jql, fields, {
-        maxResults: 100,
-        maxTotal: 500,
-      })) as JiraClosedIssue[];
-
-      // ── 3. Group into epics ────────────────────────────────────────────────
-      interface EpicGroup {
-        key: string;
-        summary: string;
-        epicName: string;
-        status: string;
-        epicClosedInScope: boolean;
-        isSynthetic: boolean;
-        closedChildren: Array<{ key: string; summary: string; issuetype: string; status: string }>;
-      }
-      const epicMap = new Map<string, EpicGroup>();
-      const NO_EPIC_KEY = '(no epic)';
-
-      for (const issue of rawIssues) {
-        const issuetypeName = issue.fields.issuetype?.name || '';
-        if (issuetypeName === 'Epic') {
-          const entry = epicMap.get(issue.key) || {
-            key: issue.key,
-            summary: '',
-            epicName: '',
-            status: '',
-            epicClosedInScope: false,
-            isSynthetic: false,
-            closedChildren: [],
-          };
-          entry.summary = String(issue.fields.summary || '');
-          entry.epicName = String(issue.fields[FIELD_EPIC_NAME] || '');
-          entry.status = issue.fields.status?.name || '';
-          entry.epicClosedInScope = true;
-          epicMap.set(issue.key, entry);
-        } else {
-          const epicKey = String(issue.fields[FIELD_EPIC_LINK] || '').trim() || NO_EPIC_KEY;
-          const isSynthetic = epicKey === NO_EPIC_KEY;
-          const entry = epicMap.get(epicKey) || {
-            key: epicKey,
-            summary: '',
-            epicName: '',
-            status: '',
-            epicClosedInScope: false,
-            isSynthetic,
-            closedChildren: [],
-          };
-          entry.closedChildren.push({
-            key: issue.key,
-            summary: String(issue.fields.summary || ''),
-            issuetype: issuetypeName,
-            status: issue.fields.status?.name || '',
-          });
-          epicMap.set(epicKey, entry);
-        }
-      }
-
-      // ── 4. Batch-fetch epic summaries for epics not already closed-in-scope ─
-      const keysToFetch = [...epicMap.values()]
-        .filter((e) => !e.epicClosedInScope && !e.isSynthetic)
-        .map((e) => e.key);
-      if (keysToFetch.length) {
-        const epicJql = `key in (${keysToFetch.join(',')})`;
-        const epicFields = `summary,status,${FIELD_EPIC_NAME}`;
-        type JiraEpicSummary = {
-          key: string;
-          fields: Record<string, unknown> & { summary?: string; status?: { name?: string } };
-        };
-        const epicIssues = (await jiraPagedRequest(epicJql, epicFields, {
-          maxResults: 100,
-          maxTotal: 500,
-        })) as JiraEpicSummary[];
-        for (const epicIssue of epicIssues) {
-          const entry = epicMap.get(epicIssue.key);
-          if (!entry) continue;
-          entry.summary = String(epicIssue.fields.summary || '');
-          entry.epicName = String(epicIssue.fields[FIELD_EPIC_NAME] || '');
-          entry.status = epicIssue.fields.status?.name || '';
-        }
-      }
-
-      // ── 5. Attach "✓ Local" badges ───────────────────────────────────────
-      const epics = await Promise.all(
-        [...epicMap.values()].map(async (e) => {
-          const existing = e.isSynthetic ? null : await _findExistingByJiraId(e.key);
-          const closedChildren = await Promise.all(
-            e.closedChildren.map(async (c) => {
-              const childExisting = await _findExistingByJiraId(c.key);
-              return {
-                ...c,
-                localExists: !!childExisting,
-                localFilename: childExisting?.filename || null,
-                localDocType: childExisting?.docType || null,
-              };
-            })
-          );
-          return {
-            key: e.key,
-            summary: e.summary,
-            epicName: e.epicName,
-            status: e.status,
-            epicClosedInScope: e.epicClosedInScope,
-            isSynthetic: e.isSynthetic,
-            localExists: !!existing,
-            localFilename: existing?.filename || null,
-            localDocType: existing?.docType || null,
-            closedChildren,
-          };
-        })
-      );
-
-      res.json({
-        scope: { type: scopeType, value: scopeValue, windowResolved },
-        epics,
-        total: epics.length,
-      });
+      const result = await closedEpicsForScope(scopeType, scopeValue, {
+        jiraRequest,
+        jiraPagedRequest,
+        jiraAgileRequest,
+        findExisting: _findExistingByJiraId,
+        JIRA_PROJECT,
+        JIRA_LABEL,
+        JIRA_BOARD_ID,
+        FIELD_EPIC_NAME,
+        FIELD_EPIC_LINK,
+      } as never);
+      if (!result.ok) return sendError(res, result.status, result.code, result.message);
+      res.json({ scope: result.scope, epics: result.epics, total: result.epics.length });
     } catch (err) {
       const apiErr = parseApiError(err);
       logError(
