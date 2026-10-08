@@ -11,7 +11,7 @@ import {
 } from '../utils/routeHelpers.js';
 import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
 import { LOCAL_TO_JIRA_TYPE, fetchBoardSprints } from '../services/jiraService.js';
-import { closedEpicsForScope } from '../services/jiraSearchService.js';
+import { closedEpicsForScope, childrenOf } from '../services/jiraSearchService.js';
 import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 import { findExistingByJiraId } from '../utils/docHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
@@ -326,61 +326,14 @@ export default function jiraSearchRoutes({
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
     try {
-      const key = req.params.key;
-      type JiraChildIssue = {
-        key: string;
-        fields?: { summary?: string; issuetype?: { name?: string }; status?: { name?: string } };
-      };
-      type JiraParentIssue = {
-        fields?: {
-          issuetype?: { name?: string };
-          issuelinks?: Array<{ inwardIssue?: JiraChildIssue }>;
-          subtasks?: JiraChildIssue[];
-        };
-      };
-      const issue = (await jiraRequest(
-        'GET',
-        `/issue/${key}?fields=issuetype,issuelinks,subtasks`
-      )) as JiraParentIssue;
-      const issueType = issue.fields?.issuetype?.name;
-      const children: Array<Record<string, unknown>> = [];
-      const seen = new Set();
-
-      async function addChild(child: JiraChildIssue) {
-        if (seen.has(child.key)) return;
-        seen.add(child.key);
-        const existing = await _findExistingByJiraId(child.key);
-        children.push({
-          key: child.key,
-          summary: child.fields?.summary || '',
-          issuetype: child.fields?.issuetype?.name || '',
-          status: child.fields?.status?.name || '',
-          localExists: !!existing,
-          localFilename: existing?.filename || null,
-          localDocType: existing?.docType || null,
-        });
-      }
-
-      // Epics: find children via Epic Link custom field — paginate to handle large epics
-      if (issueType === 'Epic') {
-        const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
-        const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
-        const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', {
-          maxResults: 100,
-          maxTotal: 500,
-        });
-        for (const child of childIssues) await addChild(child as JiraChildIssue);
-      }
-
-      // New Features / Epics: check issue links (inward = contained children)
-      for (const link of issue.fields?.issuelinks || []) {
-        if (link.inwardIssue) await addChild(link.inwardIssue);
-      }
-
-      // Subtasks
-      for (const st of issue.fields?.subtasks || []) await addChild(st);
-
-      res.json({ parentKey: key, parentType: issueType, children });
+      const { parentKey, parentType, children } = await childrenOf(req.params.key, {
+        jiraRequest,
+        jiraPagedRequest,
+        findExisting: _findExistingByJiraId,
+        JIRA_PROJECT,
+        FIELD_EPIC_LINK,
+      });
+      res.json({ parentKey, parentType, children });
     } catch (err) {
       const apiErr = parseApiError(err);
       logError(

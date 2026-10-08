@@ -218,3 +218,74 @@ export async function closedEpicsForScope(
 
   return { ok: true, scope: { type: scopeType, value: scopeValue, windowResolved }, epics };
 }
+
+// ── Children of a JIRA issue (#697) ───────────────────────────────────────────
+export interface ChildrenDeps {
+  jiraRequest: Request;
+  jiraPagedRequest: PagedRequest;
+  findExisting: ClosedEpicsDeps['findExisting'];
+  JIRA_PROJECT: string;
+  FIELD_EPIC_LINK: string;
+}
+
+interface JiraChildIssue {
+  key: string;
+  fields?: { summary?: string; issuetype?: { name?: string }; status?: { name?: string } };
+}
+interface JiraParentIssue {
+  fields?: {
+    issuetype?: { name?: string };
+    issuelinks?: Array<{ inwardIssue?: JiraChildIssue }>;
+    subtasks?: JiraChildIssue[];
+  };
+}
+
+export async function childrenOf(
+  key: string,
+  deps: ChildrenDeps
+): Promise<{ parentKey: string; parentType?: string; children: Array<Record<string, unknown>> }> {
+  const { jiraRequest, jiraPagedRequest, findExisting, JIRA_PROJECT, FIELD_EPIC_LINK } = deps;
+  const issue = (await jiraRequest(
+    'GET',
+    `/issue/${key}?fields=issuetype,issuelinks,subtasks`
+  )) as JiraParentIssue;
+  const parentType = issue.fields?.issuetype?.name;
+  const children: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+
+  async function addChild(child: JiraChildIssue) {
+    if (seen.has(child.key)) return;
+    seen.add(child.key);
+    const existing = await findExisting(child.key);
+    children.push({
+      key: child.key,
+      summary: child.fields?.summary || '',
+      issuetype: child.fields?.issuetype?.name || '',
+      status: child.fields?.status?.name || '',
+      localExists: !!existing,
+      localFilename: existing?.filename || null,
+      localDocType: existing?.docType || null,
+    });
+  }
+
+  // Epics: find children via Epic Link custom field — paginate to handle large epics
+  if (parentType === 'Epic') {
+    const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
+    const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
+    const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', {
+      maxResults: 100,
+      maxTotal: 500,
+    });
+    for (const child of childIssues) await addChild(child as JiraChildIssue);
+  }
+
+  // New Features / Epics: check issue links (inward = contained children)
+  for (const link of issue.fields?.issuelinks || []) {
+    if (link.inwardIssue) await addChild(link.inwardIssue);
+  }
+
+  // Subtasks
+  for (const st of issue.fields?.subtasks || []) await addChild(st);
+
+  return { parentKey: key, parentType, children };
+}
