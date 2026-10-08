@@ -1,6 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { closedEpicsForScope, groupClosedIssues } from '../../src/services/jiraSearchService.ts';
+import {
+  closedEpicsForScope,
+  groupClosedIssues,
+  childrenOf,
+} from '../../src/services/jiraSearchService.ts';
 
 const issue = (key, type, extra = {}) => ({
   key,
@@ -73,5 +77,54 @@ describe('closedEpicsForScope', () => {
     const r = await closedEpicsForScope('fixversion', 'v1', d);
     assert.equal(r.scope.windowResolved, false);
     assert.doesNotMatch(calls[0], /resolved/);
+  });
+});
+
+describe('childrenOf', () => {
+  const base = (over = {}) => ({
+    JIRA_PROJECT: 'P',
+    FIELD_EPIC_LINK: 'customfield_10014',
+    findExisting: async (k) => (k === 'S-1' ? { filename: 'a.md', docType: 'story' } : null),
+    jiraPagedRequest: async () => [],
+    jiraRequest: async () => ({ fields: { issuetype: { name: 'Story' } } }),
+    ...over,
+  });
+
+  it('collects epic-link children, links and subtasks without duplicates', async () => {
+    let jql = '';
+    const r = await childrenOf(
+      'E-1',
+      base({
+        jiraRequest: async () => ({
+          fields: {
+            issuetype: { name: 'Epic' },
+            issuelinks: [{ inwardIssue: issue('S-1', 'Story') }, {}],
+            subtasks: [issue('T-1', 'Sub-task')],
+          },
+        }),
+        jiraPagedRequest: async (q) => {
+          jql = q;
+          return [issue('S-1', 'Story'), issue('S-2', 'Story')];
+        },
+      })
+    );
+    assert.match(jql, /cf\[10014\] = E-1 AND project = P/);
+    assert.equal(r.parentType, 'Epic');
+    assert.deepEqual(
+      r.children.map((c) => c.key),
+      ['S-1', 'S-2', 'T-1']
+    );
+    assert.equal(r.children[0].localFilename, 'a.md');
+    assert.equal(r.children[1].localExists, false);
+  });
+
+  it('does not run the epic query for non-epics', async () => {
+    let called = false;
+    const r = await childrenOf(
+      'S-9',
+      base({ jiraPagedRequest: async () => ((called = true), []) })
+    );
+    assert.equal(called, false);
+    assert.deepEqual(r.children, []);
   });
 });
