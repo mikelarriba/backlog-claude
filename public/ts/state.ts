@@ -100,7 +100,7 @@ globalThis.activeWorkCatFilter = 'all';
 globalThis.currentJiraId = null;
 globalThis._justDragged = false;
 globalThis._quickCreateType = null;
-globalThis._toastTimer = null;
+let _toastTimer: ReturnType<typeof setTimeout> | null = null;
 globalThis.selectedItems = new Set<string>();
 globalThis._lastClickedItem = null;
 globalThis.jiraSearchResults = [] as DocEntry[];
@@ -211,7 +211,7 @@ export function showJiraToast(type: string, message: string): void {
   if (!el) return;
   el.className = `show ${type}`;
   el.textContent = message;
-  if (_toastTimer) clearTimeout(_toastTimer as ReturnType<typeof setTimeout>);
+  if (_toastTimer) clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => {
     el.className = '';
   }, 4000);

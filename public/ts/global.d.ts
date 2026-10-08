@@ -26,7 +26,6 @@ declare global {
   var currentJiraId: string | null;
   var _justDragged: boolean;
   var _quickCreateType: string | null;
-  var _toastTimer: ReturnType<typeof setTimeout> | null;
   var selectedItems: Set<string>;
   var _lastClickedItem: string | null;
   var jiraSearchResults: DocEntry[];

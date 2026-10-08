@@ -40,7 +40,6 @@ const FRONTEND_GLOBALS = {
   _quickCreateType: 'writable',
   _roadmapVisiblePis: 'writable',
   _swimlanesCollapsed: 'writable',
-  _toastTimer: 'writable',
   // Third-party libraries loaded via <script> tags
   marked: 'readonly',
   DOMPurify: 'readonly',
