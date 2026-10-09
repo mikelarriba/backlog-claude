@@ -36,6 +36,7 @@ import {
   buildSwimlaneMoveAnnouncement,
   buildEdgeMoveAnnouncement,
   isCenterDropZone,
+  computeDropPopupPosition,
 } from './dragdrop-core.js';
 export {
   computeRerankedOrder,
@@ -48,6 +49,7 @@ export {
   buildSwimlaneMoveAnnouncement,
   buildEdgeMoveAnnouncement,
   isCenterDropZone,
+  computeDropPopupPosition,
 };
 // No aria-live region existed for list reorder before this; adds one,
 // visually hidden but announced to screen readers, following the same
@@ -107,20 +109,6 @@ export function computeDropActionOptions(
   const canDep = srcFilename !== tgtFilename && !canLink;
   const displayTitle = tgtTitle.length > 40 ? tgtTitle.slice(0, 38) + '…' : tgtTitle;
   return { canLink, canDep, displayTitle };
-}
-// Pure: clamps the drop-action popup's position to stay within the
-// viewport while staying offset from the cursor (#460).
-export function computeDropPopupPosition(
-  cursorX,
-  cursorY,
-  popupWidth,
-  popupHeight,
-  viewportWidth,
-  viewportHeight
-) {
-  const left = Math.min(cursorX + 12, viewportWidth - popupWidth - 12);
-  const top = Math.min(cursorY - 10, viewportHeight - popupHeight - 12);
-  return { left: Math.max(8, left), top: Math.max(8, top) };
 }
 export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY) {
   hideDropActionPopup();
