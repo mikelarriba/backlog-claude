@@ -1,7 +1,15 @@
 // ── JIRA search service ───────────────────────────────────────────────────────
 // Business logic for GET /api/jira/closed-epics (#554), extracted from the route
 // so it can be unit-tested without Express (#697).
+import fs from 'fs';
+import path from 'path';
 import { fetchBoardSprints } from './jiraService.js';
+import { ensureDir } from '../utils/routeHelpers.js';
+import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
+import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
+import { pMap } from '../utils/pMap.js';
+import { config } from '../config/env.js';
+import type { BroadcastFn, DocIndexInstance, TypeConfig } from '../types.js';
 
 type Request = (method: string, path: string, body?: unknown) => Promise<unknown>;
 type PagedRequest = (
@@ -288,4 +296,169 @@ export async function childrenOf(
   for (const st of issue.fields?.subtasks || []) await addChild(st);
 
   return { parentKey: key, parentType, children };
+}
+
+// ── Pull issues from JIRA into local docs (#697) ──────────────────────────────
+export interface PullDeps {
+  jiraRequest: Request;
+  findExisting: (
+    jiraId: string
+  ) => Promise<{ filename: string; docType: string } | null | undefined>;
+  jiraIssueToMarkdown: (issue: unknown) => { docType: string; content: string };
+  docIndex: DocIndexInstance;
+  TYPE_CONFIG: TypeConfig;
+  broadcast: BroadcastFn;
+  FIELD_EPIC_NAME: string;
+  FIELD_STORY_POINTS: string;
+}
+
+export interface PullInput {
+  keys: string[];
+  overwriteKeys?: string[];
+  parentLink?: { filename?: string; docType?: string } | null;
+}
+
+export async function pullIssues(
+  input: PullInput,
+  deps: PullDeps
+): Promise<{
+  pulled: { key: string; filename: string; docType: string }[];
+  conflicts: { key: string; existingFilename: string; existingDocType: string }[];
+}> {
+  const { keys, overwriteKeys = [], parentLink = null } = input;
+  const {
+    jiraRequest,
+    findExisting,
+    jiraIssueToMarkdown,
+    docIndex,
+    TYPE_CONFIG,
+    broadcast,
+    FIELD_EPIC_NAME,
+    FIELD_STORY_POINTS,
+  } = deps;
+
+  // Determine which frontmatter field links a child to its parent
+  const parentFieldName =
+    parentLink?.docType === 'epic'
+      ? 'Epic_ID'
+      : parentLink?.docType === 'feature'
+        ? 'Feature_ID'
+        : null;
+
+  const parentFilename = parentLink?.filename;
+  const pulled: { key: string; filename: string; docType: string }[] = [];
+  const conflicts: { key: string; existingFilename: string; existingDocType: string }[] = [];
+
+  // Pass 1: resolve conflicts and fetch each key from JIRA with bounded
+  // concurrency (capped at JIRA_CONCURRENCY, same pMap pattern used by the
+  // JIRA push routes and /api/confluence/execute) instead of one sequential
+  // JIRA round-trip per key. A conflicting key is flagged here without ever
+  // hitting the network. pMap preserves each key's original index so pass 2
+  // below can stay in source order regardless of fetch completion order.
+  type FetchResult =
+    | { key: string; conflict: { existingFilename: string; existingDocType: string } }
+    | {
+        key: string;
+        conflict: null;
+        existing: Awaited<ReturnType<typeof findExisting>>;
+        docType: string;
+        content: string;
+        filename: string;
+      };
+
+  const fetched: FetchResult[] = await pMap(
+    keys as string[],
+    async (key): Promise<FetchResult> => {
+      const existing = await findExisting(key);
+      if (existing && !overwriteKeys.includes(key)) {
+        return {
+          key,
+          conflict: { existingFilename: existing.filename, existingDocType: existing.docType },
+        };
+      }
+
+      const issue = (await jiraRequest(
+        'GET',
+        `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`
+      )) as { fields?: Record<string, unknown> };
+      const { docType, content: initialContent } = jiraIssueToMarkdown(issue);
+      let content = initialContent;
+
+      // Resolve team from JIRA labels
+      const issueLabels = (issue.fields?.labels ?? []) as string[];
+      const teamLabel = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
+      if (teamLabel && issueLabels.filter((l: string) => ALL_TEAM_JIRA_LABELS.has(l)).length > 1) {
+        console.warn(`[jira/pull] ${key} has multiple team labels — using first: ${teamLabel}`);
+      }
+      const localTeam = teamLabel ? JIRA_LABEL_TO_TEAM[teamLabel] : 'TBD';
+      content = setFrontmatterField(content, 'Team', localTeam);
+
+      // Link child to local parent file so the "└" hierarchy renders correctly
+      if (parentFieldName && parentFilename) {
+        content = setFrontmatterField(content, parentFieldName, parentFilename);
+        // Inherit fixVersion and sprint from the parent so children appear in
+        // the same swimlane section (Current PI, Next PI, or Backlog).
+        const parentDoc = docIndex.get(parentFilename);
+        content = setFrontmatterField(content, 'Fix_Version', parentDoc?.fixVersion || 'TBD');
+        content = setFrontmatterField(content, 'Sprint', parentDoc?.sprint || 'TBD');
+      } else {
+        // Fresh import (search or exact key) — always land in Backlog.
+        content = setFrontmatterField(content, 'Fix_Version', 'TBD');
+        content = setFrontmatterField(content, 'Sprint', 'TBD');
+      }
+
+      const filename =
+        existing && overwriteKeys.includes(key)
+          ? existing.filename
+          : `${isoDate()}-${slugify(String(issue.fields?.summary || key))}.md`;
+
+      return { key, conflict: null, existing, docType, content, filename };
+    },
+    { concurrency: config.JIRA_CONCURRENCY }
+  );
+
+  // Pass 2: sequential filesystem writes, rank assignment, and docIndex
+  // invalidation. This must stay sequential/ordered — rank assignment for a
+  // new import reads docIndex.getAll()'s current max rank and would race if
+  // parallelized alongside other writes of the same docType.
+  for (const item of fetched) {
+    if (item.conflict) {
+      conflicts.push({ key: item.key, ...item.conflict });
+      continue;
+    }
+
+    const { key, existing, docType, filename } = item;
+    let content = item.content;
+
+    // Rank: JIRA carries no Rank, so the fresh markdown has none. Overwriting
+    // an existing local doc must keep its current Rank (so a re-import doesn't
+    // move it); a brand-new import lands at the bottom of the backlog by taking
+    // max(Rank) + 1 across existing docs of the same type. Without this a new
+    // import is unranked and — since most peers are ranked — floats to an
+    // arbitrary spot rather than the bottom.
+    const existingRank =
+      existing && overwriteKeys.includes(key)
+        ? (docIndex.get(existing.filename)?.rank ?? null)
+        : null;
+    if (existing && overwriteKeys.includes(key)) {
+      if (existingRank != null)
+        content = setFrontmatterField(content, 'Rank', String(existingRank));
+    } else {
+      const maxRank = docIndex
+        .getAll()
+        .filter((d) => d.docType === docType && d.rank != null)
+        .reduce((max, d) => Math.max(max, d.rank as number), 0);
+      content = setFrontmatterField(content, 'Rank', String(maxRank + 1));
+    }
+
+    const destDir = TYPE_CONFIG[docType].dir();
+    ensureDir(destDir);
+    await fs.promises.writeFile(path.join(destDir, filename), content);
+    await docIndex.invalidate(docType, filename);
+
+    pulled.push({ key, filename, docType });
+    broadcast({ type: `${docType}_created`, filename, docType });
+  }
+
+  return { pulled, conflicts };
 }
