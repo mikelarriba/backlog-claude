@@ -13,6 +13,7 @@ import {
   renderMarkdown,
   openModal,
   closeModal,
+  getJiraBase,
 } from './state.js';
 import type { DocEntry } from './state.js';
 import { upsertDoc } from './store.js';
@@ -59,7 +60,7 @@ export function updateJiraLink(jiraId: string | null, jiraUrl: string | null): v
   const el = document.getElementById('detail-jira-link') as HTMLAnchorElement | null;
   if (!el) return;
   if (jiraId && jiraId !== 'TBD') {
-    const resolvedUrl = jiraUrl || (jiraBase ? `${jiraBase}/browse/${jiraId}` : null);
+    const resolvedUrl = jiraUrl || (getJiraBase() ? `${getJiraBase()}/browse/${jiraId}` : null);
     el.textContent = jiraId;
     el.href = resolvedUrl || '#';
     el.classList.remove('hidden');

@@ -64,6 +64,16 @@ export interface PanelState {
   parallel: string[];
 }
 
+// ── JIRA base URL ─────────────────────────────────────────────────────────────
+// Module-local state (#698): was an ambient window global.
+let _jiraBase = '';
+export function getJiraBase(): string {
+  return _jiraBase;
+}
+export function setJiraBase(base: string): void {
+  _jiraBase = base;
+}
+
 // ── Global state ──────────────────────────────────────────────────────────────
 // Plain window globals (declared as ambient `var`s in global.d.ts), read and
 // written as bare identifiers throughout public/ts/. Previously each of these
@@ -90,7 +100,6 @@ Object.defineProperty(window, 'piSettings', {
   enumerable: true,
 });
 
-globalThis.jiraBase = '';
 globalThis.currentFilename = null;
 globalThis.currentDocType = null;
 globalThis.activeTypeFilter = 'all';
