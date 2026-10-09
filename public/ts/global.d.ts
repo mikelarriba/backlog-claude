@@ -16,7 +16,6 @@ declare global {
 
   // ── Store-backed state variables ───────────────────────────────────────────
   var allDocs: DocEntry[];
-  var jiraBase: string;
   var currentFilename: string | null;
   var currentDocType: string | null;
   var activeTypeFilter: string;

@@ -9,6 +9,15 @@ import {
   setPiSettings as _setPiSettings,
   getState as _getState,
 } from './store.js';
+// ── JIRA base URL ─────────────────────────────────────────────────────────────
+// Module-local state (#698): was an ambient window global.
+let _jiraBase = '';
+export function getJiraBase() {
+  return _jiraBase;
+}
+export function setJiraBase(base) {
+  _jiraBase = base;
+}
 // ── Global state ──────────────────────────────────────────────────────────────
 // Plain window globals (declared as ambient `var`s in global.d.ts), read and
 // written as bare identifiers throughout public/ts/. Previously each of these
@@ -33,7 +42,6 @@ Object.defineProperty(window, 'piSettings', {
   configurable: true,
   enumerable: true,
 });
-globalThis.jiraBase = '';
 globalThis.currentFilename = null;
 globalThis.currentDocType = null;
 globalThis.activeTypeFilter = 'all';

@@ -1,5 +1,5 @@
 // ── ES Module entry point ────────────────────────────────────────
-import { fetchJSON, debounce } from './state.js';
+import { fetchJSON, debounce, setJiraBase } from './state.js';
 import type { DocEntry } from './state.js';
 import { on } from './store.js';
 import { isSplitMode, highlightSelectedItem, updateSplitMode } from './split-mode.js';
@@ -326,7 +326,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
 async function loadAppConfig(): Promise<void> {
   try {
     const cfg = (await fetchJSON('/api/config')) as { jiraBase?: string };
-    if (cfg.jiraBase) jiraBase = cfg.jiraBase;
+    if (cfg.jiraBase) setJiraBase(cfg.jiraBase);
   } catch (e) {
     console.warn('Failed to load app config:', (e as Error).message);
   }

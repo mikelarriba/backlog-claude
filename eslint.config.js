@@ -15,7 +15,6 @@ const FRONTEND_GLOBALS = {
   currentFilename: 'writable',
   currentDocType: 'writable',
   currentJiraId: 'writable',
-  jiraBase: 'writable',
   jiraSearchResults: 'writable',
   jiraVersions: 'writable',
   selectedItems: 'writable',
