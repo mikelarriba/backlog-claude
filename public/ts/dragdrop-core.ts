@@ -208,3 +208,18 @@ export function buildEdgeMoveAnnouncement(
 export function isCenterDropZone(relY: number, height: number): boolean {
   return relY > height * 0.25 && relY < height * 0.75;
 }
+
+// Pure: clamps the drop-action popup's position to stay within the
+// viewport while staying offset from the cursor (#460).
+export function computeDropPopupPosition(
+  cursorX: number,
+  cursorY: number,
+  popupWidth: number,
+  popupHeight: number,
+  viewportWidth: number,
+  viewportHeight: number
+): { left: number; top: number } {
+  const left = Math.min(cursorX + 12, viewportWidth - popupWidth - 12);
+  const top = Math.min(cursorY - 10, viewportHeight - popupHeight - 12);
+  return { left: Math.max(8, left), top: Math.max(8, top) };
+}
