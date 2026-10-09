@@ -1,9 +1,13 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   closedEpicsForScope,
   groupClosedIssues,
   childrenOf,
+  pullIssues,
 } from '../../src/services/jiraSearchService.ts';
 
 const issue = (key, type, extra = {}) => ({
@@ -126,5 +130,68 @@ describe('childrenOf', () => {
     );
     assert.equal(called, false);
     assert.deepEqual(r.children, []);
+  });
+});
+
+describe('pullIssues', () => {
+  function pullDeps(dir, over = {}) {
+    const events = [];
+    const invalidated = [];
+    return {
+      events,
+      invalidated,
+      d: {
+        jiraRequest: async (_m, p) => ({
+          fields: { summary: p.includes('NEW-1') ? 'New Thing' : 'Other', labels: [] },
+        }),
+        findExisting: async () => null,
+        jiraIssueToMarkdown: () => ({ docType: 'story', content: '# T\n' }),
+        docIndex: {
+          get: () => undefined,
+          getAll: () => [
+            { docType: 'story', rank: 3 },
+            { docType: 'story', rank: 7 },
+            { docType: 'epic', rank: 99 },
+          ],
+          invalidate: async (...a) => invalidated.push(a),
+        },
+        TYPE_CONFIG: { story: { dir: () => dir } },
+        broadcast: (e) => events.push(e),
+        FIELD_EPIC_NAME: 'cf_name',
+        FIELD_STORY_POINTS: 'cf_sp',
+        ...over,
+      },
+    };
+  }
+
+  it('writes a new doc at the bottom of the backlog and broadcasts', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pull-'));
+    const { d, events, invalidated } = pullDeps(dir);
+    const r = await pullIssues({ keys: ['NEW-1'] }, d);
+    assert.equal(r.conflicts.length, 0);
+    assert.equal(r.pulled.length, 1);
+    assert.equal(r.pulled[0].key, 'NEW-1');
+    assert.match(r.pulled[0].filename, /new-thing\.md$/);
+    const written = fs.readFileSync(path.join(dir, r.pulled[0].filename), 'utf8');
+    assert.match(written, /Rank: '8'/);
+    assert.match(written, /Fix_Version: TBD/);
+    assert.equal(events[0].type, 'story_created');
+    assert.equal(invalidated.length, 1);
+  });
+
+  it('reports a conflict without fetching or writing', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pull-'));
+    let fetched = false;
+    const { d } = pullDeps(dir, {
+      findExisting: async () => ({ filename: 'old.md', docType: 'story' }),
+      jiraRequest: async () => ((fetched = true), {}),
+    });
+    const r = await pullIssues({ keys: ['X-1'] }, d);
+    assert.deepEqual(r.conflicts, [
+      { key: 'X-1', existingFilename: 'old.md', existingDocType: 'story' },
+    ]);
+    assert.equal(r.pulled.length, 0);
+    assert.equal(fetched, false);
+    assert.equal(fs.readdirSync(dir).length, 0);
   });
 });
