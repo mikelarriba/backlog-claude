@@ -3,7 +3,9 @@
 // request parsing + response shaping, mirroring jiraPushService.ts /
 // jiraSprintService.ts. History-append and label→team lookups reuse the same
 // helpers/constants the route previously called inline.
+import fs from 'fs';
 import path from 'path';
+import { pMap } from '../utils/pMap.js';
 import {
   setFrontmatterField,
   extractFrontmatterField,
@@ -36,7 +38,20 @@ export interface MergeFromJiraIssueResult {
   merged: string;
 }
 
+export interface CheckAllDoc {
+  filename: string;
+  docType: string;
+  jiraId: string;
+}
+
+export interface CheckAllResult {
+  changed: unknown[];
+  skipped: string[];
+  errors: unknown[];
+}
+
 export interface JiraSyncService {
+  checkAll: (docs: CheckAllDoc[]) => Promise<CheckAllResult>;
   syncStatusFromIssue: (args: SyncStatusFromIssueArgs) => Promise<SyncStatusFromIssueResult>;
   mergeFromJiraIssue: (args: MergeFromJiraIssueArgs) => Promise<MergeFromJiraIssueResult>;
 }
@@ -44,10 +59,18 @@ export interface JiraSyncService {
 export function createJiraSyncService({
   INBOX_DIR,
   FIELD_STORY_POINTS,
+  TYPE_CONFIG,
+  jiraRequest,
   jiraIssueToMarkdown,
+  logWarn,
 }: Pick<
   JiraRouteContext,
-  'INBOX_DIR' | 'FIELD_STORY_POINTS' | 'jiraIssueToMarkdown'
+  | 'INBOX_DIR'
+  | 'FIELD_STORY_POINTS'
+  | 'TYPE_CONFIG'
+  | 'jiraRequest'
+  | 'jiraIssueToMarkdown'
+  | 'logWarn'
 >): JiraSyncService {
   // ── sync-status: overlay JIRA's status/story-points/team/summary/description
   // onto the existing local file, appending description-change history. ──────
@@ -157,5 +180,91 @@ export function createJiraSyncService({
     return { merged };
   }
 
-  return { syncStatusFromIssue, mergeFromJiraIssue };
+  // ── check-all: compare every JIRA-linked local doc against its JIRA issue and
+  // report which differ (summary / story points / description). ─────────────
+  async function checkAll(linkedDocs: CheckAllDoc[]): Promise<CheckAllResult> {
+    const fields = `summary,issuetype,status,description,${FIELD_STORY_POINTS}`;
+    const changed: unknown[] = [];
+    const skipped: string[] = [];
+    const errors: unknown[] = [];
+
+    await pMap(
+      linkedDocs,
+      async (doc) => {
+        try {
+          type JiraCheckIssue = {
+            fields?: Record<string, unknown> & { summary?: string; description?: string };
+          };
+          const issue = (await jiraRequest(
+            'GET',
+            `/issue/${doc.jiraId}?fields=${fields}`
+          )) as JiraCheckIssue;
+          const jiraSummary = String(issue.fields?.summary || '')
+            .replace(/[\r\n]+/g, ' ')
+            .trim();
+          const jiraSp = issue.fields?.[FIELD_STORY_POINTS] ?? null;
+          const jiraDesc = jiraToMarkdown(String(issue.fields?.description || '')).trim();
+
+          let localTitle = '';
+          let localDesc = '';
+          let localSp = null;
+          try {
+            const raw = await fs.promises.readFile(
+              path.join(TYPE_CONFIG[doc.docType].dir(), doc.filename),
+              'utf-8'
+            );
+            const headingMatch = raw.match(/^## (.+)$/m);
+            localTitle = (headingMatch ? headingMatch[1].trim() : '') || localTitle;
+            localDesc = extractBodyText(raw);
+            const spRaw = extractFrontmatterField(raw, 'Story_Points');
+            localSp = spRaw && spRaw !== 'TBD' ? Number(spRaw) : null;
+          } catch (err) {
+            logWarn('jira/sync', `unreadable file for ${doc.filename}, using index values`, {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+
+          const summaryChanged = jiraSummary && jiraSummary !== localTitle;
+          const spChanged = jiraSp !== null && jiraSp !== localSp;
+          const descChanged = jiraDesc !== localDesc;
+
+          if (summaryChanged || spChanged || descChanged) {
+            changed.push({
+              jiraId: doc.jiraId,
+              jiraKey: doc.jiraId,
+              jiraTitle: jiraSummary,
+              filename: doc.filename,
+              docType: doc.docType,
+              localDocType: doc.docType,
+              title: localTitle,
+              action: 'update',
+              changes: {
+                summary: summaryChanged ? { local: localTitle, jira: jiraSummary } : null,
+                storyPoints: spChanged ? { local: localSp, jira: jiraSp } : null,
+                description: descChanged ? { changed: true } : null,
+              },
+              changesArray: [
+                ...(summaryChanged ? [{ field: 'title', from: localTitle, to: jiraSummary }] : []),
+                ...(descChanged ? [{ field: 'description', changed: true }] : []),
+                ...(spChanged ? [{ field: 'storyPoints', from: localSp, to: jiraSp }] : []),
+              ],
+            });
+          } else {
+            skipped.push(doc.jiraId);
+          }
+        } catch (e) {
+          errors.push({
+            jiraId: doc.jiraId,
+            filename: doc.filename,
+            docType: doc.docType,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+      },
+      { concurrency: 5 }
+    );
+    return { changed, skipped, errors };
+  }
+
+  return { syncStatusFromIssue, mergeFromJiraIssue, checkAll };
 }
