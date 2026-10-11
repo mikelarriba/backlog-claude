@@ -24,7 +24,6 @@ declare global {
   var activeWorkCatFilter: string;
   var currentJiraId: string | null;
   var _justDragged: boolean;
-  var _quickCreateType: string | null;
   var selectedItems: Set<string>;
   var _lastClickedItem: string | null;
   var jiraSearchResults: DocEntry[];

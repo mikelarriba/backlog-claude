@@ -36,7 +36,6 @@ const FRONTEND_GLOBALS = {
   _metaWorkCategories: 'writable',
   _panelStates: 'writable',
   _piConfigActivePi: 'writable',
-  _quickCreateType: 'writable',
   _roadmapVisiblePis: 'writable',
   _swimlanesCollapsed: 'writable',
   // Third-party libraries loaded via <script> tags

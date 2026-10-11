@@ -108,7 +108,6 @@ globalThis.activeTeamFilter = 'all';
 globalThis.activeWorkCatFilter = 'all';
 globalThis.currentJiraId = null;
 globalThis._justDragged = false;
-globalThis._quickCreateType = null;
 let _toastTimer: ReturnType<typeof setTimeout> | null = null;
 globalThis.selectedItems = new Set<string>();
 globalThis._lastClickedItem = null;

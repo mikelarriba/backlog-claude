@@ -3,6 +3,7 @@ import { postJSON, setStatus, setBtnState, TYPE_LABEL, showJiraToast } from './s
 import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
 import { loadHierarchy } from './detail-links.js';
+let _quickCreateType = null;
 export async function saveDraft() {
   const title = document.getElementById('doc-title').value.trim();
   const idea = document.getElementById('idea').value.trim();

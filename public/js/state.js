@@ -50,7 +50,6 @@ globalThis.activeTeamFilter = 'all';
 globalThis.activeWorkCatFilter = 'all';
 globalThis.currentJiraId = null;
 globalThis._justDragged = false;
-globalThis._quickCreateType = null;
 let _toastTimer = null;
 globalThis.selectedItems = new Set();
 globalThis._lastClickedItem = null;
