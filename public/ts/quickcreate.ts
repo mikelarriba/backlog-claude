@@ -4,6 +4,8 @@ import { loadDocs } from './list.js';
 import { openDoc } from './detail.js';
 import { loadHierarchy } from './detail-links.js';
 
+let _quickCreateType: string | null = null;
+
 interface GenerateResponse {
   filename: string;
   docType: string;
