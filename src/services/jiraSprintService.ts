@@ -3,6 +3,13 @@
 // limited to request/SSE plumbing. The per-sprint scan helpers here are used
 // with pMap (concurrency-limited) instead of the old sequential `for` loops.
 
+import fs from 'fs';
+import path from 'path';
+import { pMap } from '../utils/pMap.js';
+import { setFrontmatterField } from '../utils/transforms.js';
+import { ensureSprintCache } from './jiraService.js';
+import type { JiraRouteContext } from '../types.js';
+
 type JiraAgileRequest = (method: string, urlPath: string, body?: unknown) => Promise<unknown>;
 
 // ── Sprint name resolver ────────────────────────────────────────────────────
@@ -277,5 +284,98 @@ export async function fetchUnimportedSprintIssues(
     if (startAt + issues.length >= ((data.total as number) || 0)) break;
     startAt += issues.length;
   }
+  return results;
+}
+
+// ── push-sprints: apply push / remove / pull sprint assignments ──────────────
+export interface PushSprintItem {
+  filename: string;
+  sprint: string | null;
+  changeType: string;
+  jiraId?: string;
+  docType?: string;
+}
+
+export type PushSprintDeps = Pick<
+  JiraRouteContext,
+  'docIndex' | 'broadcast' | 'logInfo' | 'logWarn'
+> & {
+  boardId: string | number;
+  concurrency: number;
+  typeConfig: JiraRouteContext['TYPE_CONFIG'];
+  jiraAgileRequest: JiraAgileRequest;
+};
+
+export async function pushSprintAssignments(
+  items: PushSprintItem[],
+  deps: PushSprintDeps
+): Promise<Array<Record<string, unknown>>> {
+  const { boardId, concurrency, typeConfig, jiraAgileRequest, docIndex, broadcast } = deps;
+  const { logInfo, logWarn } = deps;
+  const sprintMap = await ensureSprintCache(
+    jiraAgileRequest as Parameters<typeof ensureSprintCache>[0],
+    boardId as Parameters<typeof ensureSprintCache>[1]
+  );
+
+  // Resolve local sprint name to JIRA sprint ID (with fuzzy matching)
+  const resolveId = (name: string): number | null => {
+    const exact = sprintMap.get(name);
+    if (exact != null) return exact;
+    for (const [jiraName, id] of sprintMap) {
+      if (jiraName.endsWith(name) || name.endsWith(jiraName)) return id;
+    }
+    return null;
+  };
+
+  const touchedFilenames: string[] = [];
+  const results = await pMap(
+    items,
+    async (item): Promise<Record<string, unknown>> => {
+      const { filename, sprint, changeType } = item;
+      const jiraId = item.jiraId || docIndex.get(filename)?.jiraId;
+      if (!jiraId) return { filename, status: 'skipped', reason: 'no JIRA ID' };
+      try {
+        if (changeType === 'pull') {
+          // Pull: update local doc's sprint field to match JIRA
+          if (!sprint) return { filename, status: 'skipped', reason: 'no sprint to pull' };
+          const docType = item.docType || docIndex.get(filename)?.docType;
+          if (!docType) return { filename, status: 'skipped', reason: 'unknown doc type' };
+          const cfg = typeConfig[docType as keyof typeof typeConfig];
+          if (!cfg) return { filename, status: 'skipped', reason: `unknown type "${docType}"` };
+          const filepath = path.join(cfg.dir(), filename);
+          const content = await fs.promises.readFile(filepath, 'utf-8');
+          const patched = setFrontmatterField(content, 'Sprint', sprint);
+          await fs.promises.writeFile(filepath, patched);
+          touchedFilenames.push(filename);
+          broadcast({ type: 'batch_sprint_updated' });
+          logInfo(
+            'jira/push-sprints',
+            `Pulled sprint "${sprint}" from JIRA for ${jiraId} → ${filename}`
+          );
+          return { filename, status: 'ok', jiraId, sprint };
+        }
+        if (changeType === 'remove') {
+          await jiraAgileRequest('POST', `/backlog/issue`, { issues: [jiraId] });
+          logInfo('jira/push-sprints', `Moved ${jiraId} to backlog (removed from sprint)`);
+          return { filename, status: 'ok', jiraId, sprint: '(backlog)' };
+        }
+        // Push: add/change — assign to JIRA sprint
+        if (!sprint) return { filename, status: 'skipped', reason: 'no sprint' };
+        const sprintId = resolveId(sprint);
+        if (!sprintId)
+          return { filename, status: 'skipped', reason: `sprint "${sprint}" not found on board` };
+        await jiraAgileRequest('POST', `/sprint/${sprintId}/issue`, { issues: [jiraId] });
+        logInfo('jira/push-sprints', `Assigned ${jiraId} to sprint "${sprint}"`);
+        return { filename, status: 'ok', jiraId, sprint };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logWarn('jira/push-sprints', `Failed sprint op for ${jiraId}: ${msg}`);
+        return { filename, status: 'error', error: msg };
+      }
+    },
+    { concurrency }
+  );
+
+  if (touchedFilenames.length) await docIndex.invalidateMany(touchedFilenames);
   return results;
 }

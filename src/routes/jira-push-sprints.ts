@@ -17,6 +17,7 @@ import {
   buildSprintPushPreview,
   fetchSprintIssuesOnBoard,
   fetchUnimportedSprintIssues,
+  pushSprintAssignments,
 } from '../services/jiraSprintService.js';
 import { JIRA_LABEL_TO_TEAM } from '../config/metadata.js';
 import { config } from '../config/env.js';
@@ -206,78 +207,16 @@ export default function jiraPushSprintsRoutes({
 
     try {
       const { items = [] } = req.body;
-      const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
-
-      // Resolve local sprint name to JIRA sprint ID (with fuzzy matching)
-      const resolveId = (name: string): number | null => {
-        const exact = sprintMap.get(name);
-        if (exact != null) return exact;
-        for (const [jiraName, id] of sprintMap) {
-          if (jiraName.endsWith(name) || name.endsWith(jiraName)) return id;
-        }
-        return null;
-      };
-
-      const touchedFilenames: string[] = [];
-      const results = await pMap(
-        items as Array<{
-          filename: string;
-          sprint: string | null;
-          changeType: string;
-          jiraId?: string;
-          docType?: string;
-        }>,
-        async (item) => {
-          const { filename, sprint, changeType } = item;
-          const jiraId = item.jiraId || docIndex.get(filename)?.jiraId;
-          if (!jiraId) return { filename, status: 'skipped', reason: 'no JIRA ID' };
-          try {
-            if (changeType === 'pull') {
-              // Pull: update local doc's sprint field to match JIRA
-              if (!sprint) return { filename, status: 'skipped', reason: 'no sprint to pull' };
-              const docType = item.docType || docIndex.get(filename)?.docType;
-              if (!docType) return { filename, status: 'skipped', reason: 'unknown doc type' };
-              const cfg = TYPE_CONFIG[docType as keyof typeof TYPE_CONFIG];
-              if (!cfg) return { filename, status: 'skipped', reason: `unknown type "${docType}"` };
-              const filepath = path.join(cfg.dir(), filename);
-              const content = await fs.promises.readFile(filepath, 'utf-8');
-              const patched = setFrontmatterField(content, 'Sprint', sprint);
-              await fs.promises.writeFile(filepath, patched);
-              touchedFilenames.push(filename);
-              broadcast({ type: 'batch_sprint_updated' });
-              logInfo(
-                'jira/push-sprints',
-                `Pulled sprint "${sprint}" from JIRA for ${jiraId} → ${filename}`
-              );
-              return { filename, status: 'ok', jiraId, sprint };
-            }
-            if (changeType === 'remove') {
-              await jiraAgileRequest('POST', `/backlog/issue`, { issues: [jiraId] });
-              logInfo('jira/push-sprints', `Moved ${jiraId} to backlog (removed from sprint)`);
-              return { filename, status: 'ok', jiraId, sprint: '(backlog)' };
-            }
-            // Push: add/change — assign to JIRA sprint
-            if (!sprint) return { filename, status: 'skipped', reason: 'no sprint' };
-            const sprintId = resolveId(sprint);
-            if (!sprintId)
-              return {
-                filename,
-                status: 'skipped',
-                reason: `sprint "${sprint}" not found on board`,
-              };
-            await jiraAgileRequest('POST', `/sprint/${sprintId}/issue`, { issues: [jiraId] });
-            logInfo('jira/push-sprints', `Assigned ${jiraId} to sprint "${sprint}"`);
-            return { filename, status: 'ok', jiraId, sprint };
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            logWarn('jira/push-sprints', `Failed sprint op for ${jiraId}: ${msg}`);
-            return { filename, status: 'error', error: msg };
-          }
-        },
-        { concurrency: config.JIRA_CONCURRENCY }
-      );
-
-      if (touchedFilenames.length) await docIndex.invalidateMany(touchedFilenames);
+      const results = await pushSprintAssignments(items, {
+        boardId: JIRA_BOARD_ID,
+        concurrency: config.JIRA_CONCURRENCY,
+        typeConfig: TYPE_CONFIG,
+        jiraAgileRequest,
+        docIndex,
+        broadcast,
+        logInfo,
+        logWarn,
+      });
 
       res.json({ results });
     } catch (err) {
