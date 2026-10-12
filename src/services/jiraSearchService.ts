@@ -1,7 +1,6 @@
 // ── JIRA search service ───────────────────────────────────────────────────────
 // Business logic for GET /api/jira/closed-epics (#554), extracted from the route
 // so it can be unit-tested without Express (#697).
-import fs from 'fs';
 import path from 'path';
 import { fetchBoardSprints } from './jiraService.js';
 import { ensureDir } from '../utils/routeHelpers.js';
@@ -10,6 +9,7 @@ import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js'
 import { pMap } from '../utils/pMap.js';
 import { config } from '../config/env.js';
 import type { BroadcastFn, DocIndexInstance, TypeConfig } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 type Request = (method: string, path: string, body?: unknown) => Promise<unknown>;
 type PagedRequest = (
@@ -453,7 +453,7 @@ export async function pullIssues(
 
     const destDir = TYPE_CONFIG[docType].dir();
     ensureDir(destDir);
-    await fs.promises.writeFile(path.join(destDir, filename), content);
+    await writeFileAtomic(path.join(destDir, filename), content);
     await docIndex.invalidate(docType, filename);
 
     pulled.push({ key, filename, docType });

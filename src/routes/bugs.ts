@@ -1,6 +1,5 @@
 // ── Bug creation routes ──────────────────────────────────────────────────────
 import { Router } from 'express';
-import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import {
@@ -14,6 +13,7 @@ import {
 import { isoDate, slugify } from '../utils/transforms.js';
 import { translateToEnglish, processAttachment } from '../services/bugService.js';
 import type { BugRouteContext } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -100,7 +100,7 @@ export default function bugRoutes({
         ensureDir(attachDir);
         for (const att of processed) {
           const safeName = att.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-          await fs.promises.writeFile(path.join(attachDir, safeName), att.buffer);
+          await writeFileAtomic(path.join(attachDir, safeName), att.buffer);
           attachmentRefs += `- [${att.filename}](attachments/${slug}/${safeName})\n`;
         }
       }
@@ -127,7 +127,7 @@ ${translatedDesc || '_No description provided._'}
 ${attachmentRefs ? `\n### Attachments\n\n${attachmentRefs}` : ''}`;
 
       ensureDir(BUGS_DIR);
-      await fs.promises.writeFile(path.join(BUGS_DIR, filename), content);
+      await writeFileAtomic(path.join(BUGS_DIR, filename), content);
       await docIndex.invalidate('bug', filename);
 
       broadcast({ type: 'bug_created', filename, docType: 'bug' });

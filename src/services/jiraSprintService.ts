@@ -9,6 +9,7 @@ import { pMap } from '../utils/pMap.js';
 import { setFrontmatterField } from '../utils/transforms.js';
 import { ensureSprintCache } from './jiraService.js';
 import type { JiraRouteContext } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 type JiraAgileRequest = (method: string, urlPath: string, body?: unknown) => Promise<unknown>;
 
@@ -345,7 +346,7 @@ export async function pushSprintAssignments(
           const filepath = path.join(cfg.dir(), filename);
           const content = await fs.promises.readFile(filepath, 'utf-8');
           const patched = setFrontmatterField(content, 'Sprint', sprint);
-          await fs.promises.writeFile(filepath, patched);
+          await writeFileAtomic(filepath, patched);
           touchedFilenames.push(filename);
           broadcast({ type: 'batch_sprint_updated' });
           logInfo(

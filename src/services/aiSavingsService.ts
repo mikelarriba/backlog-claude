@@ -4,6 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import PDFDocument from 'pdfkit';
 import PptxGenJSCtor from 'pptxgenjs';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 // @ts-expect-error — pptxgenjs's default export is double-wrapped under tsx's CJS/ESM interop
 const PptxGenJS = (PptxGenJSCtor.default ?? PptxGenJSCtor) as typeof PptxGenJSCtor;
@@ -99,9 +100,7 @@ export function createAiSavingsService(dataDir: string) {
   // readEntries' queueing below) can never observe a truncated/partial file.
   async function writeEntries(entries: AiSavingsEntry[]): Promise<void> {
     if (!fs.existsSync(dataDir)) await fs.promises.mkdir(dataDir, { recursive: true });
-    const tmpPath = `${FILE_PATH}.tmp`;
-    await fs.promises.writeFile(tmpPath, JSON.stringify(entries, null, 2));
-    await fs.promises.rename(tmpPath, FILE_PATH);
+    await writeFileAtomic(FILE_PATH, JSON.stringify(entries, null, 2));
   }
 
   // Serializes read-modify-write cycles so concurrent appendEntry() calls

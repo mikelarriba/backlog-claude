@@ -78,6 +78,22 @@ export default [
     },
   },
 
+  // Document/settings/canvas writes must be crash-safe: use writeFileAtomic /
+  // updateDoc from src/utils/fileWrite.ts instead of a bare fs writeFile.
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['src/utils/fileWrite.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression[callee.property.name=/^(writeFile|writeFileSync)$/]',
+          message: 'Use writeFileAtomic()/updateDoc() from src/utils/fileWrite.ts.',
+        },
+      ],
+    },
+  },
+
   // Request-path code must not block the event loop: use the async helpers in
   // src/utils/routeHelpers.ts (fileExists / readDocOr404) instead of *Sync fs calls.
   {
@@ -89,6 +105,10 @@ export default [
           selector:
             'CallExpression[callee.property.name=/^(exists|readFile|writeFile|readdir|mkdir|stat|unlink|rename|appendFile|copyFile|rm)Sync$/]',
           message: 'Use async fs.promises / fileExists() in request handlers (no sync fs).',
+        },
+        {
+          selector: 'CallExpression[callee.property.name=/^(writeFile|writeFileSync)$/]',
+          message: 'Use writeFileAtomic()/updateDoc() from src/utils/fileWrite.ts.',
         },
       ],
     },

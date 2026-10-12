@@ -29,6 +29,7 @@ import {
   JiraPullSprintSchema,
 } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export default function jiraPushSprintsRoutes({
   TYPE_CONFIG,
@@ -360,7 +361,7 @@ export default function jiraPushSprintsRoutes({
             const slug = slugify(String(issueFields.summary || key));
             const filename = `${isoDate()}-${slug}.md`;
             const filePath = path.join(dir, filename);
-            await fs.promises.writeFile(filePath, finalContent);
+            await writeFileAtomic(filePath, finalContent);
             await docIndex.invalidate(docType, filename);
 
             logInfo('jira/pull-sprint', `Pulled ${key} → ${filename}`);

@@ -23,6 +23,7 @@ import {
 import { logAudit } from '../utils/auditLog.js';
 import { TEAM_TO_JIRA_LABEL, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
 import type { JiraRouteContext } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export interface PushMultiStoryArgs {
   filename: string;
@@ -149,7 +150,7 @@ export function createJiraPushService({
       if (error) errors.push(error);
     }
 
-    await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, updatedSections));
+    await writeFileAtomic(filepath, serializeStoryFile(frontmatter, updatedSections));
     broadcast({ type: 'story_created', filename, docType: type });
     return { type: 'multi-story', results, errors };
   }
@@ -261,7 +262,7 @@ export function createJiraPushService({
       let updated = setFrontmatterField(content, 'JIRA_ID', key);
       updated = setFrontmatterField(updated, 'JIRA_URL', `${JIRA_BASE}/browse/${key}`);
       updated = setFrontmatterField(updated, 'Status', 'Created in JIRA');
-      await fs.promises.writeFile(filepath, updated);
+      await writeFileAtomic(filepath, updated);
       await docIndex.invalidate(type, filename);
       broadcast({ type: 'status_updated', filename, docType: type, status: 'Created in JIRA' });
       logAudit({

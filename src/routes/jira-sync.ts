@@ -25,6 +25,7 @@ import {
   JiraCheckAllSchema,
 } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export default function jiraSyncRoutes({
   TYPE_CONFIG,
@@ -102,7 +103,7 @@ export default function jiraSyncRoutes({
           issue,
         });
 
-        await fs.promises.writeFile(filepath, updated);
+        await writeFileAtomic(filepath, updated);
         await docIndex.invalidate(docType, filename);
         broadcast({ type: 'title_updated', filename, docType });
 
@@ -162,7 +163,7 @@ export default function jiraSyncRoutes({
 
         const { merged } = await mergeFromJiraIssue({ existing, filename, issue });
 
-        await fs.promises.writeFile(filepath, merged);
+        await writeFileAtomic(filepath, merged);
         await docIndex.invalidate(docType, filename);
         broadcast({ type: `${docType}_created`, filename, docType });
 
