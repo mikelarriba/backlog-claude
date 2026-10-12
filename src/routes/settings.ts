@@ -20,6 +20,7 @@ import {
   ModelSchema,
 } from '../schemas/settings.js';
 import type { SettingsRouteContext } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export default function settingsRoutes({
   rootDir,
@@ -48,7 +49,7 @@ export default function settingsRoutes({
   }
 
   async function savePiSettings(settings: Record<string, unknown>) {
-    await fs.promises.writeFile(PI_SETTINGS_PATH, JSON.stringify(settings, null, 2));
+    await writeFileAtomic(PI_SETTINGS_PATH, JSON.stringify(settings, null, 2));
   }
 
   // Apply saved model, provider, and effort on startup (async read, fires before first request)
@@ -153,7 +154,7 @@ export default function settingsRoutes({
     setProviderOverride(provider || null);
     setEffortOverride(effort || null);
     const saved = { model: model || null, provider: provider || null, effort: effort || null };
-    await fs.promises.writeFile(MODEL_SETTINGS_PATH, JSON.stringify(saved, null, 2));
+    await writeFileAtomic(MODEL_SETTINGS_PATH, JSON.stringify(saved, null, 2));
     logInfo(
       'PUT /api/settings/model',
       `Provider: ${provider || 'claude-cli'}, Model: ${model || 'default'}, Effort: ${effort || 'default'}`

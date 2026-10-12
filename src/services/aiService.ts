@@ -22,6 +22,7 @@ import {
 import { stripControls } from '../utils/docHelpers.js';
 import type { TypeConfig, DocIndexInstance, BroadcastFn } from '../types.js';
 import type { Logger } from '../utils/logger.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 interface AiServiceContext {
   TYPE_CONFIG: TypeConfig;
@@ -110,7 +111,7 @@ ${idea.trim()}
   const _genStart = Date.now();
   try {
     ensureDir(INBOX_DIR);
-    await fs.promises.writeFile(path.join(INBOX_DIR, filename), rawContent);
+    await writeFileAtomic(path.join(INBOX_DIR, filename), rawContent);
 
     const prompt = buildGeneratePrompt(type, loadCommand(cfg.command), filename, rawContent);
     const generatedContent = await callClaude(prompt);
@@ -136,7 +137,7 @@ ${idea.trim()}
     if (pi && pi !== 'TBD') {
       finalContent = setFrontmatterField(finalContent, 'PI', pi);
     }
-    await fs.promises.writeFile(path.join(destDir, filename), finalContent);
+    await writeFileAtomic(path.join(destDir, filename), finalContent);
     await docIndex.invalidate(normalizedType, filename);
   } finally {
     _apiInFlight.delete(filename);
@@ -203,7 +204,7 @@ export async function upgradeDoc(
 
   fullContent = normalizeOutput(fullContent);
   fullContent = setFrontmatterField(fullContent, 'Status', currentStatus);
-  await fs.promises.writeFile(filepath, fullContent);
+  await writeFileAtomic(filepath, fullContent);
   await docIndex.invalidate(docType, filename);
 
   if (inboxExists) {
@@ -299,7 +300,7 @@ export async function splitStory(
     const newName = `${date}-${slug}.md`;
     const destPath = path.join(cfg.dir(), newName);
 
-    await fs.promises.writeFile(destPath, part);
+    await writeFileAtomic(destPath, part);
     await docIndex.invalidate(docType, newName);
     broadcast({
       type: `${docType}_created`,
@@ -404,7 +405,7 @@ TBD
 `;
 
     ensureDir(featureCfg.dir());
-    await fs.promises.writeFile(path.join(featureCfg.dir(), featureFilename), featureContent);
+    await writeFileAtomic(path.join(featureCfg.dir(), featureFilename), featureContent);
     await docIndex.invalidate('feature', featureFilename);
     broadcast({
       type: 'feature_created',
@@ -414,7 +415,7 @@ TBD
     });
 
     const updated = setFrontmatterField(epicContent, 'Feature_ID', featureFilename);
-    await fs.promises.writeFile(epicPath, updated);
+    await writeFileAtomic(epicPath, updated);
     await docIndex.invalidate('epic', epicFilename);
 
     featureCreated = true;
@@ -462,7 +463,7 @@ ${idea}
   _apiInFlight.add(newEpicFilename);
   try {
     ensureDir(INBOX_DIR);
-    await fs.promises.writeFile(path.join(INBOX_DIR, newEpicFilename), rawContent);
+    await writeFileAtomic(path.join(INBOX_DIR, newEpicFilename), rawContent);
 
     const prompt = buildGeneratePrompt(
       'epic',
@@ -483,7 +484,7 @@ ${idea}
       finalContent = setFrontmatterField(finalContent, 'Team', epicTeam);
     if (epicWorkCat && epicWorkCat !== 'TBD')
       finalContent = setFrontmatterField(finalContent, 'Work_Category', epicWorkCat);
-    await fs.promises.writeFile(path.join(destDir, newEpicFilename), finalContent);
+    await writeFileAtomic(path.join(destDir, newEpicFilename), finalContent);
     await docIndex.invalidate('epic', newEpicFilename);
   } finally {
     _apiInFlight.delete(newEpicFilename);

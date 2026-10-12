@@ -14,6 +14,7 @@ import {
   ProductContextSaveSchema,
 } from '../schemas/skills.js';
 import type { SkillsRouteContext } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 /** Extract name and description from YAML frontmatter. */
 function parseFrontmatter(content: string): { name: string; description: string } {
@@ -73,7 +74,7 @@ export default function skillsRoutes({
       // Ensure commands directory exists
       await fs.promises.mkdir(commandsDir, { recursive: true });
       const filePath = path.join(commandsDir, `${skillName}.md`);
-      await fs.promises.writeFile(filePath, content, 'utf-8');
+      await writeFileAtomic(filePath, content, 'utf-8');
 
       broadcast({ type: 'skill_updated', name: skillName });
       logInfo('PUT /api/skills', `Saved skill: ${skillName}`);
@@ -145,7 +146,7 @@ export default function skillsRoutes({
       const { content } = req.body as { content: string };
       const filePath = path.join(rootDir, '.product-context.md');
       try {
-        await fs.promises.writeFile(filePath, content, 'utf-8');
+        await writeFileAtomic(filePath, content, 'utf-8');
 
         broadcast({ type: 'product_context_updated' });
         logInfo('PUT /api/settings/product-context', 'Saved product context');

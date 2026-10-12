@@ -18,6 +18,7 @@ import { VALID_PRIORITIES } from '../utils/validate.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { DraftDocSchema, PatchDocSchema } from '../schemas/docs.js';
 import type { RouteContext } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export default function docsCrudRoutes({
   TYPE_CONFIG,
@@ -203,7 +204,7 @@ export default function docsCrudRoutes({
           : withoutComments;
       }
 
-      await fs.promises.writeFile(filepath, content);
+      await writeFileAtomic(filepath, content);
       await docIndex.invalidate(docType, filename);
       broadcast({ type: 'title_updated', filename, docType, doc: docIndex.get(filename) });
       const changedFields = Object.fromEntries(
@@ -316,7 +317,7 @@ Created: ${date}${epicIdLine}${featureIdLine}
 ## ${title.trim()}
 ${notesLine}`;
 
-      await fs.promises.writeFile(path.join(destDir, filename), content);
+      await writeFileAtomic(path.join(destDir, filename), content);
       await docIndex.invalidate(normalizedType, filename);
       broadcast({
         type: cfg.event,

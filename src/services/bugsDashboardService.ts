@@ -1,6 +1,7 @@
 // ── Bugs dashboard service — JIRA data pipeline, stats and analysis reports ──
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export interface WeekPoint {
   week: string;
@@ -401,7 +402,7 @@ export async function saveReport(
   const now = new Date();
   const filename = `${reportTimestamp(now)}-analysis.md`;
   const markdown = buildReportMarkdown(bugs, analysis, jiraBase, now);
-  await fs.writeFile(path.join(dir, filename), markdown, 'utf8');
+  await writeFileAtomic(path.join(dir, filename), markdown, 'utf8');
   return { filename, savedAt: now.toISOString() };
 }
 

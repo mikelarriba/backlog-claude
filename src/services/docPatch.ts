@@ -3,8 +3,8 @@
 // in every batch-mutation route.  Callers are responsible for index invalidation
 // and broadcasting SSE events because the strategy differs per endpoint
 // (per-item `invalidate` vs. a single `invalidateAll` after the batch).
-import fs from 'fs';
 import { setFrontmatterField } from '../utils/transforms.js';
+import { updateDoc } from '../utils/fileWrite.js';
 
 /**
  * Read a markdown file, apply a single frontmatter field patch, and write it
@@ -15,7 +15,5 @@ import { setFrontmatterField } from '../utils/transforms.js';
  * @param value     New value for the field.
  */
 export async function applyDocPatch(filepath: string, field: string, value: string): Promise<void> {
-  const content = await fs.promises.readFile(filepath, 'utf-8');
-  const patched = setFrontmatterField(content, field, value);
-  await fs.promises.writeFile(filepath, patched);
+  await updateDoc(filepath, (content) => setFrontmatterField(content, field, value));
 }

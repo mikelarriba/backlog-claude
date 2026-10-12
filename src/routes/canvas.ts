@@ -6,6 +6,7 @@ import path from 'path';
 import type { CanvasRouteContext } from '../types.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { CanvasLayoutSchema } from '../schemas/canvas.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
   const router = Router();
@@ -30,7 +31,7 @@ export default function canvasRoutes({ rootDir, logInfo }: CanvasRouteContext) {
   }
 
   async function saveLayout(data: Record<string, unknown>) {
-    await fs.promises.writeFile(CANVAS_LAYOUT_PATH, JSON.stringify(data, null, 2));
+    await writeFileAtomic(CANVAS_LAYOUT_PATH, JSON.stringify(data, null, 2));
   }
 
   // GET /api/canvas/layout/:epicFilename
