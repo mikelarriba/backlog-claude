@@ -18,10 +18,6 @@ declare global {
   var allDocs: DocEntry[];
   var currentFilename: string | null;
   var currentDocType: string | null;
-  var activeTypeFilter: string;
-  var activeStatusFilter: string;
-  var activeTeamFilter: string;
-  var activeWorkCatFilter: string;
   var currentJiraId: string | null;
   var _justDragged: boolean;
   var selectedItems: Set<string>;
@@ -29,8 +25,6 @@ declare global {
   var jiraSearchResults: DocEntry[];
   var sprintConfig: SprintConfig;
   var splitThreshold: number;
-  var _metaTeams: string[];
-  var _metaWorkCategories: string[];
   var piSettings: PISettings;
   var jiraVersions: string[];
   var _swimlanesCollapsed: SwimlaneCollapsed;

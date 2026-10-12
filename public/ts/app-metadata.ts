@@ -1,6 +1,6 @@
 // ── App config & metadata loaders ─────────────────────────────
 // Extracted from main.ts (#699).
-import { fetchJSON, setJiraBase } from './state.js';
+import { fetchJSON, setJiraBase, setMetaLists } from './state.js';
 
 export async function loadAppConfig(): Promise<void> {
   try {
@@ -18,8 +18,7 @@ export async function loadMetadata(): Promise<void> {
       workCategories: string[];
     };
     const { teams, workCategories } = data;
-    _metaTeams = teams;
-    _metaWorkCategories = workCategories;
+    setMetaLists(teams, workCategories);
     _populateTeamSelects(teams);
     _populateWorkCatSelects(workCategories);
     _renderTeamFilterPills(teams);

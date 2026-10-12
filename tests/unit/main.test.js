@@ -98,8 +98,6 @@ for (const [, names, spec] of mainSrc.matchAll(importRe)) {
 }
 
 // Bare-identifier globals main.js assigns/reads; state.js normally defines them.
-globalThis._metaTeams = [];
-globalThis._metaWorkCategories = [];
 globalThis.currentFilename = null;
 globalThis.currentDocType = null;
 

@@ -11,6 +11,7 @@ import {
   openModal,
   closeModal,
 } from './state.js';
+import { getMetaTeams, getMetaWorkCategories } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { openDoc } from './nav-hooks.js';
 import { openDistributionModal } from './distribution.js';
@@ -84,6 +85,11 @@ export async function updatePiVersion(sectionKey, versionName) {
   }
 }
 // ── Filters ───────────────────────────────────────────────────
+// Module-local state (#698): were ambient window globals.
+let activeTypeFilter = 'all';
+let activeStatusFilter = 'all';
+let activeTeamFilter = 'all';
+let activeWorkCatFilter = 'all';
 export function setTypeFilter(type) {
   activeTypeFilter = type;
   document.querySelectorAll('[data-type]').forEach((el) => {
@@ -440,7 +446,7 @@ export function showContextMenu(x, y) {
     .join('');
   const sprintClear = `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="sprint" data-value="">Clear sprint</button>`;
   // "Assign Team" submenu
-  const teamItems = (_metaTeams || [])
+  const teamItems = (getMetaTeams() || [])
     .map(
       (t) =>
         `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="team" data-value="${escHtml(t)}">${escHtml(t)}</button>`
@@ -448,7 +454,7 @@ export function showContextMenu(x, y) {
     .join('');
   const teamClear = `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="team" data-value="">Clear team</button>`;
   // "Assign Category" submenu
-  const catItems = (_metaWorkCategories || [])
+  const catItems = (getMetaWorkCategories() || [])
     .map(
       (c) =>
         `<button class="ctx-item" data-action="${CTX_ACTIONS.assignField}" data-field="workCategory" data-value="${escHtml(c)}">${escHtml(c)}</button>`
