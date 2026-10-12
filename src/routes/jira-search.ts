@@ -2,7 +2,14 @@
 import { Router } from 'express';
 import { sendError, parseApiError, assertFilename, normalizeType } from '../utils/routeHelpers.js';
 import { LOCAL_TO_JIRA_TYPE, fetchBoardSprints } from '../services/jiraService.js';
-import { closedEpicsForScope, childrenOf, pullIssues } from '../services/jiraSearchService.js';
+import {
+  closedEpicsForScope,
+  childrenOf,
+  pullIssues,
+  searchOpenIssues,
+  issuesByFixVersion,
+  listProjectVersions,
+} from '../services/jiraSearchService.js';
 import { findExistingByJiraId } from '../utils/docHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { JiraPullSchema } from '../schemas/jira.js';
@@ -61,59 +68,24 @@ export default function jiraSearchRoutes({
         return sendError(res, 400, 'INVALID_PARAM', 'Invalid sprint parameter');
       }
 
-      const typeClause =
-        type === 'all'
-          ? `issuetype in ("New Feature", Epic, Story, Improvement, Task, Bug)`
-          : type === 'story'
-            ? `issuetype in ("Story", "Improvement")`
-            : // @ts-expect-error — Express query type is string at runtime, TS sees union with ParsedQs
-              `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
-
-      // @ts-expect-error — Express query values are string | string[] | ParsedQs; text is always string here
-      const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
-      // @ts-expect-error — Express query values are string | string[] | ParsedQs; fixVersion is always string here
-      const fixVersionClause = fixVersion.trim()
-        ? // @ts-expect-error — see above
-          ` AND fixVersion = "${fixVersion.trim().replace(/"/g, '')}"`
-        : '';
-      const sprintClause = sprintSanitised ? ` AND sprint = "${sprintSanitised}"` : '';
-      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause}${fixVersionClause}${sprintClause} ORDER BY updated DESC`;
-      const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
-      type JiraSearchIssue = {
-        key: string;
-        fields: Record<string, unknown> & {
-          summary?: string;
-          issuetype?: { name?: string };
-          status?: { name?: string };
-          priority?: { name?: string };
-          fixVersions?: Array<{ name?: string }>;
-        };
-      };
-      const rawIssues = (await jiraPagedRequest(jql, fields, {
-        maxResults: 100,
-        maxTotal: 500,
-      })) as JiraSearchIssue[];
-
-      const issues = await Promise.all(
-        rawIssues.map(async (issue) => {
-          const iss = issue;
-          const existing = await _findExistingByJiraId(iss.key);
-          return {
-            key: iss.key,
-            summary: String(iss.fields.summary || ''),
-            epicName: String(iss.fields[FIELD_EPIC_NAME] || ''),
-            issuetype: iss.fields.issuetype?.name || '',
-            status: iss.fields.status?.name || '',
-            priority: iss.fields.priority?.name || '',
-            fixVersions: (iss.fields.fixVersions || []).map((v) => v.name || '').filter(Boolean),
-            localExists: !!existing,
-            localFilename: existing?.filename || null,
-            localDocType: existing?.docType || null,
-          };
-        })
+      const result = await searchOpenIssues(
+        {
+          type: String(type),
+          text: String(text),
+          fixVersion: String(fixVersion),
+          sprint: sprintSanitised,
+        },
+        {
+          jiraPagedRequest,
+          findExisting: _findExistingByJiraId,
+          JIRA_PROJECT,
+          JIRA_LABEL,
+          FIELD_EPIC_NAME,
+          localTypeToJira: LOCAL_TO_JIRA_TYPE as Record<string, string>,
+        }
       );
 
-      res.json({ issues, total: rawIssues.length });
+      res.json(result);
     } catch (err) {
       const apiErr = parseApiError(err);
       logError(
@@ -130,19 +102,7 @@ export default function jiraSearchRoutes({
     if (!process.env.JIRA_API_TOKEN)
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     try {
-      type JiraVersion = { id: string; name: string; released?: boolean; archived?: boolean };
-      const data = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) ||
-        []) as JiraVersion[];
-      const versions = data.map((v) => ({
-        id: v.id,
-        name: v.name,
-        released: !!v.released,
-        archived: !!v.archived,
-      }));
-      versions.sort((a, b) => {
-        if (a.released !== b.released) return a.released ? 1 : -1;
-        return a.name.localeCompare(b.name);
-      });
+      const versions = await listProjectVersions(jiraRequest, JIRA_PROJECT);
       res.json({ versions });
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -171,36 +131,15 @@ export default function jiraSearchRoutes({
     }
 
     try {
-      const jql = `fixVersion = "${version.replace(/"/g, '')}" AND project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} ORDER BY issuetype ASC`;
-      const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`;
-      type JiraByFixVersionIssue = {
-        key: string;
-        fields: Record<string, unknown> & {
-          summary?: string;
-          issuetype?: { name?: string };
-          status?: { name?: string };
-          priority?: { name?: string };
-        };
-      };
-      const rawIssues = (await jiraPagedRequest(jql, fields, {
-        maxResults: 100,
-        maxTotal: 500,
-      })) as JiraByFixVersionIssue[];
-
-      const issues = rawIssues.map((issue) => {
-        const existing = docIndex.findByJiraId(issue.key);
-        return {
-          key: issue.key,
-          summary: String(issue.fields.summary || ''),
-          issuetype: issue.fields.issuetype?.name || '',
-          status: issue.fields.status?.name || '',
-          priority: issue.fields.priority?.name || '',
-          localExists: !!existing,
-          localFilename: existing?.filename || null,
-        };
+      const result = await issuesByFixVersion(version, {
+        jiraPagedRequest,
+        JIRA_PROJECT,
+        JIRA_LABEL,
+        FIELD_EPIC_NAME,
+        FIELD_STORY_POINTS,
+        findLocal: (id) => docIndex.findByJiraId(id),
       });
-
-      res.json({ fixVersion: version, total: rawIssues.length, issues });
+      res.json(result);
     } catch (err) {
       const apiErr = parseApiError(err);
       logError(

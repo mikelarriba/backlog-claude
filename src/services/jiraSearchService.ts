@@ -462,3 +462,125 @@ export async function pullIssues(
 
   return { pulled, conflicts };
 }
+
+// ── Open-issue search, fix-version lookup, project versions (#697) ────────────
+export interface SearchDeps {
+  jiraPagedRequest: PagedRequest;
+  findExisting: ClosedEpicsDeps['findExisting'];
+  JIRA_PROJECT: string;
+  JIRA_LABEL: string;
+  FIELD_EPIC_NAME: string;
+  FIELD_STORY_POINTS?: string;
+  localTypeToJira: Record<string, string>;
+}
+
+export interface SearchInput {
+  type: string;
+  text: string;
+  fixVersion: string;
+  sprint: string;
+}
+
+interface JiraListIssue {
+  key: string;
+  fields: Record<string, unknown> & {
+    summary?: string;
+    issuetype?: { name?: string };
+    status?: { name?: string };
+    priority?: { name?: string };
+    fixVersions?: Array<{ name?: string }>;
+  };
+}
+
+const stripQuotes = (s: string): string => s.trim().replace(/"/g, '');
+
+/** Build the JQL for the "search open JIRA issues" endpoint. */
+export function buildSearchJql(input: SearchInput, deps: SearchDeps): string {
+  const { type, text, fixVersion, sprint } = input;
+  const typeClause =
+    type === 'all'
+      ? `issuetype in ("New Feature", Epic, Story, Improvement, Task, Bug)`
+      : type === 'story'
+        ? `issuetype in ("Story", "Improvement")`
+        : `issuetype = "${deps.localTypeToJira[type] || 'Epic'}"`;
+  const textClause = text.trim() ? ` AND text ~ "${stripQuotes(text)}"` : '';
+  const fixVersionClause = fixVersion.trim()
+    ? ` AND fixVersion = "${stripQuotes(fixVersion)}"`
+    : '';
+  const sprintClause = sprint ? ` AND sprint = "${sprint}"` : '';
+  return `project = ${deps.JIRA_PROJECT} AND labels = ${deps.JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause}${fixVersionClause}${sprintClause} ORDER BY updated DESC`;
+}
+
+export async function searchOpenIssues(input: SearchInput, deps: SearchDeps) {
+  const { jiraPagedRequest, findExisting, FIELD_EPIC_NAME } = deps;
+  const jql = buildSearchJql(input, deps);
+  const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
+  const rawIssues = (await jiraPagedRequest(jql, fields, {
+    maxResults: 100,
+    maxTotal: 500,
+  })) as JiraListIssue[];
+
+  const issues = await Promise.all(
+    rawIssues.map(async (iss) => {
+      const existing = await findExisting(iss.key);
+      return {
+        key: iss.key,
+        summary: String(iss.fields.summary || ''),
+        epicName: String(iss.fields[FIELD_EPIC_NAME] || ''),
+        issuetype: iss.fields.issuetype?.name || '',
+        status: iss.fields.status?.name || '',
+        priority: iss.fields.priority?.name || '',
+        fixVersions: (iss.fields.fixVersions || []).map((v) => v.name || '').filter(Boolean),
+        localExists: !!existing,
+        localFilename: existing?.filename || null,
+        localDocType: existing?.docType || null,
+      };
+    })
+  );
+  return { issues, total: rawIssues.length };
+}
+
+export async function issuesByFixVersion(
+  version: string,
+  deps: Pick<SearchDeps, 'jiraPagedRequest' | 'JIRA_PROJECT' | 'JIRA_LABEL' | 'FIELD_EPIC_NAME'> & {
+    FIELD_STORY_POINTS: string;
+    findLocal: (jiraId: string) => { filename?: string } | null | undefined;
+  }
+) {
+  const jql = `fixVersion = "${version.replace(/"/g, '')}" AND project = ${deps.JIRA_PROJECT} AND labels = ${deps.JIRA_LABEL} ORDER BY issuetype ASC`;
+  const fields = `summary,issuetype,status,priority,fixVersions,${deps.FIELD_EPIC_NAME},${deps.FIELD_STORY_POINTS}`;
+  const rawIssues = (await deps.jiraPagedRequest(jql, fields, {
+    maxResults: 100,
+    maxTotal: 500,
+  })) as JiraListIssue[];
+  const issues = rawIssues.map((issue) => {
+    const existing = deps.findLocal(issue.key);
+    return {
+      key: issue.key,
+      summary: String(issue.fields.summary || ''),
+      issuetype: issue.fields.issuetype?.name || '',
+      status: issue.fields.status?.name || '',
+      priority: issue.fields.priority?.name || '',
+      localExists: !!existing,
+      localFilename: existing?.filename || null,
+    };
+  });
+  return { fixVersion: version, total: rawIssues.length, issues };
+}
+
+export async function listProjectVersions(jiraRequest: Request, JIRA_PROJECT: string) {
+  type JiraVersion = { id: string; name: string; released?: boolean; archived?: boolean };
+  const data = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) ||
+    []) as JiraVersion[];
+  const versions = data.map((v) => ({
+    id: v.id,
+    name: v.name,
+    released: !!v.released,
+    archived: !!v.archived,
+  }));
+  versions.sort((a, b) => {
+    if (a.released !== b.released) return a.released ? 1 : -1;
+    return a.name.localeCompare(b.name);
+  });
+  return versions;
+}

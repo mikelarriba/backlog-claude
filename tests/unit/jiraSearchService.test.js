@@ -195,3 +195,95 @@ describe('pullIssues', () => {
     assert.equal(fs.readdirSync(dir).length, 0);
   });
 });
+
+describe('searchOpenIssues / issuesByFixVersion / listProjectVersions (#697)', () => {
+  const base = {
+    JIRA_PROJECT: 'P',
+    JIRA_LABEL: 'L',
+    FIELD_EPIC_NAME: 'cf_name',
+    FIELD_STORY_POINTS: 'cf_sp',
+    localTypeToJira: { epic: 'Epic', feature: 'New Feature' },
+  };
+
+  it('buildSearchJql composes type, text, fixVersion and sprint clauses', async () => {
+    const { buildSearchJql } = await import('../../src/services/jiraSearchService.ts');
+    const jql = buildSearchJql(
+      { type: 'epic', text: 'a"b', fixVersion: ' v1 ', sprint: 'S1' },
+      base
+    );
+    assert.match(jql, /issuetype = "Epic"/);
+    assert.match(jql, /text ~ "ab"/);
+    assert.match(jql, /fixVersion = "v1"/);
+    assert.match(jql, /sprint = "S1"/);
+    assert.match(jql, /ORDER BY updated DESC$/);
+    assert.match(
+      buildSearchJql({ type: 'story', text: '', fixVersion: '', sprint: '' }, base),
+      /"Story", "Improvement"/
+    );
+  });
+
+  it('searchOpenIssues shapes issues and adds local badges', async () => {
+    const { searchOpenIssues } = await import('../../src/services/jiraSearchService.ts');
+    const res = await searchOpenIssues(
+      { type: 'all', text: '', fixVersion: '', sprint: '' },
+      {
+        ...base,
+        jiraPagedRequest: async () => [
+          issue('A-1', 'Epic', { cf_name: 'N', fixVersions: [{ name: 'v1' }] }),
+          issue('A-2', 'Story'),
+        ],
+        findExisting: async (k) => (k === 'A-1' ? { filename: 'e.md', docType: 'epic' } : null),
+      }
+    );
+    assert.equal(res.total, 2);
+    assert.equal(res.issues[0].epicName, 'N');
+    assert.deepEqual(res.issues[0].fixVersions, ['v1']);
+    assert.equal(res.issues[0].localFilename, 'e.md');
+    assert.equal(res.issues[1].localExists, false);
+  });
+
+  it('issuesByFixVersion strips quotes and maps local files', async () => {
+    const { issuesByFixVersion } = await import('../../src/services/jiraSearchService.ts');
+    let seen;
+    const res = await issuesByFixVersion('v"1', {
+      ...base,
+      jiraPagedRequest: async (jql) => {
+        seen = jql;
+        return [issue('A-1', 'Epic')];
+      },
+      findLocal: () => ({ filename: 'x.md' }),
+    });
+    assert.match(seen, /fixVersion = "v1"/);
+    assert.deepEqual(res, {
+      fixVersion: 'v"1',
+      total: 1,
+      issues: [
+        {
+          key: 'A-1',
+          summary: 'S A-1',
+          issuetype: 'Epic',
+          status: 'Done',
+          priority: '',
+          localExists: true,
+          localFilename: 'x.md',
+        },
+      ],
+    });
+  });
+
+  it('listProjectVersions sorts unreleased first, then by name', async () => {
+    const { listProjectVersions } = await import('../../src/services/jiraSearchService.ts');
+    const v = await listProjectVersions(
+      async () => [
+        { id: '1', name: 'b', released: true },
+        { id: '2', name: 'z' },
+        { id: '3', name: 'a' },
+      ],
+      'P'
+    );
+    assert.deepEqual(
+      v.map((x) => x.name),
+      ['a', 'z', 'b']
+    );
+  });
+});
