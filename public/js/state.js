@@ -18,6 +18,20 @@ export function getJiraBase() {
 export function setJiraBase(base) {
   _jiraBase = base;
 }
+// ── Metadata lists (teams / work categories) ────────────────────────────────
+// Module-local state (#698): were ambient window globals.
+let _metaTeams = [];
+let _metaWorkCategories = [];
+export function getMetaTeams() {
+  return _metaTeams;
+}
+export function getMetaWorkCategories() {
+  return _metaWorkCategories;
+}
+export function setMetaLists(teams, workCategories) {
+  _metaTeams = teams;
+  _metaWorkCategories = workCategories;
+}
 // ── Global state ──────────────────────────────────────────────────────────────
 // Plain window globals (declared as ambient `var`s in global.d.ts), read and
 // written as bare identifiers throughout public/ts/. Previously each of these
@@ -44,10 +58,6 @@ Object.defineProperty(window, 'piSettings', {
 });
 globalThis.currentFilename = null;
 globalThis.currentDocType = null;
-globalThis.activeTypeFilter = 'all';
-globalThis.activeStatusFilter = 'all';
-globalThis.activeTeamFilter = 'all';
-globalThis.activeWorkCatFilter = 'all';
 globalThis.currentJiraId = null;
 globalThis._justDragged = false;
 let _toastTimer = null;
@@ -56,8 +66,6 @@ globalThis._lastClickedItem = null;
 globalThis.jiraSearchResults = [];
 globalThis.sprintConfig = {};
 globalThis.splitThreshold = 8;
-globalThis._metaTeams = [];
-globalThis._metaWorkCategories = [];
 // List-level state (moved here from list.js so all state is centralised)
 globalThis.jiraVersions = [];
 globalThis._swimlanesCollapsed = {
