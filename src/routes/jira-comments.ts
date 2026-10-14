@@ -14,10 +14,24 @@ import {
   JiraCommentsQuerySchema,
   JiraPostCommentSchema,
   JiraImproveCommentSchema,
+  JiraUserSearchSchema,
 } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
 
 const ISSUE_KEY_RE = /^[A-Z][A-Z0-9]*-\d+$/i;
+
+// Normalizes the ticket filter the user typed in the Comments view. A bare
+// number (e.g. "9768") is resolved against the configured project
+// (EAMDM-9768); a full key is uppercased and validated as-is. Returns '' when
+// the input can't be turned into a valid key.
+export function resolveIssueKey(raw: string | undefined, project: string): string {
+  const v = String(raw || '')
+    .trim()
+    .toUpperCase();
+  if (!v) return '';
+  if (/^\d+$/.test(v)) return project ? `${project.toUpperCase()}-${v}` : '';
+  return ISSUE_KEY_RE.test(v) ? v : '';
+}
 
 // The feed never looks back more than 2 months, whatever the client asks for.
 function twoMonthsAgo(): string {
@@ -40,6 +54,7 @@ export default function jiraCommentsRoutes({
   JIRA_PROJECT,
   JIRA_LABEL,
   JIRA_BASE,
+  jiraRequest,
   jiraPagedRequest,
   getMyself,
   addComment,
@@ -63,16 +78,23 @@ export default function jiraCommentsRoutes({
         parsed.error.issues[0]?.message || 'Invalid query'
       );
     }
-    const from = resolveFrom(parsed.data.from);
-    const to = parsed.data.to;
+    const issueKey = resolveIssueKey(parsed.data.issueKey, JIRA_PROJECT);
+    // A ticket filter targets one issue directly, so the 2-month floor and the
+    // per-comment date filtering are both bypassed — the user explicitly wants
+    // that ticket's comments regardless of age.
+    const from = issueKey ? undefined : resolveFrom(parsed.data.from);
+    const to = issueKey ? undefined : parsed.data.to;
     const mentionedOnly = parsed.data.mentionedOnly === 'true';
     const notRepliedByMe = parsed.data.notRepliedByMe === 'true';
 
     try {
-      // `from`/`to` are regex-validated to YYYY-MM-DD, so they're safe to
-      // interpolate into JQL. Narrow the fetch by issue-level `updated`; the
+      // `from`/`to` are regex-validated to YYYY-MM-DD and issueKey is
+      // normalized to a strict KEY-123 shape, so both are safe to interpolate
+      // into JQL. Narrow the fetch by issue-level `updated` for the feed; the
       // per-comment date filtering happens in flattenAndFilterComments.
-      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND updated >= "${from}" ORDER BY updated DESC`;
+      const jql = issueKey
+        ? `issuekey = "${issueKey}" ORDER BY updated DESC`
+        : `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND updated >= "${from}" ORDER BY updated DESC`;
       const rawIssues = (await jiraPagedRequest(jql, 'summary,comment', {
         maxResults: 100,
         maxTotal: 500,
@@ -100,6 +122,51 @@ export default function jiraCommentsRoutes({
       res.json({ comments, jiraBase: JIRA_BASE, myName, total: comments.length });
     } catch (err) {
       handleRouteError(res, err, { scope: 'GET /api/jira/comments', logError });
+    }
+  });
+
+  // ── GET /api/jira/users ────────────────────────────────────────────────────
+  // Typeahead for the @-mention picker in the reply box. Proxies JIRA Server's
+  // user search; the client inserts the chosen user as `[~name]` wiki markup,
+  // which JIRA renders as a mention (and which the mention-detection regex in
+  // flattenAndFilterComments already recognizes).
+  router.get('/api/jira/users', async (req, res) => {
+    if (!process.env.JIRA_API_TOKEN)
+      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+
+    const parsed = JiraUserSearchSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        parsed.error.issues[0]?.message || 'Invalid query'
+      );
+    }
+
+    try {
+      const raw = (await jiraRequest(
+        'GET',
+        `/user/search?username=${encodeURIComponent(parsed.data.query)}&maxResults=10`
+      )) as Array<{
+        name?: string;
+        displayName?: string;
+        emailAddress?: string;
+        avatarUrls?: Record<string, string>;
+      }>;
+
+      const users = (Array.isArray(raw) ? raw : [])
+        .filter((u) => u.name)
+        .map((u) => ({
+          name: u.name as string,
+          displayName: u.displayName || (u.name as string),
+          email: u.emailAddress || '',
+          avatarUrl: u.avatarUrls?.['24x24'] || u.avatarUrls?.['16x16'] || '',
+        }));
+
+      res.json({ users });
+    } catch (err) {
+      handleRouteError(res, err, { scope: 'GET /api/jira/users', logError });
     }
   });
 

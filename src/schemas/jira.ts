@@ -145,8 +145,28 @@ export const JiraCommentsQuerySchema = z
       .enum(['true', 'false'])
       .optional()
       .openapi({ description: 'Exclude comments authored by the current user' }),
+    issueKey: z
+      .string()
+      .regex(/^[A-Za-z0-9-]+$/, 'Ticket must be a number (9768) or issue key (EAMDM-9768)')
+      .max(40)
+      .optional()
+      .openapi({
+        description:
+          'Restrict to one issue. Accepts a bare number (resolved against the configured ' +
+          'project) or a full issue key. When set, the 2-month date floor is bypassed.',
+      }),
   })
   .openapi('JiraCommentsQuery');
+
+export const JiraUserSearchSchema = z
+  .object({
+    query: z
+      .string()
+      .min(1, 'query is required')
+      .max(60)
+      .openapi({ description: 'Partial username / display name to search for' }),
+  })
+  .openapi('JiraUserSearch');
 
 export const JiraPostCommentSchema = z
   .object({

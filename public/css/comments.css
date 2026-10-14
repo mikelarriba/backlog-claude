@@ -72,6 +72,67 @@
   color: #fff;
 }
 
+/* ── Ticket-id filter ───────────────────────────────────────────── */
+.comments-ticket-filter {
+  gap: var(--space-1);
+}
+.comments-ticket-input {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-body);
+  font-family: inherit;
+  font-size: 0.82rem;
+  width: 150px;
+  box-sizing: border-box;
+}
+.comments-ticket-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.comments-ticket-clear {
+  padding: 6px 12px;
+  line-height: 1;
+  font-size: 1rem;
+}
+
+/* ── @-mention autocomplete ─────────────────────────────────────── */
+.comment-mention-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 2px;
+  z-index: 20;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md, 0 6px 20px rgba(0, 0, 0, 0.18));
+}
+.comment-mention-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.comment-mention-item.active,
+.comment-mention-item:hover {
+  background: var(--accent-subtle);
+}
+.comment-mention-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-body);
+}
+.comment-mention-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 /* ── Comment list & cards ───────────────────────────────────────── */
 .comments-list {
   display: flex;

@@ -1485,6 +1485,28 @@
                   Mentions me
                 </button>
               </div>
+              <div
+                class="comments-filter-group comments-ticket-filter"
+                role="group"
+                aria-label="Ticket filter"
+              >
+                <input
+                  type="text"
+                  id="comments-ticket-input"
+                  class="comments-ticket-input"
+                  data-input-action="commentsSetIssueKey"
+                  placeholder="Ticket, e.g. 9768"
+                  aria-label="Filter by ticket id"
+                  autocomplete="off"
+                />
+                <button
+                  class="comments-filter-btn comments-ticket-clear"
+                  data-action="commentsClearIssueKey"
+                  title="Clear ticket filter"
+                >
+                  &times;
+                </button>
+              </div>
             </div>
             <div id="comments-list" class="comments-list"></div>
           </div>
@@ -2246,13 +2268,16 @@
         <div class="comment-reply-context" id="comment-reply-context"></div>
         <div class="split-dialog-body">
           <label class="rp-label" style="margin-bottom: 6px; display: block">Your reply</label>
-          <textarea
-            class="rp-textarea"
-            id="comment-reply-text"
-            rows="5"
-            placeholder="Write your reply…"
-            style="width: 100%; box-sizing: border-box"
-          ></textarea>
+          <div class="comment-reply-input-wrap" style="position: relative">
+            <textarea
+              class="rp-textarea"
+              id="comment-reply-text"
+              rows="5"
+              placeholder="Write your reply… type @ to mention someone"
+              style="width: 100%; box-sizing: border-box"
+            ></textarea>
+            <div id="comment-mention-menu" class="comment-mention-menu" role="listbox" hidden></div>
+          </div>
         </div>
         <div
           style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; min-height: 20px"

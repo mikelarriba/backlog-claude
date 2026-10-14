@@ -12,13 +12,15 @@ import {
   openModal,
   closeModal,
 } from './state.js';
-import { registerActions } from './actions.js';
+import { registerActions, registerInputActions } from './actions.js';
 let _dateRange = '';
 let _mentionedOnly = false;
 let _notRepliedByMe = false;
+let _issueKeyFilter = '';
 let _jiraBase = '';
 let _lastComments = [];
 let _replyKey = '';
+let _issueKeyDebounce;
 function isoDaysAgo(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -56,6 +58,7 @@ async function reloadComments() {
   if (from) params.set('from', from);
   if (_mentionedOnly) params.set('mentionedOnly', 'true');
   if (_notRepliedByMe) params.set('notRepliedByMe', 'true');
+  if (_issueKeyFilter) params.set('issueKey', _issueKeyFilter);
   try {
     const data = await fetchJSON(`/api/jira/comments?${params.toString()}`);
     _jiraBase = data.jiraBase || '';
@@ -131,6 +134,24 @@ function commentsToggleMention() {
   syncFilterButtons();
   void reloadComments();
 }
+// ── Ticket-id filter ────────────────────────────────────────────────────────────
+// Debounced so a reload only fires once the user pauses typing. Accepts a bare
+// number (resolved to a project key server-side) or a full key; the server
+// bypasses the date floor when a ticket filter is active.
+function commentsSetIssueKey(value) {
+  const next = value.trim();
+  if (next === _issueKeyFilter) return;
+  _issueKeyFilter = next;
+  if (_issueKeyDebounce) clearTimeout(_issueKeyDebounce);
+  _issueKeyDebounce = setTimeout(() => void reloadComments(), 350);
+}
+function commentsClearIssueKey() {
+  if (_issueKeyDebounce) clearTimeout(_issueKeyDebounce);
+  _issueKeyFilter = '';
+  const input = document.getElementById('comments-ticket-input');
+  if (input) input.value = '';
+  void reloadComments();
+}
 // ── Expand / collapse a comment card ────────────────────────────────────────────
 function toggleCommentExpand(commentId) {
   const card = document.querySelector(`.comment-card[data-comment-id="${CSS.escape(commentId)}"]`);
@@ -152,9 +173,11 @@ function openCommentReply(commentId, issueKey) {
   if (textarea) textarea.value = '';
   setReplyStatus('');
   openModal('comment-reply-modal');
+  ensureMentionAutocomplete();
   textarea?.focus();
 }
 function closeCommentReply() {
+  hideMentionMenu();
   closeModal('comment-reply-modal');
   _replyKey = '';
 }
@@ -205,10 +228,149 @@ async function postCommentReply() {
     if (btn) btn.disabled = false;
   }
 }
+// ── @-mention autocomplete ──────────────────────────────────────────────────────
+// A lightweight typeahead over the reply textarea: typing "@foo" queries JIRA
+// for matching users and, on selection, inserts the JIRA Server mention token
+// `[~username]` (the same syntax flattenAndFilterComments detects on the way
+// back in). Listeners are attached once, lazily, the first time the reply modal
+// opens. Caret-anchoring is deliberately simple — the menu docks to the bottom
+// of the textarea rather than tracking the exact caret pixel.
+let _mentionWired = false;
+let _mentionUsers = [];
+let _mentionIndex = 0;
+let _mentionStart = -1; // index of the triggering '@' within the textarea value
+let _mentionFetchSeq = 0; // guards against out-of-order responses
+let _mentionDebounce;
+function mentionMenuEl() {
+  return document.getElementById('comment-mention-menu');
+}
+function hideMentionMenu() {
+  const menu = mentionMenuEl();
+  if (menu) {
+    menu.hidden = true;
+    menu.innerHTML = '';
+  }
+  _mentionUsers = [];
+  _mentionStart = -1;
+  _mentionIndex = 0;
+}
+// Finds an active "@query" token ending at the caret. Returns null when the
+// caret isn't inside one (e.g. there's whitespace between '@' and the caret).
+function detectMention(textarea) {
+  const pos = textarea.selectionStart ?? 0;
+  const upto = textarea.value.slice(0, pos);
+  const m = /(?:^|\s)@([\w.-]*)$/.exec(upto);
+  if (!m) return null;
+  const query = m[1];
+  return { start: pos - query.length - 1, query };
+}
+function renderMentionMenu() {
+  const menu = mentionMenuEl();
+  if (!menu) return;
+  if (_mentionUsers.length === 0) {
+    menu.hidden = true;
+    menu.innerHTML = '';
+    return;
+  }
+  menu.innerHTML = _mentionUsers
+    .map((u, i) => {
+      const sub = u.email || u.name;
+      return `<div class="comment-mention-item${i === _mentionIndex ? ' active' : ''}" role="option" data-mention-index="${i}">
+        <span class="comment-mention-name">${escHtml(u.displayName)}</span>
+        <span class="comment-mention-sub">${escHtml(sub)}</span>
+      </div>`;
+    })
+    .join('');
+  menu.hidden = false;
+}
+async function fetchMentionUsers(query) {
+  const seq = ++_mentionFetchSeq;
+  try {
+    const data = await fetchJSON(`/api/jira/users?query=${encodeURIComponent(query)}`);
+    if (seq !== _mentionFetchSeq || _mentionStart < 0) return; // superseded or cancelled
+    _mentionUsers = data.users || [];
+    _mentionIndex = 0;
+    renderMentionMenu();
+  } catch {
+    if (seq === _mentionFetchSeq) hideMentionMenu();
+  }
+}
+function insertMention(user) {
+  const textarea = document.getElementById('comment-reply-text');
+  if (!textarea || _mentionStart < 0) return;
+  const pos = textarea.selectionStart ?? textarea.value.length;
+  const before = textarea.value.slice(0, _mentionStart);
+  const after = textarea.value.slice(pos);
+  const token = `[~${user.name}] `;
+  textarea.value = before + token + after;
+  const caret = before.length + token.length;
+  textarea.setSelectionRange(caret, caret);
+  hideMentionMenu();
+  textarea.focus();
+}
+function onMentionInput(textarea) {
+  const det = detectMention(textarea);
+  if (!det) {
+    hideMentionMenu();
+    return;
+  }
+  _mentionStart = det.start;
+  if (_mentionDebounce) clearTimeout(_mentionDebounce);
+  if (det.query.length < 1) {
+    // Just the bare "@" — wait for at least one character before querying.
+    hideMentionMenu();
+    _mentionStart = det.start; // keep anchor so the next keystroke resolves
+    return;
+  }
+  _mentionDebounce = setTimeout(() => void fetchMentionUsers(det.query), 200);
+}
+function onMentionKeydown(e) {
+  const menu = mentionMenuEl();
+  if (!menu || menu.hidden || _mentionUsers.length === 0) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _mentionIndex = (_mentionIndex + 1) % _mentionUsers.length;
+    renderMentionMenu();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _mentionIndex = (_mentionIndex - 1 + _mentionUsers.length) % _mentionUsers.length;
+    renderMentionMenu();
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    e.preventDefault();
+    const user = _mentionUsers[_mentionIndex];
+    if (user) insertMention(user);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    hideMentionMenu();
+  }
+}
+function ensureMentionAutocomplete() {
+  if (_mentionWired) return;
+  const textarea = document.getElementById('comment-reply-text');
+  const menu = mentionMenuEl();
+  if (!textarea || !menu) return;
+  _mentionWired = true;
+  textarea.addEventListener('input', () => onMentionInput(textarea));
+  textarea.addEventListener('keydown', onMentionKeydown);
+  textarea.addEventListener('blur', () => setTimeout(hideMentionMenu, 120));
+  // mousedown (not click) so selection runs before the textarea loses focus.
+  menu.addEventListener('mousedown', (e) => {
+    const item = e.target.closest('.comment-mention-item');
+    if (!item) return;
+    e.preventDefault();
+    const idx = Number(item.dataset.mentionIndex);
+    const user = _mentionUsers[idx];
+    if (user) insertMention(user);
+  });
+}
+registerInputActions({
+  commentsSetIssueKey: (el) => commentsSetIssueKey(el.value),
+});
 registerActions({
   commentsToggleRange: (el) => commentsToggleRange(el.dataset.value ?? ''),
   commentsToggleNotReplied: () => commentsToggleNotReplied(),
   commentsToggleMention: () => commentsToggleMention(),
+  commentsClearIssueKey: () => commentsClearIssueKey(),
   toggleCommentExpand: (el) => toggleCommentExpand(el.dataset.commentId ?? ''),
   openCommentReply: (el) => openCommentReply(el.dataset.commentId ?? '', el.dataset.issueKey ?? ''),
   closeCommentReply: () => closeCommentReply(),
