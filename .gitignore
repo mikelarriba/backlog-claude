@@ -1,5 +1,6 @@
 node_modules/
 .env
+.env.bak*
 audit.log
 CLAUDE.md
 inbox/
