@@ -1,7 +1,13 @@
 // ── Roadmap: right-click context menus ──────────────────────────
 // Three builders sharing the same popup mechanics: the epic (top panel),
 // the story (bottom panel), and the "Add to Sprint" submenu used by both.
-import { escHtml, showJiraToast, patchJSON, getErrorMessage } from './state.js';
+import {
+  escHtml,
+  showJiraToast,
+  patchJSON,
+  getErrorMessage,
+  getMetaWorkCategories,
+} from './state.js';
 import {
   renderRoadmapBoard,
   updateEstPlacements,
@@ -258,7 +264,7 @@ function _buildCategorySubmenu(filename, docType) {
   return buildCategorySubmenuHtml(
     filename,
     docType,
-    _metaWorkCategories,
+    getMetaWorkCategories(),
     current?.workCategory ?? null
   );
 }

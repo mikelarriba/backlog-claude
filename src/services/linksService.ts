@@ -10,6 +10,7 @@ import {
 } from '../utils/transforms.js';
 import type { TypeConfig, DocIndexInstance, BroadcastFn } from '../types.js';
 import type { Logger } from '../utils/logger.js';
+import { writeFileAtomic, withFileLocks, updateDoc } from '../utils/fileWrite.js';
 
 interface LinksContext {
   TYPE_CONFIG: TypeConfig;
@@ -101,9 +102,7 @@ export async function applyHierarchyLink(
   if (!fs.existsSync(tgtPath))
     return { code: 'NOT_FOUND', message: 'Target document not found', status: 404 };
 
-  const content = await fs.promises.readFile(srcPath, 'utf-8');
-  const updated = setFrontmatterField(content, rule.field, targetFilename);
-  await fs.promises.writeFile(srcPath, updated);
+  await updateDoc(srcPath, (content) => setFrontmatterField(content, rule.field, targetFilename));
   await docIndex.invalidate(sourceType, sourceFilename);
 
   broadcast({
@@ -158,41 +157,43 @@ export async function applyBlocksLink(
     for (const blocked of docIndex.get(fn)?.blocks || []) queue.push(blocked);
   }
 
-  // Append tgtFile to source's Blocks field
-  const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
-  const existingBlocks = extractFrontmatterField(srcContent, 'Blocks');
-  const blocksArr = existingBlocks
-    ? existingBlocks
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-  if (!blocksArr.includes(tgtFile)) {
-    blocksArr.push(tgtFile);
-    await fs.promises.writeFile(
-      srcPath,
-      setFrontmatterField(srcContent, 'Blocks', blocksArr.join(', '))
-    );
-    await docIndex.invalidate(srcType, srcFile);
-  }
+  await withFileLocks([srcPath, tgtPath], async () => {
+    // Append tgtFile to source's Blocks field
+    const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
+    const existingBlocks = extractFrontmatterField(srcContent, 'Blocks');
+    const blocksArr = existingBlocks
+      ? existingBlocks
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    if (!blocksArr.includes(tgtFile)) {
+      blocksArr.push(tgtFile);
+      await writeFileAtomic(
+        srcPath,
+        setFrontmatterField(srcContent, 'Blocks', blocksArr.join(', '))
+      );
+      await docIndex.invalidate(srcType, srcFile);
+    }
 
-  // Append srcFile to target's Blocked_By field
-  const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
-  const existingBlockedBy = extractFrontmatterField(tgtContent, 'Blocked_By');
-  const blockedByArr = existingBlockedBy
-    ? existingBlockedBy
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-  if (!blockedByArr.includes(srcFile)) {
-    blockedByArr.push(srcFile);
-    await fs.promises.writeFile(
-      tgtPath,
-      setFrontmatterField(tgtContent, 'Blocked_By', blockedByArr.join(', '))
-    );
-    await docIndex.invalidate(tgtType, tgtFile);
-  }
+    // Append srcFile to target's Blocked_By field
+    const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
+    const existingBlockedBy = extractFrontmatterField(tgtContent, 'Blocked_By');
+    const blockedByArr = existingBlockedBy
+      ? existingBlockedBy
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    if (!blockedByArr.includes(srcFile)) {
+      blockedByArr.push(srcFile);
+      await writeFileAtomic(
+        tgtPath,
+        setFrontmatterField(tgtContent, 'Blocked_By', blockedByArr.join(', '))
+      );
+      await docIndex.invalidate(tgtType, tgtFile);
+    }
+  });
 
   broadcast({
     type: 'link_updated',
@@ -246,41 +247,43 @@ export async function applyParallelLink(
   if (!fs.existsSync(tgtPath))
     return { code: 'NOT_FOUND', message: 'Target document not found', status: 404 };
 
-  // Append tgtFile to source's Parallel field
-  const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
-  const existingParallelSrc = extractFrontmatterField(srcContent, 'Parallel');
-  const parallelSrcArr = existingParallelSrc
-    ? existingParallelSrc
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-  if (!parallelSrcArr.includes(tgtFile)) {
-    parallelSrcArr.push(tgtFile);
-    await fs.promises.writeFile(
-      srcPath,
-      setFrontmatterField(srcContent, 'Parallel', parallelSrcArr.join(', '))
-    );
-    await docIndex.invalidate(srcType, srcFile);
-  }
+  await withFileLocks([srcPath, tgtPath], async () => {
+    // Append tgtFile to source's Parallel field
+    const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
+    const existingParallelSrc = extractFrontmatterField(srcContent, 'Parallel');
+    const parallelSrcArr = existingParallelSrc
+      ? existingParallelSrc
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    if (!parallelSrcArr.includes(tgtFile)) {
+      parallelSrcArr.push(tgtFile);
+      await writeFileAtomic(
+        srcPath,
+        setFrontmatterField(srcContent, 'Parallel', parallelSrcArr.join(', '))
+      );
+      await docIndex.invalidate(srcType, srcFile);
+    }
 
-  // Append srcFile to target's Parallel field (symmetric)
-  const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
-  const existingParallelTgt = extractFrontmatterField(tgtContent, 'Parallel');
-  const parallelTgtArr = existingParallelTgt
-    ? existingParallelTgt
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-  if (!parallelTgtArr.includes(srcFile)) {
-    parallelTgtArr.push(srcFile);
-    await fs.promises.writeFile(
-      tgtPath,
-      setFrontmatterField(tgtContent, 'Parallel', parallelTgtArr.join(', '))
-    );
-    await docIndex.invalidate(tgtType, tgtFile);
-  }
+    // Append srcFile to target's Parallel field (symmetric)
+    const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
+    const existingParallelTgt = extractFrontmatterField(tgtContent, 'Parallel');
+    const parallelTgtArr = existingParallelTgt
+      ? existingParallelTgt
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    if (!parallelTgtArr.includes(srcFile)) {
+      parallelTgtArr.push(srcFile);
+      await writeFileAtomic(
+        tgtPath,
+        setFrontmatterField(tgtContent, 'Parallel', parallelTgtArr.join(', '))
+      );
+      await docIndex.invalidate(tgtType, tgtFile);
+    }
+  });
 
   broadcast({
     type: 'link_updated',
@@ -312,33 +315,38 @@ export async function removeBlocksLink(
   const srcPath = srcCfg ? path.join(srcCfg.dir(), srcFile) : null;
   const tgtPath = tgtCfg ? path.join(tgtCfg.dir(), tgtFile) : null;
 
-  if (srcPath && fs.existsSync(srcPath)) {
-    const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
-    const existing = extractFrontmatterField(srcContent, 'Blocks') || '';
-    const filtered = existing
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s && s !== tgtFile && s !== 'TBD');
-    const updated = filtered.length
-      ? setFrontmatterField(srcContent, 'Blocks', filtered.join(', '))
-      : removeFrontmatterField(srcContent, 'Blocks');
-    await fs.promises.writeFile(srcPath, updated);
-    await docIndex.invalidate(srcType, srcFile);
-  }
+  await withFileLocks(
+    [srcPath, tgtPath].filter((x): x is string => !!x),
+    async () => {
+      if (srcPath && fs.existsSync(srcPath)) {
+        const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
+        const existing = extractFrontmatterField(srcContent, 'Blocks') || '';
+        const filtered = existing
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s && s !== tgtFile && s !== 'TBD');
+        const updated = filtered.length
+          ? setFrontmatterField(srcContent, 'Blocks', filtered.join(', '))
+          : removeFrontmatterField(srcContent, 'Blocks');
+        await writeFileAtomic(srcPath, updated);
+        await docIndex.invalidate(srcType, srcFile);
+      }
 
-  if (tgtPath && fs.existsSync(tgtPath)) {
-    const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
-    const existing = extractFrontmatterField(tgtContent, 'Blocked_By') || '';
-    const filtered = existing
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s && s !== srcFile && s !== 'TBD');
-    const updated = filtered.length
-      ? setFrontmatterField(tgtContent, 'Blocked_By', filtered.join(', '))
-      : removeFrontmatterField(tgtContent, 'Blocked_By');
-    await fs.promises.writeFile(tgtPath, updated);
-    await docIndex.invalidate(tgtType, tgtFile);
-  }
+      if (tgtPath && fs.existsSync(tgtPath)) {
+        const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
+        const existing = extractFrontmatterField(tgtContent, 'Blocked_By') || '';
+        const filtered = existing
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s && s !== srcFile && s !== 'TBD');
+        const updated = filtered.length
+          ? setFrontmatterField(tgtContent, 'Blocked_By', filtered.join(', '))
+          : removeFrontmatterField(tgtContent, 'Blocked_By');
+        await writeFileAtomic(tgtPath, updated);
+        await docIndex.invalidate(tgtType, tgtFile);
+      }
+    }
+  );
 
   broadcast({
     type: 'link_updated',
@@ -363,33 +371,38 @@ export async function removeParallelLink(
   const srcPath = srcCfg ? path.join(srcCfg.dir(), srcFile) : null;
   const tgtPath = tgtCfg ? path.join(tgtCfg.dir(), tgtFile) : null;
 
-  if (srcPath && fs.existsSync(srcPath)) {
-    const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
-    const existing = extractFrontmatterField(srcContent, 'Parallel') || '';
-    const filtered = existing
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s && s !== tgtFile && s !== 'TBD');
-    const updated = filtered.length
-      ? setFrontmatterField(srcContent, 'Parallel', filtered.join(', '))
-      : removeFrontmatterField(srcContent, 'Parallel');
-    await fs.promises.writeFile(srcPath, updated);
-    await docIndex.invalidate(srcType, srcFile);
-  }
+  await withFileLocks(
+    [srcPath, tgtPath].filter((x): x is string => !!x),
+    async () => {
+      if (srcPath && fs.existsSync(srcPath)) {
+        const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
+        const existing = extractFrontmatterField(srcContent, 'Parallel') || '';
+        const filtered = existing
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s && s !== tgtFile && s !== 'TBD');
+        const updated = filtered.length
+          ? setFrontmatterField(srcContent, 'Parallel', filtered.join(', '))
+          : removeFrontmatterField(srcContent, 'Parallel');
+        await writeFileAtomic(srcPath, updated);
+        await docIndex.invalidate(srcType, srcFile);
+      }
 
-  if (tgtPath && fs.existsSync(tgtPath)) {
-    const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
-    const existing = extractFrontmatterField(tgtContent, 'Parallel') || '';
-    const filtered = existing
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s && s !== srcFile && s !== 'TBD');
-    const updated = filtered.length
-      ? setFrontmatterField(tgtContent, 'Parallel', filtered.join(', '))
-      : removeFrontmatterField(tgtContent, 'Parallel');
-    await fs.promises.writeFile(tgtPath, updated);
-    await docIndex.invalidate(tgtType, tgtFile);
-  }
+      if (tgtPath && fs.existsSync(tgtPath)) {
+        const tgtContent = await fs.promises.readFile(tgtPath, 'utf-8');
+        const existing = extractFrontmatterField(tgtContent, 'Parallel') || '';
+        const filtered = existing
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s && s !== srcFile && s !== 'TBD');
+        const updated = filtered.length
+          ? setFrontmatterField(tgtContent, 'Parallel', filtered.join(', '))
+          : removeFrontmatterField(tgtContent, 'Parallel');
+        await writeFileAtomic(tgtPath, updated);
+        await docIndex.invalidate(tgtType, tgtFile);
+      }
+    }
+  );
 
   broadcast({
     type: 'link_updated',

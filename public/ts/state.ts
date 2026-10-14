@@ -64,6 +64,31 @@ export interface PanelState {
   parallel: string[];
 }
 
+// ── JIRA base URL ─────────────────────────────────────────────────────────────
+// Module-local state (#698): was an ambient window global.
+let _jiraBase = '';
+export function getJiraBase(): string {
+  return _jiraBase;
+}
+export function setJiraBase(base: string): void {
+  _jiraBase = base;
+}
+
+// ── Metadata lists (teams / work categories) ────────────────────────────────
+// Module-local state (#698): were ambient window globals.
+let _metaTeams: string[] = [];
+let _metaWorkCategories: string[] = [];
+export function getMetaTeams(): string[] {
+  return _metaTeams;
+}
+export function getMetaWorkCategories(): string[] {
+  return _metaWorkCategories;
+}
+export function setMetaLists(teams: string[], workCategories: string[]): void {
+  _metaTeams = teams;
+  _metaWorkCategories = workCategories;
+}
+
 // ── Global state ──────────────────────────────────────────────────────────────
 // Plain window globals (declared as ambient `var`s in global.d.ts), read and
 // written as bare identifiers throughout public/ts/. Previously each of these
@@ -90,24 +115,16 @@ Object.defineProperty(window, 'piSettings', {
   enumerable: true,
 });
 
-globalThis.jiraBase = '';
 globalThis.currentFilename = null;
 globalThis.currentDocType = null;
-globalThis.activeTypeFilter = 'all';
-globalThis.activeStatusFilter = 'all';
-globalThis.activeTeamFilter = 'all';
-globalThis.activeWorkCatFilter = 'all';
 globalThis.currentJiraId = null;
 globalThis._justDragged = false;
-globalThis._quickCreateType = null;
-globalThis._toastTimer = null;
+let _toastTimer: ReturnType<typeof setTimeout> | null = null;
 globalThis.selectedItems = new Set<string>();
 globalThis._lastClickedItem = null;
 globalThis.jiraSearchResults = [] as DocEntry[];
 globalThis.sprintConfig = {} as SprintConfig;
 globalThis.splitThreshold = 8;
-globalThis._metaTeams = [] as string[];
-globalThis._metaWorkCategories = [] as string[];
 // List-level state (moved here from list.js so all state is centralised)
 globalThis.jiraVersions = [] as string[];
 globalThis._swimlanesCollapsed = {
@@ -211,7 +228,7 @@ export function showJiraToast(type: string, message: string): void {
   if (!el) return;
   el.className = `show ${type}`;
   el.textContent = message;
-  if (_toastTimer) clearTimeout(_toastTimer as ReturnType<typeof setTimeout>);
+  if (_toastTimer) clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => {
     el.className = '';
   }, 4000);

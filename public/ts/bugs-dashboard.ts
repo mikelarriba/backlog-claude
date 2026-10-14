@@ -1,5 +1,5 @@
 // ── Bug Dashboard ────────────────────────────────────────────────────────────
-import { streamSSE, renderMarkdown, escHtml, readSSELines } from './state.js';
+import { streamSSE, renderMarkdown, escHtml, readSSELines, getJiraBase } from './state.js';
 import { updateChart, type ChartInstance } from './chart-helpers.js';
 import { registerActions, registerChangeActions } from './actions.js';
 
@@ -459,7 +459,9 @@ export async function analyzeBugs(): Promise<void> {
       {
         onText: (chunk: string) => {
           markdown += chunk;
-          body.innerHTML = renderMarkdown(_linkifyBugKeys(markdown, [..._selectedKeys], jiraBase));
+          body.innerHTML = renderMarkdown(
+            _linkifyBugKeys(markdown, [..._selectedKeys], getJiraBase())
+          );
           const next = _analysisStepFor(markdown);
           if (next !== activeIdx && progress) {
             activeIdx = next;

@@ -21,6 +21,7 @@ import { normalizeOutput } from '../services/claudeService.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { UpgradeStorySchema, DeleteStorySchema } from '../schemas/stories.js';
 import type { RouteContext } from '../types.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export default function storiesRoutes({
   TYPE_CONFIG: _TYPE_CONFIG,
@@ -117,7 +118,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
 
         newStory = normalizeOutput(newStory);
         sections[storyIndex] = newStory;
-        await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
+        await writeFileAtomic(filepath, serializeStoryFile(frontmatter, sections));
         await docIndex.invalidate('story', filename);
 
         if (await fileExists(inboxPath)) {
@@ -165,7 +166,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
         }
 
         sections.splice(storyIndex, 1);
-        await fs.promises.writeFile(filepath, serializeStoryFile(frontmatter, sections));
+        await writeFileAtomic(filepath, serializeStoryFile(frontmatter, sections));
         await docIndex.invalidate('story', filename);
         res.json({ success: true, remaining: sections.length });
       } catch (err) {
@@ -235,7 +236,7 @@ Rewrite ONLY this story incorporating the feedback above. Keep the COVE sections
         const cleanBody = section.replace(/^## Story \d+[:\s]+.+$/m, `## ${storyTitle}`);
 
         const frontmatter = `---\nJIRA_ID: TBD\nStory_Points: TBD\nStatus: Draft\nPriority: Medium\nEpic_ID: ${filename}\nFix_Version: ${epicFixVersion}\nSquad: TBD\nPI: TBD\nSprint: TBD\nCreated: ${date}\n---\n\n`;
-        await fs.promises.writeFile(path.join(STORIES_DIR, storyFilename), frontmatter + cleanBody);
+        await writeFileAtomic(path.join(STORIES_DIR, storyFilename), frontmatter + cleanBody);
         await docIndex.invalidate('story', storyFilename);
         broadcast({ type: 'story_created', filename: storyFilename, docType: 'story' });
         createdFiles.push({ filename: storyFilename, title: storyTitle });

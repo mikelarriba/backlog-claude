@@ -17,12 +17,26 @@ import {
   _showFpCardContextMenu,
 } from './refine-nodes.js';
 import { _showEdgePopup, _showLinkPopup } from './refine-edges.js';
-// Grid constants
-const CELL_W = 240;
-const CELL_H = 110;
-const GUTTER_X = 60;
-const GUTTER_Y = 36;
-const TOP_OFFSET = 80;
+import {
+  CELL_W,
+  CELL_H,
+  GUTTER_X,
+  TOP_OFFSET,
+  computeCanvasGridDimensions,
+  cellPixelPosition,
+  computeCanvasMoveTarget,
+  computeSecEdgePath,
+  computeBlocksEdgePath,
+  computeParallelBracketPath,
+} from './canvas-geometry.js';
+export {
+  computeCanvasGridDimensions,
+  cellPixelPosition,
+  computeCanvasMoveTarget,
+  computeSecEdgePath,
+  computeBlocksEdgePath,
+  computeParallelBracketPath,
+};
 // ── Keyboard-operable link creation (#486 phase 4/N) ────────────
 // Mirrors the mouse rubber-band-line flow below (mousedown on a
 // .canvas-handle → drag → mouseup over a target card → _showLinkPopup) with
@@ -108,48 +122,6 @@ function _startCanvasLinkMode(card, filename, docType, title) {
     _endCanvasLinkMode('Link creation cancelled.');
   };
   document.addEventListener('keydown', _canvasLinkModeEscListener);
-}
-// Pure grid-geometry math, extracted from renderCanvas so the pixel layout
-// calculations are unit-testable without a DOM (#460). One extra row/col is
-// always added beyond the occupied extent so there's always room to drop a
-// card past the last populated cell.
-export function computeCanvasGridDimensions(usedCols, usedRows, effectiveTopOffset) {
-  const occupiedCols = usedCols.length || 1;
-  const occupiedRows = usedRows.length || 1;
-  const gridCols = occupiedCols + 1;
-  const gridRows = occupiedRows + 1;
-  const totalW = GUTTER_X + gridCols * (CELL_W + GUTTER_X);
-  const totalH = effectiveTopOffset + gridRows * (CELL_H + GUTTER_Y) + GUTTER_Y;
-  return { gridCols, gridRows, totalW, totalH };
-}
-// Pure: top-left pixel position of a grid cell, extracted from renderCanvas's
-// `cellAt` closure so it's unit-testable without a DOM (#460).
-export function cellPixelPosition(col, row, effectiveTopOffset) {
-  return {
-    x: GUTTER_X + col * (CELL_W + GUTTER_X),
-    y: effectiveTopOffset + row * (CELL_H + GUTTER_Y),
-  };
-}
-// Pure: given a card's current grid cell and an arrow-key direction, returns
-// the target cell for the keyboard-operable move alternative below, or
-// undefined for a no-op. Mirrors the grid's own growth model — the occupied
-// extent always gets one extra row/col of expansion room (see
-// computeCanvasGridDimensions), so 'down'/'right' are never blocked, while
-// 'up'/'left' stop at row/col 0 since negative grid coordinates aren't a
-// valid layout position (#486 phase 3/N). Bounds-free by design, so it's
-// reused as-is by the feature multi-panel mini-canvas's own keyboard move
-// below — that grid has no fixed extent either (#486 phase 5/N).
-export function computeCanvasMoveTarget(col, row, direction) {
-  switch (direction) {
-    case 'up':
-      return row > 0 ? { col, row: row - 1 } : undefined;
-    case 'down':
-      return { col, row: row + 1 };
-    case 'left':
-      return col > 0 ? { col: col - 1, row } : undefined;
-    case 'right':
-      return { col: col + 1, row };
-  }
 }
 // Shared by the mouse fp-drop-cell drop handler in _renderFpCanvas below and
 // the keyboard-operable move alternative attached to each fp-card's move
@@ -761,44 +733,6 @@ export function renderCanvas(epicFilename, docType) {
   }
   // Draw SVG edges on top
   drawCanvasEdges(svg, cardPositions, epicFilename, epicCenterX, totalW);
-}
-// SEC arrow: same-column, consecutive-row cards — a shallow S-curve from the
-// bottom of the source cell to the top of the target cell.
-export function computeSecEdgePath(src, tgt) {
-  const x1 = src.cx,
-    y1 = src.y + CELL_H;
-  const x2 = tgt.cx,
-    y2 = tgt.y;
-  return {
-    d: `M${x1},${y1} C${x1},${y1 + 20} ${x2},${y2 - 20} ${x2},${y2}`,
-    labelX: x1 + 6,
-    labelY: y1 + (y2 - y1) / 2,
-  };
-}
-// BLOCKS arrow: same curve shape as SEC but with a deeper curve to
-// distinguish it visually, and a label centered on the path's midpoint.
-export function computeBlocksEdgePath(src, tgt) {
-  const x1 = src.cx,
-    y1 = src.y + CELL_H;
-  const x2 = tgt.cx,
-    y2 = tgt.y;
-  return {
-    d: `M${x1},${y1} C${x1},${y1 + 24} ${x2},${y2 - 24} ${x2},${y2}`,
-    labelX: (x1 + x2) / 2 + 4,
-    labelY: (y1 + y2) / 2,
-  };
-}
-// PARALLEL bracket: a squared-off bracket spanning above both cards' tops,
-// from the left edge of the earlier card to the right edge of the later one.
-export function computeParallelBracketPath(a, b) {
-  const x1 = a.x;
-  const x2 = b.x + CELL_W;
-  const y = Math.min(a.y, b.y) - 14;
-  return {
-    d: `M${x1},${a.y - 4} V${y} H${x2} V${b.y - 4}`,
-    labelX: (x1 + x2) / 2,
-    labelY: y - 3,
-  };
 }
 // ── Draw SVG edges ─────────────────────────────────────────────
 function drawCanvasEdges(svg, cardPositions, _epicFilename, _epicCenterX, _totalW) {

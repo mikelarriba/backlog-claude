@@ -5,53 +5,72 @@
 //   - Drop on a .swimlane-section (different)    → MOVE to that PI
 //
 // Uses mouse events (not HTML5 DnD) for reliable cross-browser behaviour.
+import { _rankSortFn } from './list-render.js';
 import {
   buildChildrenMap,
   getDescendants,
   postJSON,
   showJiraToast,
   TYPE_LABEL,
-  DRAG_TARGETS,
   SECTION_LABELS,
-  upsertDoc,
 } from './state.js';
-import { loadHierarchy } from './detail-links.js';
+import { clearSelection, toggleItemSelection, rangeSelectItems } from './list-filters.js';
 import {
-  clearSelection,
-  itemKey,
-  getSelectedDocs,
-  applyFilters,
-  toggleItemSelection,
-  rangeSelectItems,
-} from './list-filters.js';
-import { _rankSortFn } from './list-render.js';
-// No aria-live region existed for list reorder before this; adds one,
-// visually hidden but announced to screen readers, following the same
-// lazily-created/appended-to-body convention introduced for canvas link
-// mode (#486 phase 4/N, refine-canvas.ts's _canvasLinkStatusRegion).
-function _listReorderStatusRegion() {
-  let el = document.getElementById('list-reorder-status');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'list-reorder-status';
-    el.setAttribute('aria-live', 'polite');
-    el.setAttribute('role', 'status');
-    el.style.cssText =
-      'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
-    document.body.appendChild(el);
-  }
-  return el;
-}
-function _announceListReorderStatus(message) {
-  _listReorderStatusRegion().textContent = message;
-}
-// Same lazily-created aria-live region as _announceListReorderStatus above,
-// just named for its own call sites (Ctrl/Cmd+Enter toggle and Shift+Enter
-// range-select below, #486) — the backlog list only needs one polite status
-// region, no reason to create a second DOM node for it.
-function _announceListSelectionStatus(message) {
-  _listReorderStatusRegion().textContent = message;
-}
+  computeRerankedOrder,
+  computeRerankedDocs,
+  computeMoveTarget,
+  computeEdgeMoveTarget,
+  computeSelectionMove,
+  buildSelectionMoveAnnouncement,
+  computeAdjacentSwimlane,
+  buildSwimlaneMoveAnnouncement,
+  buildEdgeMoveAnnouncement,
+  isCenterDropZone,
+  computeDropPopupPosition,
+} from './dragdrop-core.js';
+import {
+  _announceListReorderStatus,
+  _announceListSelectionStatus,
+  getInsertionMarker,
+  showInsertionMarker,
+  hideInsertionMarker,
+  computeInsertBefore,
+  moveSelectionRank,
+  moveRankByType,
+  moveDocRank,
+  moveDocRankToEdge,
+  executeRerankDrop,
+} from './dragdrop-rank.js';
+import {
+  computeDropActionOptions,
+  showDropActionPopup,
+  hideDropActionPopup,
+  getDragDocs,
+} from './dragdrop-popup.js';
+export {
+  getInsertionMarker,
+  showInsertionMarker,
+  hideInsertionMarker,
+  moveSelectionRank,
+  moveRankByType,
+  moveDocRank,
+  moveDocRankToEdge,
+  executeRerankDrop,
+  computeDropActionOptions,
+  showDropActionPopup,
+  hideDropActionPopup,
+  computeRerankedOrder,
+  computeRerankedDocs,
+  computeMoveTarget,
+  computeEdgeMoveTarget,
+  computeSelectionMove,
+  buildSelectionMoveAnnouncement,
+  computeAdjacentSwimlane,
+  buildSwimlaneMoveAnnouncement,
+  buildEdgeMoveAnnouncement,
+  isCenterDropZone,
+  computeDropPopupPosition,
+};
 export function getSwimlaneSection(doc) {
   if (!doc) return 'backlog';
   if (doc.fixVersion && piSettings.currentPi && doc.fixVersion === piSettings.currentPi)
@@ -64,192 +83,6 @@ export function sectionToFixVersion(section) {
   if (section === 'nextPi') return piSettings.nextPi;
   return null; // backlog = clear version
 }
-let _dropPopup = null;
-let _pendingDropSrc = null;
-let _pendingDropTgt = null;
-let _escListener = null;
-// Pure: which drop actions (link-as-parent / add-dependency) are available
-// for a dragged item over a target, and the target title truncated to fit
-// the popup's subtitle. Returns canLink: false, canDep: false when neither
-// action applies (the popup should not be shown).
-export function computeDropActionOptions(
-  srcFilename,
-  srcDocType,
-  tgtFilename,
-  tgtDocType,
-  tgtTitle
-) {
-  const canLink = (DRAG_TARGETS[srcDocType] || []).includes(tgtDocType);
-  const canDep = srcFilename !== tgtFilename && !canLink;
-  const displayTitle = tgtTitle.length > 40 ? tgtTitle.slice(0, 38) + '…' : tgtTitle;
-  return { canLink, canDep, displayTitle };
-}
-// Pure: clamps the drop-action popup's position to stay within the
-// viewport while staying offset from the cursor (#460).
-export function computeDropPopupPosition(
-  cursorX,
-  cursorY,
-  popupWidth,
-  popupHeight,
-  viewportWidth,
-  viewportHeight
-) {
-  const left = Math.min(cursorX + 12, viewportWidth - popupWidth - 12);
-  const top = Math.min(cursorY - 10, viewportHeight - popupHeight - 12);
-  return { left: Math.max(8, left), top: Math.max(8, top) };
-}
-export function showDropActionPopup(srcFilename, srcDocType, targetEl, cursorX, cursorY) {
-  hideDropActionPopup();
-  const tgtFilename = targetEl.dataset.filename;
-  const tgtDocType = targetEl.dataset.doctype;
-  const tgtTitle =
-    targetEl.querySelector('.epic-title-text')?.textContent ||
-    targetEl.querySelector('.roadmap-card-title')?.textContent ||
-    tgtFilename;
-  const { canLink, canDep, displayTitle } = computeDropActionOptions(
-    srcFilename,
-    srcDocType,
-    tgtFilename,
-    tgtDocType,
-    tgtTitle
-  );
-  if (!canLink && !canDep) return; // nothing to offer
-  _pendingDropSrc = { filename: srcFilename, docType: srcDocType };
-  _pendingDropTgt = { filename: tgtFilename, docType: tgtDocType };
-  const popup = document.createElement('div');
-  popup.className = 'drop-action-popup';
-  // Subtitle — target item title
-  const subtitle = document.createElement('div');
-  subtitle.className = 'drop-action-popup-title';
-  subtitle.textContent = displayTitle;
-  popup.appendChild(subtitle);
-  if (canLink) {
-    const btn = document.createElement('button');
-    btn.className = 'drop-action-btn drop-link-btn';
-    btn.innerHTML = '<span class="drop-action-btn-icon">🔗</span><span>Link as parent</span>';
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      executeDropLink();
-    });
-    popup.appendChild(btn);
-  }
-  if (canDep) {
-    const btn = document.createElement('button');
-    btn.className = 'drop-action-btn drop-dep-btn';
-    btn.innerHTML = '<span class="drop-action-btn-icon">🔒</span><span>Add dependency</span>';
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      executeDropDep();
-    });
-    popup.appendChild(btn);
-  }
-  document.body.appendChild(popup);
-  _dropPopup = popup;
-  // Position near cursor, clamped to viewport
-  const pw = popup.offsetWidth || 220;
-  const ph = popup.offsetHeight || 90;
-  const { left, top } = computeDropPopupPosition(
-    cursorX,
-    cursorY,
-    pw,
-    ph,
-    window.innerWidth,
-    window.innerHeight
-  );
-  popup.style.left = `${left}px`;
-  popup.style.top = `${top}px`;
-  // Dismiss on outside click
-  setTimeout(() => {
-    document.addEventListener('click', hideDropActionPopup, { once: true });
-  }, 0);
-  // Dismiss on Escape
-  _escListener = (e) => {
-    if (e.key === 'Escape') hideDropActionPopup();
-  };
-  document.addEventListener('keydown', _escListener);
-}
-export function hideDropActionPopup() {
-  if (_dropPopup) {
-    _dropPopup.remove();
-    _dropPopup = null;
-  }
-  if (_escListener) {
-    document.removeEventListener('keydown', _escListener);
-    _escListener = null;
-  }
-  _pendingDropSrc = null;
-  _pendingDropTgt = null;
-}
-async function executeDropLink() {
-  if (!_pendingDropSrc || !_pendingDropTgt) return;
-  const src = _pendingDropSrc;
-  const tgt = _pendingDropTgt;
-  hideDropActionPopup();
-  const tgtEl = document.querySelector(`#epic-list [data-filename="${CSS.escape(tgt.filename)}"]`);
-  const tgtTitle = tgtEl?.querySelector('.epic-title-text')?.textContent || tgt.filename;
-  const dragDocs = getDragDocs(src.filename, src.docType);
-  try {
-    let linked = 0;
-    for (const d of dragDocs) {
-      const valid = DRAG_TARGETS[d.docType] || [];
-      if (!valid.includes(tgt.docType)) continue;
-      await postJSON('/api/link', {
-        sourceType: d.docType,
-        sourceFilename: d.filename,
-        targetType: tgt.docType,
-        targetFilename: tgt.filename,
-      });
-      linked++;
-    }
-    const msg = linked > 1 ? `Linked ${linked} items to "${tgtTitle}"` : `Linked to "${tgtTitle}"`;
-    showJiraToast('success', msg);
-    clearSelection();
-    if (currentFilename === src.filename || currentFilename === tgt.filename) {
-      loadHierarchy(currentFilename, currentDocType);
-    }
-  } catch (err) {
-    showJiraToast('error', err.message);
-  }
-}
-async function executeDropDep() {
-  if (!_pendingDropSrc || !_pendingDropTgt) return;
-  const src = _pendingDropSrc;
-  const tgt = _pendingDropTgt;
-  hideDropActionPopup();
-  const tgtEl = document.querySelector(`#epic-list [data-filename="${CSS.escape(tgt.filename)}"]`);
-  const tgtTitle = tgtEl?.querySelector('.epic-title-text')?.textContent || tgt.filename;
-  try {
-    await postJSON('/api/link', {
-      linkType: 'blocks',
-      sourceType: src.docType,
-      sourceFilename: src.filename,
-      targetType: tgt.docType,
-      targetFilename: tgt.filename,
-    });
-    // Update allDocs entries optimistically
-    const srcDoc = allDocs.find((d) => d.filename === src.filename);
-    if (srcDoc) {
-      srcDoc.blocks = srcDoc.blocks || [];
-      if (!srcDoc.blocks.includes(tgt.filename)) srcDoc.blocks.push(tgt.filename);
-    }
-    const tgtDoc = allDocs.find((d) => d.filename === tgt.filename);
-    if (tgtDoc) {
-      tgtDoc.blockedBy = tgtDoc.blockedBy || [];
-      if (!tgtDoc.blockedBy.includes(src.filename)) tgtDoc.blockedBy.push(src.filename);
-    }
-    applyFilters();
-    showJiraToast(
-      'success',
-      `"${allDocs.find((d) => d.filename === src.filename)?.title || src.filename}" now blocks "${tgtTitle}"`
-    );
-  } catch (err) {
-    showJiraToast('error', err.message);
-  }
-}
-// Returns whether the move actually happened (false on a missing-PI-version
-// precondition failure or a request error) — used by the keyboard-operable
-// alternative below so it only announces "Moved" via aria-live when the move
-// really succeeded, instead of duplicating this function's own precondition
 // check (#486).
 async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
   const targetSection = dropSwimlane.dataset.section;
@@ -288,313 +121,6 @@ async function executeMoveDrop(srcFilename, srcDocType, dropSwimlane) {
     return false;
   }
 }
-// Returns the docs being dragged — either the multi-selection or just the single item
-function getDragDocs(srcFilename, srcDocType) {
-  const key = itemKey(srcFilename, srcDocType);
-  if (selectedItems.size > 1 && selectedItems.has(key)) {
-    return getSelectedDocs();
-  }
-  const doc = allDocs.find((d) => d.filename === srcFilename && d.docType === srcDocType);
-  return doc ? [doc] : [];
-}
-// ── Insertion marker (rerank visual indicator) ────────────────
-let _insertionMarker = null;
-export function getInsertionMarker() {
-  if (!_insertionMarker) {
-    _insertionMarker = document.createElement('div');
-    _insertionMarker.className = 'rank-insert-line';
-    document.body.appendChild(_insertionMarker);
-  }
-  return _insertionMarker;
-}
-export function showInsertionMarker(clientY) {
-  const list = document.getElementById('epic-list');
-  if (!list) return;
-  const listRect = list.getBoundingClientRect();
-  const marker = getInsertionMarker();
-  marker.style.display = 'block';
-  marker.style.top = `${clientY - 1}px`;
-  marker.style.left = `${listRect.left + 4}px`;
-  marker.style.width = `${listRect.width - 8}px`;
-}
-export function hideInsertionMarker() {
-  if (_insertionMarker) _insertionMarker.style.display = 'none';
-}
-// Returns the filename of the item the cursor is ABOVE (insert before it),
-// or null to insert at the end of the type group.
-function computeInsertBefore(srcDocType, clientY) {
-  const items = [...document.querySelectorAll('#epic-list .epic-item')].filter(
-    (el) => el.dataset.doctype === srcDocType && !el.classList.contains('drag-source')
-  );
-  for (const el of items) {
-    const rect = el.getBoundingClientRect();
-    if (clientY < rect.top + rect.height / 2) return el.dataset.filename;
-  }
-  return null; // insert at end
-}
-// Pure: computes the new rank order for a same-type group after dragging
-// `srcFilename` to just before `insertBeforeFilename` (or to the end when
-// null/undefined/not found). Returns null when `srcFilename` isn't in
-// `group`, matching the original early-return-without-side-effects behavior.
-export function computeRerankedOrder(group, srcFilename, insertBeforeFilename) {
-  const sorted = [...group].sort(_rankSortFn);
-  const draggedIdx = sorted.findIndex((d) => d.filename === srcFilename);
-  if (draggedIdx < 0) return null;
-  const [dragged] = sorted.splice(draggedIdx, 1);
-  let insertIdx = sorted.length; // default: end
-  if (insertBeforeFilename) {
-    const targetIdx = sorted.findIndex((d) => d.filename === insertBeforeFilename);
-    if (targetIdx >= 0) insertIdx = targetIdx;
-  }
-  sorted.splice(insertIdx, 0, dragged);
-  return sorted.map((d) => d.filename);
-}
-// Pure: given the pre-move group and the orderedFilenames computeRerankedOrder
-// above just produced, returns each doc with `rank` set to the sequential
-// 1-based value the server's own batchRerank assigns for that exact filename
-// order (rank = index + 1 — see src/services/batchService.ts). Lets callers
-// apply the deterministic result locally right away instead of waiting on
-// the debounced allDocs reload the rerank broadcast eventually triggers.
-// Mirrors the pattern list.ts's own (unused) moveDocRank already established
-// for this — "apply that same deterministic update locally instead of
-// refetching the full doc list." Filenames not present in `group` are
-// skipped rather than guessed at.
-export function computeRerankedDocs(group, orderedFilenames) {
-  const byFilename = new Map(group.map((d) => [d.filename, d]));
-  const result = [];
-  orderedFilenames.forEach((filename, i) => {
-    const doc = byFilename.get(filename);
-    if (doc) result.push({ ...doc, rank: i + 1 });
-  });
-  return result;
-}
-// Pure targeting logic for moveDocRank below, split out the same way
-// computeRerankedOrder is split from executeRerankDrop so it's testable
-// without a network call. Returns the insertBeforeFilename to pass to
-// executeRerankDrop (null = move to the end), or `undefined` if the move
-// is a no-op (item not found, or already at that edge of its group).
-export function computeMoveTarget(group, filename, direction) {
-  const sorted = [...group].sort(_rankSortFn);
-  const idx = sorted.findIndex((d) => d.filename === filename);
-  if (idx < 0) return undefined;
-  if (direction === 'up' && idx === 0) return undefined;
-  if (direction === 'down' && idx === sorted.length - 1) return undefined;
-  return direction === 'up' ? sorted[idx - 1].filename : (sorted[idx + 2]?.filename ?? null);
-}
-// Pure targeting logic for moveDocRankToEdge below, the Home/End counterpart
-// to computeMoveTarget's single-step ArrowUp/ArrowDown targeting. Returns the
-// insertBeforeFilename to pass to executeRerankDrop (null = move to the end),
-// or `undefined` if the move is a no-op (item not found, or already at that
-// edge of its group) — same convention as computeMoveTarget.
-export function computeEdgeMoveTarget(group, filename, edge) {
-  const sorted = [...group].sort(_rankSortFn);
-  const idx = sorted.findIndex((d) => d.filename === filename);
-  if (idx < 0) return undefined;
-  if (edge === 'first' && idx === 0) return undefined;
-  if (edge === 'last' && idx === sorted.length - 1) return undefined;
-  return edge === 'first' ? sorted[0].filename : null;
-}
-// Pure: reorders a multi-selection within a single type group's rank order.
-// `sorted` is the group already in _rankSortFn order; `selected` is the set of
-// filenames within that group to move. Returns the new filename order, or null
-// when the move is a no-op (nothing selected, or the whole selection already
-// sits at that edge). Non-contiguous selections are handled by nudging each
-// selected item one slot past its nearest unselected neighbour (up: top→bottom
-// scan, down: bottom→top), which collapses gaps toward the moved edge — the
-// behaviour list editors give "move selection up/down". top/bottom lift the
-// entire selection (preserving its internal order) to the front/back. This is
-// the multi-item counterpart to computeMoveTarget/computeEdgeMoveTarget, which
-// only target a single focused row.
-export function computeSelectionMove(group, selected, action) {
-  const order = [...group].sort(_rankSortFn).map((d) => d.filename);
-  const sel = order.filter((f) => selected.has(f));
-  if (!sel.length) return null;
-  let next;
-  if (action === 'top') {
-    next = [...sel, ...order.filter((f) => !selected.has(f))];
-  } else if (action === 'bottom') {
-    next = [...order.filter((f) => !selected.has(f)), ...sel];
-  } else if (action === 'up') {
-    next = [...order];
-    for (let i = 1; i < next.length; i++) {
-      if (selected.has(next[i]) && !selected.has(next[i - 1])) {
-        [next[i - 1], next[i]] = [next[i], next[i - 1]];
-      }
-    }
-  } else {
-    next = [...order];
-    for (let i = next.length - 2; i >= 0; i--) {
-      if (selected.has(next[i]) && !selected.has(next[i + 1])) {
-        [next[i + 1], next[i]] = [next[i], next[i + 1]];
-      }
-    }
-  }
-  if (next.length === order.length && next.every((f, i) => f === order[i])) return null;
-  return next;
-}
-// Pure: builds the aria-live announcement for the context-menu multi-select
-// move actions, mirroring the "Moved N item(s) to X" phrasing
-// contextMoveToPI's toast already uses in list-filters.ts — the sibling
-// batch action in the same context menu. Every other keyboard-operable
-// reorder path in this issue announces its result (#486); this one didn't
-// announce anything at all, unlike its own menu siblings which at least show
-// a toast.
-export function buildSelectionMoveAnnouncement(count, action) {
-  const actionPhrase = action === 'top' || action === 'bottom' ? `to the ${action}` : action;
-  return `Moved ${count} item${count === 1 ? '' : 's'} ${actionPhrase}.`;
-}
-// Multi-select counterpart to executeRerankDrop for the context-menu move
-// actions. Groups the selected docs by type, reranks each type group
-// independently via computeSelectionMove, then persists + applies each changed
-// group exactly the way executeRerankDrop does for a single dragged item
-// (POST /api/docs/rerank + the deterministic local upsert, which re-renders
-// the list via the store's docs:changed event). Selecting a parent and a child
-// together moves each within its own type group; children that aren't
-// explicitly selected simply follow their parent's subtree in the tree render
-// (visual nesting), so their rank is intentionally left untouched.
-export async function moveSelectionRank(selected, action) {
-  const byType = new Map();
-  for (const { filename, docType } of selected) {
-    if (!byType.has(docType)) byType.set(docType, new Set());
-    byType.get(docType).add(filename);
-  }
-  let movedAny = false;
-  let erroredAny = false;
-  for (const [docType, sel] of byType) {
-    const group = allDocs.filter((d) => d.docType === docType);
-    const orderedFilenames = computeSelectionMove(group, sel, action);
-    if (!orderedFilenames) continue;
-    try {
-      await postJSON('/api/docs/rerank', { type: docType, orderedFilenames });
-      computeRerankedDocs(group, orderedFilenames).forEach((d) => upsertDoc(d));
-      movedAny = true;
-    } catch (e) {
-      showJiraToast('error', e.message);
-      erroredAny = true;
-    }
-  }
-  // Same aria-live region every other keyboard-operable reorder path in this
-  // file already announces through (#486). Only announce the no-op edge case
-  // when nothing errored, so a real request failure isn't misreported as
-  // "already at the edge" — the error toast above already covers that case.
-  if (movedAny) {
-    _announceListReorderStatus(buildSelectionMoveAnnouncement(selected.length, action));
-    // Every other keyboard-operable reorder path in this file restores focus
-    // to a drag-handle after the re-render (see moveDocRank's .then() below);
-    // this context-menu-driven multi-select path never did, so a keyboard/
-    // screen-reader user who moved a selection via Shift+F10/right-click lost
-    // their place entirely (focus fell back to <body>) — flagged as an open
-    // gap in #608's status comment. Restore it to the first selected item's
-    // handle, the same well-defined anchor moveDocRank uses for a single item.
-    const anchor = selected[0]?.filename;
-    if (anchor) {
-      setTimeout(() => {
-        document
-          .querySelector(`.epic-item[data-filename="${CSS.escape(anchor)}"] .drag-handle`)
-          ?.focus();
-      }, 200);
-    }
-  } else if (!erroredAny) {
-    const edge = action === 'up' || action === 'top' ? 'top' : 'bottom';
-    _announceListReorderStatus(`Selection is already at the ${edge} of the list.`);
-  }
-}
-// Single-item, per-type reorder shared by the roadmap epic/story context
-// menus. Operates on the full `allDocs` group of the item's own docType — the
-// same proven ordering the backlog multi-select move uses — instead of the
-// on-screen card order. The roadmap previously derived adjacency from the
-// visible `.rm-epic-card` / `.roadmap-card` list, which mixed feature, epic and
-// the "__none__" bucket rows; when an edge/neighbour row was a different type
-// its filename wasn't in the per-type group, findIndex returned -1, and "move
-// to bottom" collapsed to index 0 (top) while up/down silently no-op'd. Going
-// through computeSelectionMove on the per-type group removes that whole class
-// of bug. Returns true when a move was persisted, false on a no-op edge.
-export async function moveRankByType(filename, docType, action) {
-  const group = allDocs.filter((d) => d.docType === docType);
-  const orderedFilenames = computeSelectionMove(group, new Set([filename]), action);
-  if (!orderedFilenames) return false;
-  await postJSON('/api/docs/rerank', { type: docType, orderedFilenames });
-  computeRerankedDocs(group, orderedFilenames).forEach((d) => upsertDoc(d));
-  return true;
-}
-// Fixed left-to-right order the three swimlane sections are rendered in
-// (list-render.ts's renderSwimlaneSectionHtml calls), used by
-// computeAdjacentSwimlane below for the keyboard-operable alternative to the
-// mouse drag-to-swimlane move (#486).
-const SWIMLANE_SECTION_ORDER = ['currentPi', 'nextPi', 'backlog'];
-// Pure targeting logic for moveDocSwimlaneByKeyboard below, split out the
-// same way computeMoveTarget is split from moveDocRank so it's testable
-// without a DOM. Returns the section to move `currentSection` into for
-// `direction`, or `undefined` when already at that edge. Mirrors
-// roadmap-drag.ts's computeAdjacentColumn for the roadmap's own cross-sprint
-// keyboard move (#486).
-export function computeAdjacentSwimlane(currentSection, direction) {
-  const idx = SWIMLANE_SECTION_ORDER.indexOf(currentSection);
-  if (idx < 0) return undefined;
-  if (direction === 'prev' && idx === 0) return undefined;
-  if (direction === 'next' && idx === SWIMLANE_SECTION_ORDER.length - 1) return undefined;
-  return direction === 'prev' ? SWIMLANE_SECTION_ORDER[idx - 1] : SWIMLANE_SECTION_ORDER[idx + 1];
-}
-// Keyboard-operable alternative to the mouse-drag rerank above — swaps the
-// focused item with its immediate rank-order neighbor of the same docType
-// and persists it the same way a drag-and-drop rerank does. Purely additive:
-// calls the same executeRerankDrop() the drag handler already uses, so the
-// visual reorder happens the same way (via the debounced allDocs reload
-// triggered by the server's rerank broadcast), and does not change or
-// remove the existing mouse drag-and-drop behavior.
-export async function moveDocRank(filename, docType, direction) {
-  const group = allDocs.filter((d) => d.docType === docType);
-  const insertBeforeFilename = computeMoveTarget(group, filename, direction);
-  if (insertBeforeFilename === undefined) return;
-  await executeRerankDrop(filename, docType, insertBeforeFilename);
-}
-// Home/End counterpart to moveDocRank: jumps the focused item straight to the
-// top or bottom of its group instead of stepping one position at a time.
-// Reuses the same executeRerankDrop() the drag and single-step keyboard paths
-// already call, so all three cannot drift (#486).
-export async function moveDocRankToEdge(filename, docType, edge) {
-  const group = allDocs.filter((d) => d.docType === docType);
-  const insertBeforeFilename = computeEdgeMoveTarget(group, filename, edge);
-  if (insertBeforeFilename === undefined) return;
-  await executeRerankDrop(filename, docType, insertBeforeFilename);
-}
-export async function executeRerankDrop(srcFilename, srcDocType, insertBeforeFilename) {
-  const group = allDocs.filter((d) => d.docType === srcDocType);
-  const orderedFilenames = computeRerankedOrder(group, srcFilename, insertBeforeFilename);
-  if (!orderedFilenames) return;
-  try {
-    await postJSON('/api/docs/rerank', {
-      type: srcDocType,
-      orderedFilenames,
-    });
-    // Apply the server's deterministic rank assignment locally right away
-    // (see computeRerankedDocs above) rather than waiting for the debounced
-    // allDocs reload the rerank broadcast triggers. Without this, a caller
-    // that re-renders synchronously right after this resolves — e.g.
-    // roadmap-drag.ts's patchStoryColumn — read stale rank order off allDocs
-    // and the column didn't visually re-sort even though the move had
-    // already persisted; for the roadmap specifically this was effectively
-    // permanent, since roadmap.ts doesn't subscribe to the docs:changed
-    // event the eventual reload emits. Pre-existing gap, not introduced by
-    // this change — the shipped mouse-drag rerank path called this same
-    // function and had the identical bug (#486).
-    computeRerankedDocs(group, orderedFilenames).forEach((d) => upsertDoc(d));
-  } catch (e) {
-    showJiraToast('error', e.message);
-  }
-}
-// Pure: builds the aria-live announcement for a successful swimlane move.
-// executeMoveDrop's mouse-drag path already moves the whole multi-selection
-// when the dragged item is part of one (getDragDocs, used internally by
-// executeMoveDrop) and its success toast already reflects that with a
-// "(N items)" suffix — but until now the keyboard path's announcement below
-// always named just the focused item, so a screen-reader user moving a
-// multi-selection with arrow keys heard "Moved X to Current PI" even though
-// several items moved together. Mirrors the toast's count-awareness instead
-// (#486).
-export function buildSwimlaneMoveAnnouncement(title, label, movedCount) {
-  return movedCount > 1 ? `Moved ${movedCount} items to ${label}.` : `Moved ${title} to ${label}.`;
-}
 // Keyboard-operable alternative to the mouse drag-to-swimlane-section move
 // (the drop-on-a-.swimlane-section case documented at the top of this file)
 // — moves the focused item to the previous/next swimlane section (Current
@@ -630,13 +156,6 @@ async function moveDocSwimlaneByKeyboard(filename, docType, direction) {
       ?.focus();
   }, 200);
 }
-// Pure: builds the aria-live announcement for a Home/End jump, reusing the
-// "Now position N of M" phrasing the single-step ArrowUp/ArrowDown path
-// already announces so both keyboard paths read the same way (#486).
-export function buildEdgeMoveAnnouncement(title, edge, total) {
-  const position = edge === 'first' ? 1 : total;
-  return `Moved ${title} to the ${edge === 'first' ? 'top' : 'bottom'}. Now position ${position} of ${total}.`;
-}
 // Home/End keyboard path: jumps the focused item to the top or bottom of its
 // group in one press, instead of holding an arrow key through the whole list.
 // Mirrors moveDocSwimlaneByKeyboard's structure — announce-and-stop when the
@@ -658,14 +177,6 @@ async function moveDocRankToEdgeByKeyboard(filename, docType, edge) {
       .querySelector(`.epic-item[data-filename="${CSS.escape(filename)}"] .drag-handle`)
       ?.focus();
   }, 200);
-}
-// Pure: is a point (relY from the top of a drop-target rect of the given
-// height) within the "center zone" — the middle 50% — where dropping
-// offers a link/dependency action instead of a rerank/swimlane move?
-// Extracted from the near-identical math previously duplicated between
-// resolveDropTargets() and the mousemove handler below.
-export function isCenterDropZone(relY, height) {
-  return relY > height * 0.25 && relY < height * 0.75;
 }
 function resolveDropTargets(snap, e) {
   let dropTarget = null,

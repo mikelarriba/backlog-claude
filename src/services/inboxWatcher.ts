@@ -4,6 +4,7 @@ import type { BroadcastFn, DocIndexInstance } from '../types.js';
 import type { Logger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLog.js';
 import { config } from '../config/env.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 interface InboxWatcherOptions {
   INBOX_DIR: string;
@@ -83,7 +84,7 @@ export function watchInbox({
           const epicContent = await callClaude(epicPrompt);
 
           ensureDir(EPICS_DIR);
-          await fs.promises.writeFile(path.join(EPICS_DIR, filename), epicContent);
+          await writeFileAtomic(path.join(EPICS_DIR, filename), epicContent);
           await docIndex?.invalidate('epic', filename);
           broadcast({ type: 'epic_created', filename });
           logAudit({ op: 'create', docType: 'epic', filename, source: 'inbox' });
@@ -113,7 +114,7 @@ export function watchInbox({
           lastError,
           timestamp: new Date().toISOString(),
         };
-        await fs.promises.writeFile(
+        await writeFileAtomic(
           path.join(errorsDir, `${filename}.error.json`),
           JSON.stringify(errorMeta, null, 2)
         );

@@ -16,24 +16,15 @@ declare global {
 
   // ── Store-backed state variables ───────────────────────────────────────────
   var allDocs: DocEntry[];
-  var jiraBase: string;
   var currentFilename: string | null;
   var currentDocType: string | null;
-  var activeTypeFilter: string;
-  var activeStatusFilter: string;
-  var activeTeamFilter: string;
-  var activeWorkCatFilter: string;
   var currentJiraId: string | null;
   var _justDragged: boolean;
-  var _quickCreateType: string | null;
-  var _toastTimer: ReturnType<typeof setTimeout> | null;
   var selectedItems: Set<string>;
   var _lastClickedItem: string | null;
   var jiraSearchResults: DocEntry[];
   var sprintConfig: SprintConfig;
   var splitThreshold: number;
-  var _metaTeams: string[];
-  var _metaWorkCategories: string[];
   var piSettings: PISettings;
   var jiraVersions: string[];
   var _swimlanesCollapsed: SwimlaneCollapsed;

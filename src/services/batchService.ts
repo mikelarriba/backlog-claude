@@ -13,6 +13,7 @@ import { topoSort } from '../utils/topoSort.js';
 import type { TypeConfig, DocIndexInstance } from '../types.js';
 import type { DistributionDoc } from './distributionService.js';
 import type { Logger } from '../utils/logger.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export type DocItem = { type: string; filename: string };
 export type RerankItem = { filename: string; docType: string; rank: number };
@@ -414,7 +415,7 @@ export async function applyDistribution(
 
   // Phase 2: flush all writes, capped like every sibling batch function in
   // this file to avoid firing hundreds of concurrent file writes at once.
-  await pMap(writes, ({ filepath, content }) => fs.promises.writeFile(filepath, content), {
+  await pMap(writes, ({ filepath, content }) => writeFileAtomic(filepath, content), {
     concurrency: BATCH_CONCURRENCY,
   });
 

@@ -1,22 +1,18 @@
 // ── JIRA search & pull routes ─────────────────────────────────────────────────
 import { Router } from 'express';
-import fs from 'fs';
-import path from 'path';
-import {
-  sendError,
-  ensureDir,
-  parseApiError,
-  assertFilename,
-  normalizeType,
-} from '../utils/routeHelpers.js';
-import { isoDate, slugify, setFrontmatterField } from '../utils/transforms.js';
+import { sendError, parseApiError, assertFilename, normalizeType } from '../utils/routeHelpers.js';
 import { LOCAL_TO_JIRA_TYPE, fetchBoardSprints } from '../services/jiraService.js';
-import { JIRA_LABEL_TO_TEAM, ALL_TEAM_JIRA_LABELS } from '../config/metadata.js';
+import {
+  closedEpicsForScope,
+  childrenOf,
+  pullIssues,
+  searchOpenIssues,
+  issuesByFixVersion,
+  listProjectVersions,
+} from '../services/jiraSearchService.js';
 import { findExistingByJiraId } from '../utils/docHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { JiraPullSchema } from '../schemas/jira.js';
-import { pMap } from '../utils/pMap.js';
-import { config } from '../config/env.js';
 import type { JiraRouteContext } from '../types.js';
 
 // Shared JQL injection guard for any free-text value (sprint name, fix
@@ -72,59 +68,24 @@ export default function jiraSearchRoutes({
         return sendError(res, 400, 'INVALID_PARAM', 'Invalid sprint parameter');
       }
 
-      const typeClause =
-        type === 'all'
-          ? `issuetype in ("New Feature", Epic, Story, Improvement, Task, Bug)`
-          : type === 'story'
-            ? `issuetype in ("Story", "Improvement")`
-            : // @ts-expect-error — Express query type is string at runtime, TS sees union with ParsedQs
-              `issuetype = "${LOCAL_TO_JIRA_TYPE[type] || 'Epic'}"`;
-
-      // @ts-expect-error — Express query values are string | string[] | ParsedQs; text is always string here
-      const textClause = text.trim() ? ` AND text ~ "${text.trim().replace(/"/g, '')}"` : '';
-      // @ts-expect-error — Express query values are string | string[] | ParsedQs; fixVersion is always string here
-      const fixVersionClause = fixVersion.trim()
-        ? // @ts-expect-error — see above
-          ` AND fixVersion = "${fixVersion.trim().replace(/"/g, '')}"`
-        : '';
-      const sprintClause = sprintSanitised ? ` AND sprint = "${sprintSanitised}"` : '';
-      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory != Done AND ${typeClause}${textClause}${fixVersionClause}${sprintClause} ORDER BY updated DESC`;
-      const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},description`;
-      type JiraSearchIssue = {
-        key: string;
-        fields: Record<string, unknown> & {
-          summary?: string;
-          issuetype?: { name?: string };
-          status?: { name?: string };
-          priority?: { name?: string };
-          fixVersions?: Array<{ name?: string }>;
-        };
-      };
-      const rawIssues = (await jiraPagedRequest(jql, fields, {
-        maxResults: 100,
-        maxTotal: 500,
-      })) as JiraSearchIssue[];
-
-      const issues = await Promise.all(
-        rawIssues.map(async (issue) => {
-          const iss = issue;
-          const existing = await _findExistingByJiraId(iss.key);
-          return {
-            key: iss.key,
-            summary: String(iss.fields.summary || ''),
-            epicName: String(iss.fields[FIELD_EPIC_NAME] || ''),
-            issuetype: iss.fields.issuetype?.name || '',
-            status: iss.fields.status?.name || '',
-            priority: iss.fields.priority?.name || '',
-            fixVersions: (iss.fields.fixVersions || []).map((v) => v.name || '').filter(Boolean),
-            localExists: !!existing,
-            localFilename: existing?.filename || null,
-            localDocType: existing?.docType || null,
-          };
-        })
+      const result = await searchOpenIssues(
+        {
+          type: String(type),
+          text: String(text),
+          fixVersion: String(fixVersion),
+          sprint: sprintSanitised,
+        },
+        {
+          jiraPagedRequest,
+          findExisting: _findExistingByJiraId,
+          JIRA_PROJECT,
+          JIRA_LABEL,
+          FIELD_EPIC_NAME,
+          localTypeToJira: LOCAL_TO_JIRA_TYPE as Record<string, string>,
+        }
       );
 
-      res.json({ issues, total: rawIssues.length });
+      res.json(result);
     } catch (err) {
       const apiErr = parseApiError(err);
       logError(
@@ -141,28 +102,7 @@ export default function jiraSearchRoutes({
     if (!process.env.JIRA_API_TOKEN)
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
     try {
-      type JiraVersion = {
-        id: string;
-        name: string;
-        released?: boolean;
-        archived?: boolean;
-        startDate?: string;
-        releaseDate?: string;
-      };
-      const data = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) ||
-        []) as JiraVersion[];
-      const versions = data.map((v) => ({
-        id: v.id,
-        name: v.name,
-        released: !!v.released,
-        archived: !!v.archived,
-        startDate: v.startDate || null,
-        releaseDate: v.releaseDate || null,
-      }));
-      versions.sort((a, b) => {
-        if (a.released !== b.released) return a.released ? 1 : -1;
-        return a.name.localeCompare(b.name);
-      });
+      const versions = await listProjectVersions(jiraRequest, JIRA_PROJECT);
       res.json({ versions });
     } catch (err) {
       const apiErr = parseApiError(err);
@@ -191,36 +131,15 @@ export default function jiraSearchRoutes({
     }
 
     try {
-      const jql = `fixVersion = "${version.replace(/"/g, '')}" AND project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} ORDER BY issuetype ASC`;
-      const fields = `summary,issuetype,status,priority,fixVersions,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`;
-      type JiraByFixVersionIssue = {
-        key: string;
-        fields: Record<string, unknown> & {
-          summary?: string;
-          issuetype?: { name?: string };
-          status?: { name?: string };
-          priority?: { name?: string };
-        };
-      };
-      const rawIssues = (await jiraPagedRequest(jql, fields, {
-        maxResults: 100,
-        maxTotal: 500,
-      })) as JiraByFixVersionIssue[];
-
-      const issues = rawIssues.map((issue) => {
-        const existing = docIndex.findByJiraId(issue.key);
-        return {
-          key: issue.key,
-          summary: String(issue.fields.summary || ''),
-          issuetype: issue.fields.issuetype?.name || '',
-          status: issue.fields.status?.name || '',
-          priority: issue.fields.priority?.name || '',
-          localExists: !!existing,
-          localFilename: existing?.filename || null,
-        };
+      const result = await issuesByFixVersion(version, {
+        jiraPagedRequest,
+        JIRA_PROJECT,
+        JIRA_LABEL,
+        FIELD_EPIC_NAME,
+        FIELD_STORY_POINTS,
+        findLocal: (id) => docIndex.findByJiraId(id),
       });
-
-      res.json({ fixVersion: version, total: rawIssues.length, issues });
+      res.json(result);
     } catch (err) {
       const apiErr = parseApiError(err);
       logError(
@@ -269,170 +188,19 @@ export default function jiraSearchRoutes({
     }
 
     try {
-      // ── 1. Resolve the date window ────────────────────────────────────────
-      let start: string | null = null;
-      let end: string | null = null;
-      let windowResolved = true;
-
-      if (scopeType === 'sprint') {
-        if (!JIRA_BOARD_ID) {
-          return sendError(res, 400, 'BOARD_NOT_CONFIGURED', 'JIRA_BOARD_ID not configured');
-        }
-        const sprints = await fetchBoardSprints(
-          jiraAgileRequest,
-          JIRA_BOARD_ID,
-          'active,future,closed'
-        );
-        const match = sprints.find((s) => s.name === scopeValue);
-        if (!match) {
-          return sendError(res, 404, 'SPRINT_NOT_FOUND', `Sprint "${scopeValue}" not found`);
-        }
-        start = match.startDate || null;
-        end = match.endDate || null;
-      } else {
-        type JiraVersion = { name: string; startDate?: string; releaseDate?: string };
-        const versions = ((await jiraRequest('GET', `/project/${JIRA_PROJECT}/versions`)) ||
-          []) as JiraVersion[];
-        const match = versions.find((v) => v.name === scopeValue);
-        if (!match) {
-          return sendError(res, 404, 'VERSION_NOT_FOUND', `Fix version "${scopeValue}" not found`);
-        }
-        start = match.startDate || null;
-        end = match.releaseDate || null;
-      }
-
-      if (!start || !end) windowResolved = false;
-
-      // ── 2. Query closed issues in window ──────────────────────────────────
-      const resolvedClause = windowResolved
-        ? ` AND resolved >= "${String(start).slice(0, 10)}" AND resolved <= "${String(end).slice(0, 10)}"`
-        : '';
-      const jql = `project = ${JIRA_PROJECT} AND labels = ${JIRA_LABEL} AND statusCategory = Done${resolvedClause} ORDER BY updated DESC`;
-      const fields = `summary,issuetype,status,${FIELD_EPIC_LINK},${FIELD_EPIC_NAME},resolutiondate`;
-      type JiraClosedIssue = {
-        key: string;
-        fields: Record<string, unknown> & {
-          summary?: string;
-          issuetype?: { name?: string };
-          status?: { name?: string };
-        };
-      };
-      const rawIssues = (await jiraPagedRequest(jql, fields, {
-        maxResults: 100,
-        maxTotal: 500,
-      })) as JiraClosedIssue[];
-
-      // ── 3. Group into epics ────────────────────────────────────────────────
-      interface EpicGroup {
-        key: string;
-        summary: string;
-        epicName: string;
-        status: string;
-        epicClosedInScope: boolean;
-        isSynthetic: boolean;
-        closedChildren: Array<{ key: string; summary: string; issuetype: string; status: string }>;
-      }
-      const epicMap = new Map<string, EpicGroup>();
-      const NO_EPIC_KEY = '(no epic)';
-
-      for (const issue of rawIssues) {
-        const issuetypeName = issue.fields.issuetype?.name || '';
-        if (issuetypeName === 'Epic') {
-          const entry = epicMap.get(issue.key) || {
-            key: issue.key,
-            summary: '',
-            epicName: '',
-            status: '',
-            epicClosedInScope: false,
-            isSynthetic: false,
-            closedChildren: [],
-          };
-          entry.summary = String(issue.fields.summary || '');
-          entry.epicName = String(issue.fields[FIELD_EPIC_NAME] || '');
-          entry.status = issue.fields.status?.name || '';
-          entry.epicClosedInScope = true;
-          epicMap.set(issue.key, entry);
-        } else {
-          const epicKey = String(issue.fields[FIELD_EPIC_LINK] || '').trim() || NO_EPIC_KEY;
-          const isSynthetic = epicKey === NO_EPIC_KEY;
-          const entry = epicMap.get(epicKey) || {
-            key: epicKey,
-            summary: '',
-            epicName: '',
-            status: '',
-            epicClosedInScope: false,
-            isSynthetic,
-            closedChildren: [],
-          };
-          entry.closedChildren.push({
-            key: issue.key,
-            summary: String(issue.fields.summary || ''),
-            issuetype: issuetypeName,
-            status: issue.fields.status?.name || '',
-          });
-          epicMap.set(epicKey, entry);
-        }
-      }
-
-      // ── 4. Batch-fetch epic summaries for epics not already closed-in-scope ─
-      const keysToFetch = [...epicMap.values()]
-        .filter((e) => !e.epicClosedInScope && !e.isSynthetic)
-        .map((e) => e.key);
-      if (keysToFetch.length) {
-        const epicJql = `key in (${keysToFetch.join(',')})`;
-        const epicFields = `summary,status,${FIELD_EPIC_NAME}`;
-        type JiraEpicSummary = {
-          key: string;
-          fields: Record<string, unknown> & { summary?: string; status?: { name?: string } };
-        };
-        const epicIssues = (await jiraPagedRequest(epicJql, epicFields, {
-          maxResults: 100,
-          maxTotal: 500,
-        })) as JiraEpicSummary[];
-        for (const epicIssue of epicIssues) {
-          const entry = epicMap.get(epicIssue.key);
-          if (!entry) continue;
-          entry.summary = String(epicIssue.fields.summary || '');
-          entry.epicName = String(epicIssue.fields[FIELD_EPIC_NAME] || '');
-          entry.status = epicIssue.fields.status?.name || '';
-        }
-      }
-
-      // ── 5. Attach "✓ Local" badges ───────────────────────────────────────
-      const epics = await Promise.all(
-        [...epicMap.values()].map(async (e) => {
-          const existing = e.isSynthetic ? null : await _findExistingByJiraId(e.key);
-          const closedChildren = await Promise.all(
-            e.closedChildren.map(async (c) => {
-              const childExisting = await _findExistingByJiraId(c.key);
-              return {
-                ...c,
-                localExists: !!childExisting,
-                localFilename: childExisting?.filename || null,
-                localDocType: childExisting?.docType || null,
-              };
-            })
-          );
-          return {
-            key: e.key,
-            summary: e.summary,
-            epicName: e.epicName,
-            status: e.status,
-            epicClosedInScope: e.epicClosedInScope,
-            isSynthetic: e.isSynthetic,
-            localExists: !!existing,
-            localFilename: existing?.filename || null,
-            localDocType: existing?.docType || null,
-            closedChildren,
-          };
-        })
-      );
-
-      res.json({
-        scope: { type: scopeType, value: scopeValue, windowResolved },
-        epics,
-        total: epics.length,
-      });
+      const result = await closedEpicsForScope(scopeType, scopeValue, {
+        jiraRequest,
+        jiraPagedRequest,
+        jiraAgileRequest,
+        findExisting: _findExistingByJiraId,
+        JIRA_PROJECT,
+        JIRA_LABEL,
+        JIRA_BOARD_ID,
+        FIELD_EPIC_NAME,
+        FIELD_EPIC_LINK,
+      } as never);
+      if (!result.ok) return sendError(res, result.status, result.code, result.message);
+      res.json({ scope: result.scope, epics: result.epics, total: result.epics.length });
     } catch (err) {
       const apiErr = parseApiError(err);
       logError(
@@ -493,61 +261,14 @@ export default function jiraSearchRoutes({
       return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
     try {
-      const key = req.params.key;
-      type JiraChildIssue = {
-        key: string;
-        fields?: { summary?: string; issuetype?: { name?: string }; status?: { name?: string } };
-      };
-      type JiraParentIssue = {
-        fields?: {
-          issuetype?: { name?: string };
-          issuelinks?: Array<{ inwardIssue?: JiraChildIssue }>;
-          subtasks?: JiraChildIssue[];
-        };
-      };
-      const issue = (await jiraRequest(
-        'GET',
-        `/issue/${key}?fields=issuetype,issuelinks,subtasks`
-      )) as JiraParentIssue;
-      const issueType = issue.fields?.issuetype?.name;
-      const children: Array<Record<string, unknown>> = [];
-      const seen = new Set();
-
-      async function addChild(child: JiraChildIssue) {
-        if (seen.has(child.key)) return;
-        seen.add(child.key);
-        const existing = await _findExistingByJiraId(child.key);
-        children.push({
-          key: child.key,
-          summary: child.fields?.summary || '',
-          issuetype: child.fields?.issuetype?.name || '',
-          status: child.fields?.status?.name || '',
-          localExists: !!existing,
-          localFilename: existing?.filename || null,
-          localDocType: existing?.docType || null,
-        });
-      }
-
-      // Epics: find children via Epic Link custom field — paginate to handle large epics
-      if (issueType === 'Epic') {
-        const fieldId = FIELD_EPIC_LINK.replace('customfield_', '');
-        const jql = `cf[${fieldId}] = ${key} AND project = ${JIRA_PROJECT} AND statusCategory != Done ORDER BY issuetype ASC`;
-        const childIssues = await jiraPagedRequest(jql, 'summary,issuetype,status,priority', {
-          maxResults: 100,
-          maxTotal: 500,
-        });
-        for (const child of childIssues) await addChild(child as JiraChildIssue);
-      }
-
-      // New Features / Epics: check issue links (inward = contained children)
-      for (const link of issue.fields?.issuelinks || []) {
-        if (link.inwardIssue) await addChild(link.inwardIssue);
-      }
-
-      // Subtasks
-      for (const st of issue.fields?.subtasks || []) await addChild(st);
-
-      res.json({ parentKey: key, parentType: issueType, children });
+      const { parentKey, parentType, children } = await childrenOf(req.params.key, {
+        jiraRequest,
+        jiraPagedRequest,
+        findExisting: _findExistingByJiraId,
+        JIRA_PROJECT,
+        FIELD_EPIC_LINK,
+      });
+      res.json({ parentKey, parentType, children });
     } catch (err) {
       const apiErr = parseApiError(err);
       logError(
@@ -570,130 +291,19 @@ export default function jiraSearchRoutes({
       if (!process.env.JIRA_API_TOKEN)
         return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
-      // Determine which frontmatter field links a child to its parent
-      const parentFieldName =
-        parentLink?.docType === 'epic'
-          ? 'Epic_ID'
-          : parentLink?.docType === 'feature'
-            ? 'Feature_ID'
-            : null;
-
-      const pulled: { key: string; filename: string; docType: string }[] = [];
-      const conflicts: { key: string; existingFilename: string; existingDocType: string }[] = [];
-
-      // Pass 1: resolve conflicts and fetch each key from JIRA with bounded
-      // concurrency (capped at JIRA_CONCURRENCY, same pMap pattern used by the
-      // JIRA push routes and /api/confluence/execute) instead of one sequential
-      // JIRA round-trip per key. A conflicting key is flagged here without ever
-      // hitting the network. pMap preserves each key's original index so pass 2
-      // below can stay in source order regardless of fetch completion order.
-      type FetchResult =
-        | { key: string; conflict: { existingFilename: string; existingDocType: string } }
-        | {
-            key: string;
-            conflict: null;
-            existing: Awaited<ReturnType<typeof _findExistingByJiraId>>;
-            docType: string;
-            content: string;
-            filename: string;
-          };
-
-      const fetched: FetchResult[] = await pMap(
-        keys as string[],
-        async (key): Promise<FetchResult> => {
-          const existing = await _findExistingByJiraId(key);
-          if (existing && !overwriteKeys.includes(key)) {
-            return {
-              key,
-              conflict: { existingFilename: existing.filename, existingDocType: existing.docType },
-            };
-          }
-
-          const issue = (await jiraRequest(
-            'GET',
-            `/issue/${key}?fields=summary,issuetype,status,priority,description,fixVersions,labels,${FIELD_EPIC_NAME},${FIELD_STORY_POINTS}`
-          )) as { fields?: Record<string, unknown> };
-          const { docType, content: initialContent } = jiraIssueToMarkdown(issue);
-          let content = initialContent;
-
-          // Resolve team from JIRA labels
-          const issueLabels = (issue.fields?.labels ?? []) as string[];
-          const teamLabel = issueLabels.find((l: string) => ALL_TEAM_JIRA_LABELS.has(l));
-          if (
-            teamLabel &&
-            issueLabels.filter((l: string) => ALL_TEAM_JIRA_LABELS.has(l)).length > 1
-          ) {
-            console.warn(`[jira/pull] ${key} has multiple team labels — using first: ${teamLabel}`);
-          }
-          const localTeam = teamLabel ? JIRA_LABEL_TO_TEAM[teamLabel] : 'TBD';
-          content = setFrontmatterField(content, 'Team', localTeam);
-
-          // Link child to local parent file so the "└" hierarchy renders correctly
-          if (parentFieldName && parentLink.filename) {
-            content = setFrontmatterField(content, parentFieldName, parentLink.filename);
-            // Inherit fixVersion and sprint from the parent so children appear in
-            // the same swimlane section (Current PI, Next PI, or Backlog).
-            const parentDoc = docIndex.get(parentLink.filename);
-            content = setFrontmatterField(content, 'Fix_Version', parentDoc?.fixVersion || 'TBD');
-            content = setFrontmatterField(content, 'Sprint', parentDoc?.sprint || 'TBD');
-          } else {
-            // Fresh import (search or exact key) — always land in Backlog.
-            content = setFrontmatterField(content, 'Fix_Version', 'TBD');
-            content = setFrontmatterField(content, 'Sprint', 'TBD');
-          }
-
-          const filename =
-            existing && overwriteKeys.includes(key)
-              ? existing.filename
-              : `${isoDate()}-${slugify(String(issue.fields?.summary || key))}.md`;
-
-          return { key, conflict: null, existing, docType, content, filename };
-        },
-        { concurrency: config.JIRA_CONCURRENCY }
+      const { pulled, conflicts } = await pullIssues(
+        { keys, overwriteKeys, parentLink },
+        {
+          jiraRequest,
+          findExisting: _findExistingByJiraId,
+          jiraIssueToMarkdown,
+          docIndex,
+          TYPE_CONFIG,
+          broadcast,
+          FIELD_EPIC_NAME,
+          FIELD_STORY_POINTS,
+        }
       );
-
-      // Pass 2: sequential filesystem writes, rank assignment, and docIndex
-      // invalidation. This must stay sequential/ordered — rank assignment for a
-      // new import reads docIndex.getAll()'s current max rank and would race if
-      // parallelized alongside other writes of the same docType.
-      for (const item of fetched) {
-        if (item.conflict) {
-          conflicts.push({ key: item.key, ...item.conflict });
-          continue;
-        }
-
-        const { key, existing, docType, filename } = item;
-        let content = item.content;
-
-        // Rank: JIRA carries no Rank, so the fresh markdown has none. Overwriting
-        // an existing local doc must keep its current Rank (so a re-import doesn't
-        // move it); a brand-new import lands at the bottom of the backlog by taking
-        // max(Rank) + 1 across existing docs of the same type. Without this a new
-        // import is unranked and — since most peers are ranked — floats to an
-        // arbitrary spot rather than the bottom.
-        const existingRank =
-          existing && overwriteKeys.includes(key)
-            ? (docIndex.get(existing.filename)?.rank ?? null)
-            : null;
-        if (existing && overwriteKeys.includes(key)) {
-          if (existingRank != null)
-            content = setFrontmatterField(content, 'Rank', String(existingRank));
-        } else {
-          const maxRank = docIndex
-            .getAll()
-            .filter((d) => d.docType === docType && d.rank != null)
-            .reduce((max, d) => Math.max(max, d.rank as number), 0);
-          content = setFrontmatterField(content, 'Rank', String(maxRank + 1));
-        }
-
-        const destDir = TYPE_CONFIG[docType].dir();
-        ensureDir(destDir);
-        await fs.promises.writeFile(path.join(destDir, filename), content);
-        await docIndex.invalidate(docType, filename);
-
-        pulled.push({ key, filename, docType });
-        broadcast({ type: `${docType}_created`, filename, docType });
-      }
 
       res.json({ pulled, conflicts });
     } catch (err) {

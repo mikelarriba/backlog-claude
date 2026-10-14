@@ -3,8 +3,10 @@ import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 
 // Cross-file globals used by the frontend's legacy shared-state pattern.
-// These window properties are defined in state.js and read across other modules.
-// This list will shrink as files are migrated to ES modules in Phase 3.
+// These window properties are defined in state.ts (_storeVar) and read across other modules.
+// The window-global bridge (_dynGlobals) is already retired (#698); this list
+// shrinks as each remaining name moves behind store.ts/state.ts accessors.
+// `marked` and `DOMPurify` are genuine vendor globals and stay.
 const FRONTEND_GLOBALS = {
   // State variables (from state.js _storeVar)
   allDocs: 'writable',
@@ -13,15 +15,10 @@ const FRONTEND_GLOBALS = {
   currentFilename: 'writable',
   currentDocType: 'writable',
   currentJiraId: 'writable',
-  jiraBase: 'writable',
   jiraSearchResults: 'writable',
   jiraVersions: 'writable',
   selectedItems: 'writable',
   splitThreshold: 'writable',
-  activeStatusFilter: 'writable',
-  activeTeamFilter: 'writable',
-  activeTypeFilter: 'writable',
-  activeWorkCatFilter: 'writable',
   // Internal UI state variables
   _activePanelState: 'writable',
   _canvasDocType: 'writable',
@@ -31,23 +28,14 @@ const FRONTEND_GLOBALS = {
   _collapsedItems: 'writable',
   _justDragged: 'writable',
   _lastClickedItem: 'writable',
-  _metaTeams: 'writable',
-  _metaWorkCategories: 'writable',
   _panelStates: 'writable',
-  _parseComments: 'writable',
   _piConfigActivePi: 'writable',
-  _quickCreateType: 'writable',
-  _renderComments: 'writable',
   _roadmapVisiblePis: 'writable',
-  _showEpicContextMenu: 'writable',
-  _showFpCardContextMenu: 'writable',
   _swimlanesCollapsed: 'writable',
-  _toastTimer: 'writable',
   // Third-party libraries loaded via <script> tags
   marked: 'readonly',
   DOMPurify: 'readonly',
   // Loop variable used in some files
-  child: 'writable',
 };
 
 export default [
@@ -84,6 +72,22 @@ export default [
     },
   },
 
+  // Document/settings/canvas writes must be crash-safe: use writeFileAtomic /
+  // updateDoc from src/utils/fileWrite.ts instead of a bare fs writeFile.
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['src/utils/fileWrite.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression[callee.property.name=/^(writeFile|writeFileSync)$/]',
+          message: 'Use writeFileAtomic()/updateDoc() from src/utils/fileWrite.ts.',
+        },
+      ],
+    },
+  },
+
   // Request-path code must not block the event loop: use the async helpers in
   // src/utils/routeHelpers.ts (fileExists / readDocOr404) instead of *Sync fs calls.
   {
@@ -95,6 +99,10 @@ export default [
           selector:
             'CallExpression[callee.property.name=/^(exists|readFile|writeFile|readdir|mkdir|stat|unlink|rename|appendFile|copyFile|rm)Sync$/]',
           message: 'Use async fs.promises / fileExists() in request handlers (no sync fs).',
+        },
+        {
+          selector: 'CallExpression[callee.property.name=/^(writeFile|writeFileSync)$/]',
+          message: 'Use writeFileAtomic()/updateDoc() from src/utils/fileWrite.ts.',
         },
       ],
     },

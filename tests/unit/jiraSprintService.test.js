@@ -156,3 +156,83 @@ describe('buildSprintPushPreview', () => {
     assert.match(result.errors[0].error, /not found on board/);
   });
 });
+
+describe('pushSprintAssignments', () => {
+  const makeDeps = (overrides = {}) => {
+    const calls = [];
+    const invalidated = [];
+    return {
+      calls,
+      invalidated,
+      deps: {
+        boardId: 1,
+        concurrency: 2,
+        typeConfig: {},
+        jiraAgileRequest: async (method, urlPath, body) => {
+          calls.push({ method, urlPath, body });
+          if (urlPath.startsWith('/board/1/sprint')) {
+            return { values: [{ id: 7, name: 'MIDAS Sprint 100', state: 'active' }], isLast: true };
+          }
+          return {};
+        },
+        docIndex: {
+          get: (f) => (f === 'a.md' ? { jiraId: 'X-1', docType: 'story' } : undefined),
+          invalidateMany: async (f) => invalidated.push(...f),
+        },
+        broadcast: () => {},
+        logInfo: () => {},
+        logWarn: () => {},
+        ...overrides,
+      },
+    };
+  };
+
+  test('skips items without a JIRA id or sprint', async () => {
+    const { pushSprintAssignments } = await import('../../src/services/jiraSprintService.js');
+    const { deps } = makeDeps();
+    const res = await pushSprintAssignments(
+      [
+        { filename: 'none.md', sprint: 'Sprint 100', changeType: 'add' },
+        { filename: 'a.md', sprint: null, changeType: 'add' },
+      ],
+      deps
+    );
+    assert.equal(res[0].reason, 'no JIRA ID');
+    assert.equal(res[1].reason, 'no sprint');
+  });
+
+  test('assigns to fuzzy-matched sprint and moves removed items to backlog', async () => {
+    const { pushSprintAssignments } = await import('../../src/services/jiraSprintService.js');
+    const { deps, calls } = makeDeps();
+    const res = await pushSprintAssignments(
+      [
+        { filename: 'a.md', sprint: 'Sprint 100', changeType: 'add' },
+        { filename: 'a.md', sprint: null, changeType: 'remove' },
+      ],
+      deps
+    );
+    assert.equal(res[0].status, 'ok');
+    assert.equal(res[1].sprint, '(backlog)');
+    assert.ok(calls.some((c) => c.urlPath === '/sprint/7/issue'));
+    assert.ok(calls.some((c) => c.urlPath === '/backlog/issue'));
+  });
+
+  test('reports unknown sprint and request errors per item', async () => {
+    const { pushSprintAssignments } = await import('../../src/services/jiraSprintService.js');
+    const { deps } = makeDeps({
+      jiraAgileRequest: async (_m, urlPath) => {
+        if (urlPath.startsWith('/board/')) return { values: [], isLast: true };
+        throw new Error('boom');
+      },
+    });
+    const res = await pushSprintAssignments(
+      [
+        { filename: 'a.md', sprint: 'Nope', changeType: 'add' },
+        { filename: 'a.md', sprint: null, changeType: 'remove' },
+      ],
+      deps
+    );
+    assert.match(res[0].reason, /not found on board/);
+    assert.equal(res[1].status, 'error');
+  });
+});

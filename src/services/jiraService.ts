@@ -5,6 +5,7 @@ import type { TypeConfig, DocIndexInstance } from '../types.js';
 import type { Logger } from '../utils/logger.js';
 import { config } from '../config/env.js';
 import { httpRetryFetch } from './httpClient.js';
+import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export const LOCAL_TO_JIRA_TYPE: Record<string, string> = {
   feature: 'New Feature',
@@ -436,7 +437,7 @@ export async function appendDescriptionHistory(
     await fs.promises.appendFile(inboxPath, note);
   } else {
     await fs.promises.mkdir(path.dirname(inboxPath), { recursive: true });
-    await fs.promises.writeFile(inboxPath, note.trimStart());
+    await writeFileAtomic(inboxPath, note.trimStart());
   }
 }
 
