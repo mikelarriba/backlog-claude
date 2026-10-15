@@ -7,6 +7,8 @@ import {
   fetchSprintIssuesOnBoard,
   fetchUnimportedSprintIssues,
   buildSprintPushPreview,
+  resolveActiveSprints,
+  scanBoardSprints,
 } from '../../src/services/jiraSprintService.js';
 
 describe('buildSprintNameMap', () => {
@@ -234,5 +236,49 @@ describe('pushSprintAssignments', () => {
     );
     assert.match(res[0].reason, /not found on board/);
     assert.equal(res[1].status, 'error');
+  });
+});
+
+describe('resolveActiveSprints', () => {
+  test('resolves local names to JIRA name → id and skips unmatched', () => {
+    const sprintMap = new Map([['MIDAS Sprint 100', 7]]);
+    const { activeSprintMap, localToJira, jiraToLocal } = resolveActiveSprints(
+      ['Sprint 100', 'Sprint 999'],
+      sprintMap
+    );
+    assert.deepEqual([...activeSprintMap], [['MIDAS Sprint 100', 7]]);
+    assert.equal(localToJira.get('Sprint 100'), 'MIDAS Sprint 100');
+    assert.equal(jiraToLocal.get('MIDAS Sprint 100'), 'Sprint 100');
+  });
+});
+
+describe('scanBoardSprints', () => {
+  test('first sprint wins on duplicate keys and failures are reported, not thrown', async () => {
+    const progress = [];
+    const warns = [];
+    const jiraAgileRequest = async (_m, urlPath) => {
+      if (urlPath.includes('/sprint/1/')) {
+        return { issues: [{ key: 'A-1', fields: { summary: 'one' } }], total: 1 };
+      }
+      if (urlPath.includes('/sprint/2/')) throw new Error('boom');
+      return { issues: [], total: 0 };
+    };
+    const map = await scanBoardSprints(
+      [
+        ['S1', 1],
+        ['S2', 2],
+      ],
+      new Map(),
+      {
+        boardId: 5,
+        concurrency: 2,
+        jiraAgileRequest,
+        logWarn: (...a) => warns.push(a),
+        onProgress: (p) => progress.push(p),
+      }
+    );
+    assert.equal(map.get('A-1')?.sprintName, 'S1');
+    assert.equal(warns.length, 1);
+    assert.ok(progress.some((p) => String(p.message).startsWith('Warning')));
   });
 });

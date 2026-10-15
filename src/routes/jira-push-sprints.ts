@@ -1,25 +1,16 @@
 // ── JIRA push-sprints routes ──────────────────────────────────────────────────
 import { Router } from 'express';
-import fs from 'fs';
-import path from 'path';
 import { pMap } from '../utils/pMap.js';
-import {
-  sendError,
-  parseApiError,
-  handleRouteError,
-  setupSSE,
-  ensureDir,
-} from '../utils/routeHelpers.js';
-import { setFrontmatterField, isoDate, slugify } from '../utils/transforms.js';
+import { sendError, parseApiError, handleRouteError, setupSSE } from '../utils/routeHelpers.js';
 import { ensureSprintCache } from '../services/jiraService.js';
 import {
-  buildSprintNameMap,
+  resolveActiveSprints,
+  scanBoardSprints,
+  importSprintIssues,
   buildSprintPushPreview,
-  fetchSprintIssuesOnBoard,
   fetchUnimportedSprintIssues,
   pushSprintAssignments,
 } from '../services/jiraSprintService.js';
-import { JIRA_LABEL_TO_TEAM } from '../config/metadata.js';
 import { config } from '../config/env.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import {
@@ -29,7 +20,6 @@ import {
   JiraPullSprintSchema,
 } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
-import { writeFileAtomic } from '../utils/fileWrite.js';
 
 export default function jiraPushSprintsRoutes({
   TYPE_CONFIG,
@@ -73,17 +63,10 @@ export default function jiraPushSprintsRoutes({
         send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
         const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
 
-        // Build name mapping between local sprint names and JIRA sprint names
-        const { localToJira, jiraToLocal } = buildSprintNameMap(selectedSprints, sprintMap);
-
-        // Resolve selected sprints to JIRA sprint names/IDs
-        const activeSprintMap = new Map<string, number>(); // jiraName → id
-        for (const localName of selectedSprints) {
-          const jiraName = localToJira.get(localName);
-          if (jiraName) {
-            activeSprintMap.set(jiraName, sprintMap.get(jiraName)!);
-          }
-        }
+        const { activeSprintMap, localToJira, jiraToLocal } = resolveActiveSprints(
+          selectedSprints,
+          sprintMap
+        );
 
         if (!activeSprintMap.size) {
           const jiraNames = [...sprintMap.keys()].slice(0, 5).join(', ');
@@ -111,55 +94,13 @@ export default function jiraPushSprintsRoutes({
           total: totalSteps,
         });
 
-        const boardScanResults = await pMap(
-          sprintEntries,
-          async ([sprintName, sprintId], idx) => {
-            const localName = jiraToLocal.get(sprintName) || sprintName;
-            send({
-              type: 'progress',
-              message: `Scanning "${localName}" (${idx + 1}/${totalSteps})…`,
-              phase: 1,
-              current: idx + 1,
-              total: totalSteps,
-            });
-            try {
-              const issues = await fetchSprintIssuesOnBoard(
-                jiraAgileRequest,
-                JIRA_BOARD_ID,
-                sprintId
-              );
-              return { sprintName, sprintId, issues };
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              logWarn('jira/push', `board scan for "${sprintName}" failed`, { error: msg });
-              send({
-                type: 'progress',
-                message: `Warning: could not scan "${localName}" — ${msg}`,
-              });
-              return {
-                sprintName,
-                sprintId,
-                issues: [] as Array<{ key: string; summary: string }>,
-              };
-            }
-          },
-          { concurrency: config.JIRA_CONCURRENCY }
-        );
-
-        // Map: jiraId → { sprintName (JIRA), sprintId, summary }
-        // Merged sequentially (in original sprint order) so the "first sprint wins"
-        // tie-break for a duplicate issue key matches the old sequential behavior.
-        const jiraSprintMap = new Map<
-          string,
-          { sprintName: string; sprintId: number; summary: string }
-        >();
-        for (const { sprintName, sprintId, issues } of boardScanResults) {
-          for (const iss of issues) {
-            if (!jiraSprintMap.has(iss.key)) {
-              jiraSprintMap.set(iss.key, { sprintName, sprintId, summary: iss.summary });
-            }
-          }
-        }
+        const jiraSprintMap = await scanBoardSprints(sprintEntries, jiraToLocal, {
+          boardId: JIRA_BOARD_ID,
+          concurrency: config.JIRA_CONCURRENCY,
+          jiraAgileRequest,
+          logWarn,
+          onProgress: send,
+        });
 
         // ── Step 2 & 3: Compare local items vs. the JIRA sprint map, and detect
         // JIRA-only issues not in the local set (pure diff logic — see service). ──
@@ -243,13 +184,7 @@ export default function jiraPushSprintsRoutes({
         send({ type: 'progress', message: 'Loading sprint data from JIRA board…' });
         const sprintMap = await ensureSprintCache(jiraAgileRequest, JIRA_BOARD_ID);
 
-        // Build sprint name mapping
-        const { localToJira } = buildSprintNameMap(selectedSprints, sprintMap);
-        const activeSprintMap = new Map<string, number>();
-        for (const localName of selectedSprints) {
-          const jiraName = localToJira.get(localName);
-          if (jiraName) activeSprintMap.set(jiraName, sprintMap.get(jiraName)!);
-        }
+        const { activeSprintMap } = resolveActiveSprints(selectedSprints, sprintMap);
 
         if (!activeSprintMap.size) {
           send({
@@ -309,72 +244,16 @@ export default function jiraPushSprintsRoutes({
     try {
       const { issues = [] } = req.body as { issues: Array<{ key: string; sprintName: string }> };
 
-      // Load PI settings for sprint→PI mapping
-      const piSettingsPath = path.join(
-        path.dirname(TYPE_CONFIG.story.dir()),
-        '..',
-        '.pi-settings.json'
-      );
-      let piSettings: Record<string, unknown> = {};
-      try {
-        piSettings = JSON.parse(await fs.promises.readFile(piSettingsPath, 'utf-8'));
-      } catch {
-        // Optional file — best-effort read; sprint→PI mapping is simply skipped if missing/corrupt.
-      }
-      const sprintConfig = (piSettings.sprints || {}) as Record<string, Array<{ name: string }>>;
-      const sprintToPi = new Map<string, string>();
-      for (const [pi, sprints] of Object.entries(sprintConfig)) {
-        for (const s of sprints) sprintToPi.set(s.name, pi);
-      }
-
-      const results = await pMap(
-        issues,
-        async ({ key, sprintName }) => {
-          try {
-            const issue = await jiraRequest('GET', `/issue/${key}?expand=renderedFields`);
-            const { docType, content } = jiraIssueToMarkdown(issue);
-            let finalContent = content;
-
-            // Set Sprint field
-            const localSprint = sprintName;
-            finalContent = setFrontmatterField(finalContent, 'Sprint', localSprint);
-
-            // Set Fix_Version from sprint→PI mapping
-            const pi = sprintToPi.get(localSprint);
-            if (pi) finalContent = setFrontmatterField(finalContent, 'Fix_Version', pi);
-
-            // Set Team from JIRA labels
-            const issueFields = (issue as { fields?: Record<string, unknown> }).fields ?? {};
-            const labels: string[] = (issueFields.labels as string[]) || [];
-            const teamLabel = labels.find((l: string) => JIRA_LABEL_TO_TEAM[l]);
-            if (teamLabel)
-              finalContent = setFrontmatterField(
-                finalContent,
-                'Team',
-                JIRA_LABEL_TO_TEAM[teamLabel]
-              );
-
-            // Write file
-            const dir =
-              TYPE_CONFIG[docType as keyof typeof TYPE_CONFIG]?.dir() || TYPE_CONFIG.story.dir();
-            ensureDir(dir);
-            const slug = slugify(String(issueFields.summary || key));
-            const filename = `${isoDate()}-${slug}.md`;
-            const filePath = path.join(dir, filename);
-            await writeFileAtomic(filePath, finalContent);
-            await docIndex.invalidate(docType, filename);
-
-            logInfo('jira/pull-sprint', `Pulled ${key} → ${filename}`);
-            broadcast({ type: `${docType}_created`, filename, docType });
-            return { key, status: 'ok', filename };
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            logWarn('jira/pull-sprint', `Failed to pull ${key}: ${msg}`);
-            return { key, status: 'error', error: msg };
-          }
-        },
-        { concurrency: config.JIRA_CONCURRENCY }
-      );
+      const results = await importSprintIssues(issues, {
+        typeConfig: TYPE_CONFIG,
+        concurrency: config.JIRA_CONCURRENCY,
+        jiraRequest,
+        jiraIssueToMarkdown,
+        docIndex,
+        broadcast,
+        logInfo,
+        logWarn,
+      });
 
       res.json({ results });
     } catch (err) {
