@@ -63,7 +63,6 @@ globalThis._justDragged = false;
 let _toastTimer = null;
 globalThis.selectedItems = new Set();
 globalThis._lastClickedItem = null;
-globalThis.jiraSearchResults = [];
 globalThis.sprintConfig = {};
 globalThis.splitThreshold = 8;
 // List-level state (moved here from list.js so all state is centralised)

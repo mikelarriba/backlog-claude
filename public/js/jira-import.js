@@ -56,6 +56,7 @@ registerKeydownActions({
 });
 let _jiraSelectResolve = null;
 let _jiraSelectItems = [];
+let jiraSearchResults = [];
 export function showJiraSelectModal(
   title,
   items,
