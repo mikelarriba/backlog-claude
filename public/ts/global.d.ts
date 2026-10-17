@@ -22,7 +22,6 @@ declare global {
   var _justDragged: boolean;
   var selectedItems: Set<string>;
   var _lastClickedItem: string | null;
-  var jiraSearchResults: DocEntry[];
   var sprintConfig: SprintConfig;
   var splitThreshold: number;
   var piSettings: PISettings;

@@ -122,7 +122,6 @@ globalThis._justDragged = false;
 let _toastTimer: ReturnType<typeof setTimeout> | null = null;
 globalThis.selectedItems = new Set<string>();
 globalThis._lastClickedItem = null;
-globalThis.jiraSearchResults = [] as DocEntry[];
 globalThis.sprintConfig = {} as SprintConfig;
 globalThis.splitThreshold = 8;
 // List-level state (moved here from list.js so all state is centralised)

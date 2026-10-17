@@ -70,6 +70,7 @@ interface JiraSelectItem {
 
 let _jiraSelectResolve: ((items: JiraSelectItem[]) => void) | null = null;
 let _jiraSelectItems: JiraSelectItem[] = [];
+let jiraSearchResults: unknown[] = [];
 
 export function showJiraSelectModal(
   title: string,
@@ -193,7 +194,7 @@ export async function searchJira(): Promise<void> {
     if (text) params.set('text', text);
     const data = (await fetchJSON(`/api/jira/search?${params}`)) as { issues?: JiraSearchIssue[] };
 
-    jiraSearchResults = (data.issues || []) as unknown as typeof jiraSearchResults;
+    jiraSearchResults = (data.issues || []) as unknown[];
     renderJiraResults(data.issues || []);
     setJiraStatus(
       (data.issues || []).length ? 'hidden' : 'success',
@@ -353,7 +354,7 @@ export async function performJiraPull(
         const updatedData = (await fetchJSON(
           `/api/jira/search?type=${typeSel.value}&text=${encodeURIComponent(textInput.value)}`
         )) as { issues?: JiraSearchIssue[] };
-        jiraSearchResults = (updatedData.issues || []) as unknown as typeof jiraSearchResults;
+        jiraSearchResults = (updatedData.issues || []) as unknown[];
         renderJiraResults(updatedData.issues || []);
       } catch {
         /* non-critical: search refresh after pull */
