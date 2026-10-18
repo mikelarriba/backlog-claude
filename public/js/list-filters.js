@@ -11,7 +11,7 @@ import {
   openModal,
   closeModal,
 } from './state.js';
-import { getMetaTeams, getMetaWorkCategories } from './state.js';
+import { getMetaTeams, getMetaWorkCategories, isJustDragged } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { openDoc } from './nav-hooks.js';
 import { openDistributionModal } from './distribution.js';
@@ -295,7 +295,7 @@ export function rangeSelectItems(filename, docType) {
   return range;
 }
 export function handleItemClick(e, filename, docType) {
-  if (_justDragged) return;
+  if (isJustDragged()) return;
   // Clicks on collapse button are handled separately
   if (e.target.closest('.collapse-btn')) return;
   const isMeta = e.metaKey || e.ctrlKey;

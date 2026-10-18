@@ -19,7 +19,6 @@ declare global {
   var currentFilename: string | null;
   var currentDocType: string | null;
   var currentJiraId: string | null;
-  var _justDragged: boolean;
   var selectedItems: Set<string>;
   var _lastClickedItem: string | null;
   var sprintConfig: SprintConfig;

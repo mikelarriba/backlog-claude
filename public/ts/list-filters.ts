@@ -12,7 +12,7 @@ import {
   closeModal,
 } from './state.js';
 import type { DocEntry } from './state.js';
-import { getMetaTeams, getMetaWorkCategories } from './state.js';
+import { getMetaTeams, getMetaWorkCategories, isJustDragged } from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { openDoc } from './nav-hooks.js';
 import { openDistributionModal } from './distribution.js';
@@ -360,7 +360,7 @@ export function rangeSelectItems(
 }
 
 export function handleItemClick(e: MouseEvent, filename: string, docType: string): void {
-  if (_justDragged) return;
+  if (isJustDragged()) return;
 
   // Clicks on collapse button are handled separately
   if ((e.target as HTMLElement).closest('.collapse-btn')) return;

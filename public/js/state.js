@@ -59,7 +59,14 @@ Object.defineProperty(window, 'piSettings', {
 globalThis.currentFilename = null;
 globalThis.currentDocType = null;
 globalThis.currentJiraId = null;
-globalThis._justDragged = false;
+// Set while a drag-reorder is settling so the trailing click doesn't open a doc.
+let _justDragged = false;
+export function isJustDragged() {
+  return _justDragged;
+}
+export function setJustDragged(value) {
+  _justDragged = value;
+}
 let _toastTimer = null;
 globalThis.selectedItems = new Set();
 globalThis._lastClickedItem = null;
