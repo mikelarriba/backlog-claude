@@ -1,5 +1,6 @@
 // ── JIRA search & pull routes ─────────────────────────────────────────────────
 import { Router } from 'express';
+import type { Request, Response } from 'express';
 import { sendError, parseApiError, assertFilename, normalizeType } from '../utils/routeHelpers.js';
 import { LOCAL_TO_JIRA_TYPE, fetchBoardSprints } from '../services/jiraService.js';
 import {
@@ -49,71 +50,79 @@ export default function jiraSearchRoutes({
       'jira/search'
     );
 
-  // ── GET /api/jira/search ───────────────────────────────────────────────────
-  router.get('/api/jira/search', async (req, res) => {
-    try {
-      if (!process.env.JIRA_API_TOKEN)
+  // Shared handler wrapper: JIRA token guard + uniform 500 error mapping.
+  // `requireToken: false` is for handlers that validate their body first.
+  const jiraHandler =
+    (
+      label: string,
+      fn: (req: Request, res: Response) => Promise<unknown>,
+      { requireToken = true }: { requireToken?: boolean } = {}
+    ) =>
+    async (req: Request, res: Response) => {
+      if (requireToken && !process.env.JIRA_API_TOKEN)
         return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-
-      const { type = 'all', text = '', fixVersion = '', sprint = '' } = req.query;
-      if (type !== 'all' && !TYPE_CONFIG[normalizeType(type)]) {
-        return sendError(res, 400, 'INVALID_TYPE', 'Invalid JIRA filter type', {
-          allowed: ['all', ...Object.keys(TYPE_CONFIG)],
-          received: type,
-        });
+      try {
+        await fn(req, res);
+      } catch (err) {
+        const apiErr = parseApiError(err);
+        logError(label, apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+        sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
       }
+    };
 
-      const sprintSanitised = String(sprint).trim().replace(/"/g, '');
-      if (sprintSanitised && JQL_INJECTION_RE.test(sprintSanitised)) {
-        return sendError(res, 400, 'INVALID_PARAM', 'Invalid sprint parameter');
-      }
+  // ── GET /api/jira/search ───────────────────────────────────────────────────
+  router.get(
+    '/api/jira/search',
+    jiraHandler(
+      'GET /api/jira/search',
+      async (req, res) => {
+        if (!process.env.JIRA_API_TOKEN)
+          return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
-      const result = await searchOpenIssues(
-        {
-          type: String(type),
-          text: String(text),
-          fixVersion: String(fixVersion),
-          sprint: sprintSanitised,
-        },
-        {
-          jiraPagedRequest,
-          findExisting: _findExistingByJiraId,
-          JIRA_PROJECT,
-          JIRA_LABEL,
-          FIELD_EPIC_NAME,
-          localTypeToJira: LOCAL_TO_JIRA_TYPE as Record<string, string>,
+        const { type = 'all', text = '', fixVersion = '', sprint = '' } = req.query;
+        if (type !== 'all' && !TYPE_CONFIG[normalizeType(type)]) {
+          return sendError(res, 400, 'INVALID_TYPE', 'Invalid JIRA filter type', {
+            allowed: ['all', ...Object.keys(TYPE_CONFIG)],
+            received: type,
+          });
         }
-      );
 
-      res.json(result);
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'GET /api/jira/search',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
-    }
-  });
+        const sprintSanitised = String(sprint).trim().replace(/"/g, '');
+        if (sprintSanitised && JQL_INJECTION_RE.test(sprintSanitised)) {
+          return sendError(res, 400, 'INVALID_PARAM', 'Invalid sprint parameter');
+        }
+
+        const result = await searchOpenIssues(
+          {
+            type: String(type),
+            text: String(text),
+            fixVersion: String(fixVersion),
+            sprint: sprintSanitised,
+          },
+          {
+            jiraPagedRequest,
+            findExisting: _findExistingByJiraId,
+            JIRA_PROJECT,
+            JIRA_LABEL,
+            FIELD_EPIC_NAME,
+            localTypeToJira: LOCAL_TO_JIRA_TYPE as Record<string, string>,
+          }
+        );
+
+        res.json(result);
+      },
+      { requireToken: false }
+    )
+  );
 
   // ── GET /api/jira/versions ─────────────────────────────────────────────────
-  router.get('/api/jira/versions', async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN)
-      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-    try {
+  router.get(
+    '/api/jira/versions',
+    jiraHandler('GET /api/jira/versions', async (req, res) => {
       const versions = await listProjectVersions(jiraRequest, JIRA_PROJECT);
       res.json({ versions });
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'GET /api/jira/versions',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
-    }
-  });
+    })
+  );
 
   // ── GET /api/jira/by-fix-version/:version ───────────────────────────────────
   // Discovers JIRA issues for a fix version that may not exist locally yet —
@@ -121,16 +130,14 @@ export default function jiraSearchRoutes({
   // already have a local file. Backend foundation for the future "Sync PI from
   // JIRA" button (#350); Done issues are intentionally included so the user can
   // decide whether to import them.
-  router.get('/api/jira/by-fix-version/:version', async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN)
-      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+  router.get(
+    '/api/jira/by-fix-version/:version',
+    jiraHandler('GET /api/jira/by-fix-version/:version', async (req, res) => {
+      const version = String(req.params.version || '').trim();
+      if (!version) {
+        return sendError(res, 400, 'INVALID_VERSION', 'Fix version must not be blank');
+      }
 
-    const version = String(req.params.version || '').trim();
-    if (!version) {
-      return sendError(res, 400, 'INVALID_VERSION', 'Fix version must not be blank');
-    }
-
-    try {
       const result = await issuesByFixVersion(version, {
         jiraPagedRequest,
         JIRA_PROJECT,
@@ -140,16 +147,8 @@ export default function jiraSearchRoutes({
         findLocal: (id) => docIndex.findByJiraId(id),
       });
       res.json(result);
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'GET /api/jira/by-fix-version/:version',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
-    }
-  });
+    })
+  );
 
   // ── GET /api/jira/closed-epics ──────────────────────────────────────────────
   // Documentation view support (#554): given a sprint or fix version, resolve
@@ -157,37 +156,35 @@ export default function jiraSearchRoutes({
   // resolved) during that window — the inverse of /search's "open work only"
   // JQL. Used by the "Ask AI" Confluence-update flow so a PO can see what
   // shipped in the sprint/PI, grouped under parent epics.
-  router.get('/api/jira/closed-epics', async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN)
-      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+  router.get(
+    '/api/jira/closed-epics',
+    jiraHandler('GET /api/jira/closed-epics', async (req, res) => {
+      const sprintRaw = String(req.query.sprint || '').trim();
+      const fixVersionRaw = String(req.query.fixVersion || '').trim();
 
-    const sprintRaw = String(req.query.sprint || '').trim();
-    const fixVersionRaw = String(req.query.fixVersion || '').trim();
+      if (!sprintRaw && !fixVersionRaw) {
+        return sendError(
+          res,
+          400,
+          'INVALID_PARAM',
+          'One of sprint or fixVersion query parameters is required'
+        );
+      }
+      if (sprintRaw && fixVersionRaw) {
+        return sendError(res, 400, 'INVALID_PARAM', 'Provide only one of sprint or fixVersion');
+      }
 
-    if (!sprintRaw && !fixVersionRaw) {
-      return sendError(
-        res,
-        400,
-        'INVALID_PARAM',
-        'One of sprint or fixVersion query parameters is required'
-      );
-    }
-    if (sprintRaw && fixVersionRaw) {
-      return sendError(res, 400, 'INVALID_PARAM', 'Provide only one of sprint or fixVersion');
-    }
+      const scopeType: 'sprint' | 'fixversion' = sprintRaw ? 'sprint' : 'fixversion';
+      const scopeValue = (sprintRaw || fixVersionRaw).replace(/"/g, '');
+      if (JQL_INJECTION_RE.test(scopeValue)) {
+        return sendError(
+          res,
+          400,
+          'INVALID_PARAM',
+          `Invalid ${scopeType === 'sprint' ? 'sprint' : 'fixVersion'} parameter`
+        );
+      }
 
-    const scopeType: 'sprint' | 'fixversion' = sprintRaw ? 'sprint' : 'fixversion';
-    const scopeValue = (sprintRaw || fixVersionRaw).replace(/"/g, '');
-    if (JQL_INJECTION_RE.test(scopeValue)) {
-      return sendError(
-        res,
-        400,
-        'INVALID_PARAM',
-        `Invalid ${scopeType === 'sprint' ? 'sprint' : 'fixVersion'} parameter`
-      );
-    }
-
-    try {
       const result = await closedEpicsForScope(scopeType, scopeValue, {
         jiraRequest,
         jiraPagedRequest,
@@ -201,32 +198,22 @@ export default function jiraSearchRoutes({
       } as never);
       if (!result.ok) return sendError(res, result.status, result.code, result.message);
       res.json({ scope: result.scope, epics: result.epics, total: result.epics.length });
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'GET /api/jira/closed-epics',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
-    }
-  });
+    })
+  );
 
   // ── GET /api/jira/board-sprints ─────────────────────────────────────────────
   // Exposes the JIRA board's active/future sprints (full objects, not just the
   // name→id map ensureSprintCache keeps for jira-push-sprints) so the frontend
   // can auto-suggest sprint names when a PI has no sprints configured (#352).
-  router.get('/api/jira/board-sprints', async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN)
-      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+  router.get(
+    '/api/jira/board-sprints',
+    jiraHandler('GET /api/jira/board-sprints', async (req, res) => {
+      // Unlike the missing-token case, a missing board is an expected, normal
+      // state the frontend should handle gracefully — so 200, not 503/400.
+      if (!JIRA_BOARD_ID) {
+        return res.json({ sprints: [], boardNotConfigured: true });
+      }
 
-    // Unlike the missing-token case, a missing board is an expected, normal
-    // state the frontend should handle gracefully — so 200, not 503/400.
-    if (!JIRA_BOARD_ID) {
-      return res.json({ sprints: [], boardNotConfigured: true });
-    }
-
-    try {
       // Include closed sprints too (#): the Documentation "By Sprint" tab
       // documents what shipped, so a PO needs to pick already-completed
       // sprints, not just active/future ones. ensureSprintCache still uses the
@@ -244,24 +231,14 @@ export default function jiraSearchRoutes({
         endDate: s.endDate,
       }));
       res.json({ sprints });
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'GET /api/jira/board-sprints',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
-    }
-  });
+    })
+  );
 
   // ── GET /api/jira/children/:key ─────────────────────────────────────────────
-  router.get('/api/jira/children/:key', async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN)
-      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-
-    try {
-      const { parentKey, parentType, children } = await childrenOf(req.params.key, {
+  router.get(
+    '/api/jira/children/:key',
+    jiraHandler('GET /api/jira/children/:key', async (req, res) => {
+      const { parentKey, parentType, children } = await childrenOf(String(req.params.key), {
         jiraRequest,
         jiraPagedRequest,
         findExisting: _findExistingByJiraId,
@@ -269,53 +246,43 @@ export default function jiraSearchRoutes({
         FIELD_EPIC_LINK,
       });
       res.json({ parentKey, parentType, children });
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'GET /api/jira/children/:key',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
-    }
-  });
+    })
+  );
 
   // ── POST /api/jira/pull ────────────────────────────────────────────────────
-  router.post('/api/jira/pull', validateBody(JiraPullSchema), async (req, res) => {
-    try {
-      const { keys, overwriteKeys = [], parentLink = null } = req.body;
+  router.post(
+    '/api/jira/pull',
+    validateBody(JiraPullSchema),
+    jiraHandler(
+      'POST /api/jira/pull',
+      async (req, res) => {
+        const { keys, overwriteKeys = [], parentLink = null } = req.body;
 
-      // Validate parentLink.filename format (allow-list pattern — prevents path traversal)
-      if (parentLink?.filename) assertFilename(parentLink.filename);
+        // Validate parentLink.filename format (allow-list pattern — prevents path traversal)
+        if (parentLink?.filename) assertFilename(parentLink.filename);
 
-      if (!process.env.JIRA_API_TOKEN)
-        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+        if (!process.env.JIRA_API_TOKEN)
+          return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
 
-      const { pulled, conflicts } = await pullIssues(
-        { keys, overwriteKeys, parentLink },
-        {
-          jiraRequest,
-          findExisting: _findExistingByJiraId,
-          jiraIssueToMarkdown,
-          docIndex,
-          TYPE_CONFIG,
-          broadcast,
-          FIELD_EPIC_NAME,
-          FIELD_STORY_POINTS,
-        }
-      );
+        const { pulled, conflicts } = await pullIssues(
+          { keys, overwriteKeys, parentLink },
+          {
+            jiraRequest,
+            findExisting: _findExistingByJiraId,
+            jiraIssueToMarkdown,
+            docIndex,
+            TYPE_CONFIG,
+            broadcast,
+            FIELD_EPIC_NAME,
+            FIELD_STORY_POINTS,
+          }
+        );
 
-      res.json({ pulled, conflicts });
-    } catch (err) {
-      const apiErr = parseApiError(err);
-      logError(
-        'POST /api/jira/pull',
-        apiErr.message,
-        apiErr.details as Record<string, unknown> | undefined
-      );
-      sendError(res, 500, apiErr.code, apiErr.message, apiErr.details);
-    }
-  });
+        res.json({ pulled, conflicts });
+      },
+      { requireToken: false }
+    )
+  );
 
   return router;
 }
