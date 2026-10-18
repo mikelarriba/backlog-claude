@@ -14,6 +14,7 @@ import {
   TYPE_LABEL,
   SECTION_LABELS,
 } from './state.js';
+import { setJustDragged } from './state.js';
 import { clearSelection, toggleItemSelection, rangeSelectItems } from './list-filters.js';
 import {
   computeRerankedOrder,
@@ -344,7 +345,7 @@ export function initDragDrop() {
       const dy = Math.abs(e.clientY - state.startY);
       if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) return;
       state.started = true;
-      _justDragged = true;
+      setJustDragged(true);
       const dragDocs = getDragDocs(state.srcFilename, state.srcDocType);
       const multiCount = dragDocs.length;
       const ghost = document.createElement('div');
@@ -446,7 +447,7 @@ export function initDragDrop() {
       .forEach((el) => el.classList.remove('swimlane-drop-target'));
     document.body.style.userSelect = '';
     setTimeout(() => {
-      _justDragged = false;
+      setJustDragged(false);
     }, 150);
     if (!snap.started) return;
     if (dropTarget)

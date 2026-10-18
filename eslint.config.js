@@ -25,7 +25,6 @@ const FRONTEND_GLOBALS = {
   _canvasManageLinks: 'writable',
   _canvasSelectedCards: 'writable',
   _collapsedItems: 'writable',
-  _justDragged: 'writable',
   _lastClickedItem: 'writable',
   _panelStates: 'writable',
   _piConfigActivePi: 'writable',

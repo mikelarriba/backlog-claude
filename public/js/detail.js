@@ -15,6 +15,7 @@ import {
   closeModal,
   getJiraBase,
 } from './state.js';
+import { isJustDragged } from './state.js';
 import { upsertDoc } from './store.js';
 import { showJiraSelectModal } from './jira-import.js';
 import { updateJiraPushBtn } from './jira-push.js';
@@ -109,7 +110,7 @@ export function updateDocButtons(docType) {
   }
 }
 export async function openDoc(filename, docType) {
-  if (_justDragged) return;
+  if (isJustDragged()) return;
   try {
     const { content } = await fetchJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     currentFilename = filename;

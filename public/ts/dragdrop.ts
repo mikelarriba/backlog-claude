@@ -15,6 +15,7 @@ import {
   SECTION_LABELS,
 } from './state.js';
 import type { DocEntry } from './state.js';
+import { setJustDragged } from './state.js';
 import { clearSelection, toggleItemSelection, rangeSelectItems } from './list-filters.js';
 import {
   computeRerankedOrder,
@@ -417,7 +418,7 @@ export function initDragDrop(): void {
       if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) return;
 
       state.started = true;
-      _justDragged = true;
+      setJustDragged(true);
 
       const dragDocs = getDragDocs(state.srcFilename, state.srcDocType);
       const multiCount = dragDocs.length;
@@ -532,7 +533,7 @@ export function initDragDrop(): void {
     document.body.style.userSelect = '';
 
     setTimeout(() => {
-      _justDragged = false;
+      setJustDragged(false);
     }, 150);
 
     if (!snap.started) return;
