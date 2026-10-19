@@ -77,7 +77,11 @@ registerActions({
   },
 });
 
-// _piConfigActivePi is a store-backed global in state.js (referenced from HTML onclick)
+// Active PI tab. Module-local (#698); other modules read it via getPiConfigActivePi().
+let _piConfigActivePi: string | null = null;
+export function getPiConfigActivePi(): string | null {
+  return _piConfigActivePi;
+}
 
 // ── Local types ──────────────────────────────────────────────
 // jiraVersions is declared as `string[]` in global.d.ts (legacy ambient typing),

@@ -74,8 +74,6 @@ globalThis._swimlanesCollapsed = {
   backlog: false,
 };
 globalThis._collapsedItems = new Set();
-// Piconfig-level state referenced from HTML onclick
-globalThis._piConfigActivePi = null;
 // Refine cluster state (shared across refine.js and refine-*.js)
 globalThis._canvasEpicFilename = null;
 globalThis._canvasDocType = null;

@@ -29,7 +29,6 @@ const FRONTEND_GLOBALS = {
   _justDragged: 'writable',
   _lastClickedItem: 'writable',
   _panelStates: 'writable',
-  _piConfigActivePi: 'writable',
   _roadmapVisiblePis: 'writable',
   _swimlanesCollapsed: 'writable',
   // Third-party libraries loaded via <script> tags

@@ -78,6 +78,7 @@ import {
   saveSprintConfig,
   loadAllSprintConfigs,
   renderPiConfigTabs,
+  getPiConfigActivePi,
 } from './piconfig.js';
 import {
   openDistributionModal,
@@ -528,7 +529,7 @@ registerActions({
     saveSprintConfig();
   },
   [MAIN_ACTIONS.openDistributionModalPiConfig]: () => {
-    openDistributionModal(_piConfigActivePi ?? '');
+    openDistributionModal(getPiConfigActivePi() ?? '');
   },
   [MAIN_ACTIONS.toggleAiSavingsSection]: () => {
     toggleAiSavingsSection();
