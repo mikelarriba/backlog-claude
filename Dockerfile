@@ -1,5 +1,5 @@
 # Stage 1: install all deps, typecheck, build frontend
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -8,7 +8,7 @@ RUN npm run typecheck
 RUN npm run build:frontend
 
 # Stage 2: production image — install prod deps only (tsx is now a prod dep)
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 WORKDIR /app
 
 RUN addgroup -S midas && adduser -S midas -G midas
