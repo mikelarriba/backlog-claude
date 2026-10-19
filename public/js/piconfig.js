@@ -71,6 +71,11 @@ registerActions({
     togglePiConfigSection();
   },
 });
+// Active PI tab. Module-local (#698); other modules read it via getPiConfigActivePi().
+let _piConfigActivePi = null;
+export function getPiConfigActivePi() {
+  return _piConfigActivePi;
+}
 // Pure: given a PI name and the sprintConfig map, returns that PI's sprint
 // list (empty if not configured). Extracted from _sprintsFor, which read the
 // sprintConfig ambient global directly — same signature-change extraction as
