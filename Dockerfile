@@ -28,6 +28,7 @@ COPY --from=builder /app/manifest.json ./manifest.json
 RUN mkdir -p docs/features docs/epics docs/stories docs/spikes docs/bugs inbox
 
 USER midas
+ENV HOST=0.0.0.0
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

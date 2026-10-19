@@ -7,6 +7,10 @@ import { z } from 'zod';
 const EnvSchema = z.object({
   // ── Server ─────────────────────────────────────────────────────────────────
   PORT: z.coerce.number().default(3000),
+  // Interface to bind. Defaults to loopback; set 0.0.0.0 only inside a container.
+  HOST: z.string().default('127.0.0.1'),
+  // Comma-separated extra Host header names accepted besides localhost/127.0.0.1/[::1].
+  ALLOWED_HOSTS: z.string().default(''),
 
   // ── Logging ────────────────────────────────────────────────────────────────
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),

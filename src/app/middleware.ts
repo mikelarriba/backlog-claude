@@ -1,8 +1,53 @@
 // ── Express middleware setup ────────────────────────────────────────────────────
-import express, { type Express } from 'express';
+import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import path from 'path';
 import { requestLogger } from '../utils/requestLogger.js';
+import { config } from '../config/env.js';
 import { apiLimiter, aiLimiter, jiraLimiter } from '../middleware/rateLimiter.js';
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/** Strip the port from a Host header value, keeping IPv6 brackets. */
+function hostnameOf(host: string): string {
+  const h = host.trim().toLowerCase();
+  if (h.startsWith('[')) return h.slice(0, h.indexOf(']') + 1);
+  return h.split(':')[0];
+}
+
+function allowedHosts(): Set<string> {
+  const extra = config.ALLOWED_HOSTS.split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set([...LOOPBACK_HOSTS, ...extra]);
+}
+
+/**
+ * Blocks DNS-rebinding (foreign Host header) and cross-site mutating requests
+ * (Origin present but not matching the request host).
+ */
+export function hostOriginGuard(req: Request, res: Response, next: NextFunction): void {
+  const hostHeader = req.headers.host ?? '';
+  if (!allowedHosts().has(hostnameOf(hostHeader))) {
+    res.status(403).json({ error: 'Forbidden: host not allowed' });
+    return;
+  }
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    const origin = req.headers.origin;
+    if (origin) {
+      let originHost = '';
+      try {
+        originHost = new URL(origin).host.toLowerCase();
+      } catch {
+        // malformed Origin falls through to rejection
+      }
+      if (originHost !== hostHeader.trim().toLowerCase()) {
+        res.status(403).json({ error: 'Forbidden: cross-origin request rejected' });
+        return;
+      }
+    }
+  }
+  next();
+}
 
 export function applyMiddleware(app: Express, rootDir: string): void {
   app.use((_req, res, next) => {
@@ -26,9 +71,9 @@ export function applyMiddleware(app: Express, rootDir: string): void {
     next();
   });
 
+  app.use(hostOriginGuard);
   app.use(requestLogger());
   app.use(express.json({ limit: '2mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
   app.use('/api', (_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');

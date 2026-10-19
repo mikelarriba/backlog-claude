@@ -2,12 +2,14 @@ services:
   backlog-claude:
     build: .
     ports:
-      - '3000:3000'
+      - '127.0.0.1:3000:3000'
     volumes:
       - ./docs:/app/docs
       - ./inbox:/app/inbox
       - ./audit.log:/app/audit.log
     env_file: .env
+    environment:
+      HOST: 0.0.0.0
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/api/health']
