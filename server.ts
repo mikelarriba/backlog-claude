@@ -18,5 +18,5 @@ registerRoutes(app, ctx, __dirname);
 export { app };
 
 if (process.argv[1] === __filename) {
-  app.listen(config.PORT, () => ctx.runStartup(config.PORT));
+  app.listen(config.PORT, config.HOST, () => ctx.runStartup(config.PORT));
 }

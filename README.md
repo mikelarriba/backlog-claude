@@ -74,6 +74,8 @@ Health check: `GET /api/health` returns `{ status: "ok", uptime, docsDir, versio
 | `JIRA_PROJECT`   | For JIRA   | Project key (e.g. `MID`)                                      |
 | `JIRA_LABEL`     | For JIRA   | Label applied to every created issue                          |
 | `PORT`           | No         | HTTP port (default: `3000`)                                   |
+| `HOST`           | No         | Bind address (default: `127.0.0.1`; Docker sets `0.0.0.0`)    |
+| `ALLOWED_HOSTS`  | No         | Extra comma-separated `Host` names accepted (default: none)   |
 | `MOCK_CLAUDE`    | Tests only | Set to `1` to skip the Claude subprocess in integration tests |
 
 AI provider (at least one is needed for AI generation features — see [Ollama local LLM provider](#docker) config in `.env.example` for the no-cost local option):
