@@ -509,6 +509,8 @@ npm run test:e2e          # Playwright end-to-end tests
 npm run test:bench        # performance benchmarks
 ```
 
+Requires **Node.js 22 LTS or newer** (see `.nvmrc`).
+
 Tests use Node's built-in `node:test` runner — no extra dependencies.
 
 Integration tests start a real Express instance in an isolated temp directory per suite, so they never touch your actual `docs/` data. JIRA HTTP calls are stubbed via `mock.method(globalThis, 'fetch', ...)`. Claude subprocess calls are stubbed via `MOCK_CLAUDE=1`.

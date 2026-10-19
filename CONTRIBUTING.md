@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 20 (matches CI and the production Docker image)
+- Node.js 22 LTS or newer (matches CI and the production Docker image; see `.nvmrc`)
 - `npm ci` to install dependencies
 
 ## Running locally
