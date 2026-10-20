@@ -35,14 +35,16 @@ import {
 import type { SprintInfo } from './list-render.js';
 import { sectionToFixVersion, moveSelectionRank } from './dragdrop.js';
 
-// NOTE: `_lastClickedItem` is declared in global.d.ts as `string | null`, but
-// at runtime (here and in dragdrop.js) it always holds either `null` or a
-// `{ filename, docType }` object — never a bare string. The ambient
-// declaration is out of date; casting locally rather than editing
-// global.d.ts (out of scope for this migration pass).
+// Shift-click / Shift+Enter anchor. Module-local (#698); dragdrop.ts reads it via
+// hasSelectionAnchor().
 interface LastClickedItem {
   filename: string;
   docType: string;
+}
+
+let _lastClickedItem: LastClickedItem | null = null;
+export function hasSelectionAnchor(): boolean {
+  return _lastClickedItem !== null;
 }
 
 export function toggleItemCollapse(filename: string, e: MouseEvent): void {
@@ -329,7 +331,7 @@ export function toggleItemSelection(filename: string, docType: string): boolean 
     selectedItems.add(key);
     nowSelected = true;
   }
-  _lastClickedItem = { filename, docType } as unknown as string;
+  _lastClickedItem = { filename, docType };
   syncSelectionUI();
   return nowSelected;
 }
@@ -344,7 +346,7 @@ export function rangeSelectItems(
   docType: string
 ): { filename: string; docType: string }[] {
   if (!_lastClickedItem) return [];
-  const lastClicked = _lastClickedItem as unknown as LastClickedItem;
+  const lastClicked = _lastClickedItem;
   const range = computeListShiftRangeSelection(
     getVisibleItems(),
     lastClicked.filename,
@@ -398,7 +400,7 @@ export function handleItemContextMenu(e: MouseEvent, filename: string, docType: 
   // If right-clicking an unselected item, add it to the current selection
   if (!selectedItems.has(key)) {
     selectedItems.add(key);
-    _lastClickedItem = { filename, docType } as unknown as string;
+    _lastClickedItem = { filename, docType };
     syncSelectionUI();
   }
 
