@@ -18,6 +18,54 @@ type PagedRequest = (
   opts: { maxResults: number; maxTotal: number }
 ) => Promise<unknown[]>;
 
+// Shared JQL injection guard for any free-text value (sprint name, fix
+// version name, …) interpolated directly into a JQL string.
+export const JQL_INJECTION_RE = /\b(ORDER\s+BY|UNION|DROP|INSERT|UPDATE|DELETE|SELECT)\b/i;
+
+export type ClosedEpicsScopeParse =
+  | { ok: true; scopeType: 'sprint' | 'fixversion'; scopeValue: string }
+  | { ok: false; status: number; code: string; message: string };
+
+// Validates the sprint / fixVersion query params of GET /api/jira/closed-epics.
+export function parseClosedEpicsScope(query: {
+  sprint?: unknown;
+  fixVersion?: unknown;
+}): ClosedEpicsScopeParse {
+  const sprintRaw = String(query.sprint || '').trim();
+  const fixVersionRaw = String(query.fixVersion || '').trim();
+  const invalid = (message: string): ClosedEpicsScopeParse => ({
+    ok: false,
+    status: 400,
+    code: 'INVALID_PARAM',
+    message,
+  });
+
+  if (!sprintRaw && !fixVersionRaw)
+    return invalid('One of sprint or fixVersion query parameters is required');
+  if (sprintRaw && fixVersionRaw) return invalid('Provide only one of sprint or fixVersion');
+
+  const scopeType = sprintRaw ? 'sprint' : 'fixversion';
+  const scopeValue = (sprintRaw || fixVersionRaw).replace(/"/g, '');
+  if (JQL_INJECTION_RE.test(scopeValue))
+    return invalid(`Invalid ${scopeType === 'sprint' ? 'sprint' : 'fixVersion'} parameter`);
+  return { ok: true, scopeType, scopeValue };
+}
+
+// Board sprints (any state) reduced to the fields the frontend auto-suggest needs.
+export async function listBoardSprints(
+  jiraAgileRequest: Parameters<typeof fetchBoardSprints>[0],
+  boardId: string
+) {
+  const rawSprints = await fetchBoardSprints(jiraAgileRequest, boardId, 'active,future,closed');
+  return rawSprints.map((s) => ({
+    id: s.id,
+    name: s.name,
+    state: s.state,
+    startDate: s.startDate,
+    endDate: s.endDate,
+  }));
+}
+
 export interface ClosedEpicsDeps {
   jiraRequest: Request;
   jiraPagedRequest: PagedRequest;
