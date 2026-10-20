@@ -69,7 +69,6 @@ export function setJustDragged(value) {
 }
 let _toastTimer = null;
 globalThis.selectedItems = new Set();
-globalThis._lastClickedItem = null;
 globalThis.sprintConfig = {};
 globalThis.splitThreshold = 8;
 // List-level state (moved here from list.js so all state is centralised)

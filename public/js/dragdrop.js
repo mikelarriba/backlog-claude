@@ -15,7 +15,12 @@ import {
   SECTION_LABELS,
 } from './state.js';
 import { setJustDragged } from './state.js';
-import { clearSelection, toggleItemSelection, rangeSelectItems } from './list-filters.js';
+import {
+  clearSelection,
+  toggleItemSelection,
+  rangeSelectItems,
+  hasSelectionAnchor,
+} from './list-filters.js';
 import {
   computeRerankedOrder,
   computeRerankedDocs,
@@ -258,7 +263,7 @@ export function initDragDrop() {
     }
     if (e.shiftKey && e.key === 'Enter') {
       e.preventDefault();
-      if (!_lastClickedItem) {
+      if (!hasSelectionAnchor()) {
         _announceListSelectionStatus(
           'No selection to extend. Press Ctrl+Enter (Cmd+Enter on Mac) to start a selection first.'
         );

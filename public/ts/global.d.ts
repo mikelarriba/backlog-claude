@@ -20,7 +20,6 @@ declare global {
   var currentDocType: string | null;
   var currentJiraId: string | null;
   var selectedItems: Set<string>;
-  var _lastClickedItem: string | null;
   var sprintConfig: SprintConfig;
   var splitThreshold: number;
   var piSettings: PISettings;

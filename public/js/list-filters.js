@@ -32,6 +32,10 @@ import {
   LIST_ITEM_CHANGE_ACTIONS,
 } from './list-render.js';
 import { sectionToFixVersion, moveSelectionRank } from './dragdrop.js';
+let _lastClickedItem = null;
+export function hasSelectionAnchor() {
+  return _lastClickedItem !== null;
+}
 export function toggleItemCollapse(filename, e) {
   e.stopPropagation();
   if (_collapsedItems.has(filename)) {
