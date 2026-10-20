@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { sendError, parseApiError, assertFilename, normalizeType } from '../utils/routeHelpers.js';
-import { LOCAL_TO_JIRA_TYPE, fetchBoardSprints } from '../services/jiraService.js';
+import { LOCAL_TO_JIRA_TYPE } from '../services/jiraService.js';
 import {
   closedEpicsForScope,
   childrenOf,
@@ -10,15 +10,14 @@ import {
   searchOpenIssues,
   issuesByFixVersion,
   listProjectVersions,
+  parseClosedEpicsScope,
+  listBoardSprints,
+  JQL_INJECTION_RE,
 } from '../services/jiraSearchService.js';
 import { findExistingByJiraId } from '../utils/docHelpers.js';
 import { validateBody } from '../utils/validateMiddleware.js';
 import { JiraPullSchema } from '../schemas/jira.js';
 import type { JiraRouteContext } from '../types.js';
-
-// Shared JQL injection guard for any free-text value (sprint name, fix
-// version name, …) interpolated directly into a JQL string below.
-const JQL_INJECTION_RE = /\b(ORDER\s+BY|UNION|DROP|INSERT|UPDATE|DELETE|SELECT)\b/i;
 
 export default function jiraSearchRoutes({
   TYPE_CONFIG,
@@ -159,31 +158,9 @@ export default function jiraSearchRoutes({
   router.get(
     '/api/jira/closed-epics',
     jiraHandler('GET /api/jira/closed-epics', async (req, res) => {
-      const sprintRaw = String(req.query.sprint || '').trim();
-      const fixVersionRaw = String(req.query.fixVersion || '').trim();
-
-      if (!sprintRaw && !fixVersionRaw) {
-        return sendError(
-          res,
-          400,
-          'INVALID_PARAM',
-          'One of sprint or fixVersion query parameters is required'
-        );
-      }
-      if (sprintRaw && fixVersionRaw) {
-        return sendError(res, 400, 'INVALID_PARAM', 'Provide only one of sprint or fixVersion');
-      }
-
-      const scopeType: 'sprint' | 'fixversion' = sprintRaw ? 'sprint' : 'fixversion';
-      const scopeValue = (sprintRaw || fixVersionRaw).replace(/"/g, '');
-      if (JQL_INJECTION_RE.test(scopeValue)) {
-        return sendError(
-          res,
-          400,
-          'INVALID_PARAM',
-          `Invalid ${scopeType === 'sprint' ? 'sprint' : 'fixVersion'} parameter`
-        );
-      }
+      const scope = parseClosedEpicsScope(req.query);
+      if (!scope.ok) return sendError(res, scope.status, scope.code, scope.message);
+      const { scopeType, scopeValue } = scope;
 
       const result = await closedEpicsForScope(scopeType, scopeValue, {
         jiraRequest,
@@ -214,22 +191,7 @@ export default function jiraSearchRoutes({
         return res.json({ sprints: [], boardNotConfigured: true });
       }
 
-      // Include closed sprints too (#): the Documentation "By Sprint" tab
-      // documents what shipped, so a PO needs to pick already-completed
-      // sprints, not just active/future ones. ensureSprintCache still uses the
-      // active,future default for its push-time name→id lookup.
-      const rawSprints = await fetchBoardSprints(
-        jiraAgileRequest,
-        JIRA_BOARD_ID,
-        'active,future,closed'
-      );
-      const sprints = rawSprints.map((s) => ({
-        id: s.id,
-        name: s.name,
-        state: s.state,
-        startDate: s.startDate,
-        endDate: s.endDate,
-      }));
+      const sprints = await listBoardSprints(jiraAgileRequest, JIRA_BOARD_ID);
       res.json({ sprints });
     })
   );

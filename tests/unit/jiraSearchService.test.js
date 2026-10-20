@@ -8,6 +8,8 @@ import {
   groupClosedIssues,
   childrenOf,
   pullIssues,
+  parseClosedEpicsScope,
+  listBoardSprints,
 } from '../../src/services/jiraSearchService.ts';
 
 const issue = (key, type, extra = {}) => ({
@@ -285,5 +287,44 @@ describe('searchOpenIssues / issuesByFixVersion / listProjectVersions (#697)', (
       v.map((x) => x.name),
       ['a', 'z', 'b']
     );
+  });
+});
+
+describe('parseClosedEpicsScope', () => {
+  it('requires exactly one of sprint / fixVersion', () => {
+    assert.equal(parseClosedEpicsScope({}).ok, false);
+    const both = parseClosedEpicsScope({ sprint: 'S1', fixVersion: 'V1' });
+    assert.equal(both.ok, false);
+    assert.equal(both.status, 400);
+    assert.equal(both.code, 'INVALID_PARAM');
+  });
+
+  it('strips quotes and reports the scope type', () => {
+    assert.deepEqual(parseClosedEpicsScope({ sprint: ' "Sprint 4" ' }), {
+      ok: true,
+      scopeType: 'sprint',
+      scopeValue: 'Sprint 4',
+    });
+    assert.equal(parseClosedEpicsScope({ fixVersion: 'PI-1' }).scopeType, 'fixversion');
+  });
+
+  it('rejects JQL injection attempts', () => {
+    const r = parseClosedEpicsScope({ fixVersion: 'x ORDER BY created' });
+    assert.equal(r.ok, false);
+    assert.match(r.message, /fixVersion/);
+  });
+});
+
+describe('listBoardSprints', () => {
+  it('requests all states and keeps only the frontend fields', async () => {
+    let url;
+    const sprints = await listBoardSprints(async (_m, u) => {
+      url = u;
+      return { isLast: true, values: [{ id: 1, name: 'S1', state: 'closed', extra: 'x' }] };
+    }, '7');
+    assert.match(url, /state=active,future,closed/);
+    assert.deepEqual(sprints, [
+      { id: 1, name: 'S1', state: 'closed', startDate: undefined, endDate: undefined },
+    ]);
   });
 });
