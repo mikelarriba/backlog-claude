@@ -18,7 +18,6 @@ declare global {
   var allDocs: DocEntry[];
   var currentFilename: string | null;
   var currentDocType: string | null;
-  var currentJiraId: string | null;
   var selectedItems: Set<string>;
   var sprintConfig: SprintConfig;
   var splitThreshold: number;

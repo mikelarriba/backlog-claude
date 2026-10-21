@@ -1,7 +1,7 @@
 // ── JIRA pull/update: sync a single doc's fields, status and children ────
 // from JIRA, plus the "Check all" bulk status-sync sweep.
 import { postJSON, showJiraToast } from './state.js';
-import { openDoc, updateJiraStatus, closeAllDropdowns } from './detail.js';
+import { openDoc, updateJiraStatus, closeAllDropdowns, getCurrentJiraId } from './detail.js';
 import { loadDocs } from './list.js';
 import { upsertDoc } from './store.js';
 import {
@@ -51,14 +51,14 @@ export async function pullFromJira() {
 }
 export async function retrieveChildrenFromJira() {
   if (!currentFilename || !currentDocType) return;
-  if (!currentJiraId || currentJiraId === 'TBD') return;
+  if (!getCurrentJiraId() || getCurrentJiraId() === 'TBD') return;
   await offerChildrenDownload([
-    { key: currentJiraId, filename: currentFilename, docType: currentDocType },
+    { key: getCurrentJiraId(), filename: currentFilename, docType: currentDocType },
   ]);
 }
 export async function syncJiraStatus() {
   if (!currentFilename || !currentDocType) return;
-  if (!currentJiraId || currentJiraId === 'TBD') return;
+  if (!getCurrentJiraId() || getCurrentJiraId() === 'TBD') return;
   const btn = document.getElementById('jira-push-btn');
   if (btn) btn.disabled = true;
   try {
@@ -122,13 +122,13 @@ export function summarizePullResult(outcome, errorMsg) {
 }
 export async function updateFromJira(jiraKeyOverride) {
   if (!currentFilename || !currentDocType) return;
-  const hasKey = currentJiraId && currentJiraId !== 'TBD';
+  const hasKey = getCurrentJiraId() && getCurrentJiraId() !== 'TBD';
   // If no JIRA_ID on the doc, show a small inline prompt in the dropdown
   if (!hasKey && !jiraKeyOverride) {
     showUpdateFromJiraKeyPrompt();
     return;
   }
-  const key = jiraKeyOverride || currentJiraId;
+  const key = jiraKeyOverride || getCurrentJiraId();
   const btn = document.getElementById('jira-push-btn');
   if (btn) {
     btn.disabled = true;
@@ -173,7 +173,7 @@ export async function updateFromJira(jiraKeyOverride) {
       updateJiraProgress(step, totalSteps, `Fetching ${key}…`);
       const data = await postJSON(
         `/api/jira/update-from-jira/${currentDocType}/${encodeURIComponent(currentFilename)}`,
-        key !== currentJiraId ? { jiraKey: key } : {}
+        key !== getCurrentJiraId() ? { jiraKey: key } : {}
       );
       updatedKey = data.key;
       if (currentFilename) openDoc(currentFilename, currentDocType);
