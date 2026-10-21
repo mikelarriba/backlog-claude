@@ -13,6 +13,7 @@ mock.module('../../public/js/detail.js', {
     openDoc: () => {},
     updateJiraStatus: () => {},
     closeAllDropdowns: () => {},
+    getCurrentJiraId: () => null,
   },
 });
 mock.module('../../public/js/list.js', {

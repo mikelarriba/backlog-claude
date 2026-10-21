@@ -37,6 +37,12 @@ import {
 import { loadHierarchy, renderDetailDeps } from './detail-links.js';
 
 // ── Local types ──────────────────────────────────────────────
+// JIRA key of the open doc ('TBD' if unassigned). Module-local (#698); read via getCurrentJiraId().
+let _currentJiraId: string | null = null;
+export function getCurrentJiraId(): string | null {
+  return _currentJiraId;
+}
+
 export interface SelectModalItem {
   key: string;
   filename?: string;
@@ -159,8 +165,8 @@ export async function openDoc(filename: string, docType: string): Promise<void> 
 
     const jiraMatch = content.match(/^JIRA_ID:\s*(.+)$/m);
     const jiraUrlMatch = content.match(/^JIRA_URL:\s*(.+)$/m);
-    currentJiraId = jiraMatch ? jiraMatch[1].trim() : 'TBD';
-    updateJiraLink(currentJiraId, jiraUrlMatch ? jiraUrlMatch[1].trim() : null);
+    _currentJiraId = jiraMatch ? jiraMatch[1].trim() : 'TBD';
+    updateJiraLink(_currentJiraId, jiraUrlMatch ? jiraUrlMatch[1].trim() : null);
     updateJiraPushBtn();
     updateStoryPointsUI(docType, doc?.storyPoints ?? null);
     updateSprintSelect(docType, doc?.fixVersion, doc?.sprint);
@@ -324,7 +330,7 @@ export function showList(): void {
   resetStoriesSection();
   currentFilename = null;
   currentDocType = null;
-  currentJiraId = null;
+  _currentJiraId = null;
   updateJiraLink(null, null);
   updateJiraStatus(null);
   document.getElementById('sp-wrap')!.classList.add('hidden');

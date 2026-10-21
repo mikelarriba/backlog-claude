@@ -14,7 +14,6 @@ const FRONTEND_GLOBALS = {
   sprintConfig: 'writable',
   currentFilename: 'writable',
   currentDocType: 'writable',
-  currentJiraId: 'writable',
   jiraVersions: 'writable',
   selectedItems: 'writable',
   splitThreshold: 'writable',
