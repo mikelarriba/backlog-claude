@@ -95,6 +95,7 @@ import {
   closeDepModal,
   closeSplitModal,
   executeSplit,
+  getRoadmapVisiblePis,
 } from './roadmap.js';
 import {
   pushSprintsToJira,
@@ -561,7 +562,7 @@ registerActions({
     closeRoadmapView();
   },
   [MAIN_ACTIONS.openDistributionModalRoadmap]: () => {
-    openDistributionModal([..._roadmapVisiblePis][0] ?? '');
+    openDistributionModal(getRoadmapVisiblePis()[0] ?? '');
   },
   [MAIN_ACTIONS.pushSprintsToJira]: () => {
     pushSprintsToJira();

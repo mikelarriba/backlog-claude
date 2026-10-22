@@ -26,6 +26,7 @@ export function installRoadmapMocks() {
     namedExports: {
       applyEpicFocus: () => {},
       getAllSprints: () => [],
+      isRoadmapPiVisible: () => true,
       openDepModal: async () => {},
     },
   });

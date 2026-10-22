@@ -18,7 +18,11 @@ import assert from 'node:assert/strict';
 import '../helpers/domGlobals.js';
 
 mock.module('../../public/js/roadmap.js', {
-  namedExports: { getAllSprints: () => [] },
+  namedExports: {
+    getAllSprints: () => [],
+    getRoadmapVisiblePis: () => [],
+    isRoadmapPiVisible: () => false,
+  },
 });
 
 const { buildRoadmapExportQuery } = await import('../../public/js/export.js');

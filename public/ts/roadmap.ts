@@ -69,7 +69,17 @@ export interface RoadmapSprint {
   [key: string]: unknown;
 }
 
-// _roadmapVisiblePis is declared as a window global in state.js
+// PIs currently ticked in the roadmap filter. Module-local; other modules use the accessors below.
+const _roadmapVisiblePis = new Set<string>();
+
+export function isRoadmapPiVisible(pi: string): boolean {
+  return _roadmapVisiblePis.has(pi);
+}
+
+export function getRoadmapVisiblePis(): string[] {
+  return [..._roadmapVisiblePis];
+}
+
 let _roadmapPanelState: Record<string, boolean> = { epics: true, stories: true }; // expanded/collapsed
 let _roadmapFocusedEpic: string | null = null; // filename of clicked feature (focus mode)
 

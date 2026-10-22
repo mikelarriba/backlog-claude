@@ -1,6 +1,6 @@
 // ── Roadmap rendering helpers and render functions ─────────────
 import { escHtml, TYPE_LABEL } from './state.js';
-import { applyEpicFocus, getAllSprints, openDepModal } from './roadmap.js';
+import { applyEpicFocus, getAllSprints, isRoadmapPiVisible, openDepModal } from './roadmap.js';
 import {
   initRoadmapDragDrop,
   attachRoadmapDepHoverListeners,
@@ -213,7 +213,7 @@ export function visibleEstimateEpics() {
     (d) =>
       d.docType === 'epic' &&
       (d.estimatedSprintSize || 0) >= 1 &&
-      (!d.fixVersion || _roadmapVisiblePis.has(d.fixVersion))
+      (!d.fixVersion || isRoadmapPiVisible(d.fixVersion))
   );
 }
 // ── Main render ──────────────────────────────────────────────
@@ -241,7 +241,7 @@ export function renderEpicPanel(sprints) {
   const leafTypes = new Set(['story', 'spike', 'bug']);
   // All visible leaf docs (respect PI checkboxes)
   const visibleLeafs = allDocs.filter(
-    (d) => leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
+    (d) => leafTypes.has(d.docType) && d.fixVersion && isRoadmapPiVisible(d.fixVersion)
   );
   // Map: epicFilename → { epicDoc, sprintSet, storyCount, totalSP }
   const epicMap = new Map();
@@ -266,7 +266,7 @@ export function renderEpicPanel(sprints) {
   for (const d of allDocs) {
     if (
       epicTypes.has(d.docType) &&
-      (!d.fixVersion || _roadmapVisiblePis.has(d.fixVersion)) &&
+      (!d.fixVersion || isRoadmapPiVisible(d.fixVersion)) &&
       !epicMap.has(d.filename)
     ) {
       epicMap.set(d.filename, { epicDoc: d, sprints: new Set(), storyCount: 0, totalSP: 0 });
@@ -459,7 +459,7 @@ export function renderStoryPanel(sprints) {
   const leafTypes = new Set(['story', 'spike', 'bug']);
   // Get visible stories (respect PI checkboxes)
   const piDocs = allDocs.filter(
-    (d) => leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
+    (d) => leafTypes.has(d.docType) && d.fixVersion && isRoadmapPiVisible(d.fixVersion)
   );
   document.getElementById('rm-count-stories').textContent = String(piDocs.length);
   // Group by sprint
@@ -533,7 +533,7 @@ export function patchStoryColumn(sprintName) {
   const sprints = getAllSprints();
   const leafTypes = new Set(['story', 'spike', 'bug']);
   const piDocs = allDocs.filter(
-    (d) => leafTypes.has(d.docType) && d.fixVersion && _roadmapVisiblePis.has(d.fixVersion)
+    (d) => leafTypes.has(d.docType) && d.fixVersion && isRoadmapPiVisible(d.fixVersion)
   );
   const knownSprintNames = new Set(sprints.map((s) => s.name));
   const docs = sprintName
