@@ -149,8 +149,6 @@ globalThis._activePanelState = {
   parallel: [],
 } as PanelState;
 globalThis._panelStates = new Map<string, PanelState>();
-// Roadmap state (shared with export.js)
-globalThis._roadmapVisiblePis = new Set<string>();
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 export const TYPE_LABEL: Record<string, string> = {

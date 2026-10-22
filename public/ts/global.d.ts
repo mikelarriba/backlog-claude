@@ -31,5 +31,4 @@ declare global {
   var _canvasSelectedCards: Set<string>;
   var _activePanelState: PanelState;
   var _panelStates: Map<string, PanelState>;
-  var _roadmapVisiblePis: Set<string>;
 }

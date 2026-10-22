@@ -2,7 +2,7 @@
 // Server generates print-ready HTML; client opens it in a new tab.
 // The user then uses Cmd+P / Ctrl+P → "Save as PDF" in the browser.
 import { showJiraToast, escHtml, openModal, closeModal } from './state.js';
-import { getAllSprints } from './roadmap.js';
+import { getAllSprints, getRoadmapVisiblePis, isRoadmapPiVisible } from './roadmap.js';
 
 interface ExportSprint {
   name: string;
@@ -65,12 +65,7 @@ export function openRoadmapExportDialog(): void {
   const leafTypes = new Set(['story', 'spike', 'bug']);
   const teams = new Set<string>();
   for (const d of allDocs) {
-    if (
-      leafTypes.has(d.docType) &&
-      d.fixVersion &&
-      _roadmapVisiblePis?.has(d.fixVersion) &&
-      d.team
-    ) {
+    if (leafTypes.has(d.docType) && d.fixVersion && isRoadmapPiVisible(d.fixVersion) && d.team) {
       teams.add(d.team);
     }
   }
@@ -135,7 +130,7 @@ export async function executeRoadmapExport(): Promise<void> {
     includeDescs: !!includeDescs,
     includeCharts: !!includeCharts,
     hideEmptyEpics: !!hideEmptyEpics,
-    visiblePis: _roadmapVisiblePis ? [..._roadmapVisiblePis] : [],
+    visiblePis: getRoadmapVisiblePis(),
     sprints: selectedSprints,
     teams: selectedTeams,
   });

@@ -56,7 +56,14 @@ registerChangeActions({
     toggleRoadmapPi(el.dataset.piName ?? '', el.checked);
   },
 });
-// _roadmapVisiblePis is declared as a window global in state.js
+// PIs currently ticked in the roadmap filter. Module-local; other modules use the accessors below.
+const _roadmapVisiblePis = new Set();
+export function isRoadmapPiVisible(pi) {
+  return _roadmapVisiblePis.has(pi);
+}
+export function getRoadmapVisiblePis() {
+  return [..._roadmapVisiblePis];
+}
 let _roadmapPanelState = { epics: true, stories: true }; // expanded/collapsed
 let _roadmapFocusedEpic = null; // filename of clicked feature (focus mode)
 // Re-render PI filter when piSettings arrives (may load after roadmap opens)

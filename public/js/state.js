@@ -90,8 +90,6 @@ globalThis._activePanelState = {
   parallel: [],
 };
 globalThis._panelStates = new Map();
-// Roadmap state (shared with export.js)
-globalThis._roadmapVisiblePis = new Set();
 // ── Shared constants ──────────────────────────────────────────────────────────
 export const TYPE_LABEL = {
   epic: 'Epic',

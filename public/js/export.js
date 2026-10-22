@@ -2,7 +2,7 @@
 // Server generates print-ready HTML; client opens it in a new tab.
 // The user then uses Cmd+P / Ctrl+P → "Save as PDF" in the browser.
 import { showJiraToast, escHtml, openModal, closeModal } from './state.js';
-import { getAllSprints } from './roadmap.js';
+import { getAllSprints, getRoadmapVisiblePis, isRoadmapPiVisible } from './roadmap.js';
 // Pure: builds the `/api/export/roadmap` query string from the export dialog's
 // selections, or null when nothing was selected to export (the caller shows
 // the "select at least one section" error in that case).
@@ -43,12 +43,7 @@ export function openRoadmapExportDialog() {
   const leafTypes = new Set(['story', 'spike', 'bug']);
   const teams = new Set();
   for (const d of allDocs) {
-    if (
-      leafTypes.has(d.docType) &&
-      d.fixVersion &&
-      _roadmapVisiblePis?.has(d.fixVersion) &&
-      d.team
-    ) {
+    if (leafTypes.has(d.docType) && d.fixVersion && isRoadmapPiVisible(d.fixVersion) && d.team) {
       teams.add(d.team);
     }
   }
@@ -96,7 +91,7 @@ export async function executeRoadmapExport() {
     includeDescs: !!includeDescs,
     includeCharts: !!includeCharts,
     hideEmptyEpics: !!hideEmptyEpics,
-    visiblePis: _roadmapVisiblePis ? [..._roadmapVisiblePis] : [],
+    visiblePis: getRoadmapVisiblePis(),
     sprints: selectedSprints,
     teams: selectedTeams,
   });
