@@ -173,6 +173,14 @@ registerBlurActions({
     void saveRpStoryPoints(el.dataset.filename ?? '', el.dataset.doctype ?? '');
   },
 });
+// ── Canvas state ─ all declared as window globals in state.js ─
+// _canvasEpicFilename, _canvasDocType, _canvasManageLinks,
+// _canvasSelectedCards, _activePanelState
+// Per-epic panel state for the multi-panel feature canvas. Module-local; other modules use the accessor below.
+const _panelStates = new Map();
+export function getPanelStateFilenames() {
+  return [..._panelStates.keys()];
+}
 // ── Card search / filter ──────────────────────────────────────
 // Pure decision for a single canvas card: below the 3-char minimum, every
 // card is unfiltered ('none'); at/above it, a case-insensitive substring

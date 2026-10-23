@@ -30,5 +30,4 @@ declare global {
   var _canvasManageLinks: boolean;
   var _canvasSelectedCards: Set<string>;
   var _activePanelState: PanelState;
-  var _panelStates: Map<string, PanelState>;
 }

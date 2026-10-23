@@ -184,7 +184,14 @@ registerBlurActions({
 
 // ── Canvas state ─ all declared as window globals in state.js ─
 // _canvasEpicFilename, _canvasDocType, _canvasManageLinks,
-// _canvasSelectedCards, _activePanelState, _panelStates
+// _canvasSelectedCards, _activePanelState
+
+// Per-epic panel state for the multi-panel feature canvas. Module-local; other modules use the accessor below.
+const _panelStates = new Map<string, PanelState>();
+
+export function getPanelStateFilenames(): string[] {
+  return [..._panelStates.keys()];
+}
 
 // ── API response shapes ───────────────────────────────────────
 interface FeatureDeepEpic {
