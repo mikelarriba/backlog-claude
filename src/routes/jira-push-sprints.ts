@@ -1,5 +1,5 @@
 // ── JIRA push-sprints routes ──────────────────────────────────────────────────
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { pMap } from '../utils/pMap.js';
 import { sendError, parseApiError, handleRouteError, setupSSE } from '../utils/routeHelpers.js';
 import { ensureSprintCache } from '../services/jiraService.js';
@@ -36,14 +36,33 @@ export default function jiraPushSprintsRoutes({
 }: JiraRouteContext) {
   const router = Router();
 
+  // 503 when the JIRA token is missing; with `board`, 400 when no board is configured.
+  // Returns false after sending the error response.
+  function requireJira(res: Response, { board = false }: { board?: boolean } = {}): boolean {
+    if (!process.env.JIRA_API_TOKEN) {
+      sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+      return false;
+    }
+    if (board && !JIRA_BOARD_ID) {
+      sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
+      return false;
+    }
+    return true;
+  }
+
+  // Log a failure and report it on an open SSE stream.
+  function sendSseError(send: (payload: unknown) => unknown, err: unknown, scope: string) {
+    const apiErr = parseApiError(err);
+    logError(scope, apiErr.message, apiErr.details as Record<string, unknown> | undefined);
+    send({ type: 'error', message: apiErr.message });
+  }
+
   // ── POST /api/jira/push-sprints-preview ── compare local vs JIRA sprint state (SSE) ─
   router.post(
     '/api/jira/push-sprints-preview',
     validateBody(JiraPushSprintsPreviewSchema),
     async (req, res) => {
-      if (!process.env.JIRA_API_TOKEN)
-        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-      if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
+      if (!requireJira(res, { board: true })) return;
 
       setupSSE(res);
       const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -129,13 +148,7 @@ export default function jiraPushSprintsRoutes({
         send({ type: 'result', changes, errors, stats });
         res.end();
       } catch (err) {
-        const apiErr = parseApiError(err);
-        logError(
-          'POST /api/jira/push-sprints-preview',
-          apiErr.message,
-          apiErr.details as Record<string, unknown> | undefined
-        );
-        send({ type: 'error', message: apiErr.message });
+        sendSseError(send, err, 'POST /api/jira/push-sprints-preview');
         res.end();
       }
     }
@@ -143,9 +156,7 @@ export default function jiraPushSprintsRoutes({
 
   // ── POST /api/jira/push-sprints ── push/pull sprint assignments ─────────────
   router.post('/api/jira/push-sprints', validateBody(JiraPushSprintsSchema), async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN)
-      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-    if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
+    if (!requireJira(res, { board: true })) return;
 
     try {
       const { items = [] } = req.body;
@@ -171,9 +182,7 @@ export default function jiraPushSprintsRoutes({
     '/api/jira/pull-sprint-preview',
     validateBody(JiraPullSprintPreviewSchema),
     async (req, res) => {
-      if (!process.env.JIRA_API_TOKEN)
-        return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
-      if (!JIRA_BOARD_ID) return sendError(res, 400, 'NO_BOARD', 'JIRA_BOARD_ID not configured');
+      if (!requireJira(res, { board: true })) return;
 
       setupSSE(res);
       const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -224,13 +233,7 @@ export default function jiraPushSprintsRoutes({
         send({ type: 'done', results });
         res.end();
       } catch (err) {
-        const apiErr = parseApiError(err);
-        logError(
-          'POST /api/jira/pull-sprint-preview',
-          apiErr.message,
-          apiErr.details as Record<string, unknown> | undefined
-        );
-        send({ type: 'error', message: apiErr.message });
+        sendSseError(send, err, 'POST /api/jira/pull-sprint-preview');
         res.end();
       }
     }
@@ -238,8 +241,7 @@ export default function jiraPushSprintsRoutes({
 
   // ── POST /api/jira/pull-sprint ── import selected JIRA issues as local docs ──
   router.post('/api/jira/pull-sprint', validateBody(JiraPullSprintSchema), async (req, res) => {
-    if (!process.env.JIRA_API_TOKEN)
-      return sendError(res, 503, 'JIRA_NOT_CONFIGURED', 'JIRA_API_TOKEN not configured');
+    if (!requireJira(res)) return;
 
     try {
       const { issues = [] } = req.body as { issues: Array<{ key: string; sprintName: string }> };
