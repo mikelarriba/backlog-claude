@@ -9,6 +9,11 @@
 import { fetchJSON, postJSON, showJiraToast, escHtml } from './state.js';
 import { logAiSaving } from './ai-savings.js';
 import {
+  showUndoButton,
+  hideUndoButton,
+  undoChanges as undoSnapshot,
+} from './documentation-undo.js';
+import {
   DOC_ACTIONS,
   DOC_CHANGE_ACTIONS,
   DOC_KEYDOWN_ACTIONS,
@@ -20,7 +25,6 @@ import type {
   DocEpic,
   ConfluenceSuggestion,
   ConfluenceExecuteResult,
-  ConfluenceUndoResult,
   SuggestionStatus,
 } from './documentation-state.js';
 import {
@@ -678,11 +682,7 @@ export function deselectAllSuggestions(): void {
 }
 
 // ── Modify Documentation / Execute + Undo (#374 backend, #375 wiring) ────────
-const UNDO_WINDOW_SECONDS = 60;
-
-let _undoSnapshotId: string | null = null;
-let _undoCountdownInterval: ReturnType<typeof setInterval> | undefined;
-let _undoRemainingSeconds = 0;
+// Undo window + countdown live in documentation-undo.ts
 
 export function modifyDocumentation(): void {
   void executeChanges();
@@ -694,7 +694,7 @@ async function executeChanges(): Promise<void> {
   const modifyBtn = document.getElementById('doc-modify-btn') as HTMLButtonElement | null;
   if (modifyBtn) modifyBtn.disabled = true;
 
-  _hideUndoButton();
+  hideUndoButton();
 
   const selectedIndexes = [..._selectedSuggestionIndexes];
   const selectedSuggestions = selectedIndexes.map((i) => _suggestions[i]);
@@ -718,7 +718,7 @@ async function executeChanges(): Promise<void> {
     });
 
     if (data.snapshotId && results.some((r) => r.success)) {
-      _showUndoButton(data.snapshotId);
+      showUndoButton(data.snapshotId);
     }
     const successCount = results.filter((r) => r.success).length;
     if (successCount) void logAiSaving('doc_confluence_modify', successCount);
@@ -729,89 +729,7 @@ async function executeChanges(): Promise<void> {
 }
 
 export async function undoChanges(): Promise<void> {
-  if (!_undoSnapshotId) return;
-  const snapshotId = _undoSnapshotId;
-  const btn = document.getElementById('doc-undo-btn') as HTMLButtonElement | null;
-
-  if (_undoCountdownInterval) {
-    clearInterval(_undoCountdownInterval);
-    _undoCountdownInterval = undefined;
-  }
-  if (btn) {
-    btn.disabled = true;
-    btn.classList.add('doc-undo-btn-loading');
-    btn.textContent = 'Undoing\u2026';
-  }
-
-  try {
-    (await postJSON(`/api/confluence/undo/${encodeURIComponent(snapshotId)}`, {})) as {
-      results?: ConfluenceUndoResult[];
-    };
-    showJiraToast('success', 'Changes reverted');
-    _hideUndoButton();
-    renderAnalysisResults();
-  } catch (err) {
-    const message = (err as Error)?.message || String(err);
-    if (message.toLowerCase().includes('expired') || message.toLowerCase().includes('not found')) {
-      showJiraToast('error', 'Undo window expired');
-      _hideUndoButton();
-    } else {
-      showJiraToast('error', `Undo failed: ${message}`);
-      if (btn) {
-        btn.disabled = false;
-        btn.classList.remove('doc-undo-btn-loading');
-      }
-      if (_undoSnapshotId) {
-        _updateUndoButtonLabel();
-        _startUndoCountdownTimer();
-      }
-    }
-  }
-}
-
-function _showUndoButton(snapshotId: string): void {
-  _undoSnapshotId = snapshotId;
-  _undoRemainingSeconds = UNDO_WINDOW_SECONDS;
-  const btn = document.getElementById('doc-undo-btn') as HTMLButtonElement | null;
-  if (!btn) return;
-  btn.style.display = '';
-  btn.disabled = false;
-  btn.classList.remove('doc-undo-btn-loading');
-  _updateUndoButtonLabel();
-  _startUndoCountdownTimer();
-}
-
-function _hideUndoButton(): void {
-  if (_undoCountdownInterval) {
-    clearInterval(_undoCountdownInterval);
-    _undoCountdownInterval = undefined;
-  }
-  _undoSnapshotId = null;
-  const btn = document.getElementById('doc-undo-btn') as HTMLButtonElement | null;
-  if (btn) {
-    btn.style.display = 'none';
-    btn.disabled = false;
-    btn.classList.remove('doc-undo-btn-loading');
-    btn.textContent = '\u21a9 Undo all changes';
-  }
-}
-
-function _startUndoCountdownTimer(): void {
-  if (_undoCountdownInterval) clearInterval(_undoCountdownInterval);
-  _undoCountdownInterval = setInterval(() => {
-    _undoRemainingSeconds -= 1;
-    if (_undoRemainingSeconds <= 0) {
-      _hideUndoButton();
-      return;
-    }
-    _updateUndoButtonLabel();
-  }, 1000);
-}
-
-function _updateUndoButtonLabel(): void {
-  const btn = document.getElementById('doc-undo-btn') as HTMLButtonElement | null;
-  if (!btn) return;
-  btn.textContent = `\u21a9 Undo all changes (${_undoRemainingSeconds}s)`;
+  await undoSnapshot(renderAnalysisResults);
 }
 
 function _setSuggestionStatus(index: number, status: SuggestionStatus, message?: string): void {
