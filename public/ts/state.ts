@@ -148,7 +148,6 @@ globalThis._activePanelState = {
   blocks: [],
   parallel: [],
 } as PanelState;
-globalThis._panelStates = new Map<string, PanelState>();
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 export const TYPE_LABEL: Record<string, string> = {

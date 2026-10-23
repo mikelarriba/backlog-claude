@@ -89,7 +89,6 @@ globalThis._activePanelState = {
   blocks: [],
   parallel: [],
 };
-globalThis._panelStates = new Map();
 // ── Shared constants ──────────────────────────────────────────────────────────
 export const TYPE_LABEL = {
   epic: 'Epic',

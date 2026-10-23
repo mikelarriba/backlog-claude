@@ -15,6 +15,7 @@ import {
   openManualRefine,
   closeRefinePanel,
   renderFeatureMultiPanel,
+  getPanelStateFilenames,
 } from './refine.js';
 import { buildCanvasGraph, renderCanvas, saveCanvasLayout } from './refine-canvas.js';
 import { _closeLinkPopup } from './refine-edges.js';
@@ -133,7 +134,7 @@ export function _showFpCardContextMenu(
   positionPopup(popup, x, y);
   // Build "Move to Epic" submenu items from _panelStates
   const epicItems = buildFpEpicMenuItemsHtml(
-    [..._panelStates.keys()],
+    getPanelStateFilenames(),
     currentEpicFilename,
     allDocs
   );
