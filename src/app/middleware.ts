@@ -1,5 +1,6 @@
 // ── Express middleware setup ────────────────────────────────────────────────────
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import fs from 'node:fs';
 import path from 'path';
 import { requestLogger } from '../utils/requestLogger.js';
 import { config } from '../config/env.js';
@@ -47,6 +48,25 @@ export function hostOriginGuard(req: Request, res: Response, next: NextFunction)
     }
   }
   next();
+}
+
+/**
+ * Returns index.html with the module entry rewritten to the hashed bundle from
+ * public/dist/manifest.json, or null when no bundle has been built.
+ */
+export function renderIndexHtml(rootDir: string): string | null {
+  let entry: string | undefined;
+  try {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(rootDir, 'public/dist/manifest.json'), 'utf-8')
+    ) as Record<string, string>;
+    entry = manifest['main.js'];
+  } catch {
+    return null;
+  }
+  if (!entry) return null;
+  const html = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf-8');
+  return html.replace('/public/js/main.js', `/public/dist/${entry}`);
 }
 
 export function applyMiddleware(app: Express, rootDir: string): void {
@@ -114,14 +134,27 @@ export function applyMiddleware(app: Express, rootDir: string): void {
     })
   );
 
-  app.get('/', (_req, res, next) => {
+  // Hashed bundle output (npm run build:bundle): filenames carry a content hash, so they
+  // can be cached forever and a deploy never serves stale modules.
+  app.use(
+    '/public/dist',
+    express.static(path.join(rootDir, 'public/dist'), {
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      },
+    })
+  );
+
+  // index.html points at the hashed bundle when one has been built; otherwise it is
+  // served untouched and loads the unbundled /public/js modules.
+  const serveIndex = (_req: Request, res: Response, next: NextFunction): void => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    next();
-  });
-  app.get('/index.html', (_req, res, next) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    next();
-  });
+    const html = renderIndexHtml(rootDir);
+    if (html === null) return next();
+    res.type('html').send(html);
+  };
+  app.get('/', serveIndex);
+  app.get('/index.html', serveIndex);
 
   app.use(express.static(rootDir));
 

@@ -1,7 +1,7 @@
 {
   "name": "midas-backlog",
   "version": "1.0.0",
-  "description": "MIDAS product backlog management — transform ideas into sprint-ready Epics and Stories.",
+  "description": "MIDAS product backlog management \u2014 transform ideas into sprint-ready Epics and Stories.",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -17,6 +17,7 @@
     "test:bench": "tsx --test tests/bench/*.bench.js",
     "test:e2e": "playwright test",
     "build:frontend": "tsc --project tsconfig.frontend.json && prettier --write public/js/*.js",
+    "build:bundle": "node scripts/build-bundle.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:frontend": "tsc --project tsconfig.frontend.json --noEmit",
     "lint": "eslint src/ public/js/ tests/ server.ts",
@@ -53,6 +54,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.4.0",
+    "esbuild": "^0.28.1",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
     "fast-check": "^4.9.0",
