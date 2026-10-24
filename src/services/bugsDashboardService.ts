@@ -307,6 +307,34 @@ export function buildDashboardData(bugs: unknown[]): DashboardData {
   };
 }
 
+/**
+ * Resolve the cached bugs matching `bugKeys` from the open/all caches.
+ * Returns `null` when neither cache is fresh (the caller must ask for a reload).
+ */
+export function selectCachedBugs(caches: DashboardCaches, bugKeys: string[]): BugItem[] | null {
+  const freshOpen = caches.open.get();
+  const freshAll = caches.all.get();
+  if (!freshOpen && !freshAll) return null;
+  const cachedBugs = [...(freshOpen?.bugs ?? []), ...(freshAll?.bugs ?? [])].filter(
+    (b, i, arr) => arr.findIndex((x) => x.key === b.key) === i
+  );
+  return cachedBugs.filter((b) => bugKeys.includes(b.key));
+}
+
+/** Build the Claude prompt for analysing a set of selected bugs. */
+export function buildAnalysisPrompt(selected: BugItem[]): string {
+  const bugDetails = selected
+    .map(
+      (b) =>
+        `- ${b.key}: ${b.summary} [${b.status}] Priority: ${b.priority}` +
+        (b.assignee ? ` Assignee: ${b.assignee}` : '') +
+        (b.resolutionDate ? ` (Resolved: ${b.resolutionDate.slice(0, 10)})` : '')
+    )
+    .join('\n');
+
+  return `You are a software development analyst. Analyze these ${selected.length} selected bugs and provide actionable insights:\n\n${bugDetails}\n\nPlease provide:\n1. Prioritization: Rank bugs by severity/impact and explain the ordering\n2. Fix Strategy: Which bugs can be batched or fixed together? Common root causes?\n3. Recommendations: Specific next steps for the top 3 most critical bugs\n4. Patterns: Any concerning trends or patterns you notice?\n\nBe concise and actionable.`;
+}
+
 // ── AI analysis report persistence ──────────────────────────────────────────
 // Each analysis run is written to its own timestamped markdown file under
 // docs/bug-analysis/ so the history is preserved on disk and the UI can reopen

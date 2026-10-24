@@ -6,6 +6,8 @@ import {
   fetchBugs,
   buildDashboardData,
   createDashboardCaches,
+  selectCachedBugs,
+  buildAnalysisPrompt,
 } from '../../src/services/bugsDashboardService.js';
 
 const issue = (key) => ({
@@ -92,5 +94,44 @@ describe('buildDashboardData', () => {
     assert.equal(d.stats.total, 1);
     assert.equal(d.timeSeries.length, 13 + 52);
     assert.ok(d.cachedAt);
+  });
+});
+
+describe('selectCachedBugs', () => {
+  it('returns null when neither cache is fresh', () => {
+    assert.equal(selectCachedBugs(createDashboardCaches(), ['A-1']), null);
+  });
+
+  it('merges open and all caches, de-duplicates and filters by key', () => {
+    const caches = createDashboardCaches();
+    caches.open.set(buildDashboardData([issue('A-1'), issue('A-2')]));
+    caches.all.set(buildDashboardData([issue('A-2'), issue('A-3')]));
+    const keys = selectCachedBugs(caches, ['A-1', 'A-2', 'A-3', 'A-9']).map((b) => b.key);
+    assert.deepEqual(keys.sort(), ['A-1', 'A-2', 'A-3']);
+  });
+
+  it('returns an empty list when no requested key is cached', () => {
+    const caches = createDashboardCaches();
+    caches.open.set(buildDashboardData([issue('A-1')]));
+    assert.deepEqual(selectCachedBugs(caches, ['Z-1']), []);
+  });
+});
+
+describe('buildAnalysisPrompt', () => {
+  it('lists each bug with status, priority, assignee and resolution date', () => {
+    const prompt = buildAnalysisPrompt([
+      { key: 'A-1', summary: 'Crash', status: 'Open', priority: 'High', assignee: 'Ann' },
+      {
+        key: 'A-2',
+        summary: 'Typo',
+        status: 'Resolved',
+        priority: 'Low',
+        assignee: null,
+        resolutionDate: '2024-03-05T10:00:00.000Z',
+      },
+    ]);
+    assert.match(prompt, /Analyze these 2 selected bugs/);
+    assert.match(prompt, /- A-1: Crash \[Open\] Priority: High Assignee: Ann/);
+    assert.match(prompt, /- A-2: Typo \[Resolved\] Priority: Low \(Resolved: 2024-03-05\)/);
   });
 });

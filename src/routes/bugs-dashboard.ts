@@ -6,11 +6,13 @@ import { validateBody } from '../utils/validateMiddleware.js';
 import { BugAnalyzeSchema } from '../schemas/bugs-dashboard.js';
 import type { JiraRouteContext } from '../types.js';
 import {
+  buildAnalysisPrompt,
   buildDashboardData,
   createDashboardCaches,
   fetchBugs,
   loadLatestReport,
   saveReport,
+  selectCachedBugs,
 } from '../services/bugsDashboardService.js';
 
 // Pure helpers moved to the service; re-exported so existing importers keep working.
@@ -99,12 +101,10 @@ export default function bugsDashboardRoutes({
 
       const { bugKeys } = req.body as { bugKeys: string[] };
 
-      // Apply the same freshness check the GET route uses for cache reuse —
-      // without it this route could silently analyze arbitrarily stale
-      // status/resolution/assignee data (#540).
-      const freshOpen = caches.open.get();
-      const freshAll = caches.all.get();
-      if (!freshOpen && !freshAll) {
+      // Same freshness check the GET route uses for cache reuse — without it this
+      // route could silently analyze arbitrarily stale data (#540).
+      const selected = selectCachedBugs(caches, bugKeys);
+      if (!selected) {
         return sendError(
           res,
           400,
@@ -112,11 +112,6 @@ export default function bugsDashboardRoutes({
           'Dashboard data is stale — reload the dashboard before analyzing.'
         );
       }
-
-      const cachedBugs = [...(freshOpen?.bugs ?? []), ...(freshAll?.bugs ?? [])].filter(
-        (b, i, arr) => arr.findIndex((x) => x.key === b.key) === i
-      );
-      const selected = cachedBugs.filter((b) => bugKeys.includes(b.key));
 
       if (selected.length === 0)
         return sendError(
@@ -126,16 +121,7 @@ export default function bugsDashboardRoutes({
           'None of the specified bug keys were found. Load the dashboard first.'
         );
 
-      const bugDetails = selected
-        .map(
-          (b) =>
-            `- ${b.key}: ${b.summary} [${b.status}] Priority: ${b.priority}` +
-            (b.assignee ? ` Assignee: ${b.assignee}` : '') +
-            (b.resolutionDate ? ` (Resolved: ${b.resolutionDate.slice(0, 10)})` : '')
-        )
-        .join('\n');
-
-      const prompt = `You are a software development analyst. Analyze these ${selected.length} selected bugs and provide actionable insights:\n\n${bugDetails}\n\nPlease provide:\n1. Prioritization: Rank bugs by severity/impact and explain the ordering\n2. Fix Strategy: Which bugs can be batched or fixed together? Common root causes?\n3. Recommendations: Specific next steps for the top 3 most critical bugs\n4. Patterns: Any concerning trends or patterns you notice?\n\nBe concise and actionable.`;
+      const prompt = buildAnalysisPrompt(selected);
 
       setupSSE(res);
       const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
