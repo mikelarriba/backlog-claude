@@ -18,3 +18,4 @@ test-results/
 public/js/*.js.map
 .claude/worktrees/
 coverage-report.txt
+public/dist/

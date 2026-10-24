@@ -6,6 +6,7 @@ RUN npm ci
 COPY . .
 RUN npm run typecheck
 RUN npm run build:frontend
+RUN npm run build:bundle
 
 # Stage 2: production image — install prod deps only (tsx is now a prod dep)
 FROM node:22-alpine AS runtime

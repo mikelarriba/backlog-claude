@@ -40,6 +40,7 @@ Add an entry there — the registry controls the route prefix, display name, def
 1. Create `public/ts/<module>.ts` — use `import`/`export` (ES modules, no `window.*` assignments).
 2. Import the new module from `public/ts/main.ts` and wire up any event listeners there.
 3. Run `npm run build:frontend` to compile — the compiled `public/js/<module>.js` must be committed alongside the TS source (CI will fail if they drift).
+   `npm run build:bundle` additionally produces the minified, content-hashed bundle in `public/dist/` (git-ignored). When it exists, the server serves it with `Cache-Control: immutable` and rewrites `index.html` to load it; without it, the app loads the unbundled `public/js/` modules. The Dockerfile and the e2e CI job build it.
 4. Shared utilities (escaping, fetch, markdown rendering) live in `public/ts/state.ts` — import from there, don't reimplement.
 
 ## Rendering markdown safely
