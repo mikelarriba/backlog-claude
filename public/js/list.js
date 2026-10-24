@@ -4,7 +4,7 @@ import { openDoc } from './detail.js';
 import { getSelectedDocs, closeContextMenu } from './list-filters.js';
 import { _rankSortFn } from './list-render.js';
 import { upsertDoc } from './store.js';
-// Note: piSettings, jiraVersions, _swimlanesCollapsed, _collapsedItems are
+// Note: piSettings, jiraVersions, _collapsedItems are
 // now declared as store-backed globals in state.js (moved from here).
 // Pure reorder computation backing moveDocRank(): swaps `filename` with its
 // neighbor `delta` positions away within its docType's rank-sorted group.

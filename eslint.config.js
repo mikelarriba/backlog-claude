@@ -24,7 +24,6 @@ const FRONTEND_GLOBALS = {
   _canvasManageLinks: 'writable',
   _canvasSelectedCards: 'writable',
   _collapsedItems: 'writable',
-  _swimlanesCollapsed: 'writable',
   // Third-party libraries loaded via <script> tags
   marked: 'readonly',
   DOMPurify: 'readonly',

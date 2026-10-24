@@ -11,7 +11,12 @@ import {
   openModal,
   closeModal,
 } from './state.js';
-import { getMetaTeams, getMetaWorkCategories, isJustDragged } from './state.js';
+import {
+  getMetaTeams,
+  getMetaWorkCategories,
+  isJustDragged,
+  toggleSwimlaneCollapsed,
+} from './state.js';
 import { closeDeleteDialog, executeDelete } from './detail.js';
 import { openDoc } from './nav-hooks.js';
 import { openDistributionModal } from './distribution.js';
@@ -62,13 +67,13 @@ export function expandAll() {
   applyFilters();
 }
 export function toggleSwimlane(sectionKey) {
-  _swimlanesCollapsed[sectionKey] = !_swimlanesCollapsed[sectionKey];
+  const collapsed = toggleSwimlaneCollapsed(sectionKey);
   const section = document.querySelector(`.swimlane-section[data-section="${sectionKey}"]`);
   if (!section) return;
   const body = section.querySelector('.swimlane-body');
   const chevron = section.querySelector('.swimlane-chevron');
   if (!body || !chevron) return;
-  if (_swimlanesCollapsed[sectionKey]) {
+  if (collapsed) {
     body.classList.add('collapsed');
     chevron.textContent = '▶';
   } else {

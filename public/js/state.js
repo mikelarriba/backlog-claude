@@ -66,17 +66,25 @@ export function isJustDragged() {
 export function setJustDragged(value) {
   _justDragged = value;
 }
+// Swimlane collapse state — module-local; read/toggled through the accessors below.
+const _swimlanesCollapsed = {
+  currentPi: false,
+  nextPi: false,
+  backlog: false,
+};
+export function isSwimlaneCollapsed(sectionKey) {
+  return !!_swimlanesCollapsed[sectionKey];
+}
+export function toggleSwimlaneCollapsed(sectionKey) {
+  _swimlanesCollapsed[sectionKey] = !_swimlanesCollapsed[sectionKey];
+  return _swimlanesCollapsed[sectionKey];
+}
 let _toastTimer = null;
 globalThis.selectedItems = new Set();
 globalThis.sprintConfig = {};
 globalThis.splitThreshold = 8;
 // List-level state (moved here from list.js so all state is centralised)
 globalThis.jiraVersions = [];
-globalThis._swimlanesCollapsed = {
-  currentPi: false,
-  nextPi: false,
-  backlog: false,
-};
 globalThis._collapsedItems = new Set();
 // Refine cluster state (shared across refine.js and refine-*.js)
 globalThis._canvasEpicFilename = null;

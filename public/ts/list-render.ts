@@ -1,5 +1,11 @@
 // ── List rendering: rank helpers, swimlane rendering, readiness, dep connectors ─
-import { escHtml, buildChildrenMap, TYPE_LABEL, STATUS_LABEL } from './state.js';
+import {
+  escHtml,
+  buildChildrenMap,
+  isSwimlaneCollapsed,
+  TYPE_LABEL,
+  STATUS_LABEL,
+} from './state.js';
 import type { DocEntry } from './state.js';
 
 // Typed data-action names for this module's onclick sites (issue #461
@@ -212,7 +218,7 @@ export function renderSwimlaneSectionHtml(
   versionName: string | null,
   docs: DocEntry[]
 ): string {
-  const collapsed = (_swimlanesCollapsed as unknown as Record<string, boolean>)[sectionKey];
+  const collapsed = isSwimlaneCollapsed(sectionKey);
   const chevron = collapsed ? '▶' : '▼';
   const bodyClass = collapsed ? 'swimlane-body collapsed' : 'swimlane-body';
 
