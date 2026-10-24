@@ -80,15 +80,31 @@ const record = (name) =>
   };
 
 const mainSrc = fs.readFileSync(new URL('../../public/js/main.js', import.meta.url), 'utf-8');
+// Names any module in public/js imports from each spec: transitively loaded real modules
+// (via actions.js) need these exports to exist on the stubs too.
+const importedNames = new Map();
 const importRe = /import\s*\{([^}]*)\}\s*from\s*'(\.\/[^']+)'/g;
+const jsDir = new URL('../../public/js/', import.meta.url);
+for (const f of fs.readdirSync(jsDir).filter((f) => f.endsWith('.js'))) {
+  const src = fs.readFileSync(new URL(f, jsDir), 'utf-8');
+  for (const [, names, spec] of src.matchAll(importRe)) {
+    const set = importedNames.get(spec) ?? new Set();
+    for (const n of names.split(',')) {
+      const name = n.trim().split(/\s+as\s+/)[0];
+      if (name) set.add(name);
+    }
+    importedNames.set(spec, set);
+  }
+}
 for (const [, names, spec] of mainSrc.matchAll(importRe)) {
   if (spec === './actions.js') continue;
   const namedExports = {};
-  for (const n of names
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)) {
-    namedExports[n] = record(n);
+  const all = new Set([
+    ...names.split(',').map((s) => s.trim().split(/\s+as\s+/)[0]),
+    ...(importedNames.get(spec) ?? []),
+  ]);
+  for (const n of all) {
+    if (n) namedExports[n] = record(n);
   }
   if (spec === './state.js') {
     namedExports.fetchJSON = async () => ({ teams: [], workCategories: [] });
