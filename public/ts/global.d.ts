@@ -3,7 +3,7 @@
 // globals in the browser. Declaring them here lets TypeScript resolve them in
 // strict mode.
 
-import type { DocEntry, PISettings, SprintConfig, SwimlaneCollapsed, PanelState } from './state.js';
+import type { DocEntry, PISettings, SprintConfig, PanelState } from './state.js';
 
 declare global {
   // ── CDN globals ────────────────────────────────────────────────────────────
@@ -23,7 +23,6 @@ declare global {
   var splitThreshold: number;
   var piSettings: PISettings;
   var jiraVersions: string[];
-  var _swimlanesCollapsed: SwimlaneCollapsed;
   var _collapsedItems: Set<string>;
   var _canvasEpicFilename: string | null;
   var _canvasDocType: string | null;

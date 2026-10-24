@@ -1,5 +1,11 @@
 // ── List rendering: rank helpers, swimlane rendering, readiness, dep connectors ─
-import { escHtml, buildChildrenMap, TYPE_LABEL, STATUS_LABEL } from './state.js';
+import {
+  escHtml,
+  buildChildrenMap,
+  isSwimlaneCollapsed,
+  TYPE_LABEL,
+  STATUS_LABEL,
+} from './state.js';
 // Typed data-action names for this module's onclick sites (issue #461
 // migration — see actions.ts and list-filters.ts's CTX_ACTIONS for the
 // established pattern). Registered from list-filters.ts, where the handlers
@@ -146,7 +152,7 @@ export function renderSwimlanes(docs) {
   attachDepHoverListeners();
 }
 export function renderSwimlaneSectionHtml(sectionKey, label, versionName, docs) {
-  const collapsed = _swimlanesCollapsed[sectionKey];
+  const collapsed = isSwimlaneCollapsed(sectionKey);
   const chevron = collapsed ? '▶' : '▼';
   const bodyClass = collapsed ? 'swimlane-body collapsed' : 'swimlane-body';
   // Version selector for Current/Next PI
