@@ -6,6 +6,7 @@ import {
   buildSprintNameMap,
   fetchSprintIssuesOnBoard,
   fetchUnimportedSprintIssues,
+  scanUnimportedSprints,
   buildSprintPushPreview,
   resolveActiveSprints,
   scanBoardSprints,
@@ -280,5 +281,40 @@ describe('scanBoardSprints', () => {
     assert.equal(map.get('A-1')?.sprintName, 'S1');
     assert.equal(warns.length, 1);
     assert.ok(progress.some((p) => String(p.message).startsWith('Warning')));
+  });
+});
+
+describe('scanUnimportedSprints', () => {
+  test('flattens per-sprint results in sprint order, skips imported issues and reports progress', async () => {
+    const jiraAgileRequest = async (_m, urlPath) => {
+      const id = urlPath.match(/sprint\/(\d+)\//)[1];
+      return {
+        total: 2,
+        issues: [
+          { key: `K-${id}-1`, fields: { summary: 'a' } },
+          { key: `K-${id}-2`, fields: { summary: 'b' } },
+        ],
+      };
+    };
+    const progress = [];
+    const results = await scanUnimportedSprints(
+      [
+        ['Sprint A', 1],
+        ['Sprint B', 2],
+      ],
+      {
+        jiraAgileRequest,
+        fieldStoryPoints: undefined,
+        concurrency: 2,
+        findByJiraId: (k) => (k === 'K-1-2' ? {} : null),
+        onProgress: (p) => progress.push(p),
+      }
+    );
+    assert.deepEqual(
+      results.map((r) => r.key),
+      ['K-1-1', 'K-2-1', 'K-2-2']
+    );
+    assert.equal(results[0].sprintName, 'Sprint A');
+    assert.equal(progress.length, 2);
   });
 });
