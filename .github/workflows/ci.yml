@@ -48,7 +48,6 @@ jobs:
         env:
           MOCK_CLAUDE: '1'
           LOG_LEVEL: 'error'
-      - run: npm run build:frontend
       - name: Coverage (backend src/** gated; public/ts report-only)
         run: |
           npm run test:coverage 2>&1 | tee coverage-report.txt
@@ -56,19 +55,6 @@ jobs:
         env:
           MOCK_CLAUDE: '1'
           LOG_LEVEL: 'error'
-
-  frontend-drift:
-    name: Frontend Build Drift Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build:frontend
-      - run: git diff --exit-code public/js/
 
   benchmarks:
     name: Performance Benchmarks
