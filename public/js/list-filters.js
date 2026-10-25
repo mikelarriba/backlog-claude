@@ -1,5 +1,6 @@
 // ── List filters, collapse, multi-select, and context menu ───────
 import {
+  collapsedItems,
   buildChildrenMap,
   getDescendants,
   debounce,
@@ -43,10 +44,10 @@ export function hasSelectionAnchor() {
 }
 export function toggleItemCollapse(filename, e) {
   e.stopPropagation();
-  if (_collapsedItems.has(filename)) {
-    _collapsedItems.delete(filename);
+  if (collapsedItems.has(filename)) {
+    collapsedItems.delete(filename);
   } else {
-    _collapsedItems.add(filename);
+    collapsedItems.add(filename);
   }
   applyFilters();
 }
@@ -57,13 +58,13 @@ export function collapseAll() {
       (d.docType === 'feature' || d.docType === 'epic') &&
       (childrenMap.get(d.filename) || []).length > 0
     ) {
-      _collapsedItems.add(d.filename);
+      collapsedItems.add(d.filename);
     }
   }
   applyFilters();
 }
 export function expandAll() {
-  _collapsedItems.clear();
+  collapsedItems.clear();
   applyFilters();
 }
 export function toggleSwimlane(sectionKey) {

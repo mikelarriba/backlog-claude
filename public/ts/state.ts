@@ -138,13 +138,14 @@ export function toggleSwimlaneCollapsed(sectionKey: keyof SwimlaneCollapsed): bo
   _swimlanesCollapsed[sectionKey] = !_swimlanesCollapsed[sectionKey];
   return _swimlanesCollapsed[sectionKey];
 }
+// Collapsed list-item filenames (module-owned; was a window global).
+export const collapsedItems = new Set<string>();
 let _toastTimer: ReturnType<typeof setTimeout> | null = null;
 globalThis.selectedItems = new Set<string>();
 globalThis.sprintConfig = {} as SprintConfig;
 globalThis.splitThreshold = 8;
 // List-level state (moved here from list.js so all state is centralised)
 globalThis.jiraVersions = [] as string[];
-globalThis._collapsedItems = new Set<string>();
 // Refine cluster state (shared across refine.js and refine-*.js)
 globalThis._canvasEpicFilename = null;
 globalThis._canvasDocType = null;

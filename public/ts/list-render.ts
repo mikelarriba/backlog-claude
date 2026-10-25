@@ -1,5 +1,6 @@
 // ── List rendering: rank helpers, swimlane rendering, readiness, dep connectors ─
 import {
+  collapsedItems,
   escHtml,
   buildChildrenMap,
   isSwimlaneCollapsed,
@@ -87,7 +88,7 @@ interface TreeOrderEntry {
 
 export function buildTreeOrder(
   docs: DocEntry[],
-  collapsed: Set<string> = _collapsedItems
+  collapsed: Set<string> = collapsedItems
 ): {
   ordered: TreeOrderEntry[];
   childrenMap: Map<string, DocEntry[]>;
@@ -346,7 +347,7 @@ export function renderDocItem(
 
   const hasChildren = childrenMap && (childrenMap.get(d.filename) || []).length > 0;
   const isCollapsible = hasChildren && (d.docType === 'feature' || d.docType === 'epic');
-  const isCollapsed = _collapsedItems.has(d.filename);
+  const isCollapsed = collapsedItems.has(d.filename);
   const collapseBtn = isCollapsible
     ? `<button class="collapse-btn${isCollapsed ? ' is-collapsed' : ''}"
                data-action="${LIST_ITEM_ACTIONS.toggleItemCollapse}" data-filename="${escHtml(d.filename)}"
