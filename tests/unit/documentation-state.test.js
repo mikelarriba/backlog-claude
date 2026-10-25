@@ -6,7 +6,7 @@ import '../helpers/domGlobals.js';
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { paginate, matchExecuteResults, DOC_ACTIONS } =
+const { paginate, matchExecuteResults, resultsErrorTitle, DOC_ACTIONS } =
   await import('../../public/js/documentation-state.js');
 const { buildIssueRowHtml, buildPagerHtml } =
   await import('../../public/js/documentation-render.js');
@@ -93,5 +93,27 @@ describe('buildIssueRowHtml', () => {
     assert.match(html, /checked/);
     assert.match(html, /doc-issue-row selected/);
     assert.doesNotMatch(html, /Local/);
+  });
+});
+
+describe('resultsErrorTitle', () => {
+  test('maps known failure messages to banner titles', () => {
+    assert.equal(resultsErrorTitle('JIRA_API_TOKEN missing'), 'JIRA not configured');
+    assert.equal(resultsErrorTitle('JIRA_NOT_CONFIGURED'), 'JIRA not configured');
+    assert.equal(
+      resultsErrorTitle('Could not fetch 2 JIRA issues'),
+      'Could not fetch selected JIRA issues'
+    );
+    assert.equal(resultsErrorTitle('Confluence space not configured'), 'Confluence not configured');
+    assert.equal(resultsErrorTitle('Failed to fetch'), 'Network error');
+    assert.equal(resultsErrorTitle('NetworkError when attempting'), 'Network error');
+  });
+
+  test('falls back to the supplied or default title', () => {
+    assert.equal(resultsErrorTitle('boom'), 'AI analysis failed');
+    assert.equal(
+      resultsErrorTitle('boom', 'Modify Documentation failed'),
+      'Modify Documentation failed'
+    );
   });
 });

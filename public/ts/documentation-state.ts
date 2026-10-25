@@ -156,3 +156,20 @@ export function paginate<T>(
   const start = (clamped - 1) * pageSize;
   return { pageItems: items.slice(start, start + pageSize), page: clamped, totalPages };
 }
+
+// Pure: maps an AI-analysis / modify failure message to the error-banner title.
+export function resultsErrorTitle(message: string, defaultTitle = 'AI analysis failed'): string {
+  if (message.includes('JIRA_NOT_CONFIGURED') || message.includes('JIRA_API_TOKEN')) {
+    return 'JIRA not configured';
+  }
+  if (message.includes('Could not fetch') && message.includes('JIRA issue')) {
+    return 'Could not fetch selected JIRA issues';
+  }
+  if (message.includes('Confluence') && message.includes('not configured')) {
+    return 'Confluence not configured';
+  }
+  if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+    return 'Network error';
+  }
+  return defaultTitle;
+}
