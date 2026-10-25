@@ -1,7 +1,7 @@
 // ── Minimal window shim for frontend unit tests ────────────────────────────────
 // public/js/state.js defines several store-backed globals via
 // `Object.defineProperty(window, ...)` so the rest of the frontend can read/write
-// them as bare identifiers (e.g. `allDocs`, `piSettings`, `_collapsedItems`).
+// them as bare identifiers (e.g. `allDocs`, `piSettings`).
 // There is no real DOM in these tests, so `window` doesn't exist by default —
 // aliasing it to `globalThis` lets state.js's defineProperty calls attach to the
 // same object bare identifiers resolve against, without pulling in a full DOM

@@ -23,7 +23,6 @@ declare global {
   var splitThreshold: number;
   var piSettings: PISettings;
   var jiraVersions: string[];
-  var _collapsedItems: Set<string>;
   var _canvasEpicFilename: string | null;
   var _canvasDocType: string | null;
   var _canvasManageLinks: boolean;

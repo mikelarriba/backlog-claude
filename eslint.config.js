@@ -23,7 +23,6 @@ const FRONTEND_GLOBALS = {
   _canvasEpicFilename: 'writable',
   _canvasManageLinks: 'writable',
   _canvasSelectedCards: 'writable',
-  _collapsedItems: 'writable',
   // Third-party libraries loaded via <script> tags
   marked: 'readonly',
   DOMPurify: 'readonly',
