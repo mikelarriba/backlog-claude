@@ -290,6 +290,51 @@ export async function fetchUnimportedSprintIssues(
   return results;
 }
 
+// Scan each selected sprint in parallel (capped at `concurrency`), then flatten in
+// original sprint order so results match a sequential loop.
+export async function scanUnimportedSprints(
+  sprintEntries: Array<[string, number]>,
+  {
+    jiraAgileRequest,
+    fieldStoryPoints,
+    concurrency,
+    findByJiraId,
+    onProgress,
+  }: {
+    jiraAgileRequest: JiraAgileRequest;
+    fieldStoryPoints: string | undefined;
+    concurrency: number;
+    findByJiraId: (jiraId: string) => unknown;
+    onProgress?: (payload: {
+      type: 'progress';
+      message: string;
+      current: number;
+      total: number;
+    }) => void;
+  }
+): Promise<PulledSprintIssue[]> {
+  const perSprint = await pMap(
+    sprintEntries,
+    async ([jiraSprintName, sprintId], i) => {
+      onProgress?.({
+        type: 'progress',
+        message: `Scanning ${jiraSprintName}…`,
+        current: i + 1,
+        total: sprintEntries.length,
+      });
+      return fetchUnimportedSprintIssues(
+        jiraAgileRequest,
+        sprintId,
+        jiraSprintName,
+        fieldStoryPoints,
+        findByJiraId
+      );
+    },
+    { concurrency }
+  );
+  return perSprint.flat();
+}
+
 // ── push-sprints: apply push / remove / pull sprint assignments ──────────────
 export interface PushSprintItem {
   filename: string;

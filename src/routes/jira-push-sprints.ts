@@ -1,6 +1,5 @@
 // ── JIRA push-sprints routes ──────────────────────────────────────────────────
 import { Router, type Response } from 'express';
-import { pMap } from '../utils/pMap.js';
 import { sendError, parseApiError, handleRouteError, setupSSE } from '../utils/routeHelpers.js';
 import { ensureSprintCache } from '../services/jiraService.js';
 import {
@@ -8,7 +7,7 @@ import {
   scanBoardSprints,
   importSprintIssues,
   buildSprintPushPreview,
-  fetchUnimportedSprintIssues,
+  scanUnimportedSprints,
   pushSprintAssignments,
 } from '../services/jiraSprintService.js';
 import { config } from '../config/env.js';
@@ -206,29 +205,13 @@ export default function jiraPushSprintsRoutes({
 
         const sprintEntries = [...activeSprintMap.entries()];
 
-        // Scan each selected sprint in parallel (capped at JIRA_CONCURRENCY), then
-        // flatten in original sprint order so results match the old sequential loop.
-        const perSprintResults = await pMap(
-          sprintEntries,
-          async ([jiraSprintName, sprintId], i) => {
-            send({
-              type: 'progress',
-              message: `Scanning ${jiraSprintName}…`,
-              current: i + 1,
-              total: sprintEntries.length,
-            });
-            return fetchUnimportedSprintIssues(
-              jiraAgileRequest,
-              sprintId,
-              jiraSprintName,
-              FIELD_STORY_POINTS,
-              (jiraId) => docIndex.findByJiraId(jiraId)
-            );
-          },
-          { concurrency: config.JIRA_CONCURRENCY }
-        );
-
-        const results = perSprintResults.flat();
+        const results = await scanUnimportedSprints(sprintEntries, {
+          jiraAgileRequest,
+          fieldStoryPoints: FIELD_STORY_POINTS,
+          concurrency: config.JIRA_CONCURRENCY,
+          findByJiraId: (jiraId) => docIndex.findByJiraId(jiraId),
+          onProgress: send,
+        });
 
         send({ type: 'done', results });
         res.end();
