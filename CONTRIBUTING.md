@@ -39,7 +39,7 @@ Add an entry there — the registry controls the route prefix, display name, def
 
 1. Create `public/ts/<module>.ts` — use `import`/`export` (ES modules, no `window.*` assignments).
 2. Import the new module from `public/ts/main.ts` and wire up any event listeners there.
-3. Run `npm run build:frontend` to compile — the compiled `public/js/<module>.js` must be committed alongside the TS source (CI will fail if they drift).
+3. Run `npm run build:frontend` to compile to `public/js/<module>.js`. The compiled output is generated and git-ignored — commit only the `public/ts` source. `npm start`, `npm test`, and `npm run lint` rebuild it automatically via `pre*` scripts.
    `npm run build:bundle` additionally produces the minified, content-hashed bundle in `public/dist/` (git-ignored). When it exists, the server serves it with `Cache-Control: immutable` and rewrites `index.html` to load it; without it, the app loads the unbundled `public/js/` modules. The Dockerfile and the e2e CI job build it.
 4. Shared utilities (escaping, fetch, markdown rendering) live in `public/ts/state.ts` — import from there, don't reimplement.
 
@@ -67,4 +67,3 @@ Every PR must pass:
 - `typecheck:frontend`
 - `lint` + `format:check`
 - `test` (unit + integration)
-- `frontend-drift` — the compiled `public/js/` must match the TS source; run `npm run build:frontend` and commit the result before pushing

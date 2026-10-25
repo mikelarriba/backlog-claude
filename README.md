@@ -274,7 +274,7 @@ Blocked_By: 2026-04-30-story-a.md # comma-separated; this story must come after
 
 ## Project structure
 
-The backend is TypeScript, compiled/run on the fly via `tsx` (no separate build step for the server). The frontend is also authored in TypeScript under `public/ts/`, but the browser loads the compiled output committed to `public/js/` — run `npm run build:frontend` after editing anything in `public/ts/` (see "Adding a new frontend module" in `CONTRIBUTING.md`).
+The backend is TypeScript, compiled/run on the fly via `tsx` (no separate build step for the server). The frontend is also authored in TypeScript under `public/ts/`, but the browser loads the compiled output in `public/js/` (generated, git-ignored) — `npm start`, `npm test` and `npm run lint` build it automatically; run `npm run build:frontend` manually after editing `public/ts/` while a server is already running (see "Adding a new frontend module" in `CONTRIBUTING.md`).
 
 ```
 backlog-claude/
@@ -385,9 +385,8 @@ backlog-claude/
 │   │   └── main.ts                # Bootstrap: loadDocs, SSE listener, init (load last)
 │   │
 │   └── js/                        # Compiled output of public/ts/*.ts — generated via
-│                                   #   `npm run build:frontend`, committed alongside the TS
-│                                   #   source (the CI "frontend-drift" check fails a PR
-│                                   #   whose public/js/ doesn't match its public/ts/ source)
+│                                   #   `npm run build:frontend`, git-ignored (only vendor/
+│                                   #   is tracked)
 │
 ├── tests/
 │   ├── unit/                      # Pure-function tests — run `npm test` for the current suite
