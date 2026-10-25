@@ -19,6 +19,7 @@ import {
   DOC_KEYDOWN_ACTIONS,
   matchExecuteResults,
   paginate,
+  resultsErrorTitle,
 } from './documentation-state.js';
 import {
   buildIssueRowHtml,
@@ -679,16 +680,7 @@ function _showResultsError(err, defaultTitle = 'AI analysis failed') {
   const detailEl = document.getElementById('doc-results-error-detail');
   if (!banner) return;
   const message = err?.message || String(err);
-  let title = defaultTitle;
-  if (message.includes('JIRA_NOT_CONFIGURED') || message.includes('JIRA_API_TOKEN')) {
-    title = 'JIRA not configured';
-  } else if (message.includes('Could not fetch') && message.includes('JIRA issue')) {
-    title = 'Could not fetch selected JIRA issues';
-  } else if (message.includes('Confluence') && message.includes('not configured')) {
-    title = 'Confluence not configured';
-  } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
-    title = 'Network error';
-  }
+  const title = resultsErrorTitle(message, defaultTitle);
   if (titleEl) titleEl.textContent = title;
   if (detailEl) detailEl.textContent = message;
   banner.style.display = '';
