@@ -1,5 +1,13 @@
 // ── Refine canvas: rendering and persistence ───────────────────
-import { escHtml, TYPE_LABEL, postJSON, putJSON, fetchJSON, deleteJSON } from './state.js';
+import {
+  escHtml,
+  TYPE_LABEL,
+  postJSON,
+  putJSON,
+  fetchJSON,
+  deleteJSON,
+  canvasLinkMode,
+} from './state.js';
 import type { DocEntry, PanelState } from './state.js';
 export { computeAutoLayout } from './canvasLayout.js';
 import {
@@ -549,7 +557,7 @@ export function renderCanvas(epicFilename: string, docType: string): void {
     // Inset 4px inside the cell so the dashed cell border stays visible
     const INSET = 4;
     card.style.cssText = `position:absolute;left:${x + INSET}px;top:${y + INSET}px;width:${CELL_W - INSET * 2}px;height:${CELL_H - INSET * 2}px;z-index:2`;
-    card.setAttribute('draggable', _canvasManageLinks ? 'false' : 'true');
+    card.setAttribute('draggable', canvasLinkMode.manage ? 'false' : 'true');
     card.innerHTML = `
       <div class="canvas-card-header">
         <span class="type-badge ${child.docType || docType}">${TYPE_LABEL[child.docType || docType] || child.docType}</span>
@@ -671,7 +679,7 @@ export function renderCanvas(epicFilename: string, docType: string): void {
       handle.addEventListener('keydown', (e: Event) => {
         const ke = e as KeyboardEvent;
         if (ke.key !== 'Enter' && ke.key !== ' ') return;
-        if (!_canvasManageLinks) return;
+        if (!canvasLinkMode.manage) return;
         ke.preventDefault();
         ke.stopPropagation();
 
@@ -706,7 +714,7 @@ export function renderCanvas(epicFilename: string, docType: string): void {
     card.querySelectorAll('.canvas-handle').forEach((handle) => {
       handle.addEventListener('mousedown', (e: Event) => {
         const me = e as MouseEvent;
-        if (!_canvasManageLinks) return;
+        if (!canvasLinkMode.manage) return;
         me.stopPropagation();
         me.preventDefault();
         card.setAttribute('draggable', 'false');
@@ -732,7 +740,7 @@ export function renderCanvas(epicFilename: string, docType: string): void {
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
           rubberLine.remove();
-          if (!_canvasManageLinks) card.setAttribute('draggable', 'true');
+          if (!canvasLinkMode.manage) card.setAttribute('draggable', 'true');
           const els = document.elementsFromPoint(mu.clientX, mu.clientY);
           const tgtCard = els.find((el) => el.classList.contains('canvas-card') && el !== card) as
             HTMLElement | undefined;

@@ -19,6 +19,7 @@ import {
   deleteJSON,
   getErrorMessage,
   renderMarkdown,
+  canvasLinkMode,
 } from './state.js';
 import type { DocEntry, PanelState } from './state.js';
 import { loadDocs } from './list.js';
@@ -183,7 +184,7 @@ registerBlurActions({
 });
 
 // ── Canvas state ─ all declared as window globals in state.js ─
-// _canvasEpicFilename, _canvasDocType, _canvasManageLinks,
+// _canvasEpicFilename, _canvasDocType,
 // _canvasSelectedCards, _activePanelState
 
 // Per-epic panel state for the multi-panel feature canvas. Module-local; other modules use the accessor below.
@@ -280,7 +281,7 @@ export async function openManualRefine(filename: string, docType?: string): Prom
   if (searchInput) searchInput.value = '';
 
   // Render the correct "+ Create" buttons for this doc type
-  _canvasManageLinks = false;
+  canvasLinkMode.manage = false;
   const addBtns = document.getElementById('refine-add-btns');
   if (addBtns) {
     if (docType === 'feature') {
@@ -331,7 +332,7 @@ export function resetRefineViewState(): void {
   _activePanelState.stories = [];
   _activePanelState.parallel = [];
   _activePanelState.blocks = [];
-  _canvasManageLinks = false;
+  canvasLinkMode.manage = false;
   _canvasSelectedCards.clear();
   const canvas = document.getElementById('refine-canvas');
   if (canvas) canvas.classList.remove('manage-links-active');

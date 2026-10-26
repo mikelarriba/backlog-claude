@@ -140,6 +140,8 @@ export function toggleSwimlaneCollapsed(sectionKey: keyof SwimlaneCollapsed): bo
 }
 // Collapsed list-item filenames (module-owned; was a window global).
 export const collapsedItems = new Set<string>();
+// Refine canvas link-management mode flag (module-owned; was a window global).
+export const canvasLinkMode = { manage: false };
 let _toastTimer: ReturnType<typeof setTimeout> | null = null;
 globalThis.selectedItems = new Set<string>();
 globalThis.sprintConfig = {} as SprintConfig;
@@ -149,7 +151,6 @@ globalThis.jiraVersions = [] as string[];
 // Refine cluster state (shared across refine.js and refine-*.js)
 globalThis._canvasEpicFilename = null;
 globalThis._canvasDocType = null;
-globalThis._canvasManageLinks = false;
 globalThis._canvasSelectedCards = new Set<string>();
 globalThis._activePanelState = {
   stories: [],
