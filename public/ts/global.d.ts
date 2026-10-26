@@ -25,7 +25,6 @@ declare global {
   var jiraVersions: string[];
   var _canvasEpicFilename: string | null;
   var _canvasDocType: string | null;
-  var _canvasManageLinks: boolean;
   var _canvasSelectedCards: Set<string>;
   var _activePanelState: PanelState;
 }

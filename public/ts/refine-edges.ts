@@ -1,5 +1,12 @@
 // ── Refine edge/link popups and manage-links mode ─────────────
-import { showJiraToast, escHtml, getErrorMessage, postJSON, fetchJSON } from './state.js';
+import {
+  showJiraToast,
+  escHtml,
+  getErrorMessage,
+  postJSON,
+  fetchJSON,
+  canvasLinkMode,
+} from './state.js';
 import { loadDocs } from './list.js';
 import { rebuildCanvasEdges, renderCanvas, _endCanvasLinkMode } from './refine-canvas.js';
 import { registerActions } from './actions.js';
@@ -163,7 +170,7 @@ export async function _changeCanvasLinkType(
 }
 
 export function _restoreManageLinksState(): void {
-  if (!_canvasManageLinks) return;
+  if (!canvasLinkMode.manage) return;
   const btn = document.getElementById('manage-links-btn');
   if (btn) btn.classList.add('active');
   const canvas = document.getElementById('refine-canvas');
@@ -173,19 +180,19 @@ export function _restoreManageLinksState(): void {
 
 // ── Manage Links mode ──────────────────────────────────────────
 export function toggleManageLinks(): void {
-  _canvasManageLinks = !_canvasManageLinks;
+  canvasLinkMode.manage = !canvasLinkMode.manage;
   // Leaving Manage Links mode drops the (now hidden/unfocusable) handles
   // from the tab order — clear any in-progress keyboard link mode so it
   // can't linger as stale state (#486 phase 4/N).
-  if (!_canvasManageLinks) _endCanvasLinkMode();
+  if (!canvasLinkMode.manage) _endCanvasLinkMode();
   const btn = document.getElementById('manage-links-btn');
-  if (btn) btn.classList.toggle('active', _canvasManageLinks);
+  if (btn) btn.classList.toggle('active', canvasLinkMode.manage);
   // CSS controls handle visibility via this class
   const canvas = document.getElementById('refine-canvas');
-  if (canvas) canvas.classList.toggle('manage-links-active', _canvasManageLinks);
+  if (canvas) canvas.classList.toggle('manage-links-active', canvasLinkMode.manage);
   // Disable card drag while in manage-links mode so handles don't compete with HTML5 drag
   document.querySelectorAll('.canvas-card').forEach((c) => {
-    c.setAttribute('draggable', _canvasManageLinks ? 'false' : 'true');
+    c.setAttribute('draggable', canvasLinkMode.manage ? 'false' : 'true');
   });
 }
 
