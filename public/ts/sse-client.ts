@@ -2,7 +2,7 @@
 // Applies granular in-memory store updates from push events and falls
 // back to a debounced full reload for events that don't carry a doc
 // payload. Reconnects with exponential backoff on connection loss.
-import { debounce } from './state.js';
+import { debounce, splitThresholdState } from './state.js';
 import type { DocEntry } from './state.js';
 import { upsertDoc, removeDoc, setPiSettings } from './store.js';
 import { loadDocs } from './list.js';
@@ -76,9 +76,9 @@ export function _handleSSEMessage(payload: SSEPayload): void {
     refreshRoadmapView();
   }
   if (payload.type === 'split_threshold_updated') {
-    splitThreshold = payload.splitThreshold ?? splitThreshold;
+    splitThresholdState.value = payload.splitThreshold ?? splitThresholdState.value;
     const el = document.getElementById('split-threshold-input') as HTMLInputElement | null;
-    if (el) el.value = String(splitThreshold);
+    if (el) el.value = String(splitThresholdState.value);
     refreshRoadmapView();
   }
   if (

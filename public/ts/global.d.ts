@@ -20,7 +20,6 @@ declare global {
   var currentDocType: string | null;
   var selectedItems: Set<string>;
   var sprintConfig: SprintConfig;
-  var splitThreshold: number;
   var piSettings: PISettings;
   var jiraVersions: string[];
   var _canvasEpicFilename: string | null;

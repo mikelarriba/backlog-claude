@@ -16,7 +16,6 @@ const FRONTEND_GLOBALS = {
   currentDocType: 'writable',
   jiraVersions: 'writable',
   selectedItems: 'writable',
-  splitThreshold: 'writable',
   // Internal UI state variables
   _activePanelState: 'writable',
   _canvasDocType: 'writable',
