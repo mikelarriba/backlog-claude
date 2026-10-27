@@ -7,6 +7,7 @@ import {
   showJiraToast,
   openModal,
   closeModal,
+  splitThresholdState,
 } from './state.js';
 import { refreshRoadmapView } from './roadmap.js';
 import { showJiraSelectModal, performJiraPull } from './jira-import.js';
@@ -563,9 +564,9 @@ export async function loadAllSprintConfigs(): Promise<void> {
   ]);
 
   if (thresholdRes) {
-    splitThreshold = thresholdRes.splitThreshold ?? 8;
+    splitThresholdState.value = thresholdRes.splitThreshold ?? 8;
     const el = document.getElementById('split-threshold-input') as HTMLInputElement | null;
-    if (el) el.value = String(splitThreshold);
+    if (el) el.value = String(splitThresholdState.value);
   }
 }
 
@@ -574,7 +575,7 @@ export async function saveSplitThreshold(value: string): Promise<void> {
   if (!val || val < 1) return;
   try {
     await putJSON('/api/settings/pi/split-threshold', { splitThreshold: val });
-    splitThreshold = val;
+    splitThresholdState.value = val;
     refreshRoadmapView();
     setPiConfigStatus('success', `Split threshold set to ${val} SP`);
   } catch (e) {

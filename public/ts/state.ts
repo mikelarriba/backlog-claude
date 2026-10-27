@@ -140,12 +140,13 @@ export function toggleSwimlaneCollapsed(sectionKey: keyof SwimlaneCollapsed): bo
 }
 // Collapsed list-item filenames (module-owned; was a window global).
 export const collapsedItems = new Set<string>();
+// PI split threshold in story points (module-owned; was a window global).
+export const splitThresholdState = { value: 8 };
 // Refine canvas link-management mode flag (module-owned; was a window global).
 export const canvasLinkMode = { manage: false };
 let _toastTimer: ReturnType<typeof setTimeout> | null = null;
 globalThis.selectedItems = new Set<string>();
 globalThis.sprintConfig = {} as SprintConfig;
-globalThis.splitThreshold = 8;
 // List-level state (moved here from list.js so all state is centralised)
 globalThis.jiraVersions = [] as string[];
 // Refine cluster state (shared across refine.js and refine-*.js)

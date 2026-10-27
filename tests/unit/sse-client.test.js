@@ -29,14 +29,14 @@ import '../helpers/domGlobals.js';
 if (typeof globalThis.document === 'undefined') {
   globalThis.document = { getElementById: () => null, addEventListener: () => {} };
 }
-// Normally set by state.js's own module-load side effect (`globalThis.splitThreshold = 8`),
-// which doesn't run here since state.js is mocked below.
-globalThis.splitThreshold = 8;
+// state.js is mocked below, so the module-owned splitThresholdState is stubbed here.
+const splitThresholdState = { value: 8 };
 
 const calls = [];
 
 mock.module('../../public/js/state.js', {
   namedExports: {
+    splitThresholdState,
     debounce:
       (fn) =>
       (...args) =>
@@ -76,12 +76,12 @@ mock.module('../../public/js/skills.js', {
 const { _handleSSEMessage } = await import('../../public/js/sse-client.js');
 
 // concurrency: false — subtests share the module-level `calls` array and the
-// mocked modules' state (e.g. globalThis.splitThreshold), so they must run
+// mocked modules' state (e.g. splitThresholdState.value), so they must run
 // one at a time rather than Node's default concurrent subtest scheduling.
 describe('_handleSSEMessage()', { concurrency: false }, () => {
   beforeEach(() => {
     calls.length = 0;
-    globalThis.splitThreshold = 8;
+    splitThresholdState.value = 8;
   });
 
   test('a payload carrying a full doc upserts it and does nothing else', () => {
@@ -170,16 +170,16 @@ describe('_handleSSEMessage()', { concurrency: false }, () => {
     assert.deepEqual(calls.slice(), [['loadDocs'], ['refreshRoadmapView']]);
   });
 
-  test('split_threshold_updated refreshes the roadmap and updates the global threshold', () => {
+  test('split_threshold_updated refreshes the roadmap and updates the threshold state', () => {
     _handleSSEMessage({ type: 'split_threshold_updated', splitThreshold: 13 });
-    assert.equal(globalThis.splitThreshold, 13);
+    assert.equal(splitThresholdState.value, 13);
     assert.deepEqual(calls.slice(), [['refreshRoadmapView']]);
   });
 
   test('split_threshold_updated keeps the existing threshold when none is sent', () => {
-    globalThis.splitThreshold = 8;
+    splitThresholdState.value = 8;
     _handleSSEMessage({ type: 'split_threshold_updated' });
-    assert.equal(globalThis.splitThreshold, 8);
+    assert.equal(splitThresholdState.value, 8);
   });
 
   test('split_threshold_updated syncs a visible input field when present', () => {
