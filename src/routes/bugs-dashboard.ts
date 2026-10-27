@@ -6,11 +6,15 @@ import { validateBody } from '../utils/validateMiddleware.js';
 import { BugAnalyzeSchema } from '../schemas/bugs-dashboard.js';
 import type { JiraRouteContext } from '../types.js';
 import {
+  assembleDashboard,
   buildAnalysisPrompt,
-  buildDashboardData,
-  createDashboardCaches,
+  createDashboardCache,
   fetchBugs,
+  loadHistory,
   loadLatestReport,
+  recordTodaySnapshot,
+  saveHistory,
+  seedSnapshots,
   saveReport,
   selectCachedBugs,
 } from '../services/bugsDashboardService.js';
@@ -30,9 +34,13 @@ export default function bugsDashboardRoutes({
   logError,
 }: JiraRouteContext) {
   const router = Router();
-  const caches = createDashboardCaches();
+  const cache = createDashboardCache();
   // Sibling of docs/bugs/ — e.g. docs/bug-analysis/.
   const ANALYSIS_DIR = path.join(path.dirname(BUGS_DIR), 'bug-analysis');
+  // Persisted daily snapshot history backing the chart. Lives under
+  // bug-analysis/ (derived data) — NOT docs/bugs/, whose *.md files are indexed
+  // as bug documents, which would turn this file into a phantom bug.
+  const HISTORY_FILE = path.join(ANALYSIS_DIR, 'history.md');
 
   // GET /api/bugs/dashboard — SSE streaming with progress events
   router.get('/api/bugs/dashboard', async (_req, res) => {
@@ -51,8 +59,6 @@ export default function bugsDashboardRoutes({
       }
 
       const force = _req.query.force === 'true';
-      const includeClosed = _req.query.includeClosed === 'true';
-      const cache = includeClosed ? caches.all : caches.open;
 
       const cached = force ? null : cache.get();
       if (cached) {
@@ -62,11 +68,37 @@ export default function bugsDashboardRoutes({
       }
 
       const now = Date.now();
-      const fetchedBugs = await fetchBugs(
-        includeClosed,
-        { project: JIRA_PROJECT, label: JIRA_LABEL, jiraRequest, logInfo },
-        (p) => send({ type: 'progress', ...p })
-      );
+
+      // The chart is driven by persisted daily snapshots. On the first-ever load
+      // (empty history) we seed ~12 weeks from a one-off changelog replay, which
+      // is the only path that needs the (heavier) changelog expansion.
+      const history = await loadHistory(HISTORY_FILE);
+      const needSeed = history.length === 0;
+
+      const deps = { project: JIRA_PROJECT, label: JIRA_LABEL, jiraRequest, logInfo };
+      const onProg = (p: Parameters<typeof send>[0]) =>
+        send({ type: 'progress', ...(p as object) });
+
+      // Always fetch the full set (closed included) so counts and the table are
+      // complete; the client filters the table by the "Include closed" toggle.
+      // Seeding needs the changelog; if that heavier fetch fails (e.g. JIRA
+      // timeout under load), fall back to a lightweight fetch and skip seeding —
+      // the dashboard still renders today's data, and the seed is retried on the
+      // next load (history stays empty because we don't persist a seedless run).
+      let fetchedBugs: unknown[];
+      let seeded: Awaited<ReturnType<typeof loadHistory>>;
+      let persist = true;
+      try {
+        fetchedBugs = await fetchBugs(true, deps, onProg, needSeed);
+        seeded = needSeed ? seedSnapshots(fetchedBugs) : history;
+      } catch (seedErr) {
+        if (!needSeed) throw seedErr;
+        logError('GET /api/bugs/dashboard (seed)', parseApiError(seedErr).message);
+        send({ type: 'progress', stage: 'fetching', message: 'Retrying without history…' });
+        fetchedBugs = await fetchBugs(true, deps, onProg, false);
+        seeded = [];
+        persist = false; // don't lock in an empty history; retry seed next load
+      }
 
       send({
         type: 'progress',
@@ -76,7 +108,18 @@ export default function bugsDashboardRoutes({
         total: fetchedBugs.length,
       });
 
-      const data = buildDashboardData(fetchedBugs);
+      // Record/refresh today's row; persist unless the seed failed this run.
+      const updatedHistory = recordTodaySnapshot(seeded, fetchedBugs);
+      if (persist) {
+        try {
+          await saveHistory(HISTORY_FILE, updatedHistory);
+        } catch (histErr) {
+          // A persistence failure must not break the dashboard response.
+          logError('GET /api/bugs/dashboard (history)', parseApiError(histErr).message);
+        }
+      }
+
+      const data = assembleDashboard(fetchedBugs, updatedHistory);
       cache.set(data, now);
 
       send({ type: 'complete', data });
@@ -103,7 +146,7 @@ export default function bugsDashboardRoutes({
 
       // Same freshness check the GET route uses for cache reuse — without it this
       // route could silently analyze arbitrarily stale data (#540).
-      const selected = selectCachedBugs(caches, bugKeys);
+      const selected = selectCachedBugs(cache, bugKeys);
       if (!selected) {
         return sendError(
           res,

@@ -1361,7 +1361,16 @@
             </div>
             <!-- Chart -->
             <div class="bugs-chart-wrap" id="bugs-chart-wrap">
-              <canvas id="bugs-chart"></canvas>
+              <div class="bugs-chart-mode" role="tablist" aria-label="Chart mode">
+                <button class="active" data-action="setBugsChartMode" data-chart-mode="status">
+                  Status
+                </button>
+                <button data-action="setBugsChartMode" data-chart-mode="priority">Priority</button>
+                <button data-action="setBugsChartMode" data-chart-mode="sprint">Sprint</button>
+              </div>
+              <div class="bugs-chart-canvas-wrap">
+                <canvas id="bugs-chart"></canvas>
+              </div>
             </div>
             <div class="bugs-workspace" id="bugs-workspace">
               <div class="bugs-workspace-left">

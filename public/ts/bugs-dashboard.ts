@@ -28,12 +28,21 @@ interface BugsTimeSeriesPoint {
   [key: string]: unknown;
 }
 
+interface BugsSprintCount {
+  sprint: string;
+  count: number;
+}
+
 interface BugsDashboardData {
   bugs?: BugEntry[];
   stats?: BugsStats;
   timeSeries?: BugsTimeSeriesPoint[];
+  prioritySeries?: BugsTimeSeriesPoint[];
+  sprints?: BugsSprintCount[];
   cachedAt?: string;
 }
+
+type ChartMode = 'status' | 'priority' | 'sprint';
 
 interface ProgressChunk {
   type: 'progress';
@@ -61,6 +70,12 @@ let _filteredBugs: BugEntry[] = [];
 const _selectedKeys = new Set<string>();
 let _includeClosed = false;
 let _envFilter: 'all' | 'production' | 'testing' = 'all';
+// Chart mode (Status / Priority / Sprint) plus the three datasets backing them,
+// kept so the toggle re-renders instantly without re-fetching.
+let _chartMode: ChartMode = 'status';
+let _timeSeries: BugsTimeSeriesPoint[] = [];
+let _prioritySeries: BugsTimeSeriesPoint[] = [];
+let _sprints: BugsSprintCount[] = [];
 // Whether the right-hand analysis panel is expanded, and whether it holds a
 // fresh analysis from this session (vs. a placeholder / last-saved report).
 let _analysisOpen = false;
@@ -83,9 +98,10 @@ export async function loadBugsDashboard(force = false): Promise<void> {
   }
 
   try {
+    // The server always returns the full bug set (closed included) so the trend
+    // chart has real history; "Include closed" is a client-side table filter.
     const params = new URLSearchParams();
     if (force) params.set('force', 'true');
-    if (_includeClosed) params.set('includeClosed', 'true');
     const qs = params.toString();
     const url = `/api/bugs/dashboard${qs ? `?${qs}` : ''}`;
     // Raw fetch: this streams SSE progress events, not a single JSON response —
@@ -129,8 +145,12 @@ export async function loadBugsDashboard(force = false): Promise<void> {
     _selectedKeys.clear();
     filterBugsTable();
 
+    _timeSeries = data.timeSeries || [];
+    _prioritySeries = data.prioritySeries || [];
+    _sprints = data.sprints || [];
+
     renderBugsStats(data.stats || {});
-    renderBugsChart(data.timeSeries || []);
+    renderBugsChart();
 
     if (cachedAtEl && data.cachedAt) {
       const d = new Date(data.cachedAt);
@@ -165,75 +185,133 @@ export function renderBugsStats(stats: BugsStats): void {
   set('bugs-stat-avg', stats.avgResolutionDays != null ? `${stats.avgResolutionDays}d` : '—');
 }
 
-export function renderBugsChart(timeSeries: BugsTimeSeriesPoint[]): void {
-  if (!timeSeries?.length) return;
+// Severity colour ramp for the priority series, most-severe → least.
+const PRIORITY_SERIES: Array<{ key: string; color: string }> = [
+  { key: 'Blocker', color: 'rgba(127,29,29,1)' },
+  { key: 'Critical', color: 'rgba(220,38,38,1)' },
+  { key: 'Major', color: 'rgba(245,158,11,1)' },
+  { key: 'Minor', color: 'rgba(59,130,246,1)' },
+  { key: 'Trivial', color: 'rgba(107,114,128,1)' },
+];
+
+/** Renders the chart for the current mode from the already-loaded datasets. */
+export function renderBugsChart(): void {
   const canvas = document.getElementById('bugs-chart') as HTMLCanvasElement | null;
-
-  const labels = timeSeries.map((p) => p.week);
-  const isProjected = timeSeries.map((p) => !!p.projected);
-  const firstProjectedIdx = isProjected.findIndex(Boolean);
-
-  function makeDataset(
-    label: string,
-    key: string,
-    color: string,
-    fill: boolean
-  ): Record<string, unknown> {
-    return {
-      label,
-      data: timeSeries.map((p) => p[key] ?? 0),
-      backgroundColor: color.replace('1)', '0.25)'),
-      borderColor: color,
-      borderWidth: 2,
-      fill,
-      tension: 0.3,
-      segment: {
-        borderDash: (ctx: { p0DataIndex: number }) =>
-          firstProjectedIdx > 0 && ctx.p0DataIndex >= firstProjectedIdx - 1 ? [6, 4] : [],
-      },
-      pointRadius: 0,
-      pointHoverRadius: 4,
-    };
+  if (_chartMode === 'sprint') {
+    _chart = renderSprintChart(canvas, _sprints);
+  } else if (_chartMode === 'priority') {
+    _chart = renderSeriesChart(canvas, _prioritySeries, PRIORITY_SERIES);
+  } else {
+    // Status: Closed is intentionally omitted — it dwarfs the active series
+    // (~20×) and flattens the trend. It still counts in the Total Bugs tile and
+    // the table's "Include closed" toggle.
+    _chart = renderSeriesChart(canvas, _timeSeries, [
+      { key: 'Open', color: 'rgba(220,38,38,1)' },
+      { key: 'In Progress', color: 'rgba(245,158,11,1)' },
+      { key: 'Resolved', color: 'rgba(16,185,129,1)' },
+    ]);
   }
+}
 
-  _chart = updateChart(canvas, _chart, () => ({
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        makeDataset('Open', 'Open', 'rgba(220,38,38,1)', true),
-        makeDataset('In Progress', 'In Progress', 'rgba(245,158,11,1)', true),
-        makeDataset('Resolved', 'Resolved', 'rgba(16,185,129,1)', true),
-        makeDataset('Closed', 'Closed', 'rgba(107,114,128,1)', true),
-      ],
+/** Stacked time-series area chart (Status and Priority modes share this). */
+function renderSeriesChart(
+  canvas: HTMLCanvasElement | null,
+  series: BugsTimeSeriesPoint[],
+  cols: Array<{ key: string; color: string }>
+): ChartInstance | null {
+  const labels = series.map((p) => p.week);
+  const firstProjectedIdx = series.map((p) => !!p.projected).findIndex(Boolean);
+
+  const datasets = cols.map(({ key, color }) => ({
+    label: key,
+    data: series.map((p) => (p[key] as number) ?? 0),
+    backgroundColor: color.replace('1)', '0.25)'),
+    borderColor: color,
+    borderWidth: 2,
+    fill: true,
+    tension: 0.3,
+    segment: {
+      borderDash: (ctx: { p0DataIndex: number }) =>
+        firstProjectedIdx > 0 && ctx.p0DataIndex >= firstProjectedIdx - 1 ? [6, 4] : [],
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: { boxWidth: 12, font: { size: 11 } },
-        },
-        tooltip: { mode: 'index' },
-      },
-      scales: {
-        x: {
-          ticks: {
-            font: { size: 10 },
-            maxTicksLimit: 20,
-          },
-          grid: { display: false },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: { font: { size: 10 }, stepSize: 1 },
-          stacked: true,
-        },
-      },
-    },
+    pointRadius: 0,
+    pointHoverRadius: 4,
   }));
+
+  return updateChart(canvas, _chart, () =>
+    series.length
+      ? {
+          type: 'line',
+          data: { labels, datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+              tooltip: { mode: 'index' },
+            },
+            scales: {
+              x: { ticks: { font: { size: 10 }, maxTicksLimit: 20 }, grid: { display: false } },
+              y: { beginAtZero: true, ticks: { font: { size: 10 }, stepSize: 1 }, stacked: true },
+            },
+          },
+        }
+      : null
+  );
+}
+
+/** Bar chart of current bug count per sprint (Sprint mode). */
+function renderSprintChart(
+  canvas: HTMLCanvasElement | null,
+  sprints: BugsSprintCount[]
+): ChartInstance | null {
+  return updateChart(canvas, _chart, () =>
+    sprints.length
+      ? {
+          type: 'bar',
+          data: {
+            labels: sprints.map((s) => s.sprint.replace(/^MIDAS /, '')),
+            datasets: [
+              {
+                label: 'Bugs',
+                data: sprints.map((s) => s.count),
+                backgroundColor: 'rgba(59,130,246,0.6)',
+                borderColor: 'rgba(59,130,246,1)',
+                borderWidth: 1,
+                borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: (items: Array<{ dataIndex: number }>) =>
+                    sprints[items[0]?.dataIndex]?.sprint ?? '',
+                },
+              },
+            },
+            scales: {
+              x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+              y: { beginAtZero: true, ticks: { font: { size: 10 }, precision: 0 } },
+            },
+          },
+        }
+      : null
+  );
+}
+
+/** Switch chart mode and re-render from the loaded data (no refetch). */
+export function setBugsChartMode(mode: ChartMode): void {
+  _chartMode = mode;
+  document.querySelectorAll('.bugs-chart-mode [data-chart-mode]').forEach((btn) => {
+    btn.classList.toggle('active', (btn as HTMLElement).dataset.chartMode === mode);
+  });
+  renderBugsChart();
 }
 
 export function renderBugsTable(bugs: BugEntry[]): void {
@@ -309,7 +387,9 @@ export function filterBugsTable(): void {
     const statusOk = status === 'all' || (b.status || '').toLowerCase() === status.toLowerCase();
     const envOk =
       _envFilter === 'all' || (b.isProduction ? 'production' : 'testing') === _envFilter;
-    return priorityOk && statusOk && envOk;
+    // Hide Done-category bugs (Resolved/Closed) unless "Include closed" is on.
+    const closedOk = _includeClosed || (b.status !== 'Resolved' && b.status !== 'Closed');
+    return priorityOk && statusOk && envOk && closedOk;
   });
 
   renderBugsTable(_filteredBugs);
@@ -542,8 +622,9 @@ function _formatSavedMeta(savedAt: string, bugCount?: number): string {
 }
 
 export function toggleClosedBugs(checked: boolean): void {
+  // All bugs are already loaded — toggling closed just re-filters the table.
   _includeClosed = checked;
-  loadBugsDashboard(true);
+  filterBugsTable();
 }
 
 // Typed click-action registration (issue #461 migration — see UPGRADE_ACTIONS
@@ -557,6 +638,7 @@ export const BUGS_DASHBOARD_ACTIONS = {
   analyze: 'analyzeBugs',
   filterEnv: 'filterBugsEnv',
   toggleAnalysis: 'toggleBugsAnalysis',
+  chartMode: 'setBugsChartMode',
 };
 
 registerActions({
@@ -571,6 +653,9 @@ registerActions({
   },
   [BUGS_DASHBOARD_ACTIONS.toggleAnalysis]: () => {
     toggleBugsAnalysis();
+  },
+  [BUGS_DASHBOARD_ACTIONS.chartMode]: (el) => {
+    setBugsChartMode((el.dataset.chartMode as ChartMode) ?? 'status');
   },
 });
 
