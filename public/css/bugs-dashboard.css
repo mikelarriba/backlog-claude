@@ -72,13 +72,52 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
-  min-height: 300px;
-  height: clamp(300px, 25vh, 440px);
+  min-height: 340px;
+  height: clamp(340px, 28vh, 480px);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Fills the space under the mode toggle; min-height:0 lets Chart.js size down. */
+.bugs-chart-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
 }
 
 .bugs-chart-wrap canvas {
   width: 100% !important;
+}
+
+/* Status / Priority / Sprint segmented control */
+.bugs-chart-mode {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.bugs-chart-mode button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.bugs-chart-mode button:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.bugs-chart-mode button.active {
+  background: var(--accent);
+  color: #fff;
 }
 
 /* Filter bar */

@@ -87,14 +87,14 @@ describe('statusAtDate()', () => {
 });
 
 describe('buildTimeSeries()', () => {
-  test('returns 13 historical weeks followed by 52 projected weeks', () => {
+  test('returns 13 historical weeks followed by 12 projected weeks', () => {
     const points = buildTimeSeries([]);
-    assert.equal(points.length, 65);
+    assert.equal(points.length, 25);
     assert.ok(points.slice(0, 13).every((p) => p.projected === false));
     assert.ok(points.slice(13).every((p) => p.projected === true));
   });
 
-  test('projected weeks carry forward the last historical Open/In Progress counts', () => {
+  test('projected weeks carry forward the last historical snapshot of every series', () => {
     // Created long in the past with no changelog, so this bug reads as
     // currently Open at every historical week regardless of when tests run.
     const bug = {
