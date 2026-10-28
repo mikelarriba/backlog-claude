@@ -144,6 +144,8 @@ export const collapsedItems = new Set<string>();
 export const splitThresholdState = { value: 8 };
 // Refine canvas link-management mode flag (module-owned; was a window global).
 export const canvasLinkMode = { manage: false };
+// Cards selected on the refine canvas (module-owned; was a window global).
+export const canvasSelectedCards = new Set<string>();
 let _toastTimer: ReturnType<typeof setTimeout> | null = null;
 globalThis.selectedItems = new Set<string>();
 globalThis.sprintConfig = {} as SprintConfig;
@@ -152,7 +154,6 @@ globalThis.jiraVersions = [] as string[];
 // Refine cluster state (shared across refine.js and refine-*.js)
 globalThis._canvasEpicFilename = null;
 globalThis._canvasDocType = null;
-globalThis._canvasSelectedCards = new Set<string>();
 globalThis._activePanelState = {
   stories: [],
   layout: {},
