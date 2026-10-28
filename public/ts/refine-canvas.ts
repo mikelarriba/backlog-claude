@@ -7,6 +7,7 @@ import {
   fetchJSON,
   deleteJSON,
   canvasLinkMode,
+  canvasSelectedCards,
 } from './state.js';
 import type { DocEntry, PanelState } from './state.js';
 export { computeAutoLayout } from './canvasLayout.js';
@@ -276,7 +277,7 @@ export function _renderFpCanvas(
 
 // ── Graph construction ─────────────────────────────────────────
 export async function buildCanvasGraph(filename: string, docType: string): Promise<void> {
-  _canvasSelectedCards.clear();
+  canvasSelectedCards.clear();
   let children: DocEntry[] = [];
 
   try {
@@ -610,17 +611,17 @@ export function renderCanvas(epicFilename: string, docType: string): void {
       if ((e.target as HTMLElement).classList.contains('canvas-move-handle')) return;
       if (e.metaKey || e.ctrlKey) {
         // Cmd/Ctrl+Click: toggle multi-select without opening panel
-        if (_canvasSelectedCards.has(child.filename)) {
-          _canvasSelectedCards.delete(child.filename);
+        if (canvasSelectedCards.has(child.filename)) {
+          canvasSelectedCards.delete(child.filename);
           card.classList.remove('canvas-multi-selected');
         } else {
-          _canvasSelectedCards.add(child.filename);
+          canvasSelectedCards.add(child.filename);
           card.classList.add('canvas-multi-selected');
         }
         return;
       }
       // Plain click: clear multi-select, select single card, open panel
-      _canvasSelectedCards.clear();
+      canvasSelectedCards.clear();
       document
         .querySelectorAll('.canvas-card.canvas-multi-selected')
         .forEach((el) => el.classList.remove('canvas-multi-selected'));
@@ -635,15 +636,15 @@ export function renderCanvas(epicFilename: string, docType: string): void {
     card.addEventListener('contextmenu', (e: MouseEvent) => {
       e.preventDefault();
       // If right-clicking a card not in multi-selection, reset to single
-      if (_canvasSelectedCards.size > 0 && !_canvasSelectedCards.has(child.filename)) {
-        _canvasSelectedCards.clear();
+      if (canvasSelectedCards.size > 0 && !canvasSelectedCards.has(child.filename)) {
+        canvasSelectedCards.clear();
         document
           .querySelectorAll('.canvas-card.canvas-multi-selected')
           .forEach((el) => el.classList.remove('canvas-multi-selected'));
       }
       // If no multi-selection, treat as single-card context menu
-      if (_canvasSelectedCards.size <= 1) {
-        _canvasSelectedCards.clear();
+      if (canvasSelectedCards.size <= 1) {
+        canvasSelectedCards.clear();
         document
           .querySelectorAll('.canvas-card.canvas-multi-selected')
           .forEach((el) => el.classList.remove('canvas-multi-selected'));

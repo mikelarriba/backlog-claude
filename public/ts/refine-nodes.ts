@@ -8,6 +8,7 @@ import {
   deleteJSON,
   getErrorMessage,
   type DocEntry,
+  canvasSelectedCards,
 } from './state.js';
 import { loadDocs } from './list.js';
 import { upsertDoc, removeDoc } from './store.js';
@@ -463,7 +464,7 @@ export function _showMultiCardContextMenu(
   docType: string
 ): void {
   _closeLinkPopup();
-  const count = _canvasSelectedCards.size;
+  const count = canvasSelectedCards.size;
   const popup = document.createElement('div');
   popup.className = 'canvas-link-popup';
   positionPopup(popup, x, y);
@@ -480,27 +481,27 @@ export function _showMultiCardContextMenu(
   popup
     .querySelector('#_ctx-m-left')
     ?.addEventListener('click', () =>
-      _moveCardsToEdge([..._canvasSelectedCards], 'left', epicFilename, docType)
+      _moveCardsToEdge([...canvasSelectedCards], 'left', epicFilename, docType)
     );
   popup
     .querySelector('#_ctx-m-right')
     ?.addEventListener('click', () =>
-      _moveCardsToEdge([..._canvasSelectedCards], 'right', epicFilename, docType)
+      _moveCardsToEdge([...canvasSelectedCards], 'right', epicFilename, docType)
     );
   popup
     .querySelector('#_ctx-m-top')
     ?.addEventListener('click', () =>
-      _moveCardsToEdge([..._canvasSelectedCards], 'top', epicFilename, docType)
+      _moveCardsToEdge([...canvasSelectedCards], 'top', epicFilename, docType)
     );
   popup
     .querySelector('#_ctx-m-bottom')
     ?.addEventListener('click', () =>
-      _moveCardsToEdge([..._canvasSelectedCards], 'bottom', epicFilename, docType)
+      _moveCardsToEdge([...canvasSelectedCards], 'bottom', epicFilename, docType)
     );
   popup.querySelector('#_ctx-m-delete')?.addEventListener('click', async () => {
     _closeLinkPopup();
     if (!confirm(`Delete ${count} selected items? This cannot be undone.`)) return;
-    for (const fn of _canvasSelectedCards) {
+    for (const fn of canvasSelectedCards) {
       const doc = allDocs.find((d) => d.filename === fn);
       if (!doc) continue;
       await deleteJSON(`/api/doc/${doc.docType}/${encodeURIComponent(fn)}`);
@@ -508,7 +509,7 @@ export function _showMultiCardContextMenu(
       // store directly instead of refetching the whole doc list.
       removeDoc(fn);
     }
-    _canvasSelectedCards.clear();
+    canvasSelectedCards.clear();
     await buildCanvasGraph(epicFilename, docType);
   });
 
@@ -529,7 +530,7 @@ export async function _moveCardsToEdge(
     if (!cur) continue;
     layout[fn] = computeEdgeMovePosition(direction, cur, positions);
   }
-  _canvasSelectedCards.clear();
+  canvasSelectedCards.clear();
   await saveCanvasLayout(_activePanelState, epicFilename);
   renderCanvas(epicFilename, docType);
 }

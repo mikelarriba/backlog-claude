@@ -20,6 +20,7 @@ import {
   getErrorMessage,
   renderMarkdown,
   canvasLinkMode,
+  canvasSelectedCards,
 } from './state.js';
 import type { DocEntry, PanelState } from './state.js';
 import { loadDocs } from './list.js';
@@ -185,7 +186,7 @@ registerBlurActions({
 
 // ── Canvas state ─ all declared as window globals in state.js ─
 // _canvasEpicFilename, _canvasDocType,
-// _canvasSelectedCards, _activePanelState
+// _activePanelState
 
 // Per-epic panel state for the multi-panel feature canvas. Module-local; other modules use the accessor below.
 const _panelStates = new Map<string, PanelState>();
@@ -305,8 +306,8 @@ export async function openManualRefine(filename: string, docType?: string): Prom
 }
 
 function _onCanvasKeydown(e: KeyboardEvent): void {
-  if (e.key === 'Escape' && _canvasSelectedCards.size > 0) {
-    _canvasSelectedCards.clear();
+  if (e.key === 'Escape' && canvasSelectedCards.size > 0) {
+    canvasSelectedCards.clear();
     document
       .querySelectorAll('.canvas-card.canvas-multi-selected')
       .forEach((el) => el.classList.remove('canvas-multi-selected'));
@@ -333,7 +334,7 @@ export function resetRefineViewState(): void {
   _activePanelState.parallel = [];
   _activePanelState.blocks = [];
   canvasLinkMode.manage = false;
-  _canvasSelectedCards.clear();
+  canvasSelectedCards.clear();
   const canvas = document.getElementById('refine-canvas');
   if (canvas) canvas.classList.remove('manage-links-active');
 }
