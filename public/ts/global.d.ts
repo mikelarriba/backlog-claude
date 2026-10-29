@@ -21,7 +21,6 @@ declare global {
   var selectedItems: Set<string>;
   var sprintConfig: SprintConfig;
   var piSettings: PISettings;
-  var jiraVersions: string[];
   var _canvasEpicFilename: string | null;
   var _canvasDocType: string | null;
   var _activePanelState: PanelState;

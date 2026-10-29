@@ -1,5 +1,13 @@
 // ── Doc list coordinator ───────────────────────────────────────
-import { fetchJSON, postJSON, showJiraToast, TYPE_LABEL, openModal, closeModal } from './state.js';
+import {
+  fetchJSON,
+  postJSON,
+  showJiraToast,
+  TYPE_LABEL,
+  openModal,
+  closeModal,
+  jiraVersionsState,
+} from './state.js';
 import type { DocEntry, PISettings } from './state.js';
 import { openDoc } from './detail.js';
 import { getSelectedDocs, closeContextMenu } from './list-filters.js';
@@ -72,9 +80,9 @@ export async function loadPiSettings(): Promise<void> {
 export async function loadJiraVersions(): Promise<void> {
   try {
     const data = (await fetchJSON('/api/jira/versions')) as { versions?: string[] };
-    jiraVersions = data.versions || [];
+    jiraVersionsState.list = data.versions || [];
   } catch {
-    jiraVersions = [];
+    jiraVersionsState.list = [];
   }
 }
 
