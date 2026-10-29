@@ -79,7 +79,13 @@ const record = (name) =>
     calls.push([name, ...args]);
   };
 
-const mainSrc = fs.readFileSync(new URL('../../public/js/main.js', import.meta.url), 'utf-8');
+// main.js delegates to main-actions.js (action registry) and view-router.js (navigation/FAB);
+// those two stay real, so the stubs cover everything the three files import.
+const mainSrc = ['main.js', 'main-actions.js', 'view-router.js']
+  .map((f) => fs.readFileSync(new URL(`../../public/js/${f}`, import.meta.url), 'utf-8'))
+  .join('\n');
+const realSpecs = new Set(['./actions.js', './view-router.js', './main-actions.js']);
+const mocked = new Set();
 // Names any module in public/js imports from each spec: transitively loaded real modules
 // (via actions.js) need these exports to exist on the stubs too.
 const importedNames = new Map();
@@ -96,11 +102,14 @@ for (const f of fs.readdirSync(jsDir).filter((f) => f.endsWith('.js'))) {
     importedNames.set(spec, set);
   }
 }
-for (const [, names, spec] of mainSrc.matchAll(importRe)) {
-  if (spec === './actions.js') continue;
+for (const [, , spec] of mainSrc.matchAll(importRe)) {
+  if (realSpecs.has(spec) || mocked.has(spec)) continue;
+  mocked.add(spec);
   const namedExports = {};
   const all = new Set([
-    ...names.split(',').map((s) => s.trim().split(/\s+as\s+/)[0]),
+    ...[...mainSrc.matchAll(importRe)]
+      .filter((m) => m[2] === spec)
+      .flatMap((m) => m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0])),
     ...(importedNames.get(spec) ?? []),
   ]);
   for (const n of all) {
