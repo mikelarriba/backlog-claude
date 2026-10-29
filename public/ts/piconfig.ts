@@ -8,6 +8,7 @@ import {
   openModal,
   closeModal,
   splitThresholdState,
+  jiraVersionsState,
 } from './state.js';
 import { refreshRoadmapView } from './roadmap.js';
 import { showJiraSelectModal, performJiraPull } from './jira-import.js';
@@ -173,7 +174,7 @@ export function renderPiConfigTabs(): void {
   const tabs = document.getElementById('pi-config-tabs') as HTMLElement;
 
   // Build version options from jiraVersions (same data used in swimlane selects)
-  const versions = jiraVersions as unknown as JiraVersion[];
+  const versions = jiraVersionsState.list as JiraVersion[];
   const versionOptions = (versions || [])
     .map(
       (v) =>

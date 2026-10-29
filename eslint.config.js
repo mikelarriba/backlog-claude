@@ -14,7 +14,6 @@ const FRONTEND_GLOBALS = {
   sprintConfig: 'writable',
   currentFilename: 'writable',
   currentDocType: 'writable',
-  jiraVersions: 'writable',
   selectedItems: 'writable',
   // Internal UI state variables
   _activePanelState: 'writable',

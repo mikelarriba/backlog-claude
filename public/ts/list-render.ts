@@ -1,6 +1,7 @@
 // ── List rendering: rank helpers, swimlane rendering, readiness, dep connectors ─
 import {
   collapsedItems,
+  jiraVersionsState,
   escHtml,
   buildChildrenMap,
   isSwimlaneCollapsed,
@@ -226,7 +227,7 @@ export function renderSwimlaneSectionHtml(
   // Version selector for Current/Next PI
   let versionSelector = '';
   if (sectionKey !== 'backlog') {
-    const versions = jiraVersions as unknown as JiraVersion[];
+    const versions = jiraVersionsState.list as JiraVersion[];
     const options = versions
       .map(
         (v) =>
