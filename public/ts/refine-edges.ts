@@ -6,6 +6,7 @@ import {
   postJSON,
   fetchJSON,
   canvasLinkMode,
+  canvasContext,
 } from './state.js';
 import { loadDocs } from './list.js';
 import { rebuildCanvasEdges, renderCanvas, _endCanvasLinkMode } from './refine-canvas.js';
@@ -134,7 +135,7 @@ export async function _deleteCanvasLink(
     });
     await loadDocs();
     rebuildCanvasEdges();
-    renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
+    renderCanvas(canvasContext.epicFilename || '', canvasContext.docType || '');
     _restoreManageLinksState();
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
@@ -162,7 +163,7 @@ export async function _changeCanvasLinkType(
     await postJSON('/api/link', buildLinkPayload(newType, srcFn, srcDt, tgtFn, tgtDt));
     await loadDocs();
     rebuildCanvasEdges();
-    renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
+    renderCanvas(canvasContext.epicFilename || '', canvasContext.docType || '');
     _restoreManageLinksState();
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));
@@ -244,7 +245,7 @@ export async function _createCanvasLink(
 
     await loadDocs();
     rebuildCanvasEdges();
-    renderCanvas(_canvasEpicFilename || '', _canvasDocType || '');
+    renderCanvas(canvasContext.epicFilename || '', canvasContext.docType || '');
     _restoreManageLinksState();
   } catch (e) {
     showJiraToast('error', getErrorMessage(e));

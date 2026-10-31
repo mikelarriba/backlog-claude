@@ -17,8 +17,6 @@ const FRONTEND_GLOBALS = {
   selectedItems: 'writable',
   // Internal UI state variables
   _activePanelState: 'writable',
-  _canvasDocType: 'writable',
-  _canvasEpicFilename: 'writable',
   // Third-party libraries loaded via <script> tags
   marked: 'readonly',
   DOMPurify: 'readonly',

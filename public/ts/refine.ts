@@ -20,6 +20,7 @@ import {
   getErrorMessage,
   renderMarkdown,
   canvasLinkMode,
+  canvasContext,
   canvasSelectedCards,
 } from './state.js';
 import type { DocEntry, PanelState } from './state.js';
@@ -185,7 +186,7 @@ registerBlurActions({
 });
 
 // ── Canvas state ─ all declared as window globals in state.js ─
-// _canvasEpicFilename, _canvasDocType,
+// canvasContext.epicFilename, canvasContext.docType,
 // _activePanelState
 
 // Per-epic panel state for the multi-panel feature canvas. Module-local; other modules use the accessor below.
@@ -262,8 +263,8 @@ export function onCanvasSearch(query: string): void {
 export async function openManualRefine(filename: string, docType?: string): Promise<void> {
   if (!filename) return;
   docType = docType || 'epic';
-  _canvasEpicFilename = filename;
-  _canvasDocType = docType;
+  canvasContext.epicFilename = filename;
+  canvasContext.docType = docType;
   // Refine view needs the full right panel — suspend split mode while open
   document.querySelector('.right')?.classList.remove('split-mode');
 
@@ -327,8 +328,8 @@ export function resetRefineViewState(): void {
   document.removeEventListener('keydown', _onCanvasKeydown);
   updateSplitMode();
 
-  _canvasEpicFilename = null;
-  _canvasDocType = null;
+  canvasContext.epicFilename = null;
+  canvasContext.docType = null;
   _activePanelState.layout = {};
   _activePanelState.stories = [];
   _activePanelState.parallel = [];
@@ -698,7 +699,7 @@ export async function _removeCanvasLink(
     });
     await loadDocs();
     rebuildCanvasEdges();
-    renderCanvas(_canvasEpicFilename ?? '', _canvasDocType ?? '');
+    renderCanvas(canvasContext.epicFilename ?? '', canvasContext.docType ?? '');
     // Reopen panel to refresh deps
     openRefinePanel(srcFilename, srcDocType);
   } catch (e) {
@@ -855,7 +856,7 @@ export async function confirmRpDelete(filename: string, docType: string): Promis
   try {
     await deleteJSON(`/api/doc/${docType}/${encodeURIComponent(filename)}`);
     closeRefinePanel();
-    await buildCanvasGraph(_canvasEpicFilename ?? '', _canvasDocType ?? '');
+    await buildCanvasGraph(canvasContext.epicFilename ?? '', canvasContext.docType ?? '');
   } catch (e) {
     alert(`Failed to delete: ${getErrorMessage(e)}`);
   }
@@ -863,7 +864,7 @@ export async function confirmRpDelete(filename: string, docType: string): Promis
 
 // ── Create new child node ──────────────────────────────────────
 export function openCreatePanel(type: string): void {
-  if (!_canvasEpicFilename) return;
+  if (!canvasContext.epicFilename) return;
   const panel = document.getElementById('refine-panel');
   if (!panel) return;
   panel.classList.add('open');
@@ -928,12 +929,14 @@ export async function executeRpCreate(type: string): Promise<void> {
   stream.style.display = 'block';
 
   try {
-    const parentDoc = allDocs.find((d) => d.filename === _canvasEpicFilename);
+    const parentDoc = allDocs.find((d) => d.filename === canvasContext.epicFilename);
     const genBody: RpCreateGenBody = { title, idea, type, priority: 'Medium' };
     if (parentDoc?.fixVersion) genBody.fixVersion = parentDoc.fixVersion;
     if (parentDoc?.pi && parentDoc.pi !== 'TBD') genBody.pi = parentDoc.pi;
-    if (_canvasDocType === 'epic') genBody.parentEpic = _canvasEpicFilename ?? undefined;
-    if (_canvasDocType === 'feature') genBody.parentFeature = _canvasEpicFilename ?? undefined;
+    if (canvasContext.docType === 'epic')
+      genBody.parentEpic = canvasContext.epicFilename ?? undefined;
+    if (canvasContext.docType === 'feature')
+      genBody.parentFeature = canvasContext.epicFilename ?? undefined;
     const { filename: newFilename } = (await postJSON('/api/generate', genBody)) as {
       filename: string;
     };
@@ -943,14 +946,14 @@ export async function executeRpCreate(type: string): Promise<void> {
     await postJSON('/api/link', {
       sourceType: type,
       sourceFilename: newFilename,
-      targetType: _canvasDocType,
-      targetFilename: _canvasEpicFilename,
+      targetType: canvasContext.docType,
+      targetFilename: canvasContext.epicFilename,
     });
 
     stream.textContent += '\n✓ Linked successfully.';
 
     await loadDocs();
-    await buildCanvasGraph(_canvasEpicFilename ?? '', _canvasDocType ?? '');
+    await buildCanvasGraph(canvasContext.epicFilename ?? '', canvasContext.docType ?? '');
 
     setTimeout(() => {
       const card = document.querySelector(

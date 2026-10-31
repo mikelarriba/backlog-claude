@@ -9,6 +9,7 @@ import {
   getErrorMessage,
   type DocEntry,
   canvasSelectedCards,
+  canvasContext,
 } from './state.js';
 import { loadDocs } from './list.js';
 import { upsertDoc, removeDoc } from './store.js';
@@ -123,7 +124,7 @@ export function _showCardContextMenu(
     ?.addEventListener('click', () => _moveCardToEdge(filename, 'bottom', epicFilename, docType));
   popup.querySelector('#_ctx-split')?.addEventListener('click', () => {
     _closeLinkPopup();
-    _openCanvasSplit(filename, docType, epicFilename, _canvasDocType ?? '');
+    _openCanvasSplit(filename, docType, epicFilename, canvasContext.docType ?? '');
   });
 
   setTimeout(() => document.addEventListener('click', _closeLinkPopup, { once: true }), 0);

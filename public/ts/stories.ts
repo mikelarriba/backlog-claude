@@ -1,5 +1,5 @@
 // ── Stories: stream reset ──────────────────────────────────────
-import { streamSSE } from './state.js';
+import { streamSSE, canvasContext } from './state.js';
 import { loadDocs } from './list.js';
 import { loadHierarchy } from './detail-links.js';
 import { buildCanvasGraph } from './refine-canvas.js';
@@ -87,8 +87,8 @@ export async function generateStories(): Promise<void> {
       await loadDocs();
       loadHierarchy(currentFilename, currentDocType ?? '');
 
-      if (typeof _canvasEpicFilename !== 'undefined' && _canvasEpicFilename === currentFilename) {
-        await buildCanvasGraph(_canvasEpicFilename, _canvasDocType ?? '');
+      if (canvasContext.epicFilename === currentFilename) {
+        await buildCanvasGraph(canvasContext.epicFilename, canvasContext.docType ?? '');
       }
     } else {
       wrap.classList.add('hidden');
