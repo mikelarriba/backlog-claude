@@ -7,6 +7,7 @@ import {
   fetchJSON,
   deleteJSON,
   canvasLinkMode,
+  canvasContext,
   canvasSelectedCards,
 } from './state.js';
 import type { DocEntry, PanelState } from './state.js';
@@ -777,7 +778,7 @@ export async function saveCanvasLayout(
   ps: PanelState = _activePanelState,
   parentFilename?: string | null
 ): Promise<void> {
-  const fn = parentFilename || _canvasEpicFilename;
+  const fn = parentFilename || canvasContext.epicFilename;
   if (!fn) return;
   try {
     await putJSON(`/api/canvas/layout/${encodeURIComponent(fn)}`, { positions: ps.layout });
@@ -810,5 +811,5 @@ export async function resetCanvasLayout(epicFilename: string): Promise<void> {
     _activePanelState.blocks as unknown as BlockEdge[],
     _activePanelState.parallel as unknown as ParallelPair[]
   );
-  renderCanvas(epicFilename, _canvasDocType || '');
+  renderCanvas(epicFilename, canvasContext.docType || '');
 }

@@ -3,6 +3,7 @@
 // canvas-geometry.ts, popups in refine-edges.ts.
 import type { BlockEdge, ParallelPair, CanvasPos } from './canvasLayout.js';
 import { computeSecEdges } from './canvasLayout.js';
+import { canvasContext } from './state.js';
 import {
   computeSecEdgePath,
   computeBlocksEdgePath,
@@ -103,9 +104,9 @@ export function drawCanvasEdges(
     if (!s || !t) continue;
 
     const srcDt =
-      _activePanelState.stories.find((c) => c.filename === src)?.docType || _canvasDocType;
+      _activePanelState.stories.find((c) => c.filename === src)?.docType || canvasContext.docType;
     const tgtDt =
-      _activePanelState.stories.find((c) => c.filename === tgt)?.docType || _canvasDocType;
+      _activePanelState.stories.find((c) => c.filename === tgt)?.docType || canvasContext.docType;
 
     const { d, labelX, labelY } = computeBlocksEdgePath(s, t);
 
@@ -146,8 +147,10 @@ export function drawCanvasEdges(
     const pb = cardPositions[b];
     if (!pa || !pb) continue;
 
-    const aDt = _activePanelState.stories.find((c) => c.filename === a)?.docType || _canvasDocType;
-    const bDt = _activePanelState.stories.find((c) => c.filename === b)?.docType || _canvasDocType;
+    const aDt =
+      _activePanelState.stories.find((c) => c.filename === a)?.docType || canvasContext.docType;
+    const bDt =
+      _activePanelState.stories.find((c) => c.filename === b)?.docType || canvasContext.docType;
 
     const { d, labelX, labelY } = computeParallelBracketPath(pa, pb);
 

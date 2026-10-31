@@ -148,13 +148,16 @@ export const jiraVersionsState = { list: [] as unknown[] };
 export const canvasLinkMode = { manage: false };
 // Cards selected on the refine canvas (module-owned; was a window global).
 export const canvasSelectedCards = new Set<string>();
+// Epic/feature currently open on the refine canvas (module-owned; was window globals).
+export const canvasContext: { epicFilename: string | null; docType: string | null } = {
+  epicFilename: null,
+  docType: null,
+};
 let _toastTimer: ReturnType<typeof setTimeout> | null = null;
 globalThis.selectedItems = new Set<string>();
 globalThis.sprintConfig = {} as SprintConfig;
 // List-level state (moved here from list.js so all state is centralised)
 // Refine cluster state (shared across refine.js and refine-*.js)
-globalThis._canvasEpicFilename = null;
-globalThis._canvasDocType = null;
 globalThis._activePanelState = {
   stories: [],
   layout: {},

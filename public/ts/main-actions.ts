@@ -1,6 +1,7 @@
 // ── Core app-shell click actions (registered at module load) ─────
 import { closeIssueSplitModal, executeSplitIssue } from './list.js';
 import { registerActions } from './actions.js';
+import { canvasContext } from './state.js';
 import {
   collapseAll,
   expandAll,
@@ -288,10 +289,10 @@ registerActions({
     closeRefineView();
   },
   [MAIN_ACTIONS.resetCanvasLayoutCanvas]: () => {
-    resetCanvasLayout(_canvasEpicFilename ?? '');
+    resetCanvasLayout(canvasContext.epicFilename ?? '');
   },
   [MAIN_ACTIONS.exportEpicToPdfCanvas]: () => {
-    exportEpicToPdf(_canvasEpicFilename ?? '', _canvasDocType ?? '');
+    exportEpicToPdf(canvasContext.epicFilename ?? '', canvasContext.docType ?? '');
   },
   // ── Settings view ────────────────────────────────────────
   [MAIN_ACTIONS.closeSettingsView]: () => {
